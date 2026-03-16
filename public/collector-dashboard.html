@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collector Dashboard — Circul</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --deep:       #1a2e1a;
+      --forest:     #2d6a4f;
+      --mint:       #a7f3d0;
+      --light-mint: #f0fdf4;
+      --white:      #ffffff;
+      --bg:         #f3f6f3;
+      --text:       #1a2e1a;
+      --muted:      #6b7280;
+      --border:     #e5e7eb;
+      --radius:     16px;
+      --radius-sm:  10px;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── HEADER ──────────────────────────────────── */
+    .header {
+      background: var(--deep);
+    }
+
+    .header-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 20px 24px 32px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 30px;
+    }
+
+    .brand {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--white);
+      text-decoration: none;
+      letter-spacing: -0.3px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-role-pill {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--mint);
+      padding: 3px 10px;
+      border: 1px solid rgba(167,243,208,0.3);
+      border-radius: 20px;
+    }
+
+    .btn-signout {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.55);
+      font-family: inherit;
+      font-size: 0.78rem;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-signout:hover { border-color: rgba(255,255,255,0.45); color: var(--white); }
+
+    .identity-name {
+      font-size: clamp(1.7rem, 5vw, 2.4rem);
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+
+    .identity-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .identity-meta-item {
+      font-size: 0.86rem;
+      color: rgba(255,255,255,0.55);
+    }
+
+    .identity-meta-sep {
+      color: rgba(255,255,255,0.2);
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .identity-rating {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--mint);
+    }
+
+    /* ── MAIN ────────────────────────────────────── */
+    .main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 28px 24px 64px;
+    }
+
+    /* ── STAT GRID (2×2 mobile → 4-col desktop) ─── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 20px 18px 18px;
+      border: 1px solid var(--border);
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: var(--deep);
+      line-height: 1;
+      letter-spacing: -0.8px;
+      margin-bottom: 5px;
+    }
+
+    .stat-unit {
+      font-size: 0.73rem;
+      color: var(--muted);
+    }
+
+    /* ── CARD PANEL ──────────────────────────────── */
+    .card-panel {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .card-panel-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--light-mint);
+    }
+
+    .card-panel-title {
+      font-size: 0.93rem;
+      font-weight: 700;
+      color: var(--deep);
+      margin-bottom: 2px;
+    }
+
+    .card-panel-sub {
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+
+    /* ── PRICES GRID ─────────────────────────────── */
+    .prices-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .price-cell {
+      padding: 20px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* 2-col layout */
+    .price-cell:nth-child(2n)        { border-right: none; }
+    .price-cell:nth-last-child(-n+2) { border-bottom: none; }
+
+    .price-mat {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .price-val {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--forest);
+      letter-spacing: -0.5px;
+      margin-bottom: 3px;
+    }
+
+    .price-per {
+      font-size: 0.71rem;
+      color: var(--muted);
+    }
+
+    /* ── TRANSACTIONS TABLE ───────────────────────── */
+    .txn-wrap { overflow-x: auto; }
+
+    .txn-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .txn-table th {
+      padding: 10px 18px;
+      text-align: left;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .txn-table td {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .txn-table tr:last-child td { border-bottom: none; }
+    .txn-table tbody tr:hover td { background: #fafdf9; }
+
+    .mat-tag {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 20px;
+      font-size: 0.71rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .mat-tag.pet  { background: #dcfce7; color: #14532d; }
+    .mat-tag.hdpe { background: #dbeafe; color: #1e3a8a; }
+    .mat-tag.pp   { background: #fef9c3; color: #713f12; }
+    .mat-tag.ldpe { background: #ede9fe; color: #4c1d95; }
+
+    .status-tag {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 20px;
+      font-size: 0.71rem;
+      font-weight: 600;
+    }
+    .status-tag.paid    { background: #dcfce7; color: #14532d; }
+    .status-tag.pending { background: #fef9c3; color: #713f12; }
+
+    /* ── PASSPORT CTA ────────────────────────────── */
+    .passport-cta {
+      text-align: center;
+      padding: 32px 0 0;
+    }
+
+    .btn-passport {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 32px;
+      background: var(--forest);
+      color: var(--white);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-size: 0.97rem;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-passport:hover {
+      background: #245740;
+      transform: translateY(-1px);
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────── */
+    @media (min-width: 600px) {
+      .stat-grid { grid-template-columns: repeat(4, 1fr); }
+
+      .prices-grid { grid-template-columns: repeat(4, 1fr); }
+
+      /* override 2-col rules */
+      .price-cell                      { border-bottom: none; border-right: 1px solid var(--border); }
+      .price-cell:nth-child(2n)        { border-right: 1px solid var(--border); }
+      .price-cell:nth-last-child(-n+2) { border-bottom: none; }
+      .price-cell:last-child           { border-right: none; }
+    }
+
+    @media (max-width: 480px) {
+      .header-inner { padding: 18px 16px 28px; }
+      .main         { padding: 20px 16px 52px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER ─ dark green, collector identity -->
+  <header class="header">
+    <div class="header-inner">
+
+      <div class="header-top">
+        <a href="/" class="brand">♻ Circul</a>
+        <div class="header-right">
+          <span class="header-role-pill">Collector</span>
+          <button class="btn-signout" onclick="signOut()">Sign out</button>
+        </div>
+      </div>
+
+      <div class="identity-name" id="collectorName">Kwame Mensah</div>
+      <div class="identity-meta">
+        <span class="identity-meta-item" id="collectorPhone">+233 20 123 4567</span>
+        <span class="identity-meta-sep" aria-hidden="true">·</span>
+        <span class="identity-meta-item" id="collectorId">COL-00142</span>
+        <span class="identity-meta-sep" aria-hidden="true">·</span>
+        <span class="identity-rating">⭐ <span id="collectorRating">4.8</span></span>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- 2×2 STAT GRID -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total kg collected</div>
+        <div class="stat-value">1,247</div>
+        <div class="stat-unit">kilograms lifetime</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total earned</div>
+        <div class="stat-value">GH₵&thinsp;3,891</div>
+        <div class="stat-unit">lifetime earnings</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Collections</div>
+        <div class="stat-value">83</div>
+        <div class="stat-unit">total transactions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Months active</div>
+        <div class="stat-value">14</div>
+        <div class="stat-unit">on Circul</div>
+      </div>
+    </div>
+
+    <!-- NEARBY BUY PRICES -->
+    <div class="card-panel">
+      <div class="card-panel-head">
+        <div class="card-panel-title">Buy prices near you</div>
+        <div class="card-panel-sub">Accra · Updated today · Aggregator posted prices</div>
+      </div>
+      <div class="prices-grid">
+        <div class="price-cell">
+          <div class="price-mat">PET</div>
+          <div class="price-val">GH₵ 3.20</div>
+          <div class="price-per">per kg</div>
+        </div>
+        <div class="price-cell">
+          <div class="price-mat">HDPE</div>
+          <div class="price-val">GH₵ 2.80</div>
+          <div class="price-per">per kg</div>
+        </div>
+        <div class="price-cell">
+          <div class="price-mat">PP</div>
+          <div class="price-val">GH₵ 2.50</div>
+          <div class="price-per">per kg</div>
+        </div>
+        <div class="price-cell">
+          <div class="price-mat">LDPE</div>
+          <div class="price-val">GH₵ 1.90</div>
+          <div class="price-per">per kg</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT TRANSACTIONS -->
+    <div class="card-panel">
+      <div class="card-panel-head">
+        <div class="card-panel-title">Recent transactions</div>
+        <div class="card-panel-sub">Your last 5 collection drop-offs</div>
+      </div>
+      <div class="txn-wrap">
+        <table class="txn-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Material</th>
+              <th>Weight</th>
+              <th>Earned</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>12 Mar 2026</td>
+              <td><span class="mat-tag pet">PET</span></td>
+              <td>18.4 kg</td>
+              <td>GH₵ 58.88</td>
+              <td><span class="status-tag paid">Paid</span></td>
+            </tr>
+            <tr>
+              <td>08 Mar 2026</td>
+              <td><span class="mat-tag hdpe">HDPE</span></td>
+              <td>12.0 kg</td>
+              <td>GH₵ 33.60</td>
+              <td><span class="status-tag paid">Paid</span></td>
+            </tr>
+            <tr>
+              <td>04 Mar 2026</td>
+              <td><span class="mat-tag pp">PP</span></td>
+              <td>9.5 kg</td>
+              <td>GH₵ 23.75</td>
+              <td><span class="status-tag pending">Pending</span></td>
+            </tr>
+            <tr>
+              <td>28 Feb 2026</td>
+              <td><span class="mat-tag pet">PET</span></td>
+              <td>22.1 kg</td>
+              <td>GH₵ 70.72</td>
+              <td><span class="status-tag paid">Paid</span></td>
+            </tr>
+            <tr>
+              <td>21 Feb 2026</td>
+              <td><span class="mat-tag ldpe">LDPE</span></td>
+              <td>6.8 kg</td>
+              <td>GH₵ 12.92</td>
+              <td><span class="status-tag paid">Paid</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COLLECTOR PASSPORT CTA -->
+    <div class="passport-cta">
+      <a href="/collector-passport" class="btn-passport">View My Collector Passport →</a>
+    </div>
+
+  </main>
+
+  <script>
+    // Auth gate — if no session, send to login
+    (function () {
+      var session = null;
+      try { session = JSON.parse(localStorage.getItem('circul_operator')); } catch (e) {}
+
+      if (!session) {
+        window.location.replace('/login.html');
+        return;
+      }
+
+      // Route non-collectors away
+      if (session.role && session.role !== 'collector') {
+        var routes = {
+          aggregator: '/aggregator-dashboard',
+          admin:      '/admin',
+          processor:  '/processor-dashboard',
+          converter:  '/processor-dashboard'
+        };
+        var dest = routes[session.role];
+        if (dest) { window.location.replace(dest); return; }
+      }
+
+      // Hydrate identity from session (overrides static placeholder text)
+      if (session.name)
+        document.getElementById('collectorName').textContent = session.name;
+      if (session.phone)
+        document.getElementById('collectorPhone').textContent = session.phone;
+      if (session.id)
+        document.getElementById('collectorId').textContent = 'COL-' + String(session.id).padStart(5, '0');
+      if (session.average_rating)
+        document.getElementById('collectorRating').textContent = parseFloat(session.average_rating).toFixed(1);
+    })();
+
+    function signOut() {
+      localStorage.removeItem('circul_operator');
+      window.location.href = '/login.html';
+    }
+  </script>
+
+</body>
+</html>

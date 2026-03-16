@@ -1,0 +1,3365 @@
+CIRCUL — CHUNK 1 OF 2
+Generated: 2026-03-15T01:16:30.328133Z
+
+
+===== FILE: server.js =====
+
+const express = require('express');
+const { Pool } = require('pg');
+const path = require('path');
+const fs = require('fs');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Fail fast if DATABASE_URL is missing
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is required');
+  process.exit(1);
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false }
+});
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Trust proxy for Render
+app.set('trust proxy', 1);
+
+// Health check endpoint (required for Render)
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
+// Serve static files from public folder
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ============================================
+// API ROUTES
+// ============================================
+
+// --- COLLECTORS ---
+
+// Register a new collector
+app.post('/api/collectors', async (req, res) => {
+  try {
+    const { first_name, last_name, phone, pin, region } = req.body;
+    if (!first_name || !pin) {
+      return res.status(400).json({ success: false, message: 'First name and PIN are required' });
+    }
+    if (pin.length < 4 || pin.length > 6) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    }
+    const result = await pool.query(
+      `INSERT INTO collectors (first_name, last_name, phone, pin, region) VALUES ($1, $2, $3, $4, $5) RETURNING id, first_name, last_name, phone, region, average_rating, created_at`,
+      [first_name, last_name || '', phone || null, pin, region || null]
+    );
+    res.status(201).json({ success: true, collector: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ success: false, message: 'Phone number already registered' });
+    }
+    console.error('Error creating collector:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Collector login (simple PIN auth)
+app.post('/api/collectors/login', async (req, res) => {
+  try {
+    const { phone, pin } = req.body;
+    if (!phone || !pin) {
+      return res.status(400).json({ success: false, message: 'Phone and PIN required' });
+    }
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, phone, region, average_rating, created_at FROM collectors WHERE phone = $1 AND pin = $2 AND is_active = true`,
+      [phone, pin]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, message: 'Invalid phone or PIN' });
+    }
+    res.json({ success: true, collector: result.rows[0] });
+  } catch (err) {
+    console.error('Error logging in collector:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// List collectors (for operator)
+app.get('/api/collectors', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.average_rating, c.created_at,
+        COALESCE(SUM(t.net_weight_kg), 0) as total_weight_kg,
+        COUNT(t.id) as transaction_count
+       FROM collectors c
+       LEFT JOIN transactions t ON t.collector_id = c.id
+       WHERE c.is_active = true
+       GROUP BY c.id
+       ORDER BY c.average_rating DESC NULLS LAST, c.created_at DESC`
+    );
+    res.json({ success: true, collectors: result.rows });
+  } catch (err) {
+    console.error('Error listing collectors:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- TRANSACTIONS ---
+
+// Create a new transaction (replaces collection logging)
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const {
+      collector_id,
+      buyer_id,
+      material_type,
+      gross_weight_kg,
+      contamination_deduction_percent = 0,
+      contamination_types = [],
+      quality_notes,
+      price_per_kg,
+      lat,
+      lng,
+      notes
+    } = req.body;
+
+    if (!collector_id || !material_type || !gross_weight_kg) {
+      return res.status(400).json({ success: false, message: 'collector_id, material_type, and gross_weight_kg are required' });
+    }
+
+    const validMaterials = ['PET', 'HDPE', 'LDPE', 'PP'];
+    if (!validMaterials.includes(material_type.toUpperCase())) {
+      return res.status(400).json({ success: false, message: `Invalid material type. Must be one of: ${validMaterials.join(', ')}` });
+    }
+
+    if (parseFloat(gross_weight_kg) <= 0) {
+      return res.status(400).json({ success: false, message: 'Weight must be greater than 0' });
+    }
+
+    // Calculate net weight after contamination deduction
+    const deduction = parseFloat(contamination_deduction_percent) || 0;
+    const net_weight_kg = parseFloat(gross_weight_kg) * (1 - deduction / 100);
+
+    // Calculate total price if price_per_kg provided
+    const total_price = price_per_kg ? (net_weight_kg * parseFloat(price_per_kg)).toFixed(2) : null;
+
+    const result = await pool.query(
+      `INSERT INTO transactions (
+        collector_id, buyer_id, material_type,
+        gross_weight_kg, net_weight_kg, contamination_deduction_percent, contamination_types,
+        quality_notes, price_per_kg, total_price, lat, lng, notes
+      )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING *`,
+      [
+        collector_id,
+        buyer_id || null,
+        material_type.toUpperCase(),
+        gross_weight_kg,
+        net_weight_kg,
+        deduction,
+        JSON.stringify(contamination_types),
+        quality_notes || null,
+        price_per_kg || null,
+        total_price,
+        lat || null,
+        lng || null,
+        notes || null
+      ]
+    );
+
+    res.status(201).json({ success: true, transaction: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(400).json({ success: false, message: 'Collector not found' });
+    }
+    console.error('Error creating transaction:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get transactions with filters
+app.get('/api/transactions', async (req, res) => {
+  try {
+    const { collector_id, buyer_id, operator_id, material_type, start_date, end_date, limit = 100, offset = 0 } = req.query;
+
+    let query = `
+      SELECT t.*, t.payment_status, t.payment_method, t.payment_phone,
+        c.first_name as collector_first_name,
+        c.last_name as collector_last_name,
+        c.phone as collector_phone,
+        c.average_rating as collector_rating,
+        b.first_name as buyer_first_name,
+        b.last_name as buyer_last_name
+      FROM transactions t
+      JOIN collectors c ON c.id = t.collector_id
+      LEFT JOIN collectors b ON b.id = t.buyer_id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (collector_id) {
+      params.push(collector_id);
+      query += ` AND t.collector_id = $${params.length}`;
+    }
+    if (buyer_id) {
+      params.push(buyer_id);
+      query += ` AND t.buyer_id = $${params.length}`;
+    }
+    if (operator_id) {
+      params.push(operator_id);
+      query += ` AND t.operator_id = $${params.length}`;
+    }
+    if (material_type) {
+      params.push(material_type.toUpperCase());
+      query += ` AND t.material_type = $${params.length}`;
+    }
+    if (start_date) {
+      params.push(start_date);
+      query += ` AND t.transaction_date >= $${params.length}::timestamptz`;
+    }
+    if (end_date) {
+      params.push(end_date);
+      query += ` AND t.transaction_date <= $${params.length}::timestamptz`;
+    }
+
+    // Count total — use non-greedy dotAll regex so it matches across newlines in the multi-line SELECT clause
+    const countResult = await pool.query(
+      query.replace(/SELECT t\.\*.*?FROM/s, 'SELECT COUNT(*) as total FROM'),
+      params
+    );
+
+    // Add pagination
+    params.push(parseInt(limit));
+    query += ` ORDER BY t.transaction_date DESC LIMIT $${params.length}`;
+    params.push(parseInt(offset));
+    query += ` OFFSET $${params.length}`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      transactions: result.rows,
+      total: parseInt(countResult.rows?.[0]?.total || 0),
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (err) {
+    console.error('Error listing transactions:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Dashboard stats (supports operator_id filter for role-based views)
+app.get('/api/stats', async (req, res) => {
+  try {
+    const { start_date, end_date, operator_id } = req.query;
+
+    let dateFilter = '';
+    const params = [];
+    if (start_date) {
+      params.push(start_date);
+      dateFilter += ` AND t.transaction_date >= $${params.length}::timestamptz`;
+    }
+    if (end_date) {
+      params.push(end_date);
+      dateFilter += ` AND t.transaction_date <= $${params.length}::timestamptz`;
+    }
+    if (operator_id) {
+      params.push(operator_id);
+      dateFilter += ` AND t.operator_id = $${params.length}`;
+    }
+
+    // Total weight by material (using net weight after contamination deduction)
+    const materialStats = await pool.query(
+      `SELECT material_type,
+              SUM(net_weight_kg) as total_kg,
+              SUM(gross_weight_kg) as total_gross_kg,
+              AVG(contamination_deduction_percent) as avg_contamination_percent,
+              COUNT(*) as transaction_count
+       FROM transactions t
+       WHERE 1=1 ${dateFilter}
+       GROUP BY material_type
+       ORDER BY total_kg DESC`,
+      params
+    );
+
+    // Overall totals
+    const totals = await pool.query(
+      `SELECT
+        COALESCE(SUM(net_weight_kg), 0) as total_weight_kg,
+        COALESCE(SUM(gross_weight_kg), 0) as total_gross_weight_kg,
+        COALESCE(SUM(total_price), 0) as total_revenue,
+        COUNT(*) as total_transactions,
+        COUNT(DISTINCT collector_id) as active_collectors
+       FROM transactions t
+       WHERE 1=1 ${dateFilter}`,
+      params
+    );
+
+    // Today's transactions
+    const todayParams = [];
+    let todayFilter = '';
+    if (operator_id) {
+      todayParams.push(operator_id);
+      todayFilter = ` AND operator_id = $${todayParams.length}`;
+    }
+    const today = await pool.query(
+      `SELECT
+        COALESCE(SUM(net_weight_kg), 0) as today_weight_kg,
+        COALESCE(SUM(total_price), 0) as today_revenue,
+        COUNT(*) as today_transactions
+       FROM transactions
+       WHERE transaction_date >= CURRENT_DATE${todayFilter}`,
+      todayParams
+    );
+
+    // Top collectors (by net weight and rating)
+    const topCollectors = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.phone, c.average_rating,
+              SUM(t.net_weight_kg) as total_kg,
+              AVG(t.contamination_deduction_percent) as avg_contamination,
+              COUNT(t.id) as transactions
+       FROM collectors c
+       JOIN transactions t ON t.collector_id = c.id
+       WHERE 1=1 ${dateFilter}
+       GROUP BY c.id
+       ORDER BY total_kg DESC
+       LIMIT 10`,
+      params
+    );
+
+    // Daily trend (last 7 days)
+    const trendParams = [];
+    let trendFilter = '';
+    if (operator_id) {
+      trendParams.push(operator_id);
+      trendFilter = ` AND operator_id = $${trendParams.length}`;
+    }
+    const dailyTrend = await pool.query(
+      `SELECT DATE(transaction_date) as date,
+              SUM(net_weight_kg) as total_kg,
+              SUM(total_price) as revenue,
+              COUNT(*) as transactions
+       FROM transactions
+       WHERE transaction_date >= CURRENT_DATE - INTERVAL '7 days'${trendFilter}
+       GROUP BY DATE(transaction_date)
+       ORDER BY date ASC`,
+      trendParams
+    );
+
+    // Quality stats
+    const qualityParams = [];
+    let qualityFilter = '';
+    if (operator_id) {
+      qualityParams.push(operator_id);
+      qualityFilter = ` AND operator_id = $${qualityParams.length}`;
+    }
+    const qualityStats = await pool.query(
+      `SELECT
+        AVG(contamination_deduction_percent) as avg_contamination,
+        COUNT(*) FILTER (WHERE contamination_deduction_percent = 0) as clean_count,
+        COUNT(*) FILTER (WHERE contamination_deduction_percent > 0 AND contamination_deduction_percent <= 10) as low_contamination,
+        COUNT(*) FILTER (WHERE contamination_deduction_percent > 10) as high_contamination
+       FROM transactions
+       WHERE transaction_date >= CURRENT_DATE - INTERVAL '30 days'${qualityFilter}`,
+      qualityParams
+    );
+
+    res.json({
+      success: true,
+      stats: {
+        totals: totals.rows[0],
+        today: today.rows[0],
+        by_material: materialStats.rows,
+        top_collectors: topCollectors.rows,
+        daily_trend: dailyTrend.rows,
+        quality: qualityStats.rows[0]
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching stats:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Collector's own stats
+app.get('/api/collectors/:id/stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const collector = await pool.query(
+      `SELECT id, first_name, last_name, phone, region, average_rating, created_at FROM collectors WHERE id = $1`,
+      [id]
+    );
+    if (collector.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Collector not found' });
+    }
+
+    const stats = await pool.query(
+      `SELECT material_type,
+              SUM(net_weight_kg) as total_kg,
+              SUM(total_price) as total_earned,
+              AVG(contamination_deduction_percent) as avg_contamination,
+              COUNT(*) as count
+       FROM transactions WHERE collector_id = $1
+       GROUP BY material_type ORDER BY total_kg DESC`,
+      [id]
+    );
+
+    const total = await pool.query(
+      `SELECT
+        COALESCE(SUM(net_weight_kg), 0) as total_kg,
+        COALESCE(SUM(total_price), 0) as total_earned,
+        COUNT(*) as total_transactions
+       FROM transactions WHERE collector_id = $1`,
+      [id]
+    );
+
+    const recent = await pool.query(
+      `SELECT * FROM transactions WHERE collector_id = $1 ORDER BY transaction_date DESC LIMIT 10`,
+      [id]
+    );
+
+    const todayStats = await pool.query(
+      `SELECT
+        COALESCE(SUM(net_weight_kg), 0) as today_kg,
+        COALESCE(SUM(total_price), 0) as today_earned,
+        COUNT(*) as today_count
+       FROM transactions WHERE collector_id = $1 AND transaction_date >= CURRENT_DATE`,
+      [id]
+    );
+
+    const ratings = await pool.query(
+      `SELECT r.*, t.material_type, t.net_weight_kg
+       FROM ratings r
+       LEFT JOIN transactions t ON t.id = r.transaction_id
+       WHERE r.collector_id = $1
+       ORDER BY r.created_at DESC LIMIT 10`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      collector: collector.rows[0],
+      stats: {
+        ...total.rows[0],
+        today: todayStats.rows[0],
+        by_material: stats.rows,
+        recent_transactions: recent.rows,
+        recent_ratings: ratings.rows
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching collector stats:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- RATINGS ---
+
+// Submit a rating for a collector
+app.post('/api/ratings', async (req, res) => {
+  try {
+    const { transaction_id, collector_id, buyer_id, rating, notes } = req.body;
+
+    if (!collector_id || !rating) {
+      return res.status(400).json({ success: false, message: 'collector_id and rating are required' });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
+
+    // Check if transaction exists (if provided)
+    if (transaction_id) {
+      const txCheck = await pool.query(
+        `SELECT id FROM transactions WHERE id = $1 AND collector_id = $2`,
+        [transaction_id, collector_id]
+      );
+      if (txCheck.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Transaction not found or does not belong to this collector' });
+      }
+
+      // Check if rating already exists for this transaction
+      const existingRating = await pool.query(
+        `SELECT id FROM ratings WHERE transaction_id = $1`,
+        [transaction_id]
+      );
+      if (existingRating.rows.length > 0) {
+        return res.status(409).json({ success: false, message: 'Rating already exists for this transaction' });
+      }
+    }
+
+    const result = await pool.query(
+      `INSERT INTO ratings (transaction_id, collector_id, buyer_id, rating, notes)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [transaction_id || null, collector_id, buyer_id || null, rating, notes || null]
+    );
+
+    res.status(201).json({ success: true, rating: result.rows[0] });
+  } catch (err) {
+    console.error('Error creating rating:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get all ratings for a collector
+app.get('/api/collectors/:id/ratings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+
+    // Check if collector exists
+    const collector = await pool.query(
+      `SELECT id, first_name, last_name, average_rating FROM collectors WHERE id = $1`,
+      [id]
+    );
+    if (collector.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Collector not found' });
+    }
+
+    // Get ratings with transaction details
+    const ratings = await pool.query(
+      `SELECT r.*,
+              t.material_type, t.net_weight_kg, t.transaction_date,
+              b.first_name as buyer_first_name, b.last_name as buyer_last_name
+       FROM ratings r
+       LEFT JOIN transactions t ON t.id = r.transaction_id
+       LEFT JOIN collectors b ON b.id = r.buyer_id
+       WHERE r.collector_id = $1
+       ORDER BY r.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [id, parseInt(limit), parseInt(offset)]
+    );
+
+    // Get rating distribution
+    const distribution = await pool.query(
+      `SELECT rating, COUNT(*) as count
+       FROM ratings
+       WHERE collector_id = $1
+       GROUP BY rating
+       ORDER BY rating DESC`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      collector: collector.rows[0],
+      ratings: ratings.rows,
+      distribution: distribution.rows
+    });
+  } catch (err) {
+    console.error('Error fetching ratings:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- MOBILE MONEY PAYMENTS ---
+
+// Initiate payment to collector after transaction
+app.post('/api/payments/initiate', async (req, res) => {
+  try {
+    const { transaction_id, operator_id, phone, provider } = req.body;
+
+    if (!transaction_id || !phone || !provider) {
+      return res.status(400).json({ success: false, message: 'transaction_id, phone, and provider are required' });
+    }
+
+    const validProviders = ['mtn_momo', 'vodafone_cash', 'airteltigo'];
+    if (!validProviders.includes(provider)) {
+      return res.status(400).json({ success: false, message: `Provider must be one of: ${validProviders.join(', ')}` });
+    }
+
+    // Get transaction details
+    const txResult = await pool.query(
+      `SELECT t.*, c.first_name, c.last_name, c.phone as collector_phone
+       FROM transactions t
+       JOIN collectors c ON c.id = t.collector_id
+       WHERE t.id = $1`,
+      [transaction_id]
+    );
+
+    if (txResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const tx = txResult.rows[0];
+
+    if (tx.payment_status === 'paid') {
+      return res.status(409).json({ success: false, message: 'Transaction already paid' });
+    }
+
+    if (tx.payment_status === 'pending') {
+      return res.status(409).json({ success: false, message: 'Payment already initiated and pending' });
+    }
+
+    const amount = parseFloat(tx.total_price) || 0;
+    if (amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Transaction has no price set. Set price_per_kg first.' });
+    }
+
+    // Normalize phone for Ghana
+    const paymentPhone = normalizeGhanaPhone(phone);
+    const reference = 'CIR-' + Date.now() + '-' + transaction_id;
+
+    // Create payment record
+    const paymentResult = await pool.query(
+      `INSERT INTO payments (transaction_id, collector_id, operator_id, amount, phone, provider, reference, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+       RETURNING *`,
+      [transaction_id, tx.collector_id, operator_id || null, amount, paymentPhone, provider, reference]
+    );
+
+    // Update transaction payment status
+    await pool.query(
+      `UPDATE transactions SET payment_status = 'pending', payment_method = $1, payment_phone = $2, payment_reference = $3, payment_initiated_at = NOW()
+       WHERE id = $4`,
+      [provider, paymentPhone, reference, transaction_id]
+    );
+
+    // TODO: In production, call the actual Mobile Money API here:
+    // - MTN MoMo: POST to https://sandbox.momodeveloper.mtn.com/disbursement/v1_0/transfer
+    // - Vodafone Cash: Via Hubtel or direct API
+    // - Paystack: POST to https://api.paystack.co/transfer
+    //
+    // For now, we simulate a successful payment after a short delay.
+    // The webhook/callback would update the payment status.
+
+    // Simulate: mark as processing (in production, the webhook handles this)
+    await pool.query(
+      `UPDATE payments SET status = 'processing' WHERE id = $1`,
+      [paymentResult.rows[0].id]
+    );
+
+    res.status(201).json({
+      success: true,
+      payment: paymentResult.rows[0],
+      message: `Payment of GHS ${amount.toFixed(2)} initiated to ${paymentPhone} via ${provider}`,
+      note: 'Payment is being processed. Check status with GET /api/payments/:id'
+    });
+  } catch (err) {
+    console.error('Error initiating payment:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Confirm/complete a payment (webhook callback or manual confirmation)
+app.post('/api/payments/:id/confirm', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { provider_reference } = req.body;
+
+    const payment = await pool.query(`SELECT * FROM payments WHERE id = $1`, [id]);
+    if (payment.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+
+    const p = payment.rows[0];
+    if (p.status === 'success') {
+      return res.status(409).json({ success: false, message: 'Payment already confirmed' });
+    }
+
+    // Mark payment as successful
+    await pool.query(
+      `UPDATE payments SET status = 'success', provider_reference = $1, updated_at = NOW() WHERE id = $2`,
+      [provider_reference || null, id]
+    );
+
+    // Update transaction
+    await pool.query(
+      `UPDATE transactions SET payment_status = 'paid', payment_completed_at = NOW() WHERE id = $1`,
+      [p.transaction_id]
+    );
+
+    res.json({ success: true, message: 'Payment confirmed' });
+  } catch (err) {
+    console.error('Error confirming payment:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get payment status
+app.get('/api/payments/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.*, c.first_name, c.last_name, t.material_type, t.net_weight_kg
+       FROM payments p
+       JOIN collectors c ON c.id = p.collector_id
+       JOIN transactions t ON t.id = p.transaction_id
+       WHERE p.id = $1`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+    res.json({ success: true, payment: result.rows[0] });
+  } catch (err) {
+    console.error('Error fetching payment:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// List payments for a transaction
+app.get('/api/transactions/:id/payments', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM payments WHERE transaction_id = $1 ORDER BY created_at DESC`,
+      [req.params.id]
+    );
+    res.json({ success: true, payments: result.rows });
+  } catch (err) {
+    console.error('Error fetching payments:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// USSD INTERFACE (Africa's Talking)
+// ============================================
+
+// Phone number normalization for Ghana (+233)
+function normalizeGhanaPhone(phone) {
+  if (!phone) return null;
+  let cleaned = phone.replace(/[\s\-()]/g, '');
+  if (cleaned.startsWith('+233')) return cleaned;
+  if (cleaned.startsWith('233')) return '+' + cleaned;
+  if (cleaned.startsWith('0')) return '+233' + cleaned.slice(1);
+  return cleaned;
+}
+
+// Get all possible phone formats to match DB entries
+function getPhoneVariants(normalizedPhone) {
+  if (!normalizedPhone) return [];
+  const variants = [normalizedPhone];
+  if (normalizedPhone.startsWith('+233')) {
+    variants.push('0' + normalizedPhone.slice(4));
+    variants.push(normalizedPhone.slice(1));
+  }
+  return variants;
+}
+
+const USSD_MATERIALS = { '1': 'PET', '2': 'HDPE', '3': 'LDPE', '4': 'PP' };
+
+// Handle unregistered user USSD flow
+async function handleUnregisteredUssd(parts, phone) {
+  const level = parts.length;
+
+  if (level === 0) {
+    return 'CON Welcome to Circul\n1. Register\n2. Exit';
+  }
+
+  if (parts[0] === '2') {
+    return 'END Thank you for using Circul.';
+  }
+
+  if (parts[0] === '1') {
+    if (level === 1) return 'CON Enter your first name:';
+    if (level === 2) return 'CON Enter last name\n(0 to skip):';
+    if (level === 3) return 'CON Create a 4-digit PIN:';
+    if (level === 4) {
+      const firstName = parts[1].trim();
+      const lastName = parts[2] === '0' ? '' : parts[2].trim();
+      const pin = parts[3].trim();
+
+      if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+        return 'END PIN must be 4-6 digits.\nDial again to retry.';
+      }
+
+      try {
+        await pool.query(
+          `INSERT INTO collectors (first_name, last_name, phone, pin, region)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [firstName, lastName, phone, pin, 'Ghana']
+        );
+        return `END Registered! Welcome ${firstName}.\nDial again to start.`;
+      } catch (err) {
+        if (err.code === '23505') {
+          return 'END Phone already registered.\nDial again to login.';
+        }
+        throw err;
+      }
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// Handle registered user USSD flow
+async function handleRegisteredUssd(parts, collector) {
+  const level = parts.length;
+
+  if (level === 0) {
+    return `CON Welcome ${collector.first_name}!\nEnter your PIN:`;
+  }
+
+  // Verify PIN (first input is always PIN)
+  if (parts[0] !== collector.pin) {
+    return 'END Invalid PIN.\nDial again to retry.';
+  }
+
+  // PIN verified — show main menu
+  if (level === 1) {
+    return 'CON 1. Log Collection\n2. Check Balance\n3. Exit';
+  }
+
+  const menu = parts[1];
+
+  // --- EXIT ---
+  if (menu === '3') {
+    return `END Thank you, ${collector.first_name}!`;
+  }
+
+  // --- CHECK BALANCE ---
+  if (menu === '2') {
+    const stats = await pool.query(
+      `SELECT COALESCE(SUM(net_weight_kg),0) as total_kg,
+              COALESCE(SUM(total_price),0) as earned,
+              COUNT(*) as txns
+       FROM transactions WHERE collector_id = $1`,
+      [collector.id]
+    );
+    const s = stats.rows[0];
+    return `END Balance:\nTotal: ${parseFloat(s.total_kg).toFixed(1)}kg\nEarned: GHS ${parseFloat(s.earned).toFixed(2)}\nTransactions: ${s.txns}`;
+  }
+
+  // --- LOG COLLECTION ---
+  if (menu === '1') {
+    if (level === 2) {
+      return 'CON Select material:\n1.PET 2.HDPE\n3.LDPE 4.PP';
+    }
+
+    const material = USSD_MATERIALS[parts[2]];
+    if (!material) {
+      return 'END Invalid material.\nDial again to retry.';
+    }
+
+    if (level === 3) {
+      return `CON Enter weight in kg:`;
+    }
+
+    const weight = parseFloat(parts[3]);
+    if (isNaN(weight) || weight <= 0 || weight > 9999) {
+      return 'END Invalid weight.\nDial again to retry.';
+    }
+
+    if (level === 4) {
+      return `CON Log ${weight}kg ${material}?\n1. Confirm\n2. Cancel`;
+    }
+
+    if (level === 5) {
+      if (parts[4] === '2') {
+        return 'END Cancelled.';
+      }
+      if (parts[4] === '1') {
+        await pool.query(
+          `INSERT INTO transactions (collector_id, material_type, gross_weight_kg, net_weight_kg)
+           VALUES ($1, $2, $3, $4)`,
+          [collector.id, material, weight, weight]
+        );
+
+        const today = await pool.query(
+          `SELECT COALESCE(SUM(net_weight_kg),0) as today_kg
+           FROM transactions
+           WHERE collector_id = $1 AND transaction_date >= CURRENT_DATE`,
+          [collector.id]
+        );
+
+        return `END Logged! ${weight}kg ${material}\nToday: ${parseFloat(today.rows[0].today_kg).toFixed(1)}kg total`;
+      }
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// Africa's Talking USSD callback
+// POST body (x-www-form-urlencoded): sessionId, serviceCode, phoneNumber, text
+// Response: plain text prefixed with "CON " (continue) or "END " (terminate)
+app.post('/api/ussd', async (req, res) => {
+  const { sessionId, serviceCode, phoneNumber, text } = req.body;
+  const phone = normalizeGhanaPhone(phoneNumber);
+  const parts = text ? text.split('*') : [];
+  let response = '';
+  let collectorId = null;
+
+  try {
+    // Look up collector by phone (try all Ghana phone formats)
+    const phoneVariants = getPhoneVariants(phone);
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, phone, pin
+       FROM collectors
+       WHERE phone = ANY($1) AND is_active = true
+       LIMIT 1`,
+      [phoneVariants]
+    );
+
+    if (result.rows.length === 0) {
+      response = await handleUnregisteredUssd(parts, phone);
+    } else {
+      collectorId = result.rows[0].id;
+      response = await handleRegisteredUssd(parts, result.rows[0]);
+    }
+  } catch (err) {
+    console.error('[USSD] Error:', err);
+    response = 'END System error. Try again later.';
+  }
+
+  // Log session for analytics
+  try {
+    await pool.query(
+      `INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, text_input, response)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [sessionId, phone, serviceCode, collectorId, text || '', response]
+    );
+  } catch (logErr) {
+    console.error('[USSD] Log error:', logErr);
+  }
+
+  res.set('Content-Type', 'text/plain');
+  res.send(response);
+});
+
+// USSD session analytics (for operator dashboard)
+app.get('/api/ussd/stats', async (req, res) => {
+  try {
+    const stats = await pool.query(`
+      SELECT
+        COUNT(DISTINCT session_id) as total_sessions,
+        COUNT(DISTINCT phone) as unique_phones,
+        COUNT(*) FILTER (WHERE response LIKE 'END Logged!%') as successful_logs,
+        COUNT(*) FILTER (WHERE response LIKE 'END Registered!%') as registrations,
+        COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) as today_sessions
+      FROM ussd_sessions
+    `);
+
+    const recentSessions = await pool.query(`
+      SELECT session_id, phone, text_input, response, created_at
+      FROM ussd_sessions
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+
+    res.json({
+      success: true,
+      stats: stats.rows[0],
+      recent: recentSessions.rows
+    });
+  } catch (err) {
+    console.error('[USSD] Stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- OPERATORS (Role-based auth for dashboard) ---
+
+// Register operator
+app.post('/api/operators', async (req, res) => {
+  try {
+    const { name, company, phone, pin, role } = req.body;
+    if (!name || !phone || !pin) {
+      return res.status(400).json({ success: false, message: 'Name, phone, and PIN are required' });
+    }
+    if (pin.length < 4 || pin.length > 6) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    }
+    const validRoles = ['operator', 'admin', 'collector', 'aggregator', 'processor', 'converter'];
+    const operatorRole = validRoles.includes(role) ? role : 'operator';
+    const result = await pool.query(
+      `INSERT INTO operators (name, company, phone, pin, role)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, company, phone, role, created_at`,
+      [name, company || null, phone, pin, operatorRole]
+    );
+    res.status(201).json({ success: true, operator: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ success: false, message: 'Phone number already registered' });
+    }
+    console.error('Error creating operator:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Operator login
+app.post('/api/operators/login', async (req, res) => {
+  try {
+    const { phone, pin } = req.body;
+    if (!phone || !pin) {
+      return res.status(400).json({ success: false, message: 'Phone and PIN required' });
+    }
+    const result = await pool.query(
+      `SELECT id, name, company, phone, role, created_at FROM operators WHERE phone = $1 AND pin = $2 AND is_active = true`,
+      [phone, pin]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, message: 'Invalid phone or PIN' });
+    }
+    res.json({ success: true, operator: result.rows[0] });
+  } catch (err) {
+    console.error('Error logging in operator:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// List operators (admin only)
+app.get('/api/operators', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, company, phone, role, created_at FROM operators WHERE is_active = true ORDER BY created_at DESC`
+    );
+    res.json({ success: true, operators: result.rows });
+  } catch (err) {
+    console.error('Error listing operators:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// ADMIN AUTH + BUYERS + PRICES
+// ============================================
+
+const crypto = require('crypto');
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'circul-admin-secret-2026';
+const BUYER_SECRET = process.env.BUYER_SECRET || 'circul-buyer-secret-2026';
+
+function generateToken(payload, secret) {
+  const data = JSON.stringify(payload);
+  const b64 = Buffer.from(data).toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(b64).digest('base64url');
+  return b64 + '.' + sig;
+}
+
+function verifyToken(token, secret) {
+  try {
+    const [b64, sig] = token.split('.');
+    const expected = crypto.createHmac('sha256', secret).update(b64).digest('base64url');
+    if (sig !== expected) return null;
+    return JSON.parse(Buffer.from(b64, 'base64url').toString());
+  } catch { return null; }
+}
+
+async function verifyPassword(password, hash) {
+  return new Promise((resolve, reject) => {
+    const [salt, stored] = hash.split(':');
+    crypto.scrypt(password, salt, 64, (err, key) => {
+      if (err) reject(err);
+      else resolve(key.toString('hex') === stored);
+    });
+  });
+}
+
+async function hashPassword(password) {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    crypto.scrypt(password, salt, 64, (err, key) => {
+      if (err) reject(err);
+      else resolve(salt + ':' + key.toString('hex'));
+    });
+  });
+}
+
+// Middleware: require admin token
+function requireAdmin(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const token = auth.replace('Bearer ', '').trim() || req.query.token;
+  if (!token) return res.status(401).json({ success: false, message: 'Admin auth required' });
+  const payload = verifyToken(token, ADMIN_SECRET);
+  if (!payload || payload.type !== 'admin') return res.status(401).json({ success: false, message: 'Invalid admin token' });
+  req.admin = payload;
+  next();
+}
+
+// Middleware: require buyer token
+function requireBuyer(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const token = auth.replace('Bearer ', '').trim() || req.query.token;
+  if (!token) return res.status(401).json({ success: false, message: 'Buyer auth required' });
+  const payload = verifyToken(token, BUYER_SECRET);
+  if (!payload || payload.type !== 'buyer') return res.status(401).json({ success: false, message: 'Invalid buyer token' });
+  req.buyer = payload;
+  next();
+}
+
+// --- ADMIN LOGIN ---
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+    const result = await pool.query(
+      `SELECT id, email, name, password_hash FROM admin_users WHERE email = $1 AND is_active = true`,
+      [email.toLowerCase().trim()]
+    );
+    if (result.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const admin = result.rows[0];
+    const valid = await verifyPassword(password, admin.password_hash);
+    if (!valid) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const token = generateToken({ type: 'admin', id: admin.id, email: admin.email }, ADMIN_SECRET);
+    res.json({ success: true, token, admin: { id: admin.id, email: admin.email, name: admin.name } });
+  } catch (err) {
+    console.error('Admin login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- ADMIN: PLATFORM STATS ---
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const [collectors, operators, buyers, transactions, volume] = await Promise.all([
+      pool.query(`SELECT COUNT(*) as count FROM collectors WHERE is_active = true`),
+      pool.query(`SELECT COUNT(*) as count FROM operators WHERE is_active = true`),
+      pool.query(`SELECT COUNT(*) as count FROM buyers WHERE is_active = true`),
+      pool.query(`SELECT COUNT(*) as count FROM transactions`),
+      pool.query(`
+        SELECT material_type, COALESCE(SUM(net_weight_kg),0) as total_kg, COUNT(*) as count
+        FROM transactions GROUP BY material_type ORDER BY total_kg DESC
+      `)
+    ]);
+    const totalVol = await pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total FROM transactions`);
+    res.json({
+      success: true,
+      stats: {
+        collectors: parseInt(collectors.rows[0].count),
+        operators: parseInt(operators.rows[0].count),
+        buyers: parseInt(buyers.rows[0].count),
+        transactions: parseInt(transactions.rows[0].count),
+        total_volume_kg: parseFloat(totalVol.rows[0].total),
+        by_material: volume.rows
+      }
+    });
+  } catch (err) {
+    console.error('Admin stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- ADMIN: ALL TRANSACTIONS ---
+app.get('/api/admin/transactions', requireAdmin, async (req, res) => {
+  try {
+    const { limit = 100, offset = 0, material_type } = req.query;
+    let where = 'WHERE 1=1';
+    const params = [];
+    if (material_type) { params.push(material_type.toUpperCase()); where += ` AND t.material_type = $${params.length}`; }
+    params.push(parseInt(limit)); params.push(parseInt(offset));
+    const result = await pool.query(`
+      SELECT t.id, t.material_type, t.gross_weight_kg, t.net_weight_kg, t.contamination_deduction_percent,
+             t.price_per_kg, t.total_price, t.payment_status, t.transaction_date,
+             c.first_name || ' ' || c.last_name as collector_name, c.phone as collector_phone,
+             o.name as operator_name
+      FROM transactions t
+      JOIN collectors c ON c.id = t.collector_id
+      LEFT JOIN operators o ON o.id = t.operator_id
+      ${where}
+      ORDER BY t.transaction_date DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params);
+    res.json({ success: true, transactions: result.rows });
+  } catch (err) {
+    console.error('Admin transactions error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- ADMIN: ALL COLLECTORS ---
+app.get('/api/admin/collectors', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.average_rating, c.created_at,
+             COALESCE(SUM(t.net_weight_kg), 0) as total_weight_kg,
+             COUNT(t.id) as transaction_count
+      FROM collectors c
+      LEFT JOIN transactions t ON t.collector_id = c.id
+      WHERE c.is_active = true
+      GROUP BY c.id ORDER BY c.created_at DESC
+    `);
+    res.json({ success: true, collectors: result.rows });
+  } catch (err) {
+    console.error('Admin collectors error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- ADMIN: MANAGE OPERATORS ---
+app.get('/api/admin/operators', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT id, name, company, phone, role, is_active, created_at FROM operators ORDER BY created_at DESC`);
+    res.json({ success: true, operators: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/admin/operators', requireAdmin, async (req, res) => {
+  try {
+    const { name, company, phone, pin, role } = req.body;
+    if (!name || !phone || !pin) return res.status(400).json({ success: false, message: 'name, phone, pin required' });
+    const validRole = ['operator', 'admin', 'collector', 'aggregator', 'processor', 'converter'].includes(role) ? role : 'operator';
+    const result = await pool.query(
+      `INSERT INTO operators (name, company, phone, pin, role) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, company, phone, role, created_at`,
+      [name, company || null, phone, pin, validRole]
+    );
+    res.status(201).json({ success: true, operator: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Phone already registered' });
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.put('/api/admin/operators/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, company, phone, pin, role, is_active, is_flagged, city, region, country } = req.body;
+    const fields = [], params = [];
+    if (name !== undefined) { params.push(name); fields.push(`name=$${params.length}`); }
+    if (company !== undefined) { params.push(company); fields.push(`company=$${params.length}`); }
+    if (phone !== undefined) { params.push(phone); fields.push(`phone=$${params.length}`); }
+    if (pin !== undefined) { params.push(pin); fields.push(`pin=$${params.length}`); }
+    if (role !== undefined) { params.push(role); fields.push(`role=$${params.length}`); }
+    if (is_active !== undefined) { params.push(is_active); fields.push(`is_active=$${params.length}`); }
+    if (is_flagged !== undefined) { params.push(is_flagged); fields.push(`is_flagged=$${params.length}`); }
+    if (city !== undefined) { params.push(city); fields.push(`city=$${params.length}`); }
+    if (region !== undefined) { params.push(region); fields.push(`region=$${params.length}`); }
+    if (country !== undefined) { params.push(country); fields.push(`country=$${params.length}`); }
+    if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
+    params.push(req.params.id);
+    const result = await pool.query(`UPDATE operators SET ${fields.join(',')} WHERE id=$${params.length} RETURNING id, name, company, phone, role, is_active, is_flagged, city`, params);
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, operator: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- ADMIN: MANAGE BUYERS (aggregators + processors) ---
+app.get('/api/admin/buyers', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT b.id, b.name, b.company, b.email, b.role, b.is_active, b.created_at,
+             json_agg(json_build_object('material_type', bp.material_type, 'price_per_kg', bp.price_per_kg, 'updated_at', bp.updated_at) ORDER BY bp.material_type) FILTER (WHERE bp.id IS NOT NULL) as prices
+      FROM buyers b
+      LEFT JOIN buyer_prices bp ON bp.buyer_id = b.id
+      GROUP BY b.id ORDER BY b.created_at DESC
+    `);
+    res.json({ success: true, buyers: result.rows });
+  } catch (err) {
+    console.error('Admin buyers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/admin/buyers', requireAdmin, async (req, res) => {
+  try {
+    const { name, company, email, password, role } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ success: false, message: 'name, email, password required' });
+    const validRole = ['aggregator', 'processor'].includes(role) ? role : 'aggregator';
+    const pwHash = await hashPassword(password);
+    const result = await pool.query(
+      `INSERT INTO buyers (name, company, email, password_hash, role) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, company, email, role, created_at`,
+      [name, company || null, email.toLowerCase().trim(), pwHash, validRole]
+    );
+    res.status(201).json({ success: true, buyer: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Email already registered' });
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.put('/api/admin/buyers/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, company, email, password, role, is_active } = req.body;
+    const fields = [], params = [];
+    if (name !== undefined) { params.push(name); fields.push(`name=$${params.length}`); }
+    if (company !== undefined) { params.push(company); fields.push(`company=$${params.length}`); }
+    if (email !== undefined) { params.push(email.toLowerCase()); fields.push(`email=$${params.length}`); }
+    if (role !== undefined) { params.push(role); fields.push(`role=$${params.length}`); }
+    if (is_active !== undefined) { params.push(is_active); fields.push(`is_active=$${params.length}`); }
+    if (password) { const h = await hashPassword(password); params.push(h); fields.push(`password_hash=$${params.length}`); }
+    if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
+    params.push(req.params.id);
+    const result = await pool.query(`UPDATE buyers SET ${fields.join(',')} WHERE id=$${params.length} RETURNING id, name, company, email, role, is_active`, params);
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, buyer: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- BUYER LOGIN ---
+app.post('/api/buyers/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+    const result = await pool.query(
+      `SELECT id, name, company, email, role, password_hash FROM buyers WHERE email = $1 AND is_active = true`,
+      [email.toLowerCase().trim()]
+    );
+    if (!result.rows.length) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const buyer = result.rows[0];
+    const valid = await verifyPassword(password, buyer.password_hash);
+    if (!valid) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const token = generateToken({ type: 'buyer', id: buyer.id, email: buyer.email, role: buyer.role }, BUYER_SECRET);
+    res.json({ success: true, token, buyer: { id: buyer.id, name: buyer.name, company: buyer.company, email: buyer.email, role: buyer.role } });
+  } catch (err) {
+    console.error('Buyer login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Buyer: get their own prices
+app.get('/api/buyers/me/prices', requireBuyer, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT material_type, price_per_kg, updated_at FROM buyer_prices WHERE buyer_id = $1 ORDER BY material_type`,
+      [req.buyer.id]
+    );
+    const buyerInfo = await pool.query(`SELECT id, name, company, email, role FROM buyers WHERE id = $1`, [req.buyer.id]);
+    res.json({ success: true, buyer: buyerInfo.rows[0], prices: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Buyer: set/update price for a material
+app.put('/api/buyers/me/prices/:material_type', requireBuyer, async (req, res) => {
+  try {
+    const material = req.params.material_type.toUpperCase();
+    const validMaterials = ['PET', 'HDPE', 'LDPE', 'PP'];
+    if (!validMaterials.includes(material)) return res.status(400).json({ success: false, message: 'Invalid material type' });
+    const { price_per_kg } = req.body;
+    if (price_per_kg === undefined || isNaN(parseFloat(price_per_kg)) || parseFloat(price_per_kg) < 0) {
+      return res.status(400).json({ success: false, message: 'Valid price_per_kg required' });
+    }
+    const result = await pool.query(`
+      INSERT INTO buyer_prices (buyer_id, material_type, price_per_kg, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (buyer_id, material_type) DO UPDATE SET price_per_kg = $3, updated_at = NOW()
+      RETURNING material_type, price_per_kg, updated_at
+    `, [req.buyer.id, material, parseFloat(price_per_kg)]);
+    res.json({ success: true, price: result.rows[0] });
+  } catch (err) {
+    console.error('Set price error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Public: get aggregator prices (for collector app — Phase 1 shows only aggregator prices)
+app.get('/api/market-prices', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT bp.material_type, bp.price_per_kg, bp.updated_at,
+             b.name as buyer_name, b.company as buyer_company, b.role
+      FROM buyer_prices bp
+      JOIN buyers b ON b.id = bp.buyer_id
+      WHERE b.is_active = true AND b.role = 'aggregator'
+      ORDER BY bp.material_type, bp.price_per_kg DESC
+    `);
+    // Best (highest) price per material across all aggregators
+    const best = {};
+    for (const row of result.rows) {
+      if (!best[row.material_type] || parseFloat(row.price_per_kg) > parseFloat(best[row.material_type].price_per_kg)) {
+        best[row.material_type] = row;
+      }
+    }
+    res.json({ success: true, prices: Object.values(best), all_aggregator_prices: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// ROLE-BASED DASHBOARD STATS
+// ============================================
+
+// GET /api/operators/:id/dashboard-stats — returns role-appropriate stats
+app.get('/api/operators/:id/dashboard-stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const op = await pool.query(`SELECT * FROM operators WHERE id = $1 AND is_active = true`, [id]);
+    if (!op.rows.length) return res.status(404).json({ success: false, message: 'Operator not found' });
+    const operator = op.rows[0];
+
+    const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
+
+    const [totals, monthlyTotals, pending, paymentHistory, activeCollectors] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM transactions WHERE operator_id=$1`, [id]),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM transactions WHERE operator_id=$1 AND transaction_date >= $2`, [id, thisMonth.toISOString()]),
+      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM transactions WHERE operator_id=$1 AND payment_status='unpaid' AND total_price > 0`, [id]),
+      pool.query(`SELECT p.*, c.first_name, c.last_name FROM payments p JOIN collectors c ON c.id=p.collector_id WHERE p.operator_id=$1 ORDER BY p.created_at DESC LIMIT 20`, [id]),
+      pool.query(`SELECT COUNT(DISTINCT collector_id) as count FROM transactions WHERE operator_id=$1`, [id])
+    ]);
+
+    const byMaterial = await pool.query(`SELECT material_type, SUM(net_weight_kg) as kg, COUNT(*) as txns FROM transactions WHERE operator_id=$1 GROUP BY material_type ORDER BY kg DESC`, [id]);
+
+    const topCollectors = await pool.query(`
+      SELECT c.id, c.first_name, c.last_name, c.phone, c.average_rating, c.city,
+             SUM(t.net_weight_kg) as total_kg, COUNT(t.id) as txns
+      FROM collectors c JOIN transactions t ON t.collector_id=c.id
+      WHERE t.operator_id=$1
+      GROUP BY c.id ORDER BY total_kg DESC LIMIT 20`, [id]);
+
+    const postedPrices = await pool.query(`SELECT * FROM posted_prices WHERE operator_id=$1 AND is_active=true AND expires_at > NOW() ORDER BY material_type`, [id]).catch(() => ({ rows: [] }));
+
+    const ratings = await pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_operator_id=$1`, [id]).catch(() => ({ rows: [{ avg_rating: null, count: 0 }] }));
+
+    res.json({
+      success: true,
+      operator,
+      stats: {
+        totals: totals.rows[0],
+        this_month: monthlyTotals.rows[0],
+        pending_payments: pending.rows[0],
+        payment_history: paymentHistory.rows,
+        active_collectors: activeCollectors.rows[0].count,
+        by_material: byMaterial.rows,
+        top_collectors: topCollectors.rows,
+        posted_prices: postedPrices.rows,
+        ratings: ratings.rows[0]
+      }
+    });
+  } catch (err) {
+    console.error('Dashboard stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// POSTED PRICES API
+// ============================================
+
+// POST /api/prices — operator posts their buy price
+app.post('/api/prices', async (req, res) => {
+  try {
+    const { operator_id, material_type, price_per_kg_usd, price_per_kg_ghs, usd_to_ghs_rate } = req.body;
+    if (!operator_id || !material_type || !price_per_kg_usd) {
+      return res.status(400).json({ success: false, message: 'operator_id, material_type, price_per_kg_usd required' });
+    }
+    const validMaterials = ['PET','HDPE','LDPE','PP'];
+    if (!validMaterials.includes(material_type.toUpperCase())) {
+      return res.status(400).json({ success: false, message: 'Invalid material type' });
+    }
+    const now = new Date();
+    const expiresAt = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    const op = await pool.query(`SELECT city, region, country FROM operators WHERE id=$1`, [operator_id]);
+    if (!op.rows.length) return res.status(404).json({ success: false, message: 'Operator not found' });
+    const { city, region, country } = op.rows[0];
+
+    const result = await pool.query(`
+      INSERT INTO posted_prices (operator_id, material_type, price_per_kg_usd, price_per_kg_ghs, usd_to_ghs_rate, city, region, country, expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (operator_id, material_type, expires_at)
+      DO UPDATE SET price_per_kg_usd=$3, price_per_kg_ghs=$4, usd_to_ghs_rate=$5, posted_at=NOW(), is_active=true
+      RETURNING *
+    `, [operator_id, material_type.toUpperCase(), parseFloat(price_per_kg_usd), price_per_kg_ghs ? parseFloat(price_per_kg_ghs) : null, usd_to_ghs_rate ? parseFloat(usd_to_ghs_rate) : null, city, region, country || 'Ghana', expiresAt.toISOString()]);
+
+    res.json({ success: true, price: result.rows[0] });
+  } catch (err) {
+    console.error('Post price error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/prices — get prices relevant to a role/city
+app.get('/api/prices', async (req, res) => {
+  try {
+    const { role, material, city, operator_id } = req.query;
+
+    let buyerRoles = [];
+    if (role === 'collector') buyerRoles = ['aggregator'];
+    else if (role === 'aggregator') buyerRoles = ['processor', 'aggregator'];
+    else if (role === 'processor') buyerRoles = ['processor', 'converter'];
+    else if (role === 'converter') buyerRoles = ['converter'];
+    else buyerRoles = ['aggregator', 'processor', 'converter'];
+
+    let params = [buyerRoles, new Date().toISOString()];
+    let whereExtra = '';
+    if (material) { params.push(material.toUpperCase()); whereExtra += ` AND pp.material_type = $${params.length}`; }
+
+    let nearPrices = { rows: [] };
+    if (city) {
+      const nearParams = [...params, city];
+      nearPrices = await pool.query(`
+        SELECT pp.*, o.name as operator_name, o.company, o.role as operator_role, o.city,
+               COALESCE((SELECT AVG(t.price_per_kg) FROM transactions t WHERE t.operator_id=pp.operator_id AND t.material_type=pp.material_type AND t.price_per_kg > 0 AND t.transaction_date >= NOW() - INTERVAL '30 days'), NULL) as actual_avg_price_30d
+        FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
+        WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true AND pp.city = $${nearParams.length}${whereExtra}
+        ORDER BY pp.material_type, pp.price_per_kg_usd DESC
+      `, nearParams);
+    }
+
+    const nationalAvg = await pool.query(`
+      SELECT pp.material_type,
+             AVG(pp.price_per_kg_usd) as avg_usd,
+             COUNT(DISTINCT pp.operator_id) as buyer_count
+      FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
+      WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true${material ? ` AND pp.material_type = $${params.length}` : ''}
+      GROUP BY pp.material_type ORDER BY pp.material_type
+    `, params);
+
+    const allPrices = await pool.query(`
+      SELECT pp.*, o.name as operator_name, o.company, o.role as operator_role, o.city,
+             COALESCE((SELECT AVG(t.price_per_kg) FROM transactions t WHERE t.operator_id=pp.operator_id AND t.material_type=pp.material_type AND t.price_per_kg > 0 AND t.transaction_date >= NOW() - INTERVAL '30 days'), NULL) as actual_avg_price_30d
+      FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
+      WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true${whereExtra}
+      ORDER BY pp.material_type, pp.price_per_kg_usd DESC
+    `, params);
+
+    res.json({
+      success: true,
+      near_prices: nearPrices.rows,
+      national_averages: nationalAvg.rows,
+      all_prices: allPrices.rows
+    });
+  } catch (err) {
+    console.error('Get prices error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// RATINGS API
+// ============================================
+
+// POST /api/ratings/operator — rate another operator
+app.post('/api/ratings/operator', async (req, res) => {
+  try {
+    const { transaction_id, rater_operator_id, rated_operator_id, rater_collector_id, rated_collector_id, rating, tags, notes, rating_direction } = req.body;
+    if ((!rater_operator_id && !rater_collector_id) || (!rated_operator_id && !rated_collector_id) || !rating) {
+      return res.status(400).json({ success: false, message: 'rater, rated, and rating are required' });
+    }
+    if (rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1-5' });
+
+    const windowExpires = new Date(); windowExpires.setDate(windowExpires.getDate() + 30);
+
+    const result = await pool.query(`
+      INSERT INTO ratings (transaction_id, rater_operator_id, rated_operator_id, rater_collector_id, rated_collector_id, rating, tags, notes, rating_direction, window_expires_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      ON CONFLICT (transaction_id, rater_operator_id, rated_operator_id) DO UPDATE SET rating=$6, tags=$7, notes=$8
+      RETURNING *
+    `, [transaction_id || null, rater_operator_id || null, rated_operator_id || null, rater_collector_id || null, rated_collector_id || null, rating, JSON.stringify(tags || []), notes || null, rating_direction || null, windowExpires.toISOString()]);
+
+    res.status(201).json({ success: true, rating: result.rows[0] });
+  } catch (err) {
+    console.error('Rating error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/ratings/operator/:id — get ratings for an operator
+app.get('/api/ratings/operator/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ratings = await pool.query(`
+      SELECT r.*, o.name as rater_name, o.role as rater_role
+      FROM ratings r
+      LEFT JOIN operators o ON o.id = r.rater_operator_id
+      WHERE r.rated_operator_id = $1
+      ORDER BY r.created_at DESC LIMIT 50
+    `, [id]);
+    const avg = await pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_operator_id=$1`, [id]);
+    res.json({ success: true, ratings: ratings.rows, summary: avg.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// COLLECTOR PASSPORT API
+// ============================================
+
+// GET /api/collectors/:id/passport — collector's full passport data
+app.get('/api/collectors/:id/passport', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const collector = await pool.query(`SELECT * FROM collectors WHERE id=$1`, [id]);
+    if (!collector.rows.length) return res.status(404).json({ success: false, message: 'Collector not found' });
+    const c = collector.rows[0];
+
+    const twelveMonthsAgo = new Date(); twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
+    const [totals, last12m, byMaterial, aggregators, recent, ratingsReceived] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_earned_ghs, COUNT(*) as txn_count, MIN(transaction_date) as active_since FROM transactions WHERE collector_id=$1`, [id]),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as kg_12m, COALESCE(SUM(total_price),0) as earned_12m, COUNT(*) as txns_12m FROM transactions WHERE collector_id=$1 AND transaction_date >= $2`, [id, twelveMonthsAgo.toISOString()]),
+      pool.query(`SELECT material_type, SUM(net_weight_kg) as kg, SUM(total_price) as earned, COUNT(*) as txns FROM transactions WHERE collector_id=$1 GROUP BY material_type ORDER BY kg DESC`, [id]),
+      pool.query(`SELECT DISTINCT o.id, o.name, o.company, o.city FROM operators o JOIN transactions t ON t.operator_id=o.id WHERE t.collector_id=$1 AND o.role='aggregator'`, [id]),
+      pool.query(`SELECT t.*, o.name as operator_name FROM transactions t LEFT JOIN operators o ON o.id=t.operator_id WHERE t.collector_id=$1 ORDER BY t.transaction_date DESC LIMIT 20`, [id]),
+      pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg, COUNT(*) as count, json_agg(json_build_object('rating',rating,'tags',tags,'direction',rating_direction,'created_at',created_at)) as ratings FROM ratings WHERE rated_collector_id=$1`, [id]).catch(() => ({ rows: [{ avg: null, count: 0, ratings: [] }] }))
+    ]);
+
+    const passport = {
+      collector: c,
+      total_kg_lifetime: parseFloat(totals.rows[0].total_kg),
+      total_kg_last_12m: parseFloat(last12m.rows[0].kg_12m),
+      total_earned_ghs: parseFloat(totals.rows[0].total_earned_ghs),
+      transaction_count: parseInt(totals.rows[0].txn_count),
+      active_since: totals.rows[0].active_since,
+      material_breakdown: byMaterial.rows,
+      aggregators_transacted_with: aggregators.rows,
+      unique_aggregator_count: aggregators.rows.length,
+      avg_rating_from_aggregators: ratingsReceived.rows[0].avg,
+      ratings_count: parseInt(ratingsReceived.rows[0].count),
+      recent_transactions: recent.rows,
+    };
+
+    res.json({ success: true, passport });
+  } catch (err) {
+    console.error('Passport error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// COMPLIANCE / EPR REPORT API
+// ============================================
+
+// GET /api/reports/compliance/:operator_id — EPR/CSRD-ready report
+app.get('/api/reports/compliance/:operator_id', async (req, res) => {
+  try {
+    const { operator_id } = req.params;
+    const { start_date, end_date, format = 'json' } = req.query;
+
+    const op = await pool.query(`SELECT * FROM operators WHERE id=$1`, [operator_id]);
+    if (!op.rows.length) return res.status(404).json({ success: false, message: 'Operator not found' });
+
+    let dateFilter = '';
+    const params = [operator_id];
+    if (start_date) { params.push(start_date); dateFilter += ` AND t.transaction_date >= $${params.length}::timestamptz`; }
+    if (end_date) { params.push(end_date); dateFilter += ` AND t.transaction_date <= $${params.length}::timestamptz`; }
+
+    const transactions = await pool.query(`
+      SELECT t.id, t.transaction_date, t.material_type, t.gross_weight_kg, t.net_weight_kg,
+             t.contamination_deduction_percent, t.price_per_kg, t.total_price, t.payment_status,
+             t.lat, t.lng, t.payment_reference,
+             c.first_name || ' ' || c.last_name as collector_name, c.phone as collector_phone, c.city as collector_city, c.region as collector_region
+      FROM transactions t
+      JOIN collectors c ON c.id=t.collector_id
+      WHERE t.operator_id=$1 ${dateFilter}
+      ORDER BY t.transaction_date ASC
+    `, params);
+
+    const summary = await pool.query(`
+      SELECT material_type, COUNT(*) as transaction_count, SUM(net_weight_kg) as total_kg_net,
+             SUM(gross_weight_kg) as total_kg_gross, SUM(total_price) as total_paid_ghs,
+             COUNT(DISTINCT t.collector_id) as unique_collectors,
+             COUNT(*) FILTER (WHERE t.lat IS NOT NULL) as gps_verified_count
+      FROM transactions t WHERE t.operator_id=$1 ${dateFilter}
+      GROUP BY material_type ORDER BY material_type
+    `, params);
+
+    const report = {
+      report_type: 'EPR_CSRD_COMPLIANCE',
+      generated_at: new Date().toISOString(),
+      operator: op.rows[0],
+      period: { start: start_date || 'all-time', end: end_date || new Date().toISOString() },
+      summary_by_material: summary.rows,
+      total_transactions: transactions.rows.length,
+      transactions: transactions.rows,
+      '@context': 'https://schema.org',
+      '@type': 'DigitalProductPassport',
+      chain_of_custody: transactions.rows.map(t => ({
+        transaction_id: t.id,
+        date: t.transaction_date,
+        collector: { name: t.collector_name, phone: t.collector_phone, city: t.collector_city },
+        material: t.material_type,
+        weight_kg_net: t.net_weight_kg,
+        gps: t.lat ? { lat: t.lat, lng: t.lng } : null,
+        payment_verified: t.payment_status === 'paid'
+      }))
+    };
+
+    if (format === 'json') {
+      res.setHeader('Content-Disposition', `attachment; filename="compliance-report-${operator_id}-${Date.now()}.json"`);
+      res.json(report);
+    } else {
+      res.json(report);
+    }
+  } catch (err) {
+    console.error('Compliance report error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/reports/product-journey/:transaction_id — consumer-facing QR journey
+app.get('/api/reports/product-journey/:transaction_id', async (req, res) => {
+  try {
+    const { transaction_id } = req.params;
+    const result = await pool.query(`
+      SELECT t.*, c.first_name, c.last_name, c.city as collector_city, c.region as collector_region,
+             o.name as operator_name, o.company as operator_company, o.city as operator_city
+      FROM transactions t
+      JOIN collectors c ON c.id=t.collector_id
+      LEFT JOIN operators o ON o.id=t.operator_id
+      WHERE t.id=$1
+    `, [transaction_id]);
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    const t = result.rows[0];
+    res.json({
+      success: true,
+      journey: {
+        collector: { name: t.first_name + ' ' + t.last_name, city: t.collector_city, region: t.collector_region },
+        material: t.material_type,
+        weight_kg: t.net_weight_kg,
+        collected_at: t.transaction_date,
+        location: t.lat ? { lat: t.lat, lng: t.lng } : { city: t.collector_city },
+        processor: t.operator_name ? { name: t.operator_name, company: t.operator_company, city: t.operator_city } : null,
+        verified: t.payment_status === 'paid'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// TODO: Plastic credits — activate when ready (F1)
+// Steps when ready: select standard (recommend Verra), get data model audited,
+// register as approved data provider, build credit issuance module,
+// decide on marketplace vs broker model. The transaction + GPS + weight data
+// already captured here is the right shape for credit issuance.
+
+// ============================================
+// CODE EXPORT
+// ============================================
+
+app.get('/code-export.txt', (req, res) => {
+  const exportFiles = [
+    'server.js',
+    'migrate.js',
+    'package.json',
+    'render.yaml',
+    '.gitignore',
+    '.nvmrc',
+    'README.md',
+    'public/index.html',
+    'public/collect.html',
+    'public/dashboard.html',
+    'public/admin.html',
+    'public/prices.html',
+    'migrations/1709942400000_create_pickers_and_collections.js',
+    'migrations/1709942500000_refactor_to_collectors_and_transactions.js',
+    'migrations/1741564800000_create_operators.js',
+    'migrations/1741651200000_add_payment_tracking.js',
+    'migrations/1773292800000_create_ussd_sessions.js',
+    'migrations/1773379200000_add_buyers_and_admin.js',
+    'migrations/1774000000000_expand_schema.js',
+    'public/collector-dashboard.html',
+    'public/aggregator-dashboard.html',
+    'public/processor-dashboard.html',
+    'public/converter-dashboard.html',
+    'public/report.html',
+  ];
+
+  let output = `CIRCUL CODEBASE EXPORT\nGenerated: ${new Date().toISOString()}\n\n`;
+
+  for (const filePath of exportFiles) {
+    const fullPath = path.join(__dirname, filePath);
+    output += `\n===== FILE: ${filePath} =====\n\n`;
+    if (fs.existsSync(fullPath)) {
+      try {
+        output += fs.readFileSync(fullPath, 'utf8');
+      } catch (err) {
+        output += `[Error reading file: ${err.message}]\n`;
+      }
+    } else {
+      output += `[File not found]\n`;
+    }
+    output += '\n';
+  }
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="circul-codebase-export.txt"');
+  res.send(output);
+});
+
+// ============================================
+// PAGE ROUTES
+// ============================================
+
+// Landing page with analytics beacon
+app.get('/', (req, res) => {
+  const slug = process.env.POLSIA_ANALYTICS_SLUG || '';
+  const htmlPath = path.join(__dirname, 'public', 'index.html');
+
+  if (fs.existsSync(htmlPath)) {
+    let html = fs.readFileSync(htmlPath, 'utf8');
+    html = html.replace('__POLSIA_SLUG__', slug);
+    res.type('html').send(html);
+  } else {
+    res.json({ message: 'Hello from Circul!' });
+  }
+});
+
+// Collector app
+app.get('/collect', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'collect.html'));
+});
+
+// Operator dashboard
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Admin dashboard
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Role dashboards
+app.get('/collector-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'collector-dashboard.html'));
+});
+app.get('/aggregator-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'aggregator-dashboard.html'));
+});
+app.get('/processor-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'processor-dashboard.html'));
+});
+app.get('/converter-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'converter-dashboard.html'));
+});
+// Collector report / passport
+app.get('/report', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'report.html'));
+});
+app.get('/passport', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'report.html'));
+});
+// Prices redirect to homepage (no separate /prices page per global rules)
+app.get('/prices', (req, res) => {
+  res.redirect('/');
+});
+
+app.listen(port, () => {
+  console.log(`Circul server running on port ${port}`);
+});
+
+
+===== FILE: public/dashboard.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operator Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8; --white: #ffffff;
+            --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+
+        /* LOGIN OVERLAY */
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .login-card .form-group { margin-bottom: 18px; }
+        .login-card .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .login-card .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
+        .login-card .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .login-card .form-input::placeholder { color: var(--slate-light); }
+        .login-card .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; transition: background 0.15s; }
+        .login-card .btn-login:active { background: #15803d; }
+        .login-card .btn-login:disabled { opacity: 0.6; }
+        .login-card .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-card .login-error.visible { display: block; }
+        .login-card .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+
+        /* NAV */
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 24px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.25rem; font-weight: 700; color: var(--white); text-decoration: none; }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.15); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--slate-light); letter-spacing: 0.5px; text-transform: uppercase; }
+        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .nav-user { display: flex; align-items: center; gap: 8px; }
+        .nav-user-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .role-badge.admin { background: var(--amber); color: var(--green-deep); }
+        .role-badge.operator { background: rgba(255,255,255,0.15); color: var(--green-light); }
+        .refresh-indicator { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--slate-light); }
+        .refresh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-primary); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .refresh-dot.paused { animation: none; background: var(--slate-light); }
+        .btn-refresh { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.8rem; padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+        .btn-refresh:hover { background: rgba(255,255,255,0.18); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .btn-logout:hover { background: rgba(239,68,68,0.1); }
+
+        /* MAIN */
+        .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+
+        /* STATS */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); transition: box-shadow 0.15s; }
+        .stat-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-value.highlight { color: var(--green-primary); }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+
+        /* GRID */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+
+        /* MATERIAL BREAKDOWN */
+        .material-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .material-row:last-child { margin-bottom: 0; }
+        .material-label { font-size: 0.82rem; font-weight: 500; color: var(--slate); width: 50px; flex-shrink: 0; }
+        .material-bar-track { flex: 1; height: 24px; background: var(--off-white); border-radius: 6px; overflow: hidden; }
+        .material-bar-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease; min-width: 2px; }
+        .material-pct { font-family: 'Space Grotesk', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--slate); width: 42px; text-align: right; flex-shrink: 0; }
+        .material-kg { font-size: 0.75rem; color: var(--slate-light); width: 60px; text-align: right; flex-shrink: 0; }
+
+        /* LEADERBOARD */
+        .leaderboard-item { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .leaderboard-item:last-child { border-bottom: none; }
+        .rank-badge { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+        .rank-badge.gold { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: var(--white); }
+        .rank-badge.silver { background: linear-gradient(135deg, #d1d5db, #9ca3af); color: var(--white); }
+        .rank-badge.bronze { background: linear-gradient(135deg, #d97706, #b45309); color: var(--white); }
+        .rank-badge.default { background: var(--off-white); color: var(--slate-light); }
+        .leaderboard-info { flex: 1; min-width: 0; }
+        .leaderboard-name { font-weight: 500; font-size: 0.9rem; color: var(--green-deep); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .leaderboard-meta { font-size: 0.78rem; color: var(--slate-light); }
+        .leaderboard-kg { font-family: 'Space Grotesk', sans-serif; font-size: 1rem; font-weight: 700; color: var(--green-primary); flex-shrink: 0; }
+
+        /* TREND */
+        .trend-chart { display: flex; align-items: flex-end; gap: 8px; height: 160px; padding-top: 10px; }
+        .trend-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+        .trend-bar-value { font-family: 'Space Grotesk', sans-serif; font-size: 0.7rem; font-weight: 600; color: var(--slate); margin-bottom: 4px; }
+        .trend-bar { width: 100%; max-width: 60px; background: var(--green-primary); border-radius: 6px 6px 0 0; transition: height 0.6s ease; min-height: 4px; }
+        .trend-bar.today { background: var(--amber); }
+        .trend-bar-date { font-size: 0.7rem; color: var(--slate-light); margin-top: 6px; text-align: center; }
+
+        /* TABLE */
+        .table-controls { display: flex; align-items: center; gap: 12px; }
+        .filter-select { font-family: 'DM Sans', sans-serif; font-size: 0.8rem; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--white); color: var(--slate); cursor: pointer; outline: none; }
+        .filter-select:focus { border-color: var(--green-primary); }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { font-family: 'Space Grotesk', sans-serif; font-size: 0.75rem; font-weight: 600; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+        thead th:hover { color: var(--green-primary); }
+        thead th.sorted-asc::after { content: ' \2191'; }
+        thead th.sorted-desc::after { content: ' \2193'; }
+        tbody td { font-size: 0.85rem; padding: 12px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:hover { background: var(--green-wash); }
+        .material-badge { display: inline-block; font-family: 'Space Grotesk', sans-serif; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 4px; color: var(--white); letter-spacing: 0.3px; }
+        .material-badge.PET { background: #16a34a; } .material-badge.HDPE { background: #3b82f6; }
+        .material-badge.LDPE { background: #f59e0b; } .material-badge.PP { background: #ef4444; }
+        .td-weight { font-family: 'Space Grotesk', sans-serif; font-weight: 600; }
+        .td-time { color: var(--slate-light); font-size: 0.82rem; }
+        .table-empty { text-align: center; padding: 40px 16px; color: var(--slate-light); font-size: 0.9rem; }
+        .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--slate-light); }
+        .pagination { display: flex; gap: 6px; }
+        .btn-page { font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--white); color: var(--slate); cursor: pointer; }
+        .btn-page:hover:not(:disabled) { border-color: var(--green-primary); color: var(--green-primary); }
+        .btn-page:disabled { opacity: 0.4; cursor: default; }
+
+        .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 20px; color: var(--slate-light); font-size: 0.9rem; }
+        .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--green-primary); border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* PAYMENT */
+        .btn-pay { font-family: 'Space Grotesk', sans-serif; font-size: 0.72rem; font-weight: 600; padding: 4px 12px; border-radius: 6px; border: none; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .btn-pay.unpaid { background: var(--green-primary); color: var(--white); }
+        .btn-pay.unpaid:hover { background: #15803d; }
+        .btn-pay.pending { background: var(--amber-light); color: #92400e; cursor: default; }
+        .btn-pay.paid { background: var(--green-wash); color: var(--green-primary); cursor: default; }
+        .btn-pay.failed { background: var(--red-wash); color: var(--red); }
+        .btn-pay.no-price { background: var(--off-white); color: var(--slate-light); font-weight: 400; cursor: default; }
+        .pay-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,46,26,0.7); z-index: 500; align-items: center; justify-content: center; padding: 20px; }
+        .pay-overlay.active { display: flex; }
+        .pay-card { background: var(--white); border-radius: 20px; padding: 32px 24px; max-width: 400px; width: 100%; animation: fadeSlideUp 0.3s ease; }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .pay-card h3 { font-size: 20px; color: var(--green-deep); margin-bottom: 16px; }
+        .pay-summary { background: var(--off-white); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+        .pay-summary-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+        .pay-summary-row:last-child { margin-bottom: 0; font-weight: 600; }
+        .pay-summary-label { color: var(--slate-muted, var(--slate-light)); }
+        .pay-summary-value { color: var(--green-deep); font-family: 'Space Grotesk', sans-serif; }
+        .provider-chips { display: flex; gap: 10px; margin-bottom: 20px; }
+        .provider-chip { flex: 1; padding: 12px; text-align: center; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; }
+        .provider-chip:active { transform: scale(0.96); }
+        .provider-chip.selected { border-color: var(--green-primary); background: var(--green-wash); color: var(--green-primary); }
+        .pay-actions { display: flex; gap: 10px; }
+        .pay-actions .btn-pay-confirm { flex: 1; padding: 14px; font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; border: none; border-radius: 12px; cursor: pointer; }
+        .pay-actions .btn-cancel { background: var(--off-white); color: var(--slate); border: 1px solid var(--border); }
+        .pay-actions .btn-confirm { background: var(--green-primary); color: var(--white); }
+        .pay-actions .btn-confirm:disabled { opacity: 0.5; }
+
+        /* RESPONSIVE */
+        @media (max-width: 1024px) {
+            .main { padding: 20px 20px 48px; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .nav { padding: 0 16px; } .nav-title, .nav-divider { display: none; }
+            .refresh-indicator span { display: none; }
+            .main { padding: 16px 16px 40px; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+            .stat-card { padding: 18px; } .stat-value { font-size: 1.6rem; }
+            .card-body { padding: 16px; } .card-header { padding: 14px 16px; }
+            thead th, tbody td { padding: 10px 12px; }
+            .table-footer { padding: 10px 16px; flex-direction: column; gap: 8px; }
+        }
+        @media (max-width: 480px) {
+            .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stat-card { padding: 14px; } .stat-value { font-size: 1.4rem; }
+            .material-kg { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN OVERLAY -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-card">
+            <div class="logo">
+                <h2>Circul<span>.</span></h2>
+                <p>Operator Dashboard Login</p>
+            </div>
+            <div class="login-error" id="loginError"></div>
+            <form onsubmit="handleOperatorLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <input class="form-input" type="tel" id="loginPhone" placeholder="e.g. 0200000000" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">PIN</label>
+                    <input class="form-input" type="password" id="loginPin" inputmode="numeric" pattern="[0-9]*" placeholder="4-6 digit PIN" minlength="4" maxlength="6" required>
+                </div>
+                <button class="btn-login" type="submit" id="loginBtn">Log In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- NAV -->
+    <nav class="nav">
+        <div class="nav-left">
+            <a href="/" class="nav-logo">Circul<span>.</span></a>
+            <div class="nav-divider"></div>
+            <span class="nav-title" id="navTitle">Operator Dashboard</span>
+        </div>
+        <div class="nav-right">
+            <div class="nav-user" id="navUser" style="display:none;">
+                <span class="nav-user-name" id="navUserName"></span>
+                <span class="role-badge" id="navRoleBadge"></span>
+            </div>
+            <div class="refresh-indicator">
+                <div class="refresh-dot" id="refreshDot"></div>
+                <span id="refreshText">Auto-refresh: 30s</span>
+            </div>
+            <button class="btn-refresh" onclick="refreshAll()" id="refreshBtn">Refresh</button>
+            <button class="btn-logout" onclick="handleLogout()" id="logoutBtn" style="display:none;">Log Out</button>
+        </div>
+    </nav>
+
+    <!-- MAIN -->
+    <div class="main">
+        <!-- STATS -->
+        <div class="stats-row" id="statsCards">
+            <div class="stat-card">
+                <div class="stat-label">Total Weight Collected</div>
+                <div class="stat-value" id="statTotalWeight">--</div>
+                <div class="stat-sub">kg</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Transactions</div>
+                <div class="stat-value" id="statTotalCollections">--</div>
+                <div class="stat-sub">all time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Collectors</div>
+                <div class="stat-value highlight" id="statActivePickers">--</div>
+                <div class="stat-sub">with transactions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Today's Weight</div>
+                <div class="stat-value highlight" id="statTodayWeight">--</div>
+                <div class="stat-sub" id="statTodayCount">kg today</div>
+            </div>
+        </div>
+
+        <!-- MATERIAL + LEADERBOARD -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header"><span class="card-title">Material Breakdown</span></div>
+                <div class="card-body" id="materialBreakdown"><div class="loading-overlay"><div class="spinner"></div> Loading...</div></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Top Collectors</span></div>
+                <div class="card-body" id="leaderboard"><div class="loading-overlay"><div class="spinner"></div> Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- TREND -->
+        <div class="card" style="margin-bottom: 28px;">
+            <div class="card-header"><span class="card-title">7-Day Transaction Trend</span></div>
+            <div class="card-body" id="trendChart"><div class="loading-overlay"><div class="spinner"></div> Loading...</div></div>
+        </div>
+
+        <!-- TRANSACTIONS TABLE -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Recent Transactions</span>
+                <div class="table-controls">
+                    <select class="filter-select" id="materialFilter" onchange="onFilterChange()">
+                        <option value="">All Materials</option>
+                        <option value="PET">PET</option>
+                        <option value="HDPE">HDPE</option>
+                        <option value="LDPE">LDPE</option>
+                        <option value="PP">PP</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-sort="transaction_date" class="sorted-desc" onclick="sortTable('transaction_date')">Time</th>
+                            <th data-sort="collector_name" onclick="sortTable('collector_name')">Collector</th>
+                            <th data-sort="material_type" onclick="sortTable('material_type')">Material</th>
+                            <th data-sort="net_weight_kg" onclick="sortTable('net_weight_kg')">Net Weight (kg)</th>
+                            <th>Rating</th>
+                            <th>Payment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="collectionsBody">
+                        <tr><td colspan="7" class="table-empty">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-footer">
+                <span id="tableInfo">--</span>
+                <div class="pagination">
+                    <button class="btn-page" id="btnPrev" onclick="prevPage()" disabled>Prev</button>
+                    <button class="btn-page" id="btnNext" onclick="nextPage()" disabled>Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAYMENT MODAL -->
+    <div class="pay-overlay" id="payOverlay">
+        <div class="pay-card">
+            <h3>Pay Collector</h3>
+            <div class="pay-summary" id="paySummary"></div>
+            <label style="display:block;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:#334155;margin-bottom:8px;">Payment Provider</label>
+            <div class="provider-chips" id="providerChips">
+                <div class="provider-chip" data-provider="mtn_momo" onclick="selectProvider('mtn_momo',this)">MTN MoMo</div>
+                <div class="provider-chip" data-provider="vodafone_cash" onclick="selectProvider('vodafone_cash',this)">Vodafone Cash</div>
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+                <label style="display:block;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:#334155;margin-bottom:7px;">Phone Number</label>
+                <input style="width:100%;padding:14px 16px;font-family:'DM Sans',sans-serif;font-size:16px;color:#334155;background:#fafaf9;border:2px solid #e2e8f0;border-radius:12px;outline:none;" type="tel" id="payPhone" placeholder="Collector's phone">
+            </div>
+            <div class="pay-actions">
+                <button class="btn-pay-confirm btn-cancel" onclick="closePayModal()">Cancel</button>
+                <button class="btn-pay-confirm btn-confirm" id="payConfirmBtn" onclick="confirmPayment()" disabled>Send Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        var MATERIAL_COLORS = { PET: '#16a34a', HDPE: '#3b82f6', LDPE: '#f59e0b', PP: '#ef4444' };
+
+        var state = {
+            operator: null,
+            stats: null,
+            collections: [],
+            collectionsTotal: 0,
+            collectionsOffset: 0,
+            collectionsLimit: 25,
+            sortField: 'transaction_date',
+            sortDir: 'desc',
+            materialFilter: '',
+            refreshTimer: null,
+            refreshInterval: 30000
+        };
+
+        // ---- AUTH ----
+        var ROLE_ROUTES = {
+            collector: '/collector-dashboard',
+            aggregator: '/aggregator-dashboard',
+            processor: '/processor-dashboard',
+            converter: '/converter-dashboard'
+        };
+
+        function checkAuth() {
+            var saved = localStorage.getItem('circul_operator');
+            if (saved) {
+                try {
+                    state.operator = JSON.parse(saved);
+                    var route = ROLE_ROUTES[state.operator.role];
+                    if (route) { window.location.href = route; return; }
+                    showDashboard();
+                    return;
+                } catch (e) {
+                    localStorage.removeItem('circul_operator');
+                }
+            }
+            showLogin();
+        }
+
+        function showLogin() {
+            document.getElementById('loginOverlay').classList.remove('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('loginOverlay').classList.add('hidden');
+            var op = state.operator;
+            document.getElementById('navUser').style.display = 'flex';
+            document.getElementById('navUserName').textContent = op.name + (op.company ? ' (' + op.company + ')' : '');
+            var badge = document.getElementById('navRoleBadge');
+            badge.textContent = op.role;
+            badge.className = 'role-badge ' + op.role;
+            document.getElementById('logoutBtn').style.display = '';
+
+            if (op.role === 'admin') {
+                document.getElementById('navTitle').textContent = 'Admin Dashboard — All Operators';
+            } else {
+                document.getElementById('navTitle').textContent = op.company || op.name;
+            }
+
+            loadAll();
+        }
+
+        window.handleOperatorLogin = function(e) {
+            e.preventDefault();
+            var phone = document.getElementById('loginPhone').value.trim();
+            var pin = document.getElementById('loginPin').value.trim();
+            if (!phone || !pin) return;
+
+            var btn = document.getElementById('loginBtn');
+            btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+            document.getElementById('loginError').classList.remove('visible');
+
+            fetch('/api/operators/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: phone, pin: pin })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    state.operator = data.operator;
+                    localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+                    var route = ROLE_ROUTES[data.operator.role];
+                    if (route) { window.location.href = route; return; }
+                    showDashboard();
+                } else {
+                    var errEl = document.getElementById('loginError');
+                    errEl.textContent = data.message || 'Invalid phone or PIN';
+                    errEl.classList.add('visible');
+                }
+            })
+            .catch(function() {
+                var errEl = document.getElementById('loginError');
+                errEl.textContent = 'Connection error. Please try again.';
+                errEl.classList.add('visible');
+            })
+            .finally(function() {
+                btn.disabled = false; btn.textContent = 'Log In';
+            });
+        };
+
+        window.handleLogout = function() {
+            state.operator = null;
+            localStorage.removeItem('circul_operator');
+            if (state.refreshTimer) clearInterval(state.refreshTimer);
+            document.getElementById('navUser').style.display = 'none';
+            document.getElementById('logoutBtn').style.display = 'none';
+            showLogin();
+        };
+
+        // ---- API ----
+        function getOperatorParam() {
+            if (state.operator && state.operator.role !== 'admin') {
+                return 'operator_id=' + state.operator.id;
+            }
+            return '';
+        }
+
+        function fetchJSON(url) {
+            return fetch(url).then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            });
+        }
+
+        function loadStats() {
+            var params = getOperatorParam();
+            return fetchJSON('/api/stats' + (params ? '?' + params : '')).then(function(data) {
+                if (data.success) {
+                    state.stats = data.stats;
+                    renderStatsCards(); renderMaterialBreakdown(); renderLeaderboard(); renderTrendChart();
+                }
+            }).catch(function(err) { console.error('Stats error:', err); });
+        }
+
+        function loadCollections() {
+            var params = new URLSearchParams();
+            params.set('limit', state.collectionsLimit);
+            params.set('offset', state.collectionsOffset);
+            if (state.materialFilter) params.set('material_type', state.materialFilter);
+            if (state.operator && state.operator.role !== 'admin') params.set('operator_id', state.operator.id);
+
+            return fetchJSON('/api/transactions?' + params.toString()).then(function(data) {
+                if (data.success) {
+                    state.collections = data.transactions;
+                    state.collectionsTotal = data.total;
+                    sortLocal(); renderCollections();
+                }
+            }).catch(function(err) {
+                console.error('Transactions error:', err);
+                document.getElementById('collectionsBody').innerHTML = '<tr><td colspan="6" class="table-empty" style="color:var(--red)">Failed to load</td></tr>';
+            });
+        }
+
+        function loadAll() {
+            Promise.all([loadStats(), loadCollections()]).then(function() { resetRefreshTimer(); });
+        }
+
+        // ---- RENDER ----
+        function formatNum(n) {
+            if (n == null || isNaN(n)) return '0';
+            var num = parseFloat(n);
+            if (num >= 10000) return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            if (num >= 100) return num.toLocaleString('en-US', { maximumFractionDigits: 1 });
+            return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        }
+
+        function renderStatsCards() {
+            var s = state.stats; if (!s) return;
+            document.getElementById('statTotalWeight').textContent = formatNum(s.totals.total_weight_kg);
+            document.getElementById('statTotalCollections').textContent = formatNum(s.totals.total_transactions);
+            document.getElementById('statActivePickers').textContent = formatNum(s.totals.active_collectors);
+            document.getElementById('statTodayWeight').textContent = formatNum(s.today.today_weight_kg);
+            document.getElementById('statTodayCount').textContent = formatNum(s.today.today_transactions) + ' transactions today';
+        }
+
+        function renderMaterialBreakdown() {
+            var materials = state.stats ? state.stats.by_material : [];
+            var c = document.getElementById('materialBreakdown');
+            if (!materials || !materials.length) { c.innerHTML = '<div class="table-empty">No data yet</div>'; return; }
+            var totalKg = materials.reduce(function(s, m) { return s + parseFloat(m.total_kg); }, 0);
+            var maxKg = parseFloat(materials[0].total_kg);
+            var html = '';
+            materials.forEach(function(m) {
+                var kg = parseFloat(m.total_kg);
+                var pct = totalKg > 0 ? (kg / totalKg * 100) : 0;
+                var bw = maxKg > 0 ? (kg / maxKg * 100) : 0;
+                var color = MATERIAL_COLORS[m.material_type] || '#6b7280';
+                html += '<div class="material-row"><span class="material-label">' + esc(m.material_type) + '</span><div class="material-bar-track"><div class="material-bar-fill" style="width:' + bw.toFixed(1) + '%;background:' + color + '"></div></div><span class="material-kg">' + formatNum(kg) + ' kg</span><span class="material-pct">' + pct.toFixed(1) + '%</span></div>';
+            });
+            c.innerHTML = html;
+        }
+
+        function renderLeaderboard() {
+            var collectors = state.stats ? state.stats.top_collectors : [];
+            var c = document.getElementById('leaderboard');
+            if (!collectors || !collectors.length) { c.innerHTML = '<div class="table-empty">No data yet</div>'; return; }
+            var html = '';
+            collectors.forEach(function(col, i) {
+                var rank = i + 1;
+                var bc = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'default';
+                var name = col.first_name + (col.last_name ? ' ' + col.last_name : '');
+                var rating = col.average_rating ? ' ⭐ ' + parseFloat(col.average_rating).toFixed(1) : '';
+                html += '<div class="leaderboard-item"><div class="rank-badge ' + bc + '">' + rank + '</div><div class="leaderboard-info"><div class="leaderboard-name">' + esc(name) + rating + '</div><div class="leaderboard-meta">' + formatNum(col.transactions) + ' txns</div></div><div class="leaderboard-kg">' + formatNum(col.total_kg) + ' kg</div></div>';
+            });
+            c.innerHTML = html;
+        }
+
+        function renderTrendChart() {
+            var trend = state.stats ? state.stats.daily_trend : [];
+            var c = document.getElementById('trendChart');
+            if (!trend || !trend.length) { c.innerHTML = '<div class="table-empty">No trend data</div>'; return; }
+            var maxKg = Math.max.apply(null, trend.map(function(d) { return parseFloat(d.total_kg); }));
+            if (maxKg === 0) maxKg = 1;
+            var todayStr = new Date().toISOString().slice(0, 10);
+            var html = '<div class="trend-chart">';
+            trend.forEach(function(d) {
+                var kg = parseFloat(d.total_kg);
+                var h = (kg / maxKg * 100).toFixed(1);
+                var ds = d.date.slice(0, 10);
+                html += '<div class="trend-bar-wrapper"><div class="trend-bar-value">' + formatNum(kg) + '</div><div class="trend-bar' + (ds === todayStr ? ' today' : '') + '" style="height:' + h + '%"></div><div class="trend-bar-date">' + fmtShortDate(ds) + '</div></div>';
+            });
+            html += '</div>';
+            c.innerHTML = html;
+        }
+
+        function renderCollections() {
+            var tbody = document.getElementById('collectionsBody');
+            var txns = state.collections;
+            if (!txns || !txns.length) { tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No transactions found</td></tr>'; updateTableInfo(); return; }
+            var html = '';
+            txns.forEach(function(t) {
+                var time = fmtTime(t.transaction_date || t.created_at);
+                var name = (t.collector_first_name || '') + (t.collector_last_name ? ' ' + t.collector_last_name : '');
+                name = name.trim() || 'Unknown';
+                var rText = t.collector_rating ? '⭐ ' + parseFloat(t.collector_rating).toFixed(1) : '—';
+
+                // Payment column
+                var payHtml = '';
+                var payStatus = t.payment_status || 'unpaid';
+                var hasPrice = parseFloat(t.total_price) > 0;
+                if (payStatus === 'paid') {
+                    payHtml = '<span class="btn-pay paid">✓ Paid</span>';
+                } else if (payStatus === 'pending') {
+                    payHtml = '<span class="btn-pay pending">⏳ Pending</span>';
+                } else if (!hasPrice) {
+                    payHtml = '<span class="btn-pay no-price">No price</span>';
+                } else {
+                    payHtml = '<button class="btn-pay unpaid" onclick="openPayModal(' + t.id + ',' + t.collector_id + ',\'' + esc(name) + '\',' + (parseFloat(t.total_price)||0).toFixed(2) + ',\'' + esc(t.collector_phone || '') + '\',\'' + esc(t.material_type) + '\',' + (parseFloat(t.net_weight_kg)||0).toFixed(1) + ')">Pay GHS ' + (parseFloat(t.total_price)||0).toFixed(2) + '</button>';
+                }
+
+                html += '<tr><td class="td-time">' + time + '</td><td>' + esc(name) + '</td><td><span class="material-badge ' + esc(t.material_type) + '">' + esc(t.material_type) + '</span></td><td class="td-weight">' + formatNum(t.net_weight_kg) + '</td><td>' + rText + '</td><td>' + payHtml + '</td></tr>';
+            });
+            tbody.innerHTML = html;
+            updateTableInfo();
+        }
+
+        function updateTableInfo() {
+            var info = document.getElementById('tableInfo');
+            var s = state.collectionsOffset + 1;
+            var e = Math.min(state.collectionsOffset + state.collectionsLimit, state.collectionsTotal);
+            info.textContent = state.collectionsTotal === 0 ? 'No results' : 'Showing ' + s + '-' + e + ' of ' + state.collectionsTotal;
+            document.getElementById('btnPrev').disabled = state.collectionsOffset === 0;
+            document.getElementById('btnNext').disabled = (state.collectionsOffset + state.collectionsLimit) >= state.collectionsTotal;
+        }
+
+        // ---- SORTING ----
+        function sortLocal() {
+            var field = state.sortField; var dir = state.sortDir === 'asc' ? 1 : -1;
+            state.collections.sort(function(a, b) {
+                var va = a[field]; var vb = b[field];
+                if (field === 'net_weight_kg') { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
+                else if (field === 'transaction_date') { va = new Date(va || a.created_at).getTime(); vb = new Date(vb || b.created_at).getTime(); }
+                else if (field === 'collector_name') { va = ((a.collector_first_name || '') + ' ' + (a.collector_last_name || '')).toLowerCase(); vb = ((b.collector_first_name || '') + ' ' + (b.collector_last_name || '')).toLowerCase(); }
+                else { va = (va || '').toString().toLowerCase(); vb = (vb || '').toString().toLowerCase(); }
+                return va < vb ? -1 * dir : va > vb ? 1 * dir : 0;
+            });
+        }
+
+        // ---- UTILS ----
+        function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function fmtTime(iso) {
+            if (!iso) return '--'; var d = new Date(iso); var diff = Date.now() - d;
+            if (diff < 60000) return 'Just now'; if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+        function fmtShortDate(s) {
+            var p = s.split('-'); var d = new Date(+p[0], +p[1]-1, +p[2]);
+            return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + ' ' + d.getDate();
+        }
+
+        // ---- EVENTS ----
+        window.sortTable = function(field) {
+            document.querySelectorAll('thead th').forEach(function(th) { th.classList.remove('sorted-asc', 'sorted-desc'); });
+            if (state.sortField === field) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+            else { state.sortField = field; state.sortDir = field === 'transaction_date' ? 'desc' : 'asc'; }
+            var h = document.querySelector('thead th[data-sort="' + field + '"]');
+            if (h) h.classList.add(state.sortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            sortLocal(); renderCollections();
+        };
+        window.onFilterChange = function() { state.materialFilter = document.getElementById('materialFilter').value; state.collectionsOffset = 0; loadCollections(); };
+        window.prevPage = function() { if (state.collectionsOffset > 0) { state.collectionsOffset = Math.max(0, state.collectionsOffset - state.collectionsLimit); loadCollections(); } };
+        window.nextPage = function() { if ((state.collectionsOffset + state.collectionsLimit) < state.collectionsTotal) { state.collectionsOffset += state.collectionsLimit; loadCollections(); } };
+        window.refreshAll = function() {
+            var btn = document.getElementById('refreshBtn'); btn.textContent = 'Refreshing...'; btn.disabled = true;
+            Promise.all([loadStats(), loadCollections()]).then(function() { btn.textContent = 'Refresh'; btn.disabled = false; resetRefreshTimer(); }).catch(function() { btn.textContent = 'Refresh'; btn.disabled = false; });
+        };
+
+        // ---- PAYMENT MODAL ----
+        var paymentState = { txId: null, collectorId: null, amount: 0, provider: null };
+
+        window.openPayModal = function(txId, collectorId, name, amount, phone, material, weight) {
+            paymentState.txId = txId;
+            paymentState.collectorId = collectorId;
+            paymentState.amount = amount;
+            paymentState.provider = null;
+
+            document.getElementById('paySummary').innerHTML =
+                '<div class="pay-summary-row"><span class="pay-summary-label">Collector</span><span class="pay-summary-value">' + esc(name) + '</span></div>' +
+                '<div class="pay-summary-row"><span class="pay-summary-label">Material</span><span class="pay-summary-value">' + esc(material) + ' — ' + weight + ' kg</span></div>' +
+                '<div class="pay-summary-row"><span class="pay-summary-label">Amount</span><span class="pay-summary-value" style="color:#16a34a;font-size:18px;">GHS ' + amount + '</span></div>';
+
+            document.getElementById('payPhone').value = phone || '';
+            document.querySelectorAll('.provider-chip').forEach(function(c) { c.classList.remove('selected'); });
+            document.getElementById('payConfirmBtn').disabled = true;
+            document.getElementById('payOverlay').classList.add('active');
+        };
+
+        window.selectProvider = function(provider, chip) {
+            paymentState.provider = provider;
+            document.querySelectorAll('.provider-chip').forEach(function(c) { c.classList.remove('selected'); });
+            chip.classList.add('selected');
+            document.getElementById('payConfirmBtn').disabled = false;
+        };
+
+        window.closePayModal = function() {
+            document.getElementById('payOverlay').classList.remove('active');
+        };
+
+        window.confirmPayment = function() {
+            var phone = document.getElementById('payPhone').value.trim();
+            if (!phone) { alert('Please enter the collector\'s phone number'); return; }
+            if (!paymentState.provider) { alert('Please select a payment provider'); return; }
+
+            var btn = document.getElementById('payConfirmBtn');
+            btn.disabled = true; btn.textContent = 'Processing...';
+
+            fetch('/api/payments/initiate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transaction_id: paymentState.txId,
+                    operator_id: state.operator ? state.operator.id : null,
+                    phone: phone,
+                    provider: paymentState.provider
+                })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    closePayModal();
+                    loadCollections(); // Refresh to show updated payment status
+                } else {
+                    alert(data.message || 'Payment failed');
+                }
+            })
+            .catch(function() { alert('Connection error'); })
+            .finally(function() { btn.disabled = false; btn.textContent = 'Send Payment'; });
+        };
+
+        // ---- AUTO REFRESH ----
+        function resetRefreshTimer() {
+            if (state.refreshTimer) clearInterval(state.refreshTimer);
+            var countdown = state.refreshInterval / 1000;
+            var txt = document.getElementById('refreshText'); var dot = document.getElementById('refreshDot');
+            dot.classList.remove('paused'); txt.textContent = 'Auto-refresh: ' + countdown + 's';
+            state.refreshTimer = setInterval(function() {
+                countdown--;
+                if (countdown <= 0) {
+                    txt.textContent = 'Refreshing...'; dot.classList.add('paused');
+                    Promise.all([loadStats(), loadCollections()]).then(function() { countdown = state.refreshInterval / 1000; dot.classList.remove('paused'); }).catch(function() { countdown = state.refreshInterval / 1000; dot.classList.remove('paused'); });
+                } else { txt.textContent = 'Auto-refresh: ' + countdown + 's'; }
+            }, 1000);
+        }
+
+        // ---- INIT ----
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', checkAuth);
+        else checkAuth();
+    })();
+    </script>
+
+    <!-- Polsia Analytics -->
+    <script>
+    (function() {
+        var slug = 'circul'; if (!slug) return;
+        var vid = localStorage.getItem('polsia_vid');
+        if (!vid) { vid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { var r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); }); localStorage.setItem('polsia_vid', vid); }
+        new Image().src = 'https://polsia.com/api/beacon/pixel?s=' + encodeURIComponent(slug) + '&v=' + encodeURIComponent(vid);
+    })();
+    </script>
+</body>
+</html>
+
+
+===== FILE: public/collect.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a2e1a">
+    <title>Circul - Log Collection</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --green-deep: #0a2e1a;
+            --green-primary: #16a34a;
+            --green-light: #bbf7d0;
+            --green-wash: #f0fdf4;
+            --amber: #f59e0b;
+            --amber-light: #fef3c7;
+            --slate: #334155;
+            --slate-light: #94a3b8;
+            --slate-muted: #64748b;
+            --white: #ffffff;
+            --off-white: #fafaf9;
+            --border: #e2e8f0;
+            --red: #ef4444;
+            --red-wash: #fef2f2;
+            --blue: #3b82f6;
+            --blue-wash: #eff6ff;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        html { height: 100%; -webkit-text-size-adjust: 100%; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--slate);
+            background: var(--off-white);
+            min-height: 100%;
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior: none;
+        }
+
+        h1, h2, h3, h4, h5 { font-family: 'Space Grotesk', sans-serif; }
+
+        .app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--white); position: relative; }
+
+        .screen { display: none; opacity: 0; transform: translateY(8px); transition: opacity 0.3s ease, transform 0.3s ease; padding: 0 20px; padding-bottom: calc(24px + var(--safe-bottom)); }
+        .screen.active { display: block; }
+        .screen.visible { opacity: 1; transform: translateY(0); }
+
+        .header { background: var(--green-deep); padding: calc(16px + var(--safe-top)) 20px 16px; position: sticky; top: 0; z-index: 100; }
+        .header-brand { display: flex; align-items: center; gap: 10px; }
+        .header-logo { width: 32px; height: 32px; background: var(--green-primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; color: var(--white); }
+        .header-title { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--white); }
+        .header-subtitle { font-size: 12px; color: var(--slate-light); margin-top: 1px; }
+
+        /* AUTH */
+        .auth-hero { text-align: center; padding: 48px 20px 32px; }
+        .auth-icon { width: 72px; height: 72px; background: var(--green-wash); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .auth-icon svg { width: 36px; height: 36px; stroke: var(--green-primary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .auth-hero h1 { font-size: 24px; font-weight: 700; color: var(--green-deep); margin-bottom: 8px; }
+        .auth-hero p { font-size: 15px; color: var(--slate-muted); line-height: 1.5; }
+
+        .tabs { display: flex; background: var(--off-white); border-radius: 12px; padding: 4px; margin: 0 0 28px; }
+        .tab { flex: 1; padding: 12px 16px; font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; text-align: center; border: none; border-radius: 10px; background: transparent; color: var(--slate-muted); cursor: pointer; transition: all 0.25s ease; -webkit-tap-highlight-color: transparent; }
+        .tab.active { background: var(--white); color: var(--green-deep); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+        .form-panel { display: none; animation: fadeSlideUp 0.25s ease forwards; }
+        .form-panel.active { display: block; }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; letter-spacing: 0.3px; }
+        .form-label .optional { font-weight: 400; color: var(--slate-light); font-family: 'DM Sans', sans-serif; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; -webkit-appearance: none; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .form-input::placeholder { color: var(--slate-light); }
+
+        .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 16px 24px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; border: none; border-radius: 14px; cursor: pointer; transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; position: relative; overflow: hidden; }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-primary { background: var(--green-primary); color: var(--white); }
+        .btn-primary:active:not(:disabled) { background: #15803d; }
+        .btn-secondary { background: var(--off-white); color: var(--slate); border: 2px solid var(--border); }
+        .btn-danger { background: transparent; color: var(--red); font-size: 14px; padding: 12px; }
+        .btn-danger:active { background: var(--red-wash); }
+
+        .btn .ripple { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.3); transform: scale(0); animation: ripple 0.5s ease-out; pointer-events: none; }
+        @keyframes ripple { to { transform: scale(4); opacity: 0; } }
+
+        .btn .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .form-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .form-error.visible { display: block; }
+
+        /* COLLECTION SCREEN */
+        .greeting { padding: 24px 0 20px; }
+        .greeting-hello { font-size: 14px; color: var(--slate-muted); margin-bottom: 2px; }
+        .greeting-name { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: var(--green-deep); }
+
+        .today-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+        .stat-card { background: var(--green-wash); border-radius: 14px; padding: 16px; }
+        .stat-card.amber { background: var(--amber-light); }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: var(--green-deep); line-height: 1; }
+        .stat-label { font-size: 13px; color: var(--slate-muted); margin-top: 4px; }
+
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; color: var(--green-deep); margin-bottom: 14px; }
+
+        .material-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 24px; }
+        .material-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px 6px; background: var(--off-white); border: 2px solid var(--border); border-radius: 14px; cursor: pointer; transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; min-height: 68px; }
+        .material-btn:active { transform: scale(0.94); }
+        .material-btn.selected { background: var(--green-wash); border-color: var(--green-primary); box-shadow: 0 0 0 2px rgba(22,163,74,0.15); }
+        .material-btn .material-icon { font-size: 20px; margin-bottom: 4px; }
+        .material-btn .material-name { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 600; color: var(--slate); letter-spacing: 0.3px; }
+        .material-btn.selected .material-name { color: var(--green-primary); }
+
+        .weight-input-wrapper { display: flex; align-items: center; background: var(--off-white); border: 2px solid var(--border); border-radius: 14px; padding: 4px; transition: border-color 0.2s ease, box-shadow 0.2s ease; margin-bottom: 16px; }
+        .weight-input-wrapper:focus-within { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .weight-input-wrapper input { flex: 1; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: var(--green-deep); padding: 12px 16px; outline: none; width: 0; -webkit-appearance: none; -moz-appearance: textfield; }
+        .weight-input-wrapper input::placeholder { color: var(--slate-light); font-weight: 400; font-size: 24px; }
+        .weight-input-wrapper input::-webkit-inner-spin-button, .weight-input-wrapper input::-webkit-outer-spin-button { -webkit-appearance: none; }
+        .weight-unit { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--slate-light); padding: 0 16px; flex-shrink: 0; }
+
+        /* Price input row */
+        .price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+        .price-input-wrapper { display: flex; align-items: center; background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; padding: 4px; transition: border-color 0.2s ease; }
+        .price-input-wrapper:focus-within { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .price-input-wrapper input { flex: 1; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--green-deep); padding: 10px 12px; outline: none; width: 0; -webkit-appearance: none; -moz-appearance: textfield; }
+        .price-input-wrapper input::-webkit-inner-spin-button, .price-input-wrapper input::-webkit-outer-spin-button { -webkit-appearance: none; }
+        .price-input-wrapper input::placeholder { color: var(--slate-light); font-weight: 400; font-size: 14px; }
+        .price-unit { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate-light); padding: 0 10px; flex-shrink: 0; }
+
+        /* GPS */
+        .gps-status { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--off-white); border-radius: 12px; margin-bottom: 24px; font-size: 14px; color: var(--slate-muted); }
+        .gps-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--slate-light); flex-shrink: 0; transition: background 0.3s ease; }
+        .gps-dot.acquiring { background: var(--amber); animation: pulse 1.2s ease infinite; }
+        .gps-dot.locked { background: var(--green-primary); }
+        .gps-dot.failed { background: var(--red); }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+        .gps-coords { font-family: 'Space Grotesk', sans-serif; font-size: 11px; color: var(--slate-light); margin-top: 2px; }
+
+        .notes-textarea { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; resize: vertical; min-height: 60px; transition: border-color 0.2s ease; -webkit-appearance: none; margin-bottom: 24px; }
+        .notes-textarea:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+
+        .submit-area { margin-bottom: 32px; }
+
+        /* Star Rating Modal */
+        .rating-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,46,26,0.7); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
+        .rating-overlay.active { display: flex; }
+        .rating-card { background: var(--white); border-radius: 20px; padding: 32px 24px; max-width: 360px; width: 100%; text-align: center; animation: fadeSlideUp 0.3s ease; }
+        .rating-card h3 { font-size: 20px; color: var(--green-deep); margin-bottom: 8px; }
+        .rating-card p { font-size: 14px; color: var(--slate-muted); margin-bottom: 24px; }
+        .stars { display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; }
+        .star { width: 48px; height: 48px; cursor: pointer; transition: transform 0.15s ease; color: var(--border); }
+        .star:active { transform: scale(0.85); }
+        .star.active { color: var(--amber); }
+        .star svg { width: 100%; height: 100%; }
+        .rating-actions { display: flex; gap: 10px; }
+        .rating-actions .btn { flex: 1; padding: 14px; font-size: 14px; }
+
+        /* Toast */
+        .toast { position: fixed; top: -80px; left: 50%; transform: translateX(-50%); z-index: 200; background: var(--green-deep); color: var(--white); padding: 16px 24px; border-radius: 14px; font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.2); transition: top 0.4s cubic-bezier(0.34,1.56,0.64,1); display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 40px); white-space: nowrap; }
+        .toast.show { top: calc(20px + var(--safe-top)); }
+        .toast.error { background: var(--red); }
+        .toast-icon { width: 22px; height: 22px; flex-shrink: 0; }
+
+        /* Recent */
+        .recent-section { margin-top: 8px; margin-bottom: 32px; }
+        .recent-list { display: flex; flex-direction: column; gap: 8px; }
+        .recent-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--off-white); border-radius: 12px; }
+        .recent-badge { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; color: var(--green-deep); background: var(--green-light); flex-shrink: 0; }
+        .recent-info { flex: 1; min-width: 0; }
+        .recent-material { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: var(--green-deep); }
+        .recent-meta { font-size: 12px; color: var(--slate-muted); margin-top: 2px; }
+        .recent-weight { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--green-primary); flex-shrink: 0; }
+        .recent-empty { text-align: center; padding: 32px 16px; color: var(--slate-light); font-size: 14px; }
+
+        .divider { height: 1px; background: var(--border); margin: 24px 0; }
+        .logout-area { padding-bottom: 16px; text-align: center; }
+        .collect-screen { padding-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div class="header-brand">
+                <div class="header-logo">C</div>
+                <div>
+                    <div class="header-title">Circul</div>
+                    <div class="header-subtitle">Collection Logger</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AUTH SCREEN -->
+        <div id="auth-screen" class="screen">
+            <div class="auth-hero">
+                <div class="auth-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1" fill="currentColor" stroke="none"/></svg>
+                </div>
+                <h1>Welcome, Collector</h1>
+                <p>Log your waste collections and track your impact.</p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="login" onclick="switchTab('login')">Log In</button>
+                <button class="tab" data-tab="register" onclick="switchTab('register')">Register</button>
+            </div>
+
+            <div id="login-panel" class="form-panel active">
+                <div id="login-error" class="form-error"></div>
+                <form id="login-form" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="login-phone">Phone Number</label>
+                        <input class="form-input" type="tel" id="login-phone" placeholder="e.g. 0241234567" autocomplete="tel" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="login-pin">PIN</label>
+                        <input class="form-input" type="password" id="login-pin" inputmode="numeric" pattern="[0-9]*" placeholder="4-6 digit PIN" minlength="4" maxlength="6" autocomplete="current-password" required>
+                    </div>
+                    <button class="btn btn-primary" type="submit" id="login-btn"><span class="btn-text">Log In</span></button>
+                </form>
+            </div>
+
+            <div id="register-panel" class="form-panel">
+                <div id="register-error" class="form-error"></div>
+                <form id="register-form" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="reg-first-name">First Name</label>
+                        <input class="form-input" type="text" id="reg-first-name" placeholder="Kofi" autocomplete="given-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-last-name">Last Name</label>
+                        <input class="form-input" type="text" id="reg-last-name" placeholder="Asante" autocomplete="family-name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-phone">Phone Number</label>
+                        <input class="form-input" type="tel" id="reg-phone" placeholder="e.g. 0241234567" autocomplete="tel" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-pin">Create PIN</label>
+                        <input class="form-input" type="password" id="reg-pin" inputmode="numeric" pattern="[0-9]*" placeholder="4-6 digits" minlength="4" maxlength="6" autocomplete="new-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-region">Region <span class="optional">(optional)</span></label>
+                        <input class="form-input" type="text" id="reg-region" placeholder="e.g. Accra, Kumasi" autocomplete="address-level1">
+                    </div>
+                    <button class="btn btn-primary" type="submit" id="register-btn"><span class="btn-text">Create Account</span></button>
+                </form>
+            </div>
+        </div>
+
+        <!-- COLLECTION SCREEN -->
+        <div id="collect-screen" class="screen collect-screen">
+            <div class="greeting">
+                <div class="greeting-hello">Good <span id="time-of-day">morning</span>,</div>
+                <div class="greeting-name" id="collector-name"></div>
+            </div>
+
+            <div class="today-stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="today-weight">0</div>
+                    <div class="stat-label">kg today</div>
+                </div>
+                <div class="stat-card amber">
+                    <div class="stat-value" id="today-count">0</div>
+                    <div class="stat-label">transactions</div>
+                </div>
+            </div>
+
+            <div class="section-title">Log a Transaction</div>
+
+            <!-- Material -->
+            <div class="material-grid" id="material-grid">
+                <button class="material-btn" data-material="PET" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9854;</span>
+                    <span class="material-name">PET</span>
+                </button>
+                <button class="material-btn" data-material="HDPE" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9855;</span>
+                    <span class="material-name">HDPE</span>
+                </button>
+                <button class="material-btn" data-material="LDPE" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9857;</span>
+                    <span class="material-name">LDPE</span>
+                </button>
+                <button class="material-btn" data-material="PP" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9858;</span>
+                    <span class="material-name">PP</span>
+                </button>
+            </div>
+
+            <!-- Buyer (who collector is selling to) -->
+            <div class="form-group">
+                <label class="form-label" for="buyer-input">Buyer / Processor <span class="optional">(optional)</span></label>
+                <input class="form-input" type="text" id="buyer-input" placeholder="e.g. Miniplast Ghana">
+            </div>
+
+            <!-- Gross Weight -->
+            <div class="section-title">Gross Weight</div>
+            <div class="weight-input-wrapper">
+                <input type="number" id="weight-input" inputmode="decimal" step="0.1" min="0.1" placeholder="0.0" oninput="updateNetWeight()" required>
+                <span class="weight-unit">kg</span>
+            </div>
+
+            <!-- Price per kg -->
+            <div class="price-row">
+                <div>
+                    <label class="form-label">Price per kg <span class="optional">(optional)</span></label>
+                    <div class="price-input-wrapper">
+                        <input type="number" id="price-input" inputmode="decimal" step="0.01" min="0" placeholder="0.00" oninput="updateNetWeight()">
+                        <span class="price-unit">GHS/kg</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Total Price</label>
+                    <div class="price-input-wrapper" style="background: var(--green-wash); border-color: var(--green-light);">
+                        <input type="text" id="total-price-display" readonly placeholder="--" style="color: var(--green-primary);">
+                        <span class="price-unit">GHS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GPS -->
+            <div class="gps-status" id="gps-status">
+                <div class="gps-dot" id="gps-dot"></div>
+                <div>
+                    <div class="gps-text" id="gps-text">Acquiring GPS...</div>
+                    <div class="gps-coords" id="gps-coords"></div>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <textarea class="notes-textarea" id="notes-input" placeholder="Notes (optional)" rows="2"></textarea>
+
+            <!-- Submit -->
+            <div class="submit-area">
+                <div id="collect-error" class="form-error"></div>
+                <button class="btn btn-primary" id="submit-btn" onclick="handleSubmitCollection()">
+                    <span class="btn-text">Log Transaction</span>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Recent -->
+            <div class="recent-section">
+                <div class="section-title">Recent Transactions</div>
+                <div class="recent-list" id="recent-list">
+                    <div class="recent-empty">No transactions yet. Log your first one above.</div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+            <div class="logout-area">
+                <button class="btn btn-danger" onclick="handleLogout()">Log Out</button>
+            </div>
+        </div>
+
+        <!-- RATING OVERLAY -->
+        <div class="rating-overlay" id="rating-overlay">
+            <div class="rating-card">
+                <h3>Rate this Collector</h3>
+                <p id="rating-prompt">How was the quality of materials from this collector?</p>
+                <div class="stars" id="star-container">
+                    <div class="star" data-rating="1" onclick="selectRating(1)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="2" onclick="selectRating(2)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="3" onclick="selectRating(3)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="4" onclick="selectRating(4)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="5" onclick="selectRating(5)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                </div>
+                <div class="rating-actions">
+                    <button class="btn btn-secondary" onclick="skipRating()"><span class="btn-text">Skip</span></button>
+                    <button class="btn btn-primary" id="submit-rating-btn" onclick="submitRating()" disabled><span class="btn-text">Submit Rating</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div class="toast" id="toast">
+            <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span id="toast-text">Collection logged!</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        var state = {
+            collector: null,
+            selectedMaterial: null,
+            selectedRating: 0,
+            lastTransactionId: null,
+            gpsLat: null,
+            gpsLng: null,
+            gpsStatus: 'idle',
+            isSubmitting: false,
+            gpsWatchId: null
+        };
+
+        // ---- INIT ----
+        function init() {
+            var saved = localStorage.getItem('circul_collector');
+            if (saved) {
+                try {
+                    state.collector = JSON.parse(saved);
+                    showScreen('collect');
+                    loadCollectorData();
+                } catch (e) {
+                    localStorage.removeItem('circul_collector');
+                    showScreen('auth');
+                }
+            } else {
+                showScreen('auth');
+            }
+            updateTimeOfDay();
+        }
+
+        function updateTimeOfDay() {
+            var hour = new Date().getHours();
+            var el = document.getElementById('time-of-day');
+            if (el) {
+                if (hour < 12) el.textContent = 'morning';
+                else if (hour < 17) el.textContent = 'afternoon';
+                else el.textContent = 'evening';
+            }
+        }
+
+        // ---- SCREENS ----
+        function showScreen(name) {
+            var screens = document.querySelectorAll('.screen');
+            for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active', 'visible');
+            var target = document.getElementById(name + '-screen');
+            if (target) {
+                target.classList.add('active');
+                requestAnimationFrame(function() { requestAnimationFrame(function() { target.classList.add('visible'); }); });
+            }
+            if (name === 'collect') {
+                if (state.collector) {
+                    var fullName = state.collector.first_name;
+                    if (state.collector.last_name) fullName += ' ' + state.collector.last_name;
+                    document.getElementById('collector-name').textContent = fullName;
+                }
+                startGPS();
+            } else {
+                stopGPS();
+            }
+        }
+
+        // ---- TABS ----
+        window.switchTab = function(tabName) {
+            var tabs = document.querySelectorAll('.tab');
+            for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === tabName);
+            var panels = document.querySelectorAll('.form-panel');
+            for (var j = 0; j < panels.length; j++) panels[j].classList.remove('active');
+            document.getElementById(tabName + '-panel').classList.add('active');
+            hideError('login'); hideError('register');
+        };
+
+        // ---- AUTH ----
+        window.handleLogin = function(e) {
+            e.preventDefault();
+            var phone = document.getElementById('login-phone').value.trim();
+            var pin = document.getElementById('login-pin').value.trim();
+            if (!phone || !pin) { showError('login', 'Please enter your phone number and PIN.'); return; }
+            setButtonLoading('login-btn', true); hideError('login');
+            apiPost('/api/collectors/login', { phone: phone, pin: pin })
+                .then(function(data) {
+                    if (data.success) { state.collector = data.collector; localStorage.setItem('circul_collector', JSON.stringify(data.collector)); showScreen('collect'); loadCollectorData(); }
+                    else showError('login', data.message || 'Invalid phone or PIN.');
+                })
+                .catch(function(err) { showError('login', err.message || 'Connection error.'); })
+                .finally(function() { setButtonLoading('login-btn', false); });
+        };
+
+        window.handleRegister = function(e) {
+            e.preventDefault();
+            var first_name = document.getElementById('reg-first-name').value.trim();
+            var last_name = document.getElementById('reg-last-name').value.trim();
+            var phone = document.getElementById('reg-phone').value.trim();
+            var pin = document.getElementById('reg-pin').value.trim();
+            var region = document.getElementById('reg-region').value.trim();
+            if (!first_name || !phone || !pin) { showError('register', 'First name, phone, and PIN are required.'); return; }
+            if (pin.length < 4 || pin.length > 6) { showError('register', 'PIN must be 4-6 digits.'); return; }
+            if (!/^\d+$/.test(pin)) { showError('register', 'PIN must be numbers only.'); return; }
+            setButtonLoading('register-btn', true); hideError('register');
+            apiPost('/api/collectors', { first_name: first_name, last_name: last_name, phone: phone, pin: pin, region: region || undefined })
+                .then(function(data) {
+                    if (data.success) { state.collector = data.collector; localStorage.setItem('circul_collector', JSON.stringify(data.collector)); showScreen('collect'); loadCollectorData(); showToast('Account created! Welcome to Circul.'); }
+                    else showError('register', data.message || 'Registration failed.');
+                })
+                .catch(function(err) { showError('register', err.message || 'Connection error.'); })
+                .finally(function() { setButtonLoading('register-btn', false); });
+        };
+
+        window.handleLogout = function() {
+            state.collector = null; state.selectedMaterial = null; state.gpsLat = null; state.gpsLng = null;
+            localStorage.removeItem('circul_collector'); stopGPS(); resetCollectionForm(); showScreen('auth');
+        };
+
+        // ---- MATERIAL ----
+        window.selectMaterial = function(btn) {
+            var all = document.querySelectorAll('.material-btn');
+            for (var i = 0; i < all.length; i++) all[i].classList.remove('selected');
+            btn.classList.add('selected');
+            state.selectedMaterial = btn.getAttribute('data-material');
+        };
+
+        window.updateNetWeight = function() {
+            var gross = parseFloat(document.getElementById('weight-input').value) || 0;
+            var price = parseFloat(document.getElementById('price-input').value) || 0;
+            var total = gross * price;
+            document.getElementById('total-price-display').value = total > 0 ? total.toFixed(2) : '';
+        };
+
+        // ---- GPS ----
+        function startGPS() {
+            if (!navigator.geolocation) { setGPSStatus('failed', 'GPS not available'); return; }
+            setGPSStatus('acquiring', 'Acquiring GPS...');
+            state.gpsWatchId = navigator.geolocation.watchPosition(
+                function(pos) {
+                    state.gpsLat = pos.coords.latitude; state.gpsLng = pos.coords.longitude;
+                    setGPSStatus('locked', 'GPS locked (' + Math.round(pos.coords.accuracy) + 'm)');
+                    document.getElementById('gps-coords').textContent = state.gpsLat.toFixed(5) + ', ' + state.gpsLng.toFixed(5);
+                },
+                function(err) {
+                    var msg = err.code === 1 ? 'Location denied' : err.code === 2 ? 'GPS signal lost' : 'GPS timed out';
+                    setGPSStatus('failed', msg);
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+            );
+        }
+
+        function stopGPS() {
+            if (state.gpsWatchId !== null) { navigator.geolocation.clearWatch(state.gpsWatchId); state.gpsWatchId = null; }
+        }
+
+        function setGPSStatus(status, text) {
+            state.gpsStatus = status;
+            var dot = document.getElementById('gps-dot');
+            dot.className = 'gps-dot';
+            if (status === 'acquiring') dot.classList.add('acquiring');
+            else if (status === 'locked') dot.classList.add('locked');
+            else if (status === 'failed') dot.classList.add('failed');
+            document.getElementById('gps-text').textContent = text;
+            if (status !== 'locked') document.getElementById('gps-coords').textContent = '';
+        }
+
+        // ---- SUBMIT ----
+        window.handleSubmitCollection = function() {
+            if (state.isSubmitting) return;
+
+            var weight = parseFloat(document.getElementById('weight-input').value);
+            var notes = document.getElementById('notes-input').value.trim();
+            var pricePerKg = parseFloat(document.getElementById('price-input').value) || null;
+            var buyerName = document.getElementById('buyer-input').value.trim();
+
+            if (!state.selectedMaterial) { showError('collect', 'Please select a material type.'); return; }
+            if (!weight || weight <= 0) { showError('collect', 'Please enter a valid weight.'); return; }
+            if (weight > 5000) { showError('collect', 'Weight seems too high.'); return; }
+
+            hideError('collect');
+            state.isSubmitting = true;
+            setButtonLoading('submit-btn', true);
+
+            var payload = {
+                collector_id: state.collector.id,
+                material_type: state.selectedMaterial,
+                gross_weight_kg: weight,
+                price_per_kg: pricePerKg,
+                lat: state.gpsLat,
+                lng: state.gpsLng,
+                notes: notes || (buyerName ? 'Buyer: ' + buyerName : undefined)
+            };
+
+            apiPost('/api/transactions', payload)
+                .then(function(data) {
+                    if (data.success) {
+                        var net = parseFloat(data.transaction.net_weight_kg) || weight;
+                        showToast(net.toFixed(1) + ' kg ' + state.selectedMaterial + ' logged!');
+                        state.lastTransactionId = data.transaction.id;
+                        resetCollectionForm();
+                        loadCollectorData();
+                        // Show rating modal
+                        showRatingModal();
+                    } else {
+                        showError('collect', data.message || 'Failed to log transaction.');
+                    }
+                })
+                .catch(function(err) { showError('collect', err.message || 'Connection error.'); })
+                .finally(function() { state.isSubmitting = false; setButtonLoading('submit-btn', false); });
+        };
+
+        function resetCollectionForm() {
+            state.selectedMaterial = null;
+            var btns = document.querySelectorAll('.material-btn');
+            for (var i = 0; i < btns.length; i++) btns[i].classList.remove('selected');
+            document.getElementById('weight-input').value = '';
+            document.getElementById('price-input').value = '';
+            document.getElementById('buyer-input').value = '';
+            document.getElementById('notes-input').value = '';
+            document.getElementById('total-price-display').value = '';
+            hideError('collect');
+        }
+
+        // ---- RATING ----
+        function showRatingModal() {
+            state.selectedRating = 0;
+            var stars = document.querySelectorAll('.star');
+            for (var i = 0; i < stars.length; i++) stars[i].classList.remove('active');
+            document.getElementById('submit-rating-btn').disabled = true;
+            document.getElementById('rating-overlay').classList.add('active');
+        }
+
+        window.selectRating = function(rating) {
+            state.selectedRating = rating;
+            var stars = document.querySelectorAll('.star');
+            for (var i = 0; i < stars.length; i++) {
+                stars[i].classList.toggle('active', parseInt(stars[i].getAttribute('data-rating')) <= rating);
+            }
+            document.getElementById('submit-rating-btn').disabled = false;
+        };
+
+        window.submitRating = function() {
+            if (!state.selectedRating || !state.collector) return;
+            setButtonLoading('submit-rating-btn', true);
+
+            apiPost('/api/ratings', {
+                transaction_id: state.lastTransactionId,
+                collector_id: state.collector.id,
+                rating: state.selectedRating
+            })
+            .then(function(data) {
+                if (data.success) showToast('Rating submitted!');
+            })
+            .catch(function() { /* silent fail for ratings */ })
+            .finally(function() {
+                setButtonLoading('submit-rating-btn', false);
+                document.getElementById('rating-overlay').classList.remove('active');
+            });
+        };
+
+        window.skipRating = function() {
+            document.getElementById('rating-overlay').classList.remove('active');
+        };
+
+        // ---- LOAD DATA ----
+        function loadCollectorData() {
+            if (!state.collector) return;
+            apiGet('/api/collectors/' + state.collector.id + '/stats')
+                .then(function(data) {
+                    if (data.success) {
+                        document.getElementById('today-weight').textContent = formatWeight(parseFloat(data.stats.today.today_kg) || 0);
+                        document.getElementById('today-count').textContent = parseInt(data.stats.today.today_count) || 0;
+                        renderRecentTransactions(data.stats.recent_transactions || []);
+                    }
+                }).catch(function() {});
+        }
+
+        function renderRecentTransactions(transactions) {
+            var container = document.getElementById('recent-list');
+            if (!transactions || transactions.length === 0) {
+                container.innerHTML = '<div class="recent-empty">No transactions yet. Log your first one above.</div>';
+                return;
+            }
+            var items = transactions.slice(0, 5);
+            var html = '';
+            for (var i = 0; i < items.length; i++) {
+                var t = items[i];
+                var weight = parseFloat(t.net_weight_kg) || 0;
+                var price = t.total_price ? ' | GHS ' + parseFloat(t.total_price).toFixed(2) : '';
+                html += '<div class="recent-item">' +
+                    '<div class="recent-badge">' + escapeHtml(t.material_type) + '</div>' +
+                    '<div class="recent-info">' +
+                        '<div class="recent-material">' + escapeHtml(t.material_type) + price + '</div>' +
+                        '<div class="recent-meta">' + formatTimeAgo(t.transaction_date || t.created_at) + '</div>' +
+                    '</div>' +
+                    '<div class="recent-weight">' + formatWeight(weight) + ' kg</div>' +
+                '</div>';
+            }
+            container.innerHTML = html;
+        }
+
+        // ---- API ----
+        function apiPost(url, body) {
+            return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+                .then(function(res) { return res.json().then(function(data) { if (!res.ok && !data.message) throw new Error('Request failed'); return data; }); });
+        }
+        function apiGet(url) { return fetch(url).then(function(res) { return res.json(); }); }
+
+        // ---- UI HELPERS ----
+        function showError(prefix, message) { var el = document.getElementById(prefix + '-error'); if (el) { el.textContent = message; el.classList.add('visible'); } }
+        function hideError(prefix) { var el = document.getElementById(prefix + '-error'); if (el) el.classList.remove('visible'); }
+
+        function setButtonLoading(btnId, loading) {
+            var btn = document.getElementById(btnId); if (!btn) return;
+            var textEl = btn.querySelector('.btn-text');
+            if (loading) { btn.disabled = true; if (textEl) textEl.style.display = 'none'; var s = document.createElement('div'); s.className = 'spinner'; s.id = btnId + '-spinner'; btn.appendChild(s); }
+            else { btn.disabled = false; if (textEl) textEl.style.display = ''; var es = document.getElementById(btnId + '-spinner'); if (es) es.remove(); }
+        }
+
+        var toastTimer = null;
+        function showToast(message, isError) {
+            var toast = document.getElementById('toast'); var textEl = document.getElementById('toast-text');
+            textEl.textContent = message; toast.classList.toggle('error', !!isError);
+            var iconSvg = toast.querySelector('.toast-icon');
+            iconSvg.innerHTML = isError ? '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' : '<polyline points="20 6 9 17 4 12"/>';
+            toast.classList.add('show');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 3000);
+        }
+
+        function formatWeight(kg) { if (kg >= 1000) return (kg/1000).toFixed(1) + 'k'; if (kg === Math.floor(kg)) return kg.toString(); return kg.toFixed(1); }
+
+        function formatTimeAgo(dateStr) {
+            if (!dateStr) return '';
+            var d = new Date(dateStr); var now = new Date(); var diff = now - d; var mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Just now'; if (mins < 60) return mins + ' min ago';
+            var hrs = Math.floor(mins / 60); if (hrs < 24) return hrs + 'h ago';
+            var days = Math.floor(hrs / 24); if (days === 1) return 'Yesterday'; if (days < 7) return days + 'd ago';
+            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        }
+
+        function escapeHtml(str) { if (!str) return ''; var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+        // ---- RIPPLE ----
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.btn-primary, .btn-secondary');
+            if (!btn) return;
+            var rect = btn.getBoundingClientRect(); var size = Math.max(rect.width, rect.height) * 2;
+            var ripple = document.createElement('span'); ripple.className = 'ripple';
+            ripple.style.width = size + 'px'; ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size/2) + 'px'; ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
+            btn.appendChild(ripple); setTimeout(function() { ripple.remove(); }, 500);
+        });
+
+        // ---- BOOT ----
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+    })();
+    </script>
+
+    <!-- Polsia Analytics -->
+    <script>
+    (function() {
+        var slug = 'circul'; if (!slug) return;
+        var vid = localStorage.getItem('polsia_vid');
+        if (!vid) { vid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { var r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); }); localStorage.setItem('polsia_vid', vid); }
+        new Image().src = 'https://polsia.com/api/beacon/pixel?s=' + encodeURIComponent(slug) + '&v=' + encodeURIComponent(vid);
+    })();
+    </script>
+</body>
+</html>
+

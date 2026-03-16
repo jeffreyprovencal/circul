@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processor Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; transition: background 0.15s; }
+        .btn-login:disabled { opacity: 0.6; }
+        .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-error.visible { display: block; }
+        .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--white); }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: #dbeafe; color: #1e40af; }
+        .nav-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
+        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 8px; }
+        .price-input-row { display: flex; gap: 6px; }
+        .price-input { flex: 1; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; }
+        .price-input:focus { border-color: var(--green-primary); }
+        .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .price-post-btn:hover { background: #15803d; }
+        .dl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green-deep); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: background 0.15s; }
+        .dl-btn:hover { background: #0f3d22; }
+        @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .main { padding: 16px; } }
+    </style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <div class="logo">
+            <h2>Circul<span>.</span></h2>
+            <p id="loginSubtitle">Processor Dashboard</p>
+        </div>
+        <div id="loginError" class="login-error"></div>
+        <form onsubmit="handleLogin(event)">
+            <div class="form-group"><label class="form-label">Phone Number</label><input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel"></div>
+            <div class="form-group"><label class="form-label">PIN</label><input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password"></div>
+            <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+        </form>
+    </div>
+</div>
+
+<div id="dashboard" style="display:none">
+    <nav class="nav">
+        <div class="nav-left">
+            <span class="nav-logo">Circul<span>.</span></span>
+            <div class="nav-divider"></div>
+            <span class="nav-title" id="navTitle">Processor</span>
+        </div>
+        <div class="nav-right">
+            <span class="nav-name" id="navName"></span>
+            <span class="role-badge" id="navRoleBadge">processor</span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <div class="stats-row">
+            <div class="stat-card"><div class="stat-label">Received this month</div><div class="stat-value" id="statMonthKg">—</div><div class="stat-sub">kg</div></div>
+            <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value" id="statTxns">—</div></div>
+            <div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value" id="statPending">—</div></div>
+            <div class="stat-card"><div class="stat-label">Total processed</div><div class="stat-value" id="statTotal">—</div><div class="stat-sub">kg lifetime</div></div>
+        </div>
+
+        <!-- COMPLIANCE REPORT -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Compliance &amp; Traceability Reports</span>
+                <a id="complianceBtn" href="#" onclick="downloadCompliance(event)" class="dl-btn">&#8681; EPR/CSRD Report (JSON)</a>
+            </div>
+            <div class="card-body">
+                <p style="font-size:0.85rem;color:var(--slate-light)">Download your full chain-of-custody report for EPR and CSRD compliance. JSON-LD format compatible with Digital Product Passport (DPP) standards.</p>
+            </div>
+        </div>
+
+        <!-- SUPPLY CHAIN VIEW -->
+        <div class="card">
+            <div class="card-header"><span class="card-title">Supply Chain — Recent Transactions</span></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Material</th>
+                        <th>Net kg</th>
+                        <th>Price paid</th>
+                        <th>Payment</th>
+                        <th>GPS</th>
+                    </tr>
+                </thead>
+                <tbody id="supplyBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+            </table>
+        </div>
+
+        <!-- PRICE SETTING FOR CONVERTERS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Post Buy Prices</span>
+                <span style="font-size:0.78rem;color:var(--slate-light)">Visible to converters in your area</span>
+            </div>
+            <div class="card-body">
+                <div class="price-cards" id="priceCards"><div class="empty" style="grid-column:1/-1">Loading…</div></div>
+            </div>
+        </div>
+
+        <!-- AGGREGATOR RATINGS -->
+        <div class="card">
+            <div class="card-header"><span class="card-title">Rate Aggregators You Buy From</span></div>
+            <div class="card-body">
+                <div id="aggregatorRatingsList"><div class="empty">Loading aggregators…</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var state = { operator: null };
+var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
+
+function checkAuth() {
+    var saved = localStorage.getItem('circul_operator');
+    if (saved) {
+        try {
+            state.operator = JSON.parse(saved);
+            if (state.operator.role !== 'processor') {
+                var route = ROLE_ROUTES[state.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+            return;
+        } catch (e) { localStorage.removeItem('circul_operator'); }
+    }
+    document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').style.display = '';
+    var op = state.operator;
+    var title = 'Processor';
+    if (op.company && op.company.toLowerCase().indexOf('repatrn') >= 0) title = 'rePATRN — Processor';
+    document.getElementById('navTitle').textContent = title;
+    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    loadAll();
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    var phone = document.getElementById('loginPhone').value.trim();
+    var pin = document.getElementById('loginPin').value.trim();
+    if (!phone || !pin) return;
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    document.getElementById('loginError').classList.remove('visible');
+    fetch('/api/operators/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone, pin: pin }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.operator = data.operator;
+            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.operator.role !== 'processor') {
+                var route = ROLE_ROUTES[data.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+        } else {
+            var el = document.getElementById('loginError');
+            el.textContent = data.message || 'Invalid phone or PIN';
+            el.classList.add('visible');
+        }
+    })
+    .catch(function() {
+        var el = document.getElementById('loginError'); el.textContent = 'Connection error.'; el.classList.add('visible');
+    })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+}
+
+function handleLogout() {
+    state.operator = null; localStorage.removeItem('circul_operator'); window.location.href = '/dashboard';
+}
+
+function loadAll() {
+    var id = state.operator.id;
+    fetch('/api/operators/' + id + '/dashboard-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var s = data.stats;
+            document.getElementById('statMonthKg').textContent = fmt(s.this_month.month_kg);
+            document.getElementById('statTxns').textContent = s.totals.total_txns;
+            document.getElementById('statPending').textContent = fmt(s.pending_payments.value);
+            document.getElementById('statTotal').textContent = fmt(s.totals.total_kg);
+            renderPriceCards(s.posted_prices);
+        });
+    loadTxns();
+    loadAggregators();
+}
+
+function loadTxns() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=30')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var tbody = document.getElementById('supplyBody');
+            if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
+            tbody.innerHTML = data.transactions.map(function(t) {
+                var statusClass = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
+                var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '<span class="badge badge-gray">—</span>';
+                return '<tr>' +
+                    '<td>' + fmtDate(t.transaction_date) + '</td>' +
+                    '<td><span class="badge badge-blue">' + t.material_type + '</span></td>' +
+                    '<td>' + fmt(t.net_weight_kg) + ' kg</td>' +
+                    '<td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td>' +
+                    '<td><span class="badge ' + statusClass + '">' + (t.payment_status || 'unpaid') + '</span></td>' +
+                    '<td>' + gps + '</td>' +
+                    '</tr>';
+            }).join('');
+        });
+}
+
+function loadAggregators() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=100')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('aggregatorRatingsList');
+            if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            // Unique aggregators from transactions
+            var seen = {};
+            data.transactions.forEach(function(t) {
+                if (t.operator_id && t.operator_name && !seen[t.operator_id]) seen[t.operator_id] = t.operator_name;
+            });
+            var aggs = Object.keys(seen);
+            if (!aggs.length) { el.innerHTML = '<div class="empty">No aggregators to rate yet</div>'; return; }
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Aggregator</th><th style="padding:8px 0;border-bottom:1px solid var(--border)"></th></tr></thead><tbody>' +
+                aggs.map(function(id) {
+                    return '<tr><td style="padding:10px 0">' + esc(seen[id]) + '</td><td style="padding:10px 0;text-align:right"><button onclick="rateAggregator(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-family:\'Space Grotesk\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></td></tr>';
+                }).join('') + '</tbody></table>';
+        });
+}
+
+function rateAggregator(aggId, name) {
+    var r = prompt('Rate ' + name + ' (1-5 stars):');
+    if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
+    fetch('/api/ratings/operator', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rater_operator_id: state.operator.id, rated_operator_id: aggId, rating: parseInt(r), rating_direction: 'processor_rates_aggregator' })
+    }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
+}
+
+function renderPriceCards(prices) {
+    var priceMap = {};
+    (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
+    document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
+        var p = priceMap[mat];
+        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
+        return '<div class="price-card">' +
+            '<div class="price-card-mat">' + mat + '</div>' +
+            '<div class="price-card-current">' + current + '</div>' +
+            '<div class="price-input-row">' +
+            '<input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0">' +
+            '<input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px">' +
+            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '</div></div>';
+    }).join('');
+}
+
+function postPrice(mat) {
+    var usd = document.getElementById('price-usd-' + mat).value;
+    var rate = document.getElementById('price-rate-' + mat).value;
+    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
+    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    fetch('/api/prices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+    }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
+}
+
+function downloadCompliance(e) {
+    e.preventDefault();
+    window.location.href = '/api/reports/compliance/' + state.operator.id + '?format=json';
+}
+
+function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
+function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+checkAuth();
+</script>
+</body>
+</html>

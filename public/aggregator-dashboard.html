@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aggregator Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; transition: background 0.15s; }
+        .btn-login:active { background: #15803d; }
+        .btn-login:disabled { opacity: 0.6; }
+        .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-error.visible { display: block; }
+        .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--white); }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: var(--amber); color: var(--green-deep); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .btn-logout:hover { background: rgba(239,68,68,0.1); }
+        .refresh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-primary); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-value.warn { color: var(--amber); }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+        .card-note { font-size: 0.78rem; color: var(--slate-light); }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+
+        /* PRICE SETTING CARDS */
+        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
+        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 2px; }
+        .price-card-sub { font-size: 0.75rem; color: var(--slate-light); margin-bottom: 12px; }
+        .price-card-actual { font-size: 0.78rem; color: var(--slate); margin-bottom: 12px; background: var(--off-white); padding: 6px 10px; border-radius: 6px; }
+        .price-input-row { display: flex; gap: 6px; }
+        .price-input { flex: 1; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; transition: border-color 0.15s; }
+        .price-input:focus { border-color: var(--green-primary); }
+        .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+        .price-post-btn:hover { background: #15803d; }
+        .price-post-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* RATING MODAL */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: white; border-radius: 16px; padding: 28px; width: 100%; max-width: 460px; }
+        .modal h3 { margin-bottom: 16px; font-size: 1.05rem; }
+        .stars-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .star { width: 36px; height: 36px; cursor: pointer; color: var(--border); transition: color 0.1s; }
+        .star.lit { color: var(--amber); }
+        .star svg { width: 100%; height: 100%; fill: currentColor; }
+        .tags-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+        .tag-chip { padding: 6px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.8rem; cursor: pointer; transition: all 0.1s; }
+        .tag-chip.selected-pos { background: var(--green-wash); border-color: var(--green-primary); color: var(--green-deep); }
+        .tag-chip.selected-neg { background: var(--red-wash); border-color: var(--red); color: var(--red); }
+        .modal-input { width: 100%; padding: 10px 14px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; resize: vertical; min-height: 60px; margin-bottom: 14px; }
+        .modal-input:focus { border-color: var(--green-primary); }
+        .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-modal { padding: 10px 20px; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; }
+        .btn-modal-cancel { background: var(--off-white); color: var(--slate); border: 1.5px solid var(--border); }
+        .btn-modal-submit { background: var(--green-primary); color: white; }
+        .btn-modal-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* PAY BUTTON */
+        .btn-pay { padding: 6px 14px; background: var(--green-primary); color: white; border: none; border-radius: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+        .btn-pay:hover { background: #15803d; }
+
+        @media (max-width: 900px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .price-cards { grid-template-columns: repeat(2, 1fr); }
+            .main { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <div class="logo">
+            <h2>Circul<span>.</span></h2>
+            <p>Aggregator Dashboard</p>
+        </div>
+        <div id="loginError" class="login-error"></div>
+        <form onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel">
+            </div>
+            <div class="form-group">
+                <label class="form-label">PIN</label>
+                <input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+        </form>
+    </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none">
+    <nav class="nav">
+        <div class="nav-left">
+            <span class="nav-logo">Circul<span>.</span></span>
+            <div class="nav-divider"></div>
+            <span class="nav-title">Aggregator</span>
+        </div>
+        <div class="nav-right">
+            <div class="refresh-dot" title="Auto-refresh active"></div>
+            <span class="nav-name" id="navName"></span>
+            <span class="role-badge">aggregator</span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <!-- STATS -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Active collectors</div>
+                <div class="stat-value" id="statCollectors">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pending payments</div>
+                <div class="stat-value warn" id="statPending">—</div>
+                <div class="stat-sub" id="statPendingVal"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Volume this month</div>
+                <div class="stat-value" id="statMonthKg">—</div>
+                <div class="stat-sub">kg</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total purchased</div>
+                <div class="stat-value" id="statTotalKg">—</div>
+                <div class="stat-sub">kg lifetime</div>
+            </div>
+        </div>
+
+        <!-- PRICE SETTING -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Post Your Buy Prices</span>
+                <span class="card-note">Prices in USD/kg. Enter xe.com rate for GHS equivalent. Active through end of month.</span>
+            </div>
+            <div class="card-body">
+                <div class="price-cards" id="priceCards">
+                    <div class="empty" style="grid-column:1/-1">Loading prices…</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOP COLLECTORS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Collector Management</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>City</th>
+                        <th>Total kg</th>
+                        <th>Transactions</th>
+                        <th>Avg Rating</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="collectorsBody">
+                    <tr><td colspan="6" class="empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- PENDING COLLECTIONS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Pending Collections (Unpaid)</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Collector</th>
+                        <th>Material</th>
+                        <th>Net kg</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="pendingBody">
+                    <tr><td colspan="6" class="empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- P&L SUMMARY -->
+        <div class="card">
+            <div class="card-header"><span class="card-title">P&amp;L Summary</span></div>
+            <div class="card-body" id="plSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+                <div class="empty" style="grid-column:1/-1">Loading…</div>
+            </div>
+        </div>
+
+        <!-- RATINGS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Ratings</span>
+            </div>
+            <div class="card-body">
+                <p style="font-size:0.85rem;color:var(--slate-light);margin-bottom:16px">Rate collectors after transactions. Your reputation score is visible to processors.</p>
+                <div id="ratingsGiven" style="margin-bottom:16px">
+                    <p style="font-size:0.82rem;font-weight:600;color:var(--green-deep);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Ratings Received</p>
+                    <div id="ratingsReceivedList"><div class="empty">No ratings yet</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- RATING MODAL -->
+<div class="modal-overlay" id="ratingModal">
+    <div class="modal">
+        <h3>Rate Collector: <span id="ratingCollectorName"></span></h3>
+        <div class="stars-row" id="starsRow">
+            <div class="star" data-r="1" onclick="setStar(1)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="2" onclick="setStar(2)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="3" onclick="setStar(3)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="4" onclick="setStar(4)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="5" onclick="setStar(5)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+        </div>
+        <div class="tags-row" id="tagsRow">
+            <span class="tag-chip" data-tag="reliable" data-type="pos" onclick="toggleTag(this)">Reliable</span>
+            <span class="tag-chip" data-tag="accurate" data-type="pos" onclick="toggleTag(this)">Accurate</span>
+            <span class="tag-chip" data-tag="honest" data-type="pos" onclick="toggleTag(this)">Honest</span>
+            <span class="tag-chip" data-tag="punctual" data-type="pos" onclick="toggleTag(this)">Punctual</span>
+            <span class="tag-chip" data-tag="late" data-type="neg" onclick="toggleTag(this)">Late</span>
+            <span class="tag-chip" data-tag="inaccurate" data-type="neg" onclick="toggleTag(this)">Inaccurate</span>
+            <span class="tag-chip" data-tag="unreliable" data-type="neg" onclick="toggleTag(this)">Unreliable</span>
+        </div>
+        <textarea class="modal-input" id="ratingNote" placeholder="Optional note…" rows="2"></textarea>
+        <div class="modal-footer">
+            <button class="btn-modal btn-modal-cancel" onclick="closeRatingModal()">Cancel</button>
+            <button class="btn-modal btn-modal-submit" id="submitRatingBtn" onclick="submitRating()" disabled>Submit Rating</button>
+        </div>
+    </div>
+</div>
+
+<script>
+var state = { operator: null, currentRatingCollectorId: null, currentRatingStar: 0, selectedTags: [] };
+var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+var refreshTimer = null;
+
+var ROLE_ROUTES = {
+    collector: '/collector-dashboard',
+    aggregator: '/aggregator-dashboard',
+    processor: '/processor-dashboard',
+    converter: '/converter-dashboard'
+};
+
+function checkAuth() {
+    var saved = localStorage.getItem('circul_operator');
+    if (saved) {
+        try {
+            state.operator = JSON.parse(saved);
+            if (state.operator.role !== 'aggregator') {
+                var route = ROLE_ROUTES[state.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+            return;
+        } catch (e) { localStorage.removeItem('circul_operator'); }
+    }
+    document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').style.display = '';
+    var op = state.operator;
+    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    loadAll();
+    refreshTimer = setInterval(loadAll, 30000);
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    var phone = document.getElementById('loginPhone').value.trim();
+    var pin = document.getElementById('loginPin').value.trim();
+    if (!phone || !pin) return;
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    document.getElementById('loginError').classList.remove('visible');
+    fetch('/api/operators/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone, pin: pin })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.operator = data.operator;
+            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.operator.role !== 'aggregator') {
+                var route = ROLE_ROUTES[data.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+        } else {
+            var el = document.getElementById('loginError');
+            el.textContent = data.message || 'Invalid phone or PIN';
+            el.classList.add('visible');
+        }
+    })
+    .catch(function() {
+        var el = document.getElementById('loginError');
+        el.textContent = 'Connection error. Please try again.';
+        el.classList.add('visible');
+    })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+}
+
+function handleLogout() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    state.operator = null;
+    localStorage.removeItem('circul_operator');
+    window.location.href = '/dashboard';
+}
+
+function loadAll() {
+    var id = state.operator.id;
+    fetch('/api/operators/' + id + '/dashboard-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var s = data.stats;
+            document.getElementById('statCollectors').textContent = s.active_collectors;
+            document.getElementById('statPending').textContent = s.pending_payments.count;
+            document.getElementById('statPendingVal').textContent = 'GHS ' + fmt(s.pending_payments.value);
+            document.getElementById('statMonthKg').textContent = fmt(s.this_month.month_kg);
+            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg);
+            renderPriceCards(s.posted_prices);
+            renderCollectors(s.top_collectors);
+            renderRatingsReceived(s.ratings);
+            renderPL(s);
+        });
+    loadPendingTxns();
+}
+
+function renderPriceCards(prices) {
+    var priceMap = {};
+    (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
+    var html = MATERIALS.map(function(mat) {
+        var p = priceMap[mat];
+        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
+        var ghs = p && p.price_per_kg_ghs ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—';
+        var actual = p && p.actual_avg_price_30d ? 'Actual avg (30d): GHS ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : 'No actual data yet';
+        var updated = p ? 'Updated ' + fmtDate(p.posted_at) : '';
+        return '<div class="price-card">' +
+            '<div class="price-card-mat">' + mat + '</div>' +
+            '<div class="price-card-current">' + current + '</div>' +
+            '<div class="price-card-sub">' + ghs + ' · ' + updated + '</div>' +
+            '<div class="price-card-actual">' + actual + '</div>' +
+            '<div class="price-input-row">' +
+            '<input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0">' +
+            '<input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px">' +
+            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '</div></div>';
+    }).join('');
+    document.getElementById('priceCards').innerHTML = html;
+}
+
+function postPrice(mat) {
+    var usd = document.getElementById('price-usd-' + mat).value;
+    var rate = document.getElementById('price-rate-' + mat).value;
+    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
+    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    fetch('/api/prices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { if (data.success) { loadAll(); } else { alert(data.message); } });
+}
+
+function renderCollectors(collectors) {
+    var tbody = document.getElementById('collectorsBody');
+    if (!collectors || !collectors.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No collectors yet</td></tr>'; return; }
+    tbody.innerHTML = collectors.map(function(c) {
+        var name = c.first_name + ' ' + c.last_name;
+        var rating = c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—';
+        return '<tr>' +
+            '<td>' + esc(name) + '</td>' +
+            '<td>' + esc(c.city || '—') + '</td>' +
+            '<td>' + fmt(c.total_kg) + ' kg</td>' +
+            '<td>' + c.txns + '</td>' +
+            '<td>' + rating + '</td>' +
+            '<td><button class="btn-pay" onclick="openRatingModal(' + c.id + ',\'' + esc(name) + '\')">Rate</button></td>' +
+            '</tr>';
+    }).join('');
+}
+
+function loadPendingTxns() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=50')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var pending = (data.transactions || []).filter(function(t) { return t.payment_status === 'unpaid' && parseFloat(t.total_price) > 0; });
+            var tbody = document.getElementById('pendingBody');
+            if (!pending.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pending payments</td></tr>'; return; }
+            tbody.innerHTML = pending.map(function(t) {
+                var name = (t.collector_first_name || '') + ' ' + (t.collector_last_name || '');
+                return '<tr>' +
+                    '<td>' + fmtDate(t.transaction_date) + '</td>' +
+                    '<td>' + esc(name.trim()) + '</td>' +
+                    '<td><span class="badge badge-green">' + t.material_type + '</span></td>' +
+                    '<td>' + fmt(t.net_weight_kg) + '</td>' +
+                    '<td>GHS ' + fmt(t.total_price) + '</td>' +
+                    '<td><span class="badge badge-amber">Unpaid</span></td>' +
+                    '</tr>';
+            }).join('');
+        });
+}
+
+function renderPL(s) {
+    var paid = (s.payment_history || []).filter(function(p) { return p.status === 'success'; }).reduce(function(acc, p) { return acc + parseFloat(p.amount || 0); }, 0);
+    document.getElementById('plSummary').innerHTML =
+        '<div class="stat-card"><div class="stat-label">Total purchased (GHS)</div><div class="stat-value">' + fmt(s.totals.total_value) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">Total paid out (GHS)</div><div class="stat-value">' + fmt(paid) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value warn">' + fmt(s.pending_payments.value) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">This month (GHS)</div><div class="stat-value">' + fmt(s.this_month.month_value) + '</div></div>';
+}
+
+function renderRatingsReceived(ratings) {
+    var el = document.getElementById('ratingsReceivedList');
+    if (!ratings || !ratings.avg_rating) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
+    el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--green-deep)">⭐ ' + ratings.avg_rating + ' <span style="font-size:0.85rem;color:var(--slate-light);font-weight:400">from ' + ratings.count + ' ratings</span></div>';
+}
+
+// RATING MODAL
+function openRatingModal(collectorId, name) {
+    state.currentRatingCollectorId = collectorId;
+    state.currentRatingStar = 0;
+    state.selectedTags = [];
+    document.getElementById('ratingCollectorName').textContent = name;
+    document.querySelectorAll('.star').forEach(function(s) { s.classList.remove('lit'); });
+    document.querySelectorAll('.tag-chip').forEach(function(c) { c.classList.remove('selected-pos', 'selected-neg'); });
+    document.getElementById('ratingNote').value = '';
+    document.getElementById('submitRatingBtn').disabled = true;
+    document.getElementById('ratingModal').classList.add('open');
+}
+
+function closeRatingModal() { document.getElementById('ratingModal').classList.remove('open'); }
+
+function setStar(n) {
+    state.currentRatingStar = n;
+    document.querySelectorAll('.star').forEach(function(s) {
+        s.classList.toggle('lit', parseInt(s.getAttribute('data-r')) <= n);
+    });
+    document.getElementById('submitRatingBtn').disabled = false;
+}
+
+function toggleTag(chip) {
+    var tag = chip.getAttribute('data-tag');
+    var type = chip.getAttribute('data-type');
+    var idx = state.selectedTags.indexOf(tag);
+    if (idx >= 0) { state.selectedTags.splice(idx, 1); chip.classList.remove('selected-pos', 'selected-neg'); }
+    else { state.selectedTags.push(tag); chip.classList.add(type === 'pos' ? 'selected-pos' : 'selected-neg'); }
+}
+
+function submitRating() {
+    if (!state.currentRatingStar) return;
+    fetch('/api/ratings/operator', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            rater_operator_id: state.operator.id,
+            rated_collector_id: state.currentRatingCollectorId,
+            rating: state.currentRatingStar,
+            tags: state.selectedTags,
+            notes: document.getElementById('ratingNote').value || null,
+            rating_direction: 'aggregator_rates_collector'
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { if (data.success) { closeRatingModal(); } else { alert(data.message); } });
+}
+
+document.getElementById('ratingModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRatingModal();
+});
+
+function fmt(n) {
+    var v = parseFloat(n);
+    if (isNaN(v)) return '0';
+    if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 });
+    return v.toFixed(2);
+}
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function esc(s) {
+    var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+
+checkAuth();
+</script>
+</body>
+</html>

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Converter Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; }
+        .btn-login:disabled { opacity: 0.6; }
+        .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-error.visible { display: block; }
+        .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--white); }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: var(--amber); color: var(--green-deep); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+        .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 24px; width: fit-content; }
+        .tab { padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 0.9rem; font-weight: 500; color: var(--slate-light); border: none; background: none; font-family: inherit; transition: all 0.15s; }
+        .tab.active { background: var(--green-primary); color: white; font-weight: 600; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
+        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 8px; }
+        .price-input-row { display: flex; gap: 6px; }
+        .price-input { flex: 1; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; }
+        .price-input:focus { border-color: var(--green-primary); }
+        .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .dl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green-deep); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+        .dl-btn:hover { background: #0f3d22; }
+        @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .main { padding: 16px; } }
+    </style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <div class="logo"><h2>Circul<span>.</span></h2><p>Converter Dashboard</p></div>
+        <div id="loginError" class="login-error"></div>
+        <form onsubmit="handleLogin(event)">
+            <div class="form-group"><label class="form-label">Phone Number</label><input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel"></div>
+            <div class="form-group"><label class="form-label">PIN</label><input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password"></div>
+            <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+        </form>
+    </div>
+</div>
+
+<div id="dashboard" style="display:none">
+    <nav class="nav">
+        <div class="nav-left">
+            <span class="nav-logo">Circul<span>.</span></span>
+            <div class="nav-divider"></div>
+            <span class="nav-title">Converter</span>
+        </div>
+        <div class="nav-right">
+            <span class="nav-name" id="navName"></span>
+            <span class="role-badge">converter</span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <!-- STATS -->
+        <div class="stats-row">
+            <div class="stat-card"><div class="stat-label">Batches purchased</div><div class="stat-value" id="statTxns">—</div></div>
+            <div class="stat-card"><div class="stat-label">Total kg</div><div class="stat-value" id="statTotalKg">—</div></div>
+            <div class="stat-card"><div class="stat-label">Unique processors</div><div class="stat-value" id="statProcessors">—</div></div>
+            <div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value" id="statPending">—</div></div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('supply', this)">Supply Chain</button>
+            <button class="tab" onclick="showTab('prices', this)">Available Material</button>
+            <button class="tab" onclick="showTab('certs', this)">Traceability</button>
+            <button class="tab" onclick="showTab('ratings', this)">Ratings</button>
+        </div>
+
+        <!-- SUPPLY CHAIN TAB -->
+        <div id="tab-supply" class="tab-panel active">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Full Supply Chain — Collector → Aggregator → Processor → You</span>
+                </div>
+                <table>
+                    <thead><tr><th>Date</th><th>Material</th><th>Net kg</th><th>Price (GHS)</th><th>Payment</th><th>GPS</th><th>Journey</th></tr></thead>
+                    <tbody id="supplyBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+                </table>
+            </div>
+            <!-- POST OWN PRICES -->
+            <div class="card">
+                <div class="card-header"><span class="card-title">Post Your Buy Prices</span><span style="font-size:0.78rem;color:var(--slate-light)">For suppliers to see</span></div>
+                <div class="card-body"><div class="price-cards" id="priceCards"><div class="empty" style="grid-column:1/-1">Loading…</div></div></div>
+            </div>
+        </div>
+
+        <!-- AVAILABLE MATERIAL TAB -->
+        <div id="tab-prices" class="tab-panel">
+            <div class="card">
+                <div class="card-header"><span class="card-title">Available Processed Material Near You</span><span style="font-size:0.78rem;color:var(--slate-light)" id="priceCity"></span></div>
+                <div class="card-body" id="processorPrices"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+
+        <!-- TRACEABILITY TAB -->
+        <div id="tab-certs" class="tab-panel">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Compliance &amp; Digital Product Passports</span>
+                    <a href="#" onclick="downloadCompliance(event)" class="dl-btn">&#8681; EPR/CSRD Report</a>
+                </div>
+                <div class="card-body">
+                    <p style="font-size:0.85rem;color:var(--slate-light);margin-bottom:20px">Full chain-of-custody data in JSON-LD / DPP-compatible format for EPR, CSRD, and buyer due diligence.</p>
+                    <div id="txnCerts"><div class="empty">Loading transactions…</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RATINGS TAB -->
+        <div id="tab-ratings" class="tab-panel">
+            <div class="card">
+                <div class="card-header"><span class="card-title">Rate Processors</span></div>
+                <div class="card-body">
+                    <div id="processorRatingsList"><div class="empty">Loading processors…</div></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Your Ratings Received</span></div>
+                <div class="card-body" id="ratingsReceived"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var state = { operator: null };
+var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
+
+function checkAuth() {
+    var saved = localStorage.getItem('circul_operator');
+    if (saved) {
+        try {
+            state.operator = JSON.parse(saved);
+            if (state.operator.role !== 'converter') {
+                var route = ROLE_ROUTES[state.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+            return;
+        } catch (e) { localStorage.removeItem('circul_operator'); }
+    }
+    document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').style.display = '';
+    var op = state.operator;
+    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    loadAll();
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    var phone = document.getElementById('loginPhone').value.trim();
+    var pin = document.getElementById('loginPin').value.trim();
+    if (!phone || !pin) return;
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    document.getElementById('loginError').classList.remove('visible');
+    fetch('/api/operators/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone, pin: pin }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.operator = data.operator;
+            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.operator.role !== 'converter') {
+                var route = ROLE_ROUTES[data.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+        } else {
+            var el = document.getElementById('loginError'); el.textContent = data.message || 'Invalid phone or PIN'; el.classList.add('visible');
+        }
+    })
+    .catch(function() { var el = document.getElementById('loginError'); el.textContent = 'Connection error.'; el.classList.add('visible'); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+}
+
+function handleLogout() {
+    state.operator = null; localStorage.removeItem('circul_operator'); window.location.href = '/dashboard';
+}
+
+function showTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    el.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'prices') loadProcessorPrices();
+    if (tab === 'certs') loadTxnCerts();
+    if (tab === 'ratings') loadRatings();
+}
+
+function loadAll() {
+    var id = state.operator.id;
+    fetch('/api/operators/' + id + '/dashboard-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var s = data.stats;
+            document.getElementById('statTxns').textContent = s.totals.total_txns;
+            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg) + ' kg';
+            document.getElementById('statPending').textContent = fmt(s.pending_payments.value);
+            renderPriceCards(s.posted_prices);
+        });
+    loadTxns();
+}
+
+function loadTxns() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=30')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var tbody = document.getElementById('supplyBody');
+            // Count unique processors
+            var uniqueProcs = new Set();
+            if (data.success && data.transactions) {
+                data.transactions.forEach(function(t) { if (t.operator_id) uniqueProcs.add(t.operator_id); });
+                document.getElementById('statProcessors').textContent = uniqueProcs.size;
+            }
+            if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
+            tbody.innerHTML = data.transactions.map(function(t) {
+                var sc = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
+                var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '—';
+                var journey = '<a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="font-size:0.78rem;color:var(--green-primary)">View</a>';
+                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td><span class="badge ' + sc + '">' + (t.payment_status || 'unpaid') + '</span></td><td>' + gps + '</td><td>' + journey + '</td></tr>';
+            }).join('');
+        });
+}
+
+function loadProcessorPrices() {
+    var city = state.operator.city || '';
+    document.getElementById('priceCity').textContent = city || 'National';
+    fetch('/api/prices?role=converter' + (city ? '&city=' + encodeURIComponent(city) : ''))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('processorPrices');
+            var all = data.all_prices || [];
+            if (!all.length) { el.innerHTML = '<div class="empty">No processor prices posted yet</div>'; return; }
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">USD/kg</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">GHS/kg</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Processor</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">City</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actual avg</th></tr></thead><tbody>' +
+                all.map(function(p) {
+                    return '<tr><td style="padding:10px 0;font-weight:600">' + p.material_type + '</td><td style="padding:10px 0">$' + parseFloat(p.price_per_kg_usd).toFixed(4) + '</td><td style="padding:10px 0;color:var(--green-primary);font-weight:600">' + (p.price_per_kg_ghs ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—') + '</td><td style="padding:10px 0">' + esc(p.operator_name || '—') + '</td><td style="padding:10px 0">' + esc(p.city || '—') + '</td><td style="padding:10px 0;color:var(--slate-light)">' + (p.actual_avg_price_30d ? 'GHS ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        });
+}
+
+function loadTxnCerts() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=20')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('txnCerts');
+            if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Date</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">kg</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actions</th></tr></thead><tbody>' +
+                data.transactions.map(function(t) {
+                    return '<tr><td style="padding:10px 0">' + fmtDate(t.transaction_date) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + t.material_type + '</span></td><td style="padding:10px 0">' + fmt(t.net_weight_kg) + ' kg</td><td style="padding:10px 0"><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--green-primary);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
+                }).join('') + '</tbody></table>';
+        });
+}
+
+function loadRatings() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=100')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('processorRatingsList');
+            if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            var seen = {};
+            data.transactions.forEach(function(t) { if (t.operator_id && t.operator_name && !seen[t.operator_id]) seen[t.operator_id] = t.operator_name; });
+            var procs = Object.keys(seen);
+            if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
+            el.innerHTML = procs.map(function(id) {
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-family:\'Space Grotesk\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></div>';
+            }).join('');
+        });
+    fetch('/api/ratings/operator/' + state.operator.id)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('ratingsReceived');
+            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
+            el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--green-deep);margin-bottom:12px">⭐ ' + (data.summary.avg_rating || '—') + ' <span style="font-size:0.85rem;color:var(--slate-light);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
+        });
+}
+
+function rateProcessor(procId, name) {
+    var r = prompt('Rate ' + name + ' (1-5):');
+    if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
+    fetch('/api/ratings/operator', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rater_operator_id: state.operator.id, rated_operator_id: procId, rating: parseInt(r), rating_direction: 'converter_rates_processor' })
+    }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
+}
+
+function renderPriceCards(prices) {
+    var priceMap = {};
+    (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
+    document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
+        var p = priceMap[mat];
+        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
+        return '<div class="price-card"><div class="price-card-mat">' + mat + '</div><div class="price-card-current">' + current + '</div><div class="price-input-row"><input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0"><input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px"><button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button></div></div>';
+    }).join('');
+}
+
+function postPrice(mat) {
+    var usd = document.getElementById('price-usd-' + mat).value;
+    var rate = document.getElementById('price-rate-' + mat).value;
+    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
+    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    fetch('/api/prices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+    }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
+}
+
+function downloadCompliance(e) {
+    e.preventDefault();
+    window.location.href = '/api/reports/compliance/' + state.operator.id + '?format=json';
+}
+
+function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
+function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+checkAuth();
+</script>
+</body>
+</html>

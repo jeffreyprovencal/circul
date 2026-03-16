@@ -1,0 +1,3387 @@
+CIRCUL — CHUNK 2 OF 2
+Generated: 2026-03-15T01:17:29.243613Z
+
+
+===== FILE: public/admin.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circul Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#16a34a;--green-dark:#0a2e1a;--green-light:#bbf7d0;--green-wash:#f0fdf4;
+      --red:#ef4444;--amber:#f59e0b;--slate:#334155;--slate-light:#94a3b8;
+      --border:#e2e8f0;--bg:#f8fafc;--white:#fff;
+    }
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--slate);min-height:100vh}
+    h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif}
+
+    /* LOGIN */
+    #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--green-dark)}
+    .login-card{background:var(--white);border-radius:16px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+    .login-card .logo{text-align:center;margin-bottom:32px}
+    .login-card .logo h1{font-size:1.8rem;color:var(--green-dark)}
+    .login-card .logo p{color:var(--slate-light);font-size:0.9rem;margin-top:4px}
+    .form-group{margin-bottom:16px}
+    .form-group label{display:block;font-size:0.85rem;font-weight:600;margin-bottom:6px;color:var(--slate)}
+    .form-group input,.form-group select{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none;transition:border-color .2s}
+    .form-group input:focus,.form-group select:focus{border-color:var(--green)}
+    .btn{width:100%;padding:12px;background:var(--green);color:white;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:inherit;transition:background .2s}
+    .btn:hover{background:#15803d}
+    .btn-sm{width:auto;padding:7px 14px;font-size:0.85rem}
+    .btn-outline{background:transparent;color:var(--green);border:1.5px solid var(--green)}
+    .btn-outline:hover{background:var(--green-wash)}
+    .btn-danger{background:var(--red)}
+    .btn-danger:hover{background:#dc2626}
+    .error-msg{color:var(--red);font-size:0.85rem;margin-top:8px;text-align:center}
+
+    /* MAIN LAYOUT */
+    #main-screen{display:none;min-height:100vh;flex-direction:column}
+    .topbar{background:var(--green-dark);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px}
+    .topbar .brand{font-family:'Space Grotesk',sans-serif;font-size:1.2rem;color:white;font-weight:700}
+    .topbar .brand span{color:var(--green-light)}
+    .topbar .user-info{display:flex;align-items:center;gap:12px;color:var(--green-light);font-size:0.9rem}
+    .topbar button{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.85rem}
+    .topbar button:hover{background:rgba(255,255,255,0.2)}
+
+    .content{flex:1;padding:24px 32px;max-width:1200px;margin:0 auto;width:100%}
+
+    /* TABS */
+    .tabs{display:flex;gap:4px;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:24px;width:fit-content}
+    .tab{padding:8px 18px;border-radius:7px;cursor:pointer;font-size:0.9rem;font-weight:500;color:var(--slate-light);border:none;background:none;font-family:inherit;transition:all .15s}
+    .tab.active{background:var(--green);color:white;font-weight:600}
+    .tab:hover:not(.active){background:var(--green-wash);color:var(--green)}
+
+    /* STAT CARDS */
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:28px}
+    .stat-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px}
+    .stat-card .num{font-size:2rem;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--green-dark)}
+    .stat-card .label{font-size:0.85rem;color:var(--slate-light);margin-top:4px}
+
+    /* MATERIAL BADGES */
+    .mat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+    .mat-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+    .mat-card .mat-name{font-weight:700;font-size:1rem;color:var(--green-dark)}
+    .mat-card .mat-kg{font-size:1.5rem;font-weight:700;color:var(--green)}
+    .mat-card .mat-txns{font-size:0.8rem;color:var(--slate-light)}
+
+    /* TABLE */
+    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .section-header h3{font-size:1.1rem;font-weight:600}
+    table{width:100%;border-collapse:collapse;background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:0.9rem}
+    th{background:var(--bg);padding:10px 14px;text-align:left;font-weight:600;font-size:0.82rem;text-transform:uppercase;letter-spacing:.5px;color:var(--slate-light);border-bottom:1px solid var(--border)}
+    td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#fafafa}
+
+    /* BADGES */
+    .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:0.75rem;font-weight:600}
+    .badge-green{background:var(--green-light);color:#166534}
+    .badge-amber{background:#fef3c7;color:#92400e}
+    .badge-blue{background:#dbeafe;color:#1e40af}
+    .badge-gray{background:#f1f5f9;color:#475569}
+    .badge-red{background:#fee2e2;color:#991b1b}
+
+    /* MODAL */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:1000;display:none}
+    .modal-overlay.open{display:flex}
+    .modal{background:white;border-radius:14px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+    .modal h3{margin-bottom:20px;font-size:1.1rem}
+    .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+    .modal-footer .btn{width:auto}
+
+    /* LOADING */
+    .loading{text-align:center;padding:40px;color:var(--slate-light)}
+    .empty{text-align:center;padding:40px;color:var(--slate-light);font-size:0.9rem}
+
+    /* PANEL */
+    .panel{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+
+    @media(max-width:700px){
+      .content{padding:16px}
+      .stat-grid{grid-template-columns:repeat(2,1fr)}
+      .mat-grid{grid-template-columns:repeat(2,1fr)}
+      .tabs{overflow-x:auto}
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="logo">
+      <h1>Circul</h1>
+      <p>Admin Dashboard</p>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="hello@repatrn.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn" onclick="adminLogin()">Sign In</button>
+    <div id="login-error" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- MAIN SCREEN -->
+<div id="main-screen">
+  <div class="topbar">
+    <div class="brand">Circul <span>Admin</span></div>
+    <div class="user-info">
+      <span id="admin-email-display"></span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('overview', this)">Overview</button>
+      <button class="tab" onclick="showTab('collectors', this)">Collectors</button>
+      <button class="tab" onclick="showTab('transactions', this)">Transactions</button>
+      <button class="tab" onclick="showTab('operators', this)">Operators</button>
+      <button class="tab" onclick="showTab('buyers', this)">Buyers</button>
+      <button class="tab" onclick="showTab('reputation', this)">Reputation</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div id="tab-overview">
+      <div class="stat-grid" id="stat-grid"><div class="loading">Loading stats…</div></div>
+      <div class="mat-grid" id="mat-grid"></div>
+      <div class="panel" id="system-health-panel">
+        <h3 style="margin-bottom:16px;font-size:1rem">System Health</h3>
+        <div id="system-health-content" class="loading">Loading…</div>
+      </div>
+    </div>
+
+    <!-- COLLECTORS -->
+    <div id="tab-collectors" style="display:none">
+      <div class="section-header"><h3>All Collectors</h3></div>
+      <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Region</th><th>Rating</th><th>Total kg</th><th>Transactions</th><th>Joined</th></tr></thead>
+        <tbody id="collectors-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div id="tab-transactions" style="display:none">
+      <div class="section-header"><h3>All Transactions</h3></div>
+      <table>
+        <thead><tr><th>Date</th><th>Collector</th><th>Material</th><th>Gross kg</th><th>Net kg</th><th>Price/kg</th><th>Total</th><th>Payment</th><th>Operator</th></tr></thead>
+        <tbody id="transactions-tbody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- OPERATORS -->
+    <div id="tab-operators" style="display:none">
+      <div class="section-header">
+        <h3>Operators</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="role-filter" onchange="loadOperators()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-family:inherit;font-size:0.85rem">
+            <option value="">All Roles</option>
+            <option value="collector">Collector</option>
+            <option value="aggregator">Aggregator</option>
+            <option value="processor">Processor</option>
+            <option value="converter">Converter</option>
+            <option value="operator">Operator</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button class="btn btn-sm" onclick="openModal('operator')">+ Add Operator</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>PIN</th><th>Role</th><th>City</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="operators-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- BUYERS -->
+    <div id="tab-buyers" style="display:none">
+      <div class="section-header">
+        <h3>Buyers (Aggregators &amp; Processors)</h3>
+        <button class="btn btn-sm" onclick="openModal('buyer')">+ Add Buyer</button>
+      </div>
+      <table>
+        <thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Role</th><th>Prices Set</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="buyers-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- REPUTATION -->
+    <div id="tab-reputation" style="display:none">
+      <div class="section-header"><h3>Operator Reputation</h3></div>
+      <table>
+        <thead><tr><th>Name</th><th>Role</th><th>City</th><th>Avg Rating</th><th>Rating Count</th><th>Actions</th></tr></thead>
+        <tbody id="reputation-tbody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ADD OPERATOR MODAL -->
+<div class="modal-overlay" id="modal-operator">
+  <div class="modal">
+    <h3 id="op-modal-title">Add Operator</h3>
+    <input type="hidden" id="op-edit-id">
+    <div class="form-group"><label>Name</label><input type="text" id="op-name" placeholder="Operator name"></div>
+    <div class="form-group"><label>Company</label><input type="text" id="op-company" placeholder="Company (optional)"></div>
+    <div class="form-group"><label>Phone</label><input type="tel" id="op-phone" placeholder="0200000000"></div>
+    <div class="form-group"><label>PIN (4–6 digits)</label><input type="text" id="op-pin" placeholder="1234" maxlength="6"></div>
+    <div class="form-group"><label>Role</label>
+      <select id="op-role">
+        <option value="operator">Operator</option>
+        <option value="admin">Admin</option>
+        <option value="collector">Collector</option>
+        <option value="aggregator">Aggregator</option>
+        <option value="processor">Processor</option>
+        <option value="converter">Converter</option>
+      </select>
+    </div>
+    <div id="op-error" class="error-msg"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('operator')">Cancel</button>
+      <button class="btn btn-sm" onclick="saveOperator()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD BUYER MODAL -->
+<div class="modal-overlay" id="modal-buyer">
+  <div class="modal">
+    <h3 id="buyer-modal-title">Add Buyer</h3>
+    <input type="hidden" id="buyer-edit-id">
+    <div class="form-group"><label>Name</label><input type="text" id="buyer-name" placeholder="Buyer name"></div>
+    <div class="form-group"><label>Company</label><input type="text" id="buyer-company" placeholder="Company (optional)"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="buyer-email" placeholder="buyer@company.com"></div>
+    <div class="form-group"><label>Password</label><input type="text" id="buyer-password" placeholder="Set login password"></div>
+    <div class="form-group"><label>Role</label>
+      <select id="buyer-role"><option value="aggregator">Aggregator</option><option value="processor">Processor</option></select>
+    </div>
+    <div id="buyer-error" class="error-msg"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('buyer')">Cancel</button>
+      <button class="btn btn-sm" onclick="saveBuyer()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminToken = localStorage.getItem('circul_admin_token');
+let adminData = null;
+let currentTab = 'overview';
+
+// Auto-login if token exists
+window.onload = () => {
+  if (adminToken) {
+    showMain();
+    loadCurrentTab();
+  }
+};
+
+// Enter key on login
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+
+async function adminLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Email and password required'; return; }
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!data.success) { errEl.textContent = data.message || 'Login failed'; return; }
+    adminToken = data.token;
+    adminData = data.admin;
+    localStorage.setItem('circul_admin_token', adminToken);
+    showMain();
+    loadCurrentTab();
+  } catch (e) {
+    errEl.textContent = 'Network error. Try again.';
+  }
+}
+
+function showMain() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'flex';
+  const stored = localStorage.getItem('circul_admin_token');
+  if (stored && !adminData) {
+    // try to decode email from token
+    try {
+      const b64 = stored.split('.')[0];
+      adminData = JSON.parse(atob(b64.replace(/-/g,'+').replace(/_/g,'/')));
+    } catch {}
+  }
+  if (adminData) document.getElementById('admin-email-display').textContent = adminData.email || 'Admin';
+}
+
+function logout() {
+  localStorage.removeItem('circul_admin_token');
+  adminToken = null;
+  document.getElementById('main-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken };
+}
+
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, { headers: authHeaders(), ...opts });
+  if (res.status === 401) { logout(); return null; }
+  return res.json();
+}
+
+function showTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('[id^=tab-]').forEach(t => t.style.display = 'none');
+  document.getElementById('tab-' + tab).style.display = '';
+  currentTab = tab;
+  loadTab(tab);
+}
+
+function loadCurrentTab() { loadTab(currentTab); }
+
+function loadTab(tab) {
+  if (tab === 'overview') loadOverview();
+  else if (tab === 'collectors') loadCollectors();
+  else if (tab === 'transactions') loadTransactions();
+  else if (tab === 'operators') loadOperators();
+  else if (tab === 'buyers') loadBuyers();
+  else if (tab === 'reputation') loadReputation();
+}
+
+async function loadOverview() {
+  const data = await apiFetch('/api/admin/stats');
+  if (!data || !data.success) return;
+  const s = data.stats;
+
+  // Role breakdown from operators list
+  const opsData = await apiFetch('/api/admin/operators');
+  const roleCounts = { collector:0, aggregator:0, processor:0, converter:0, operator:0, admin:0 };
+  if (opsData && opsData.operators) {
+    opsData.operators.forEach(o => { if (roleCounts[o.role] !== undefined) roleCounts[o.role]++; });
+  }
+
+  document.getElementById('stat-grid').innerHTML = `
+    <div class="stat-card"><div class="num">${s.collectors}</div><div class="label">Collectors (USSD)</div></div>
+    <div class="stat-card"><div class="num">${roleCounts.aggregator}</div><div class="label">Aggregators</div></div>
+    <div class="stat-card"><div class="num">${roleCounts.processor}</div><div class="label">Processors</div></div>
+    <div class="stat-card"><div class="num">${roleCounts.converter}</div><div class="label">Converters</div></div>
+    <div class="stat-card"><div class="num">${s.transactions}</div><div class="label">Transactions</div></div>
+    <div class="stat-card"><div class="num">${parseFloat(s.total_volume_kg).toFixed(1)}</div><div class="label">Total kg collected</div></div>
+  `;
+  const materials = ['PET','HDPE','LDPE','PP'];
+  const matMap = {};
+  (s.by_material || []).forEach(m => matMap[m.material_type] = m);
+  document.getElementById('mat-grid').innerHTML = materials.map(m => {
+    const d = matMap[m] || {};
+    return `<div class="mat-card">
+      <div class="mat-name">${m}</div>
+      <div class="mat-kg">${parseFloat(d.total_kg || 0).toFixed(1)} kg</div>
+      <div class="mat-txns">${d.count || 0} transactions</div>
+    </div>`;
+  }).join('');
+
+  // System health
+  const txnData = await apiFetch('/api/admin/transactions?limit=1');
+  const paySuccess = s.transactions > 0 ? 'N/A' : '—';
+  document.getElementById('system-health-content').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.transactions}</div><div style="font-size:0.82rem;color:var(--slate-light)">Total DB transactions</div></div>
+      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.operators}</div><div style="font-size:0.82rem;color:var(--slate-light)">Active operators (all roles)</div></div>
+      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.buyers}</div><div style="font-size:0.82rem;color:var(--slate-light)">Legacy buyer accounts</div></div>
+    </div>
+  `;
+}
+
+async function loadCollectors() {
+  const data = await apiFetch('/api/admin/collectors');
+  if (!data || !data.success) return;
+  const tbody = document.getElementById('collectors-tbody');
+  if (!data.collectors.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No collectors yet.</td></tr>'; return; }
+  tbody.innerHTML = data.collectors.map(c => `
+    <tr>
+      <td>${escHtml(c.first_name + ' ' + c.last_name)}</td>
+      <td>${escHtml(c.phone || '—')}</td>
+      <td>${escHtml(c.region || '—')}</td>
+      <td>${c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—'}</td>
+      <td>${parseFloat(c.total_weight_kg).toFixed(2)} kg</td>
+      <td>${c.transaction_count}</td>
+      <td>${fmtDate(c.created_at)}</td>
+    </tr>`).join('');
+}
+
+async function loadTransactions() {
+  const data = await apiFetch('/api/admin/transactions?limit=200');
+  if (!data || !data.success) return;
+  const tbody = document.getElementById('transactions-tbody');
+  if (!data.transactions.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No transactions yet.</td></tr>'; return; }
+  tbody.innerHTML = data.transactions.map(t => `
+    <tr>
+      <td>${fmtDate(t.transaction_date)}</td>
+      <td>${escHtml(t.collector_name || '—')}</td>
+      <td><span class="badge badge-green">${t.material_type}</span></td>
+      <td>${parseFloat(t.gross_weight_kg).toFixed(2)}</td>
+      <td>${parseFloat(t.net_weight_kg).toFixed(2)}</td>
+      <td>${t.price_per_kg ? 'GHS ' + parseFloat(t.price_per_kg).toFixed(2) : '—'}</td>
+      <td>${t.total_price ? 'GHS ' + parseFloat(t.total_price).toFixed(2) : '—'}</td>
+      <td><span class="badge ${t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray'}">${t.payment_status || 'unpaid'}</span></td>
+      <td>${escHtml(t.operator_name || '—')}</td>
+    </tr>`).join('');
+}
+
+const ROLE_BADGE_CLASS = { admin:'badge-blue', aggregator:'badge-green', processor:'badge-blue', converter:'badge-amber', collector:'badge-gray', operator:'badge-gray' };
+
+async function loadOperators() {
+  const roleFilter = document.getElementById('role-filter') ? document.getElementById('role-filter').value : '';
+  const data = await apiFetch('/api/admin/operators');
+  if (!data || !data.success) return;
+  const tbody = document.getElementById('operators-tbody');
+  let ops = data.operators;
+  if (roleFilter) ops = ops.filter(o => o.role === roleFilter);
+  if (!ops.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No operators found.</td></tr>'; return; }
+  tbody.innerHTML = ops.map(op => `
+    <tr>
+      <td>${escHtml(op.name)}</td>
+      <td>${escHtml(op.company || '—')}</td>
+      <td>${escHtml(op.phone || '—')}</td>
+      <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">${op.pin || '—'}</code></td>
+      <td><span class="badge ${ROLE_BADGE_CLASS[op.role] || 'badge-gray'}">${op.role}</span></td>
+      <td>${escHtml(op.city || '—')}</td>
+      <td><span class="badge ${op.is_active ? 'badge-green' : 'badge-red'}">${op.is_active ? 'Active' : 'Inactive'}</span></td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="editOperator(${JSON.stringify(op).replace(/"/g,'&quot;')})">Edit</button>
+        ${op.is_active ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},false)">Disable</button>` : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},true)">Enable</button>`}
+      </td>
+    </tr>`).join('');
+}
+
+async function loadReputation() {
+  const data = await apiFetch('/api/admin/operators');
+  if (!data || !data.success) return;
+  const tbody = document.getElementById('reputation-tbody');
+  const ops = data.operators.filter(o => ['aggregator','processor','converter','collector'].includes(o.role));
+  if (!ops.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No operators with reputation data.</td></tr>'; return; }
+
+  // Fetch ratings for each operator in parallel (cap at 20)
+  const slice = ops.slice(0, 20);
+  const ratingsData = await Promise.all(slice.map(op =>
+    fetch(`/api/ratings/operator/${op.id}`, { headers: authHeaders() }).then(r => r.json()).catch(() => ({ success: false }))
+  ));
+
+  tbody.innerHTML = slice.map((op, i) => {
+    const rd = ratingsData[i];
+    const avg = rd && rd.summary ? rd.summary.avg_rating || '—' : '—';
+    const cnt = rd && rd.summary ? rd.summary.count || 0 : 0;
+    return `<tr>
+      <td>${escHtml(op.name)}</td>
+      <td><span class="badge ${ROLE_BADGE_CLASS[op.role] || 'badge-gray'}">${op.role}</span></td>
+      <td>${escHtml(op.city || '—')}</td>
+      <td>${avg !== '—' ? '⭐ ' + avg : '—'}</td>
+      <td>${cnt}</td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="flagOperator(${op.id})" title="Flag for review">Flag</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function flagOperator(id) {
+  if (!confirm('Flag this operator for review? This will mark them as flagged but keep them active.')) return;
+  await apiFetch(`/api/admin/operators/${id}`, { method: 'PUT', body: JSON.stringify({ is_flagged: true }) });
+  loadReputation();
+}
+
+async function loadBuyers() {
+  const data = await apiFetch('/api/admin/buyers');
+  if (!data || !data.success) return;
+  const tbody = document.getElementById('buyers-tbody');
+  if (!data.buyers.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No buyers yet. Add aggregators and processors above.</td></tr>'; return; }
+  tbody.innerHTML = data.buyers.map(b => {
+    const priceCount = (b.prices || []).length;
+    const priceDisplay = priceCount ? `${priceCount}/4 materials` : '—';
+    return `
+    <tr>
+      <td>${escHtml(b.name)}</td>
+      <td>${escHtml(b.company || '—')}</td>
+      <td>${escHtml(b.email)}</td>
+      <td><span class="badge ${b.role === 'aggregator' ? 'badge-green' : 'badge-blue'}">${b.role}</span></td>
+      <td>${priceDisplay}</td>
+      <td><span class="badge ${b.is_active ? 'badge-green' : 'badge-red'}">${b.is_active ? 'Active' : 'Inactive'}</span></td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="editBuyer(${JSON.stringify(b).replace(/"/g,'&quot;')})">Edit</button>
+        ${b.is_active ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},false)">Disable</button>` : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},true)">Enable</button>`}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// OPERATOR MODAL
+function openModal(type) {
+  if (type === 'operator') {
+    document.getElementById('op-modal-title').textContent = 'Add Operator';
+    document.getElementById('op-edit-id').value = '';
+    ['op-name','op-company','op-phone','op-pin'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('op-role').value = 'operator';
+    document.getElementById('op-error').textContent = '';
+  } else {
+    document.getElementById('buyer-modal-title').textContent = 'Add Buyer';
+    document.getElementById('buyer-edit-id').value = '';
+    ['buyer-name','buyer-company','buyer-email','buyer-password'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('buyer-role').value = 'aggregator';
+    document.getElementById('buyer-error').textContent = '';
+  }
+  document.getElementById('modal-' + type).classList.add('open');
+}
+function closeModal(type) { document.getElementById('modal-' + type).classList.remove('open'); }
+
+function editOperator(op) {
+  document.getElementById('op-modal-title').textContent = 'Edit Operator';
+  document.getElementById('op-edit-id').value = op.id;
+  document.getElementById('op-name').value = op.name || '';
+  document.getElementById('op-company').value = op.company || '';
+  document.getElementById('op-phone').value = op.phone || '';
+  document.getElementById('op-pin').value = op.pin || '';
+  document.getElementById('op-role').value = op.role || 'operator';
+  document.getElementById('op-error').textContent = '';
+  document.getElementById('modal-operator').classList.add('open');
+}
+
+function editBuyer(b) {
+  document.getElementById('buyer-modal-title').textContent = 'Edit Buyer';
+  document.getElementById('buyer-edit-id').value = b.id;
+  document.getElementById('buyer-name').value = b.name || '';
+  document.getElementById('buyer-company').value = b.company || '';
+  document.getElementById('buyer-email').value = b.email || '';
+  document.getElementById('buyer-password').value = '';
+  document.getElementById('buyer-role').value = b.role || 'aggregator';
+  document.getElementById('buyer-error').textContent = '';
+  document.getElementById('modal-buyer').classList.add('open');
+}
+
+async function saveOperator() {
+  const id = document.getElementById('op-edit-id').value;
+  const body = {
+    name: document.getElementById('op-name').value.trim(),
+    company: document.getElementById('op-company').value.trim(),
+    phone: document.getElementById('op-phone').value.trim(),
+    pin: document.getElementById('op-pin').value.trim(),
+    role: document.getElementById('op-role').value
+  };
+  const errEl = document.getElementById('op-error');
+  errEl.textContent = '';
+  const url = id ? `/api/admin/operators/${id}` : '/api/admin/operators';
+  const method = id ? 'PUT' : 'POST';
+  const data = await apiFetch(url, { method, body: JSON.stringify(body) });
+  if (!data) return;
+  if (!data.success) { errEl.textContent = data.message || 'Error saving'; return; }
+  closeModal('operator');
+  loadOperators();
+}
+
+async function saveBuyer() {
+  const id = document.getElementById('buyer-edit-id').value;
+  const body = {
+    name: document.getElementById('buyer-name').value.trim(),
+    company: document.getElementById('buyer-company').value.trim(),
+    email: document.getElementById('buyer-email').value.trim(),
+    password: document.getElementById('buyer-password').value,
+    role: document.getElementById('buyer-role').value
+  };
+  if (!id && !body.password) { document.getElementById('buyer-error').textContent = 'Password required for new buyers'; return; }
+  if (!body.password) delete body.password;
+  const errEl = document.getElementById('buyer-error');
+  errEl.textContent = '';
+  const url = id ? `/api/admin/buyers/${id}` : '/api/admin/buyers';
+  const method = id ? 'PUT' : 'POST';
+  const data = await apiFetch(url, { method, body: JSON.stringify(body) });
+  if (!data) return;
+  if (!data.success) { errEl.textContent = data.message || 'Error saving'; return; }
+  closeModal('buyer');
+  loadBuyers();
+}
+
+async function toggleOperator(id, active) {
+  await apiFetch(`/api/admin/operators/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
+  loadOperators();
+}
+
+async function toggleBuyer(id, active) {
+  await apiFetch(`/api/admin/buyers/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
+  loadBuyers();
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+
+// Helpers
+function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+</script>
+</body>
+</html>
+
+
+===== FILE: public/index.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circul - The Waste-to-Resource Operating System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --green-deep: #0a2e1a;
+            --green-primary: #16a34a;
+            --green-light: #bbf7d0;
+            --green-wash: #f0fdf4;
+            --amber: #f59e0b;
+            --amber-light: #fef3c7;
+            --slate: #334155;
+            --slate-light: #94a3b8;
+            --white: #ffffff;
+            --off-white: #fafaf9;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            color: var(--slate);
+            background: var(--white);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+
+        /* ---- HERO ---- */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            background: var(--green-deep);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -40%;
+            right: -20%;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(22,163,74,0.15) 0%, transparent 70%);
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: -10%;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(245,158,11,0.08) 0%, transparent 70%);
+        }
+
+        .hero-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 120px 32px 80px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-tag {
+            display: inline-block;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--green-primary);
+            margin-bottom: 28px;
+            padding: 6px 16px;
+            border: 1px solid rgba(22,163,74,0.3);
+            border-radius: 4px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.8rem, 6vw, 4.5rem);
+            line-height: 1.08;
+            color: var(--white);
+            font-weight: 700;
+            max-width: 780px;
+            margin-bottom: 28px;
+        }
+
+        .hero h1 span {
+            color: var(--green-primary);
+        }
+
+        .hero-sub {
+            font-size: 1.2rem;
+            line-height: 1.7;
+            color: var(--slate-light);
+            max-width: 560px;
+            margin-bottom: 48px;
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 48px;
+            flex-wrap: wrap;
+        }
+
+        .hero-stat {
+            text-align: left;
+        }
+
+        .hero-stat-number {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--green-primary);
+            line-height: 1;
+        }
+
+        .hero-stat-label {
+            font-size: 0.85rem;
+            color: var(--slate-light);
+            margin-top: 6px;
+        }
+
+        /* ---- PROBLEM ---- */
+        .problem {
+            padding: 120px 32px;
+            background: var(--off-white);
+        }
+
+        .problem-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+
+        .problem-left h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--green-deep);
+            line-height: 1.2;
+            margin-bottom: 20px;
+        }
+
+        .problem-left p {
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: var(--slate);
+        }
+
+        .problem-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .problem-card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 24px 28px;
+            border-left: 4px solid var(--amber);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .problem-card h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--green-deep);
+            margin-bottom: 6px;
+        }
+
+        .problem-card p {
+            font-size: 0.9rem;
+            color: var(--slate-light);
+            line-height: 1.5;
+        }
+
+        /* ---- HOW ---- */
+        .how {
+            padding: 120px 32px;
+            background: var(--white);
+        }
+
+        .how-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--green-primary);
+            margin-bottom: 16px;
+        }
+
+        .how h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--green-deep);
+            margin-bottom: 60px;
+            max-width: 500px;
+        }
+
+        .how-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+        }
+
+        .how-item {
+            padding: 36px 32px;
+            border-radius: 16px;
+            background: var(--green-wash);
+            position: relative;
+        }
+
+        .how-item:nth-child(2) {
+            background: var(--amber-light);
+        }
+
+        .how-number {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            color: rgba(10,46,26,0.08);
+            line-height: 1;
+            margin-bottom: 16px;
+        }
+
+        .how-item h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--green-deep);
+            margin-bottom: 10px;
+        }
+
+        .how-item p {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--slate);
+        }
+
+        /* ---- VISION ---- */
+        .vision {
+            padding: 120px 32px;
+            background: var(--green-deep);
+            text-align: center;
+        }
+
+        .vision-inner {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .vision h2 {
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            font-weight: 700;
+            color: var(--white);
+            line-height: 1.25;
+            margin-bottom: 24px;
+        }
+
+        .vision p {
+            font-size: 1.1rem;
+            line-height: 1.7;
+            color: var(--slate-light);
+        }
+
+        /* ---- FOOTER ---- */
+        .footer {
+            padding: 40px 32px;
+            background: var(--green-deep);
+            border-top: 1px solid rgba(255,255,255,0.06);
+            text-align: center;
+        }
+
+        .footer p {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.3);
+        }
+
+        /* ---- RESPONSIVE ---- */
+        @media (max-width: 768px) {
+            .problem-inner {
+                grid-template-columns: 1fr;
+                gap: 48px;
+            }
+            .how-grid {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+            .hero-stats {
+                gap: 32px;
+            }
+            .hero-inner {
+                padding: 100px 24px 60px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV -->
+    <nav style="position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,46,26,0.95);backdrop-filter:blur(8px);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;">
+        <a href="/" style="font-family:'Space Grotesk',sans-serif;font-size:1.3rem;font-weight:700;color:#fff;text-decoration:none;">Circul<span style="color:#16a34a;">.</span></a>
+        <div style="display:flex;gap:12px;">
+            <a href="/collect" style="display:inline-block;padding:8px 20px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-family:'DM Sans',sans-serif;font-size:0.9rem;font-weight:500;transition:background 0.2s;">Start Collecting</a>
+            <a href="/dashboard" style="display:inline-block;padding:8px 20px;border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;text-decoration:none;font-family:'DM Sans',sans-serif;font-size:0.9rem;font-weight:500;transition:background 0.2s;">Operator Dashboard</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-inner">
+            <div class="hero-tag">Circular Economy Infrastructure</div>
+            <h1>Every bottle <span>tracked</span>. Every collector <span>paid</span>. Every gram <span>valued</span>.</h1>
+            <p class="hero-sub">Circul is the AI-native operating system for waste-to-resource supply chains. From collection to recycling to global buyer, one platform runs the entire loop.</p>
+            <div style="display:flex;gap:16px;margin-bottom:48px;flex-wrap:wrap;">
+                <a href="/collect" style="display:inline-flex;align-items:center;gap:8px;padding:14px 32px;background:#16a34a;color:#fff;border-radius:12px;text-decoration:none;font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:600;transition:transform 0.15s,background 0.2s;">&#9998; Log a Collection</a>
+                <a href="/dashboard" style="display:inline-flex;align-items:center;gap:8px;padding:14px 32px;border:2px solid rgba(255,255,255,0.25);color:#fff;border-radius:12px;text-decoration:none;font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:600;transition:transform 0.15s,border-color 0.2s;">&#128202; View Dashboard</a>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <div class="hero-stat-number">5%</div>
+                    <div class="hero-stat-label">Ghana's current recycling rate</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-number">1.7M</div>
+                    <div class="hero-stat-label">Tonnes of plastic waste/year</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-number">4</div>
+                    <div class="hero-stat-label">Plastic types tracked (PET, HDPE, LDPE, PP)</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="problem">
+        <div class="problem-inner">
+            <div class="problem-left">
+                <h2>The recycling supply chain runs on paper and phone calls</h2>
+                <p>Millions of informal waste collectors collect plastic across Africa. They have no routes, no real-time pricing, no way to prove what they collected. Brands want recycled materials but can't verify origins. The gap isn't materials. It's data.</p>
+            </div>
+            <div class="problem-cards">
+                <div class="problem-card">
+                    <h4>No traceability</h4>
+                    <p>Recycled materials can't be tracked from street to factory. Brands can't verify their supply chain claims.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>No coordination</h4>
+                    <p>Waste collectors work independently with no optimized routes, no demand signals, no fair pricing.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>No marketplace</h4>
+                    <p>Recycled PET flakes have global demand but no efficient way to match sellers in Ghana with buyers in Europe.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="how">
+        <div class="how-inner">
+            <div class="section-label">How Circul Works</div>
+            <h2>AI runs the supply chain end-to-end</h2>
+            <div class="how-grid">
+                <div class="how-item">
+                    <div class="how-number">01</div>
+                    <h3>Coordinate Collectors</h3>
+                    <p>Mobile-first tools for waste collectors. AI-optimized collection routes, real-time pricing, and instant mobile payments. Every collection logged and verified.</p>
+                </div>
+                <div class="how-item">
+                    <div class="how-number">02</div>
+                    <h3>Track Materials</h3>
+                    <p>Full chain-of-custody from collection point to processing facility to end buyer. Weight, quality grade, GPS coordinates. The data layer the industry has never had.</p>
+                </div>
+                <div class="how-item">
+                    <div class="how-number">03</div>
+                    <h3>Match Buyers</h3>
+                    <p>AI-powered marketplace connecting verified recycled materials with global buyers. Automated pricing, quality matching, and logistics coordination.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MARKET PRICES WIDGET (D3) -->
+    <section class="prices-widget" id="prices-section" style="padding:80px 32px;background:var(--off-white);">
+        <div style="max-width:1100px;margin:0 auto;">
+            <div class="section-label">Live Market Prices</div>
+            <h2 style="font-size:1.8rem;font-weight:700;color:var(--green-deep);margin-bottom:8px;">What aggregators are paying</h2>
+            <p style="color:var(--slate-light);margin-bottom:32px;font-size:0.95rem;">Prices self-posted by aggregators. Updated monthly. <em>Full price feed available after login.</em></p>
+            <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
+                <select id="price-city" onchange="loadPriceWidget()" style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.9rem;background:white;cursor:pointer;outline:none;">
+                    <option value="Accra">Accra</option>
+                    <option value="Tema">Tema</option>
+                    <option value="Kumasi">Kumasi</option>
+                    <option value="Tamale">Tamale</option>
+                    <option value="Takoradi">Takoradi</option>
+                    <option value="Cape Coast">Cape Coast</option>
+                    <option value="Sunyani">Sunyani</option>
+                </select>
+                <select id="price-material" onchange="loadPriceWidget()" style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.9rem;background:white;cursor:pointer;outline:none;">
+                    <option value="">All Materials</option>
+                    <option value="PET">PET</option>
+                    <option value="HDPE">HDPE</option>
+                    <option value="LDPE">LDPE</option>
+                    <option value="PP">PP</option>
+                </select>
+            </div>
+            <div id="price-widget-content" style="background:white;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;">
+                <div style="padding:32px;text-align:center;color:var(--slate-light);font-size:0.9rem;">Loading prices…</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="vision">
+        <div class="vision-inner">
+            <h2>Waste is a design flaw. Circul is the fix.</h2>
+            <p>Every piece of plastic has value. Every person who collects it deserves fair pay and dignity. Circul exists to build the infrastructure that makes the circular economy real, starting where it matters most: the places the world forgot to digitize.</p>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>&copy; Circul</p>
+    </footer>
+
+
+    <script>
+    function loadPriceWidget() {
+        var city = document.getElementById('price-city').value;
+        var material = document.getElementById('price-material').value;
+        var url = '/api/prices?role=collector&city=' + encodeURIComponent(city) + (material ? '&material=' + material : '');
+        var container = document.getElementById('price-widget-content');
+        container.innerHTML = '<div style="padding:32px;text-align:center;color:#94a3b8;font-size:0.9rem;">Loading…</div>';
+        fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+            if (!data.success) { container.innerHTML = '<div style="padding:32px;text-align:center;color:#94a3b8;">No price data available yet.</div>'; return; }
+            var near = data.near_prices || [];
+            var national = data.national_averages || [];
+            var html = '';
+            if (near.length > 0) {
+                html += '<div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;background:#f0fdf4;"><strong style="font-size:0.8rem;letter-spacing:1px;color:#16a34a;text-transform:uppercase;">Near You — ' + city + '</strong></div>';
+                html += '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
+                html += '<thead><tr style="background:#f8fafc;"><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Material</th><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Posted (USD/kg)</th><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">GHS/kg</th><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Actual avg (30d)</th><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Buyer</th></tr></thead><tbody>';
+                near.forEach(function(p) {
+                    var ghsDisplay = p.price_per_kg_ghs ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—';
+                    var actualAvg = p.actual_avg_price_30d ? 'GHS ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—';
+                    html += '<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:12px 24px;font-weight:600;color:#0a2e1a;">' + p.material_type + '</td><td style="padding:12px 24px;">$' + parseFloat(p.price_per_kg_usd).toFixed(4) + '</td><td style="padding:12px 24px;color:#16a34a;font-weight:600;">' + ghsDisplay + '</td><td style="padding:12px 24px;color:#64748b;">' + actualAvg + '</td><td style="padding:12px 24px;color:#334155;">' + (p.operator_name || '—') + '</td></tr>';
+                });
+                html += '</tbody></table>';
+            }
+            if (national.length > 0) {
+                html += '<div style="padding:16px 24px;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;background:#fafaf9;"><strong style="font-size:0.8rem;letter-spacing:1px;color:#334155;text-transform:uppercase;">National Average</strong></div>';
+                html += '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><thead><tr style="background:#f8fafc;"><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Material</th><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Avg (USD/kg)</th><th style="padding:10px 24px;text-align:left;font-size:0.78rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Buyers posting</th></tr></thead><tbody>';
+                national.forEach(function(n) {
+                    html += '<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:12px 24px;font-weight:600;color:#0a2e1a;">' + n.material_type + '</td><td style="padding:12px 24px;">$' + parseFloat(n.avg_usd).toFixed(4) + '</td><td style="padding:12px 24px;color:#64748b;">' + n.buyer_count + '</td></tr>';
+                });
+                html += '</tbody></table>';
+            }
+            if (near.length === 0 && national.length === 0) {
+                html = '<div style="padding:48px;text-align:center;color:#94a3b8;"><p style="font-size:1rem;margin-bottom:8px;">No prices posted yet for this selection.</p><p style="font-size:0.85rem;">Aggregators post prices after logging in.</p></div>';
+            }
+            container.innerHTML = html;
+        }).catch(function() {
+            container.innerHTML = '<div style="padding:32px;text-align:center;color:#94a3b8;">Unable to load price data.</div>';
+        });
+    }
+    document.addEventListener('DOMContentLoaded', function() { loadPriceWidget(); });
+    </script>
+
+    <!-- Polsia Analytics -->
+    <script>
+    (function() {
+        var slug = 'circul';
+        if (!slug) return;
+        var vid = localStorage.getItem('polsia_vid');
+        if (!vid) {
+            vid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+            localStorage.setItem('polsia_vid', vid);
+        }
+        new Image().src = 'https://polsia.com/api/beacon/pixel?s=' + encodeURIComponent(slug) + '&v=' + encodeURIComponent(vid);
+    })();
+    </script>
+</body>
+</html>
+
+
+===== FILE: public/collector-dashboard.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collector Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+
+        /* LOGIN */
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; transition: background 0.15s; }
+        .btn-login:active { background: #15803d; }
+        .btn-login:disabled { opacity: 0.6; }
+        .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-error.visible { display: block; }
+        .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* NAV */
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--white); }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: var(--green-light); color: var(--green-deep); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .btn-logout:hover { background: rgba(239,68,68,0.1); }
+
+        /* MAIN */
+        .main { max-width: 1100px; margin: 0 auto; padding: 28px 32px 60px; }
+
+        /* STATS ROW */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+
+        /* CARDS */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+
+        /* TABLE */
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+
+        /* BADGE */
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+
+        /* PRICE PANEL */
+        .price-panel { background: var(--white); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 28px; overflow: hidden; }
+        .price-panel-header { padding: 18px 24px; border-bottom: 1px solid var(--border); background: var(--green-wash); }
+        .price-panel-header h3 { font-size: 0.95rem; font-weight: 600; color: var(--green-deep); margin-bottom: 2px; }
+        .price-panel-header p { font-size: 0.82rem; color: var(--slate-light); }
+        .price-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+        .price-cell { padding: 20px 24px; border-right: 1px solid var(--border); }
+        .price-cell:last-child { border-right: none; }
+        .price-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 700; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .price-val { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-deep); }
+        .price-sub { font-size: 0.75rem; color: var(--slate-light); margin-top: 4px; }
+
+        /* REPORT BUTTON */
+        .report-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--green-primary); color: white; border-radius: 10px; text-decoration: none; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600; margin-bottom: 24px; transition: background 0.15s; }
+        .report-btn:hover { background: #15803d; }
+
+        /* MATERIAL BAR */
+        .mat-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .mat-row:last-child { margin-bottom: 0; }
+        .mat-label { font-size: 0.82rem; font-weight: 600; color: var(--slate); width: 48px; flex-shrink: 0; }
+        .mat-bar-track { flex: 1; height: 20px; background: var(--off-white); border-radius: 4px; overflow: hidden; }
+        .mat-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; min-width: 2px; }
+        .mat-pct { font-size: 0.75rem; font-weight: 600; color: var(--slate); width: 40px; text-align: right; flex-shrink: 0; }
+        .mat-kg { font-size: 0.72rem; color: var(--slate-light); width: 60px; text-align: right; flex-shrink: 0; }
+
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+            .price-grid { grid-template-columns: repeat(2, 1fr); }
+            .main { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <div class="logo">
+            <h2>Circul<span>.</span></h2>
+            <p>Collector Dashboard</p>
+        </div>
+        <div id="loginError" class="login-error"></div>
+        <form onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel">
+            </div>
+            <div class="form-group">
+                <label class="form-label">PIN</label>
+                <input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+        </form>
+    </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none">
+    <nav class="nav">
+        <div class="nav-left">
+            <span class="nav-logo">Circul<span>.</span></span>
+            <div class="nav-divider"></div>
+            <span class="nav-title">Collector</span>
+        </div>
+        <div class="nav-right">
+            <span class="nav-name" id="navName"></span>
+            <span class="role-badge">collector</span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <!-- REPORT LINK -->
+        <a href="#" id="reportLink" class="report-btn">&#128210; My Collector Report &amp; Passport</a>
+
+        <!-- STATS -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total kg (lifetime)</div>
+                <div class="stat-value" id="statTotalKg">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total earned</div>
+                <div class="stat-value" id="statEarned">—</div>
+                <div class="stat-sub">GHS</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Transactions</div>
+                <div class="stat-value" id="statTxns">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">This month (kg)</div>
+                <div class="stat-value" id="statMonthKg">—</div>
+            </div>
+        </div>
+
+        <!-- PRICE FEED + MATERIAL -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Material Breakdown</span>
+                </div>
+                <div class="card-body" id="materialBreakdown">
+                    <div class="empty">No data yet</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Aggregator Prices Near You</span>
+                    <span style="font-size:0.78rem;color:var(--slate-light)" id="priceCity"></span>
+                </div>
+                <div class="card-body" id="pricePanel">
+                    <div class="empty">Loading prices…</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RECENT TRANSACTIONS -->
+        <div class="card" style="margin-bottom:28px">
+            <div class="card-header">
+                <span class="card-title">Recent Transactions</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Material</th>
+                        <th>Net kg</th>
+                        <th>Amount (GHS)</th>
+                        <th>Payment</th>
+                        <th>Aggregator</th>
+                    </tr>
+                </thead>
+                <tbody id="txnBody">
+                    <tr><td colspan="6" class="empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+var state = { operator: null };
+
+var ROLE_ROUTES = {
+    collector: '/collector-dashboard',
+    aggregator: '/aggregator-dashboard',
+    processor: '/processor-dashboard',
+    converter: '/converter-dashboard'
+};
+
+var MAT_COLORS = { PET: '#16a34a', HDPE: '#0891b2', LDPE: '#7c3aed', PP: '#f59e0b' };
+
+function checkAuth() {
+    var saved = localStorage.getItem('circul_operator');
+    if (saved) {
+        try {
+            state.operator = JSON.parse(saved);
+            if (state.operator.role !== 'collector') {
+                var route = ROLE_ROUTES[state.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+            return;
+        } catch (e) { localStorage.removeItem('circul_operator'); }
+    }
+    document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').style.display = '';
+    var op = state.operator;
+    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    // Report link — try to use operator ID for now; collector ID mapping not available at login
+    document.getElementById('reportLink').href = '/report?operator_id=' + op.id;
+    loadStats();
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    var phone = document.getElementById('loginPhone').value.trim();
+    var pin = document.getElementById('loginPin').value.trim();
+    if (!phone || !pin) return;
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    document.getElementById('loginError').classList.remove('visible');
+    fetch('/api/operators/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone, pin: pin })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.operator = data.operator;
+            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.operator.role !== 'collector') {
+                var route = ROLE_ROUTES[data.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+        } else {
+            var e = document.getElementById('loginError');
+            e.textContent = data.message || 'Invalid phone or PIN';
+            e.classList.add('visible');
+        }
+    })
+    .catch(function() {
+        var e = document.getElementById('loginError');
+        e.textContent = 'Connection error. Please try again.';
+        e.classList.add('visible');
+    })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+}
+
+function handleLogout() {
+    state.operator = null;
+    localStorage.removeItem('circul_operator');
+    window.location.href = '/dashboard';
+}
+
+function loadStats() {
+    var id = state.operator.id;
+    fetch('/api/operators/' + id + '/dashboard-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var s = data.stats;
+            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg);
+            document.getElementById('statEarned').textContent = fmt(s.totals.total_value);
+            document.getElementById('statTxns').textContent = s.totals.total_txns;
+            document.getElementById('statMonthKg').textContent = fmt(s.this_month.month_kg);
+            renderMaterials(s.by_material);
+            renderRecentTxns(s.payment_history);
+        });
+    loadPrices();
+}
+
+function renderMaterials(mats) {
+    var c = document.getElementById('materialBreakdown');
+    if (!mats || !mats.length) { c.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+    var total = mats.reduce(function(s, m) { return s + parseFloat(m.kg); }, 0);
+    var max = parseFloat(mats[0].kg);
+    var html = '';
+    mats.forEach(function(m) {
+        var kg = parseFloat(m.kg);
+        var pct = total > 0 ? (kg / total * 100) : 0;
+        var bw = max > 0 ? (kg / max * 100) : 0;
+        var color = MAT_COLORS[m.material_type] || '#6b7280';
+        html += '<div class="mat-row"><span class="mat-label">' + m.material_type + '</span><div class="mat-bar-track"><div class="mat-bar-fill" style="width:' + bw.toFixed(1) + '%;background:' + color + '"></div></div><span class="mat-kg">' + fmt(kg) + ' kg</span><span class="mat-pct">' + pct.toFixed(1) + '%</span></div>';
+    });
+    c.innerHTML = html;
+}
+
+function renderRecentTxns(history) {
+    var tbody = document.getElementById('txnBody');
+    if (!history || !history.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
+    tbody.innerHTML = history.map(function(p) {
+        var statusClass = p.status === 'success' ? 'badge-green' : p.status === 'processing' ? 'badge-amber' : 'badge-gray';
+        return '<tr><td>' + fmtDate(p.created_at) + '</td><td>—</td><td>—</td><td>GHS ' + fmt(p.amount) + '</td><td><span class="badge ' + statusClass + '">' + (p.status || 'unpaid') + '</span></td><td>—</td></tr>';
+    }).join('');
+    // If no payment history, try fetching transactions directly
+    if (!history.length) fetchRecentTxns();
+}
+
+function fetchRecentTxns() {
+    var id = state.operator.id;
+    fetch('/api/transactions?operator_id=' + id + '&limit=20')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.transactions.length) return;
+            var tbody = document.getElementById('txnBody');
+            tbody.innerHTML = data.transactions.map(function(t) {
+                var statusClass = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
+                var collector = (t.collector_first_name || '') + ' ' + (t.collector_last_name || '');
+                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-green">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + '</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td><span class="badge ' + statusClass + '">' + (t.payment_status || 'unpaid') + '</span></td><td>—</td></tr>';
+            }).join('');
+        });
+}
+
+function loadPrices() {
+    var city = state.operator.city || 'Accra';
+    document.getElementById('priceCity').textContent = city;
+    fetch('/api/prices?role=collector&city=' + encodeURIComponent(city))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var panel = document.getElementById('pricePanel');
+            if (!data.success) { panel.innerHTML = '<div class="empty">No prices available</div>'; return; }
+            var near = data.near_prices || [];
+            var national = data.national_averages || [];
+            var html = '';
+            if (near.length) {
+                html += '<p style="font-size:0.78rem;font-weight:600;color:var(--green-primary);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Near you (' + city + ')</p>';
+                html += '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;margin-bottom:16px;">';
+                html += '<thead><tr><th style="text-align:left;padding:6px 0;color:var(--slate-light);font-size:0.75rem;font-weight:600;border-bottom:1px solid var(--border)">Material</th><th style="text-align:right;padding:6px 0;color:var(--slate-light);font-size:0.75rem;font-weight:600;border-bottom:1px solid var(--border)">USD/kg</th><th style="text-align:right;padding:6px 0;color:var(--slate-light);font-size:0.75rem;font-weight:600;border-bottom:1px solid var(--border)">GHS/kg</th><th style="text-align:right;padding:6px 0;color:var(--slate-light);font-size:0.75rem;font-weight:600;border-bottom:1px solid var(--border)">Actual avg</th></tr></thead><tbody>';
+                near.forEach(function(p) {
+                    html += '<tr><td style="padding:8px 0;font-weight:600;color:var(--green-deep)">' + p.material_type + '</td><td style="padding:8px 0;text-align:right">$' + parseFloat(p.price_per_kg_usd).toFixed(4) + '</td><td style="padding:8px 0;text-align:right;color:var(--green-primary);font-weight:600">' + (p.price_per_kg_ghs ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—') + '</td><td style="padding:8px 0;text-align:right;color:var(--slate-light)">' + (p.actual_avg_price_30d ? 'GHS ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td></tr>';
+                });
+                html += '</tbody></table>';
+            }
+            if (national.length) {
+                html += '<p style="font-size:0.78rem;font-weight:600;color:var(--slate-light);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">National average</p>';
+                national.forEach(function(n) {
+                    html += '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:0.85rem;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + n.material_type + '</span><span style="color:var(--slate-light)">$' + parseFloat(n.avg_usd).toFixed(4) + '/kg · ' + n.buyer_count + ' buyers</span></div>';
+                });
+            }
+            if (!near.length && !national.length) {
+                html = '<div class="empty">No prices posted yet for your area</div>';
+            }
+            panel.innerHTML = html;
+        })
+        .catch(function() {
+            document.getElementById('pricePanel').innerHTML = '<div class="empty">Unable to load prices</div>';
+        });
+}
+
+function fmt(n) {
+    var v = parseFloat(n);
+    if (isNaN(v)) return '0';
+    if (v >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 1 });
+    return v.toFixed(2);
+}
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+checkAuth();
+</script>
+</body>
+</html>
+
+
+===== FILE: public/aggregator-dashboard.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aggregator Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; transition: background 0.15s; }
+        .btn-login:active { background: #15803d; }
+        .btn-login:disabled { opacity: 0.6; }
+        .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-error.visible { display: block; }
+        .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--white); }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: var(--amber); color: var(--green-deep); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .btn-logout:hover { background: rgba(239,68,68,0.1); }
+        .refresh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-primary); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-value.warn { color: var(--amber); }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+        .card-note { font-size: 0.78rem; color: var(--slate-light); }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+
+        /* PRICE SETTING CARDS */
+        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
+        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 2px; }
+        .price-card-sub { font-size: 0.75rem; color: var(--slate-light); margin-bottom: 12px; }
+        .price-card-actual { font-size: 0.78rem; color: var(--slate); margin-bottom: 12px; background: var(--off-white); padding: 6px 10px; border-radius: 6px; }
+        .price-input-row { display: flex; gap: 6px; }
+        .price-input { flex: 1; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; transition: border-color 0.15s; }
+        .price-input:focus { border-color: var(--green-primary); }
+        .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+        .price-post-btn:hover { background: #15803d; }
+        .price-post-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* RATING MODAL */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: white; border-radius: 16px; padding: 28px; width: 100%; max-width: 460px; }
+        .modal h3 { margin-bottom: 16px; font-size: 1.05rem; }
+        .stars-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .star { width: 36px; height: 36px; cursor: pointer; color: var(--border); transition: color 0.1s; }
+        .star.lit { color: var(--amber); }
+        .star svg { width: 100%; height: 100%; fill: currentColor; }
+        .tags-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+        .tag-chip { padding: 6px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.8rem; cursor: pointer; transition: all 0.1s; }
+        .tag-chip.selected-pos { background: var(--green-wash); border-color: var(--green-primary); color: var(--green-deep); }
+        .tag-chip.selected-neg { background: var(--red-wash); border-color: var(--red); color: var(--red); }
+        .modal-input { width: 100%; padding: 10px 14px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; resize: vertical; min-height: 60px; margin-bottom: 14px; }
+        .modal-input:focus { border-color: var(--green-primary); }
+        .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-modal { padding: 10px 20px; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; }
+        .btn-modal-cancel { background: var(--off-white); color: var(--slate); border: 1.5px solid var(--border); }
+        .btn-modal-submit { background: var(--green-primary); color: white; }
+        .btn-modal-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* PAY BUTTON */
+        .btn-pay { padding: 6px 14px; background: var(--green-primary); color: white; border: none; border-radius: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+        .btn-pay:hover { background: #15803d; }
+
+        @media (max-width: 900px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .price-cards { grid-template-columns: repeat(2, 1fr); }
+            .main { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <div class="logo">
+            <h2>Circul<span>.</span></h2>
+            <p>Aggregator Dashboard</p>
+        </div>
+        <div id="loginError" class="login-error"></div>
+        <form onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel">
+            </div>
+            <div class="form-group">
+                <label class="form-label">PIN</label>
+                <input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+        </form>
+    </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none">
+    <nav class="nav">
+        <div class="nav-left">
+            <span class="nav-logo">Circul<span>.</span></span>
+            <div class="nav-divider"></div>
+            <span class="nav-title">Aggregator</span>
+        </div>
+        <div class="nav-right">
+            <div class="refresh-dot" title="Auto-refresh active"></div>
+            <span class="nav-name" id="navName"></span>
+            <span class="role-badge">aggregator</span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <!-- STATS -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Active collectors</div>
+                <div class="stat-value" id="statCollectors">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pending payments</div>
+                <div class="stat-value warn" id="statPending">—</div>
+                <div class="stat-sub" id="statPendingVal"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Volume this month</div>
+                <div class="stat-value" id="statMonthKg">—</div>
+                <div class="stat-sub">kg</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total purchased</div>
+                <div class="stat-value" id="statTotalKg">—</div>
+                <div class="stat-sub">kg lifetime</div>
+            </div>
+        </div>
+
+        <!-- PRICE SETTING -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Post Your Buy Prices</span>
+                <span class="card-note">Prices in USD/kg. Enter xe.com rate for GHS equivalent. Active through end of month.</span>
+            </div>
+            <div class="card-body">
+                <div class="price-cards" id="priceCards">
+                    <div class="empty" style="grid-column:1/-1">Loading prices…</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOP COLLECTORS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Collector Management</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>City</th>
+                        <th>Total kg</th>
+                        <th>Transactions</th>
+                        <th>Avg Rating</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="collectorsBody">
+                    <tr><td colspan="6" class="empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- PENDING COLLECTIONS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Pending Collections (Unpaid)</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Collector</th>
+                        <th>Material</th>
+                        <th>Net kg</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="pendingBody">
+                    <tr><td colspan="6" class="empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- P&L SUMMARY -->
+        <div class="card">
+            <div class="card-header"><span class="card-title">P&amp;L Summary</span></div>
+            <div class="card-body" id="plSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+                <div class="empty" style="grid-column:1/-1">Loading…</div>
+            </div>
+        </div>
+
+        <!-- RATINGS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Ratings</span>
+            </div>
+            <div class="card-body">
+                <p style="font-size:0.85rem;color:var(--slate-light);margin-bottom:16px">Rate collectors after transactions. Your reputation score is visible to processors.</p>
+                <div id="ratingsGiven" style="margin-bottom:16px">
+                    <p style="font-size:0.82rem;font-weight:600;color:var(--green-deep);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Ratings Received</p>
+                    <div id="ratingsReceivedList"><div class="empty">No ratings yet</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- RATING MODAL -->
+<div class="modal-overlay" id="ratingModal">
+    <div class="modal">
+        <h3>Rate Collector: <span id="ratingCollectorName"></span></h3>
+        <div class="stars-row" id="starsRow">
+            <div class="star" data-r="1" onclick="setStar(1)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="2" onclick="setStar(2)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="3" onclick="setStar(3)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="4" onclick="setStar(4)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <div class="star" data-r="5" onclick="setStar(5)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+        </div>
+        <div class="tags-row" id="tagsRow">
+            <span class="tag-chip" data-tag="reliable" data-type="pos" onclick="toggleTag(this)">Reliable</span>
+            <span class="tag-chip" data-tag="accurate" data-type="pos" onclick="toggleTag(this)">Accurate</span>
+            <span class="tag-chip" data-tag="honest" data-type="pos" onclick="toggleTag(this)">Honest</span>
+            <span class="tag-chip" data-tag="punctual" data-type="pos" onclick="toggleTag(this)">Punctual</span>
+            <span class="tag-chip" data-tag="late" data-type="neg" onclick="toggleTag(this)">Late</span>
+            <span class="tag-chip" data-tag="inaccurate" data-type="neg" onclick="toggleTag(this)">Inaccurate</span>
+            <span class="tag-chip" data-tag="unreliable" data-type="neg" onclick="toggleTag(this)">Unreliable</span>
+        </div>
+        <textarea class="modal-input" id="ratingNote" placeholder="Optional note…" rows="2"></textarea>
+        <div class="modal-footer">
+            <button class="btn-modal btn-modal-cancel" onclick="closeRatingModal()">Cancel</button>
+            <button class="btn-modal btn-modal-submit" id="submitRatingBtn" onclick="submitRating()" disabled>Submit Rating</button>
+        </div>
+    </div>
+</div>
+
+<script>
+var state = { operator: null, currentRatingCollectorId: null, currentRatingStar: 0, selectedTags: [] };
+var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+var refreshTimer = null;
+
+var ROLE_ROUTES = {
+    collector: '/collector-dashboard',
+    aggregator: '/aggregator-dashboard',
+    processor: '/processor-dashboard',
+    converter: '/converter-dashboard'
+};
+
+function checkAuth() {
+    var saved = localStorage.getItem('circul_operator');
+    if (saved) {
+        try {
+            state.operator = JSON.parse(saved);
+            if (state.operator.role !== 'aggregator') {
+                var route = ROLE_ROUTES[state.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+            return;
+        } catch (e) { localStorage.removeItem('circul_operator'); }
+    }
+    document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').style.display = '';
+    var op = state.operator;
+    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    loadAll();
+    refreshTimer = setInterval(loadAll, 30000);
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    var phone = document.getElementById('loginPhone').value.trim();
+    var pin = document.getElementById('loginPin').value.trim();
+    if (!phone || !pin) return;
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    document.getElementById('loginError').classList.remove('visible');
+    fetch('/api/operators/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone, pin: pin })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.operator = data.operator;
+            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.operator.role !== 'aggregator') {
+                var route = ROLE_ROUTES[data.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+        } else {
+            var el = document.getElementById('loginError');
+            el.textContent = data.message || 'Invalid phone or PIN';
+            el.classList.add('visible');
+        }
+    })
+    .catch(function() {
+        var el = document.getElementById('loginError');
+        el.textContent = 'Connection error. Please try again.';
+        el.classList.add('visible');
+    })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+}
+
+function handleLogout() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    state.operator = null;
+    localStorage.removeItem('circul_operator');
+    window.location.href = '/dashboard';
+}
+
+function loadAll() {
+    var id = state.operator.id;
+    fetch('/api/operators/' + id + '/dashboard-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var s = data.stats;
+            document.getElementById('statCollectors').textContent = s.active_collectors;
+            document.getElementById('statPending').textContent = s.pending_payments.count;
+            document.getElementById('statPendingVal').textContent = 'GHS ' + fmt(s.pending_payments.value);
+            document.getElementById('statMonthKg').textContent = fmt(s.this_month.month_kg);
+            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg);
+            renderPriceCards(s.posted_prices);
+            renderCollectors(s.top_collectors);
+            renderRatingsReceived(s.ratings);
+            renderPL(s);
+        });
+    loadPendingTxns();
+}
+
+function renderPriceCards(prices) {
+    var priceMap = {};
+    (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
+    var html = MATERIALS.map(function(mat) {
+        var p = priceMap[mat];
+        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
+        var ghs = p && p.price_per_kg_ghs ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—';
+        var actual = p && p.actual_avg_price_30d ? 'Actual avg (30d): GHS ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : 'No actual data yet';
+        var updated = p ? 'Updated ' + fmtDate(p.posted_at) : '';
+        return '<div class="price-card">' +
+            '<div class="price-card-mat">' + mat + '</div>' +
+            '<div class="price-card-current">' + current + '</div>' +
+            '<div class="price-card-sub">' + ghs + ' · ' + updated + '</div>' +
+            '<div class="price-card-actual">' + actual + '</div>' +
+            '<div class="price-input-row">' +
+            '<input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0">' +
+            '<input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px">' +
+            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '</div></div>';
+    }).join('');
+    document.getElementById('priceCards').innerHTML = html;
+}
+
+function postPrice(mat) {
+    var usd = document.getElementById('price-usd-' + mat).value;
+    var rate = document.getElementById('price-rate-' + mat).value;
+    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
+    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    fetch('/api/prices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { if (data.success) { loadAll(); } else { alert(data.message); } });
+}
+
+function renderCollectors(collectors) {
+    var tbody = document.getElementById('collectorsBody');
+    if (!collectors || !collectors.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No collectors yet</td></tr>'; return; }
+    tbody.innerHTML = collectors.map(function(c) {
+        var name = c.first_name + ' ' + c.last_name;
+        var rating = c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—';
+        return '<tr>' +
+            '<td>' + esc(name) + '</td>' +
+            '<td>' + esc(c.city || '—') + '</td>' +
+            '<td>' + fmt(c.total_kg) + ' kg</td>' +
+            '<td>' + c.txns + '</td>' +
+            '<td>' + rating + '</td>' +
+            '<td><button class="btn-pay" onclick="openRatingModal(' + c.id + ',\'' + esc(name) + '\')">Rate</button></td>' +
+            '</tr>';
+    }).join('');
+}
+
+function loadPendingTxns() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=50')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var pending = (data.transactions || []).filter(function(t) { return t.payment_status === 'unpaid' && parseFloat(t.total_price) > 0; });
+            var tbody = document.getElementById('pendingBody');
+            if (!pending.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pending payments</td></tr>'; return; }
+            tbody.innerHTML = pending.map(function(t) {
+                var name = (t.collector_first_name || '') + ' ' + (t.collector_last_name || '');
+                return '<tr>' +
+                    '<td>' + fmtDate(t.transaction_date) + '</td>' +
+                    '<td>' + esc(name.trim()) + '</td>' +
+                    '<td><span class="badge badge-green">' + t.material_type + '</span></td>' +
+                    '<td>' + fmt(t.net_weight_kg) + '</td>' +
+                    '<td>GHS ' + fmt(t.total_price) + '</td>' +
+                    '<td><span class="badge badge-amber">Unpaid</span></td>' +
+                    '</tr>';
+            }).join('');
+        });
+}
+
+function renderPL(s) {
+    var paid = (s.payment_history || []).filter(function(p) { return p.status === 'success'; }).reduce(function(acc, p) { return acc + parseFloat(p.amount || 0); }, 0);
+    document.getElementById('plSummary').innerHTML =
+        '<div class="stat-card"><div class="stat-label">Total purchased (GHS)</div><div class="stat-value">' + fmt(s.totals.total_value) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">Total paid out (GHS)</div><div class="stat-value">' + fmt(paid) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value warn">' + fmt(s.pending_payments.value) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">This month (GHS)</div><div class="stat-value">' + fmt(s.this_month.month_value) + '</div></div>';
+}
+
+function renderRatingsReceived(ratings) {
+    var el = document.getElementById('ratingsReceivedList');
+    if (!ratings || !ratings.avg_rating) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
+    el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--green-deep)">⭐ ' + ratings.avg_rating + ' <span style="font-size:0.85rem;color:var(--slate-light);font-weight:400">from ' + ratings.count + ' ratings</span></div>';
+}
+
+// RATING MODAL
+function openRatingModal(collectorId, name) {
+    state.currentRatingCollectorId = collectorId;
+    state.currentRatingStar = 0;
+    state.selectedTags = [];
+    document.getElementById('ratingCollectorName').textContent = name;
+    document.querySelectorAll('.star').forEach(function(s) { s.classList.remove('lit'); });
+    document.querySelectorAll('.tag-chip').forEach(function(c) { c.classList.remove('selected-pos', 'selected-neg'); });
+    document.getElementById('ratingNote').value = '';
+    document.getElementById('submitRatingBtn').disabled = true;
+    document.getElementById('ratingModal').classList.add('open');
+}
+
+function closeRatingModal() { document.getElementById('ratingModal').classList.remove('open'); }
+
+function setStar(n) {
+    state.currentRatingStar = n;
+    document.querySelectorAll('.star').forEach(function(s) {
+        s.classList.toggle('lit', parseInt(s.getAttribute('data-r')) <= n);
+    });
+    document.getElementById('submitRatingBtn').disabled = false;
+}
+
+function toggleTag(chip) {
+    var tag = chip.getAttribute('data-tag');
+    var type = chip.getAttribute('data-type');
+    var idx = state.selectedTags.indexOf(tag);
+    if (idx >= 0) { state.selectedTags.splice(idx, 1); chip.classList.remove('selected-pos', 'selected-neg'); }
+    else { state.selectedTags.push(tag); chip.classList.add(type === 'pos' ? 'selected-pos' : 'selected-neg'); }
+}
+
+function submitRating() {
+    if (!state.currentRatingStar) return;
+    fetch('/api/ratings/operator', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            rater_operator_id: state.operator.id,
+            rated_collector_id: state.currentRatingCollectorId,
+            rating: state.currentRatingStar,
+            tags: state.selectedTags,
+            notes: document.getElementById('ratingNote').value || null,
+            rating_direction: 'aggregator_rates_collector'
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { if (data.success) { closeRatingModal(); } else { alert(data.message); } });
+}
+
+document.getElementById('ratingModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRatingModal();
+});
+
+function fmt(n) {
+    var v = parseFloat(n);
+    if (isNaN(v)) return '0';
+    if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 });
+    return v.toFixed(2);
+}
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function esc(s) {
+    var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+
+checkAuth();
+</script>
+</body>
+</html>
+
+
+===== FILE: public/processor-dashboard.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processor Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; transition: background 0.15s; }
+        .btn-login:disabled { opacity: 0.6; }
+        .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-error.visible { display: block; }
+        .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--white); }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: #dbeafe; color: #1e40af; }
+        .nav-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
+        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 8px; }
+        .price-input-row { display: flex; gap: 6px; }
+        .price-input { flex: 1; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; }
+        .price-input:focus { border-color: var(--green-primary); }
+        .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .price-post-btn:hover { background: #15803d; }
+        .dl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green-deep); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: background 0.15s; }
+        .dl-btn:hover { background: #0f3d22; }
+        @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .main { padding: 16px; } }
+    </style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <div class="logo">
+            <h2>Circul<span>.</span></h2>
+            <p id="loginSubtitle">Processor Dashboard</p>
+        </div>
+        <div id="loginError" class="login-error"></div>
+        <form onsubmit="handleLogin(event)">
+            <div class="form-group"><label class="form-label">Phone Number</label><input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel"></div>
+            <div class="form-group"><label class="form-label">PIN</label><input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password"></div>
+            <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+        </form>
+    </div>
+</div>
+
+<div id="dashboard" style="display:none">
+    <nav class="nav">
+        <div class="nav-left">
+            <span class="nav-logo">Circul<span>.</span></span>
+            <div class="nav-divider"></div>
+            <span class="nav-title" id="navTitle">Processor</span>
+        </div>
+        <div class="nav-right">
+            <span class="nav-name" id="navName"></span>
+            <span class="role-badge" id="navRoleBadge">processor</span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <div class="stats-row">
+            <div class="stat-card"><div class="stat-label">Received this month</div><div class="stat-value" id="statMonthKg">—</div><div class="stat-sub">kg</div></div>
+            <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value" id="statTxns">—</div></div>
+            <div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value" id="statPending">—</div></div>
+            <div class="stat-card"><div class="stat-label">Total processed</div><div class="stat-value" id="statTotal">—</div><div class="stat-sub">kg lifetime</div></div>
+        </div>
+
+        <!-- COMPLIANCE REPORT -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Compliance &amp; Traceability Reports</span>
+                <a id="complianceBtn" href="#" onclick="downloadCompliance(event)" class="dl-btn">&#8681; EPR/CSRD Report (JSON)</a>
+            </div>
+            <div class="card-body">
+                <p style="font-size:0.85rem;color:var(--slate-light)">Download your full chain-of-custody report for EPR and CSRD compliance. JSON-LD format compatible with Digital Product Passport (DPP) standards.</p>
+            </div>
+        </div>
+
+        <!-- SUPPLY CHAIN VIEW -->
+        <div class="card">
+            <div class="card-header"><span class="card-title">Supply Chain — Recent Transactions</span></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Material</th>
+                        <th>Net kg</th>
+                        <th>Price paid</th>
+                        <th>Payment</th>
+                        <th>GPS</th>
+                    </tr>
+                </thead>
+                <tbody id="supplyBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+            </table>
+        </div>
+
+        <!-- PRICE SETTING FOR CONVERTERS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Post Buy Prices</span>
+                <span style="font-size:0.78rem;color:var(--slate-light)">Visible to converters in your area</span>
+            </div>
+            <div class="card-body">
+                <div class="price-cards" id="priceCards"><div class="empty" style="grid-column:1/-1">Loading…</div></div>
+            </div>
+        </div>
+
+        <!-- AGGREGATOR RATINGS -->
+        <div class="card">
+            <div class="card-header"><span class="card-title">Rate Aggregators You Buy From</span></div>
+            <div class="card-body">
+                <div id="aggregatorRatingsList"><div class="empty">Loading aggregators…</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var state = { operator: null };
+var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
+
+function checkAuth() {
+    var saved = localStorage.getItem('circul_operator');
+    if (saved) {
+        try {
+            state.operator = JSON.parse(saved);
+            if (state.operator.role !== 'processor') {
+                var route = ROLE_ROUTES[state.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+            return;
+        } catch (e) { localStorage.removeItem('circul_operator'); }
+    }
+    document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').style.display = '';
+    var op = state.operator;
+    var title = 'Processor';
+    if (op.company && op.company.toLowerCase().indexOf('repatrn') >= 0) title = 'rePATRN — Processor';
+    document.getElementById('navTitle').textContent = title;
+    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    loadAll();
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    var phone = document.getElementById('loginPhone').value.trim();
+    var pin = document.getElementById('loginPin').value.trim();
+    if (!phone || !pin) return;
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    document.getElementById('loginError').classList.remove('visible');
+    fetch('/api/operators/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone, pin: pin }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.operator = data.operator;
+            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.operator.role !== 'processor') {
+                var route = ROLE_ROUTES[data.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+        } else {
+            var el = document.getElementById('loginError');
+            el.textContent = data.message || 'Invalid phone or PIN';
+            el.classList.add('visible');
+        }
+    })
+    .catch(function() {
+        var el = document.getElementById('loginError'); el.textContent = 'Connection error.'; el.classList.add('visible');
+    })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+}
+
+function handleLogout() {
+    state.operator = null; localStorage.removeItem('circul_operator'); window.location.href = '/dashboard';
+}
+
+function loadAll() {
+    var id = state.operator.id;
+    fetch('/api/operators/' + id + '/dashboard-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var s = data.stats;
+            document.getElementById('statMonthKg').textContent = fmt(s.this_month.month_kg);
+            document.getElementById('statTxns').textContent = s.totals.total_txns;
+            document.getElementById('statPending').textContent = fmt(s.pending_payments.value);
+            document.getElementById('statTotal').textContent = fmt(s.totals.total_kg);
+            renderPriceCards(s.posted_prices);
+        });
+    loadTxns();
+    loadAggregators();
+}
+
+function loadTxns() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=30')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var tbody = document.getElementById('supplyBody');
+            if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
+            tbody.innerHTML = data.transactions.map(function(t) {
+                var statusClass = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
+                var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '<span class="badge badge-gray">—</span>';
+                return '<tr>' +
+                    '<td>' + fmtDate(t.transaction_date) + '</td>' +
+                    '<td><span class="badge badge-blue">' + t.material_type + '</span></td>' +
+                    '<td>' + fmt(t.net_weight_kg) + ' kg</td>' +
+                    '<td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td>' +
+                    '<td><span class="badge ' + statusClass + '">' + (t.payment_status || 'unpaid') + '</span></td>' +
+                    '<td>' + gps + '</td>' +
+                    '</tr>';
+            }).join('');
+        });
+}
+
+function loadAggregators() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=100')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('aggregatorRatingsList');
+            if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            // Unique aggregators from transactions
+            var seen = {};
+            data.transactions.forEach(function(t) {
+                if (t.operator_id && t.operator_name && !seen[t.operator_id]) seen[t.operator_id] = t.operator_name;
+            });
+            var aggs = Object.keys(seen);
+            if (!aggs.length) { el.innerHTML = '<div class="empty">No aggregators to rate yet</div>'; return; }
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Aggregator</th><th style="padding:8px 0;border-bottom:1px solid var(--border)"></th></tr></thead><tbody>' +
+                aggs.map(function(id) {
+                    return '<tr><td style="padding:10px 0">' + esc(seen[id]) + '</td><td style="padding:10px 0;text-align:right"><button onclick="rateAggregator(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-family:\'Space Grotesk\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></td></tr>';
+                }).join('') + '</tbody></table>';
+        });
+}
+
+function rateAggregator(aggId, name) {
+    var r = prompt('Rate ' + name + ' (1-5 stars):');
+    if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
+    fetch('/api/ratings/operator', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rater_operator_id: state.operator.id, rated_operator_id: aggId, rating: parseInt(r), rating_direction: 'processor_rates_aggregator' })
+    }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
+}
+
+function renderPriceCards(prices) {
+    var priceMap = {};
+    (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
+    document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
+        var p = priceMap[mat];
+        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
+        return '<div class="price-card">' +
+            '<div class="price-card-mat">' + mat + '</div>' +
+            '<div class="price-card-current">' + current + '</div>' +
+            '<div class="price-input-row">' +
+            '<input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0">' +
+            '<input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px">' +
+            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '</div></div>';
+    }).join('');
+}
+
+function postPrice(mat) {
+    var usd = document.getElementById('price-usd-' + mat).value;
+    var rate = document.getElementById('price-rate-' + mat).value;
+    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
+    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    fetch('/api/prices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+    }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
+}
+
+function downloadCompliance(e) {
+    e.preventDefault();
+    window.location.href = '/api/reports/compliance/' + state.operator.id + '?format=json';
+}
+
+function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
+function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+checkAuth();
+</script>
+</body>
+</html>
+
+
+===== FILE: public/converter-dashboard.html =====
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Converter Dashboard - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --red-wash: #fef2f2; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+        .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--green-deep); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-overlay.hidden { display: none; }
+        .login-card { background: var(--white); border-radius: 20px; padding: 40px 32px; max-width: 400px; width: 100%; }
+        .login-card .logo { text-align: center; margin-bottom: 32px; }
+        .login-card .logo h2 { font-size: 28px; color: var(--green-deep); }
+        .login-card .logo h2 span { color: var(--green-primary); }
+        .login-card .logo p { font-size: 14px; color: var(--slate-light); margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .btn-login { display: flex; align-items: center; justify-content: center; width: 100%; padding: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; background: var(--green-primary); color: var(--white); border: none; border-radius: 14px; cursor: pointer; }
+        .btn-login:disabled { opacity: 0.6; }
+        .login-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .login-error.visible { display: block; }
+        .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .nav { background: var(--green-deep); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-logo { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--white); }
+        .nav-logo span { color: var(--green-primary); }
+        .nav-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+        .nav-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+        .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: var(--amber); color: var(--green-deep); }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+        .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+        .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 24px; width: fit-content; }
+        .tab { padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 0.9rem; font-weight: 500; color: var(--slate-light); border: none; background: none; font-family: inherit; transition: all 0.15s; }
+        .tab.active { background: var(--green-primary); color: white; font-weight: 600; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .card-body { padding: 20px 24px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
+        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 8px; }
+        .price-input-row { display: flex; gap: 6px; }
+        .price-input { flex: 1; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; }
+        .price-input:focus { border-color: var(--green-primary); }
+        .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .dl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green-deep); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+        .dl-btn:hover { background: #0f3d22; }
+        @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .main { padding: 16px; } }
+    </style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <div class="logo"><h2>Circul<span>.</span></h2><p>Converter Dashboard</p></div>
+        <div id="loginError" class="login-error"></div>
+        <form onsubmit="handleLogin(event)">
+            <div class="form-group"><label class="form-label">Phone Number</label><input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel"></div>
+            <div class="form-group"><label class="form-label">PIN</label><input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password"></div>
+            <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+        </form>
+    </div>
+</div>
+
+<div id="dashboard" style="display:none">
+    <nav class="nav">
+        <div class="nav-left">
+            <span class="nav-logo">Circul<span>.</span></span>
+            <div class="nav-divider"></div>
+            <span class="nav-title">Converter</span>
+        </div>
+        <div class="nav-right">
+            <span class="nav-name" id="navName"></span>
+            <span class="role-badge">converter</span>
+            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <!-- STATS -->
+        <div class="stats-row">
+            <div class="stat-card"><div class="stat-label">Batches purchased</div><div class="stat-value" id="statTxns">—</div></div>
+            <div class="stat-card"><div class="stat-label">Total kg</div><div class="stat-value" id="statTotalKg">—</div></div>
+            <div class="stat-card"><div class="stat-label">Unique processors</div><div class="stat-value" id="statProcessors">—</div></div>
+            <div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value" id="statPending">—</div></div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('supply', this)">Supply Chain</button>
+            <button class="tab" onclick="showTab('prices', this)">Available Material</button>
+            <button class="tab" onclick="showTab('certs', this)">Traceability</button>
+            <button class="tab" onclick="showTab('ratings', this)">Ratings</button>
+        </div>
+
+        <!-- SUPPLY CHAIN TAB -->
+        <div id="tab-supply" class="tab-panel active">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Full Supply Chain — Collector → Aggregator → Processor → You</span>
+                </div>
+                <table>
+                    <thead><tr><th>Date</th><th>Material</th><th>Net kg</th><th>Price (GHS)</th><th>Payment</th><th>GPS</th><th>Journey</th></tr></thead>
+                    <tbody id="supplyBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+                </table>
+            </div>
+            <!-- POST OWN PRICES -->
+            <div class="card">
+                <div class="card-header"><span class="card-title">Post Your Buy Prices</span><span style="font-size:0.78rem;color:var(--slate-light)">For suppliers to see</span></div>
+                <div class="card-body"><div class="price-cards" id="priceCards"><div class="empty" style="grid-column:1/-1">Loading…</div></div></div>
+            </div>
+        </div>
+
+        <!-- AVAILABLE MATERIAL TAB -->
+        <div id="tab-prices" class="tab-panel">
+            <div class="card">
+                <div class="card-header"><span class="card-title">Available Processed Material Near You</span><span style="font-size:0.78rem;color:var(--slate-light)" id="priceCity"></span></div>
+                <div class="card-body" id="processorPrices"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+
+        <!-- TRACEABILITY TAB -->
+        <div id="tab-certs" class="tab-panel">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Compliance &amp; Digital Product Passports</span>
+                    <a href="#" onclick="downloadCompliance(event)" class="dl-btn">&#8681; EPR/CSRD Report</a>
+                </div>
+                <div class="card-body">
+                    <p style="font-size:0.85rem;color:var(--slate-light);margin-bottom:20px">Full chain-of-custody data in JSON-LD / DPP-compatible format for EPR, CSRD, and buyer due diligence.</p>
+                    <div id="txnCerts"><div class="empty">Loading transactions…</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RATINGS TAB -->
+        <div id="tab-ratings" class="tab-panel">
+            <div class="card">
+                <div class="card-header"><span class="card-title">Rate Processors</span></div>
+                <div class="card-body">
+                    <div id="processorRatingsList"><div class="empty">Loading processors…</div></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Your Ratings Received</span></div>
+                <div class="card-body" id="ratingsReceived"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var state = { operator: null };
+var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
+
+function checkAuth() {
+    var saved = localStorage.getItem('circul_operator');
+    if (saved) {
+        try {
+            state.operator = JSON.parse(saved);
+            if (state.operator.role !== 'converter') {
+                var route = ROLE_ROUTES[state.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+            return;
+        } catch (e) { localStorage.removeItem('circul_operator'); }
+    }
+    document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').style.display = '';
+    var op = state.operator;
+    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    loadAll();
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+    var phone = document.getElementById('loginPhone').value.trim();
+    var pin = document.getElementById('loginPin').value.trim();
+    if (!phone || !pin) return;
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    document.getElementById('loginError').classList.remove('visible');
+    fetch('/api/operators/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone, pin: pin }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.operator = data.operator;
+            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.operator.role !== 'converter') {
+                var route = ROLE_ROUTES[data.operator.role];
+                if (route) { window.location.href = route; return; }
+            }
+            showDashboard();
+        } else {
+            var el = document.getElementById('loginError'); el.textContent = data.message || 'Invalid phone or PIN'; el.classList.add('visible');
+        }
+    })
+    .catch(function() { var el = document.getElementById('loginError'); el.textContent = 'Connection error.'; el.classList.add('visible'); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+}
+
+function handleLogout() {
+    state.operator = null; localStorage.removeItem('circul_operator'); window.location.href = '/dashboard';
+}
+
+function showTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    el.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'prices') loadProcessorPrices();
+    if (tab === 'certs') loadTxnCerts();
+    if (tab === 'ratings') loadRatings();
+}
+
+function loadAll() {
+    var id = state.operator.id;
+    fetch('/api/operators/' + id + '/dashboard-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var s = data.stats;
+            document.getElementById('statTxns').textContent = s.totals.total_txns;
+            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg) + ' kg';
+            document.getElementById('statPending').textContent = fmt(s.pending_payments.value);
+            renderPriceCards(s.posted_prices);
+        });
+    loadTxns();
+}
+
+function loadTxns() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=30')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var tbody = document.getElementById('supplyBody');
+            // Count unique processors
+            var uniqueProcs = new Set();
+            if (data.success && data.transactions) {
+                data.transactions.forEach(function(t) { if (t.operator_id) uniqueProcs.add(t.operator_id); });
+                document.getElementById('statProcessors').textContent = uniqueProcs.size;
+            }
+            if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
+            tbody.innerHTML = data.transactions.map(function(t) {
+                var sc = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
+                var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '—';
+                var journey = '<a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="font-size:0.78rem;color:var(--green-primary)">View</a>';
+                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td><span class="badge ' + sc + '">' + (t.payment_status || 'unpaid') + '</span></td><td>' + gps + '</td><td>' + journey + '</td></tr>';
+            }).join('');
+        });
+}
+
+function loadProcessorPrices() {
+    var city = state.operator.city || '';
+    document.getElementById('priceCity').textContent = city || 'National';
+    fetch('/api/prices?role=converter' + (city ? '&city=' + encodeURIComponent(city) : ''))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('processorPrices');
+            var all = data.all_prices || [];
+            if (!all.length) { el.innerHTML = '<div class="empty">No processor prices posted yet</div>'; return; }
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">USD/kg</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">GHS/kg</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Processor</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">City</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actual avg</th></tr></thead><tbody>' +
+                all.map(function(p) {
+                    return '<tr><td style="padding:10px 0;font-weight:600">' + p.material_type + '</td><td style="padding:10px 0">$' + parseFloat(p.price_per_kg_usd).toFixed(4) + '</td><td style="padding:10px 0;color:var(--green-primary);font-weight:600">' + (p.price_per_kg_ghs ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—') + '</td><td style="padding:10px 0">' + esc(p.operator_name || '—') + '</td><td style="padding:10px 0">' + esc(p.city || '—') + '</td><td style="padding:10px 0;color:var(--slate-light)">' + (p.actual_avg_price_30d ? 'GHS ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        });
+}
+
+function loadTxnCerts() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=20')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('txnCerts');
+            if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Date</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">kg</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actions</th></tr></thead><tbody>' +
+                data.transactions.map(function(t) {
+                    return '<tr><td style="padding:10px 0">' + fmtDate(t.transaction_date) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + t.material_type + '</span></td><td style="padding:10px 0">' + fmt(t.net_weight_kg) + ' kg</td><td style="padding:10px 0"><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--green-primary);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
+                }).join('') + '</tbody></table>';
+        });
+}
+
+function loadRatings() {
+    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=100')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('processorRatingsList');
+            if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            var seen = {};
+            data.transactions.forEach(function(t) { if (t.operator_id && t.operator_name && !seen[t.operator_id]) seen[t.operator_id] = t.operator_name; });
+            var procs = Object.keys(seen);
+            if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
+            el.innerHTML = procs.map(function(id) {
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-family:\'Space Grotesk\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></div>';
+            }).join('');
+        });
+    fetch('/api/ratings/operator/' + state.operator.id)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('ratingsReceived');
+            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
+            el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--green-deep);margin-bottom:12px">⭐ ' + (data.summary.avg_rating || '—') + ' <span style="font-size:0.85rem;color:var(--slate-light);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
+        });
+}
+
+function rateProcessor(procId, name) {
+    var r = prompt('Rate ' + name + ' (1-5):');
+    if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
+    fetch('/api/ratings/operator', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rater_operator_id: state.operator.id, rated_operator_id: procId, rating: parseInt(r), rating_direction: 'converter_rates_processor' })
+    }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
+}
+
+function renderPriceCards(prices) {
+    var priceMap = {};
+    (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
+    document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
+        var p = priceMap[mat];
+        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
+        return '<div class="price-card"><div class="price-card-mat">' + mat + '</div><div class="price-card-current">' + current + '</div><div class="price-input-row"><input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0"><input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px"><button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button></div></div>';
+    }).join('');
+}
+
+function postPrice(mat) {
+    var usd = document.getElementById('price-usd-' + mat).value;
+    var rate = document.getElementById('price-rate-' + mat).value;
+    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
+    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    fetch('/api/prices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+    }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
+}
+
+function downloadCompliance(e) {
+    e.preventDefault();
+    window.location.href = '/api/reports/compliance/' + state.operator.id + '?format=json';
+}
+
+function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
+function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+checkAuth();
+</script>
+</body>
+</html>
+
+
+===== FILE: public/report.html =====
+
+<!DOCTYPE html>
+<!-- C3: Collector Passport doubles as credit-scoring input. Fields align with: repayment history (payment_reliability_score), income stability (monthly_kg_trend), network trust (avg_rating_from_aggregators). Activate formal microfinance API integration when partner confirmed. -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collector Passport - Circul</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --green-deep: #0a2e1a; --green-primary: #16a34a; --green-light: #bbf7d0; --green-wash: #f0fdf4;
+            --amber: #f59e0b; --amber-light: #fef3c7; --slate: #334155; --slate-light: #94a3b8;
+            --white: #ffffff; --off-white: #fafaf9; --red: #ef4444; --border: #e2e8f0;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--slate); background: var(--off-white); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+
+        /* LOADING / ERROR STATES */
+        .loading-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--green-deep); }
+        .loading-inner { text-align: center; color: white; }
+        .loading-inner h2 { font-size: 1.8rem; margin-bottom: 12px; }
+        .loading-inner p { color: rgba(255,255,255,0.6); margin-bottom: 24px; }
+        .loading-spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #16a34a; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-box { background: #fef2f2; border: 1px solid rgba(239,68,68,0.2); border-radius: 12px; padding: 24px; max-width: 400px; margin: 40px auto; text-align: center; color: #ef4444; }
+
+        /* PASSPORT HEADER */
+        .passport-header { background: var(--green-deep); padding: 40px 32px; position: relative; overflow: hidden; }
+        .passport-header::before { content: ''; position: absolute; top: -40%; right: -10%; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, rgba(22,163,74,0.12) 0%, transparent 70%); }
+        .passport-inner { max-width: 900px; margin: 0 auto; position: relative; z-index: 1; }
+        .passport-badge { display: inline-block; font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--green-primary); padding: 4px 12px; border: 1px solid rgba(22,163,74,0.3); border-radius: 4px; margin-bottom: 20px; }
+        .passport-name { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; color: var(--white); margin-bottom: 8px; }
+        .passport-meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+        .passport-meta-item { font-size: 0.9rem; color: rgba(255,255,255,0.6); }
+        .passport-meta-item strong { color: rgba(255,255,255,0.9); }
+        .passport-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn-action { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: all 0.15s; }
+        .btn-dl { background: var(--green-primary); color: white; }
+        .btn-dl:hover { background: #15803d; }
+        .btn-print { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-print:hover { background: rgba(255,255,255,0.18); }
+
+        /* MAIN CONTENT */
+        .passport-main { max-width: 900px; margin: 0 auto; padding: 32px 32px 60px; }
+
+        /* STATS ROW */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+        .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
+        .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
+
+        /* SECTION */
+        .section { background: var(--white); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 24px; overflow: hidden; }
+        .section-header { padding: 18px 24px; border-bottom: 1px solid var(--border); }
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
+        .section-body { padding: 20px 24px; }
+
+        /* MATERIAL BARS */
+        .mat-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .mat-row:last-child { margin-bottom: 0; }
+        .mat-label { font-size: 0.82rem; font-weight: 600; color: var(--slate); width: 48px; flex-shrink: 0; }
+        .mat-track { flex: 1; height: 22px; background: var(--off-white); border-radius: 5px; overflow: hidden; }
+        .mat-fill { height: 100%; border-radius: 5px; transition: width 0.6s ease; min-width: 3px; }
+        .mat-kg { font-size: 0.78rem; color: var(--slate-light); width: 70px; text-align: right; flex-shrink: 0; }
+        .mat-pct { font-size: 0.75rem; font-weight: 600; color: var(--slate); width: 40px; text-align: right; flex-shrink: 0; }
+
+        /* TABLE */
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); border-bottom: 1px solid var(--border); background: var(--off-white); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+        tr:last-child td { border-bottom: none; }
+
+        /* BADGE */
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: var(--green-light); color: #166534; }
+        .badge-amber { background: var(--amber-light); color: #92400e; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+
+        /* RATING STARS */
+        .rating-display { display: flex; align-items: center; gap: 8px; }
+        .stars-display { display: flex; gap: 3px; }
+        .star-icon { width: 20px; height: 20px; color: var(--amber); }
+        .star-icon.empty { color: var(--border); }
+        .star-icon svg { width: 100%; height: 100%; fill: currentColor; }
+
+        /* AGGREGATORS */
+        .agg-list { display: flex; flex-direction: column; gap: 10px; }
+        .agg-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--off-white); border-radius: 10px; }
+        .agg-icon { width: 36px; height: 36px; border-radius: 9px; background: var(--green-light); display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; color: var(--green-deep); flex-shrink: 0; }
+        .agg-info { flex: 1; }
+        .agg-name { font-weight: 600; font-size: 0.9rem; color: var(--green-deep); }
+        .agg-meta { font-size: 0.78rem; color: var(--slate-light); }
+
+        /* FOOTER */
+        .footer { background: var(--green-deep); padding: 32px; text-align: center; }
+        .footer p { font-size: 0.82rem; color: rgba(255,255,255,0.4); line-height: 1.6; max-width: 600px; margin: 0 auto; }
+        .footer p + p { margin-top: 8px; }
+
+        .empty { text-align: center; padding: 32px; color: var(--slate-light); font-size: 0.88rem; }
+
+        @media print {
+            .passport-actions { display: none; }
+            .btn-action { display: none; }
+            body { background: white; }
+            .passport-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+
+        @media (max-width: 700px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .passport-main { padding: 20px 16px 40px; }
+            .passport-header { padding: 28px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loadingScreen" class="loading-screen">
+    <div class="loading-inner">
+        <h2>Circul.</h2>
+        <p>Loading Collector Passport…</p>
+        <div class="loading-spinner"></div>
+    </div>
+</div>
+
+<div id="passportContent" style="display:none">
+    <!-- HEADER -->
+    <div class="passport-header">
+        <div class="passport-inner">
+            <div class="passport-badge">Collector Passport · Circul</div>
+            <div class="passport-name" id="collectorName">—</div>
+            <div class="passport-meta">
+                <div class="passport-meta-item">Active since <strong id="activeSince">—</strong></div>
+                <div class="passport-meta-item">City: <strong id="collectorCity">—</strong></div>
+                <div class="passport-meta-item">Region: <strong id="collectorRegion">—</strong></div>
+            </div>
+            <div class="passport-actions">
+                <button class="btn-action btn-dl" onclick="downloadJSON()">&#8681; Download Report (JSON)</button>
+                <button class="btn-action btn-print" onclick="window.print()">&#128438; Print</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="passport-main">
+        <!-- STATS -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total kg (lifetime)</div>
+                <div class="stat-value" id="statTotalKg">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total kg (last 12m)</div>
+                <div class="stat-value" id="statKg12m">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total earned</div>
+                <div class="stat-value" id="statEarned">—</div>
+                <div class="stat-sub">GHS</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Transactions</div>
+                <div class="stat-value" id="statTxns">—</div>
+            </div>
+        </div>
+
+        <!-- RATINGS -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Reputation from Aggregators</div>
+            </div>
+            <div class="section-body">
+                <div id="ratingsDisplay" class="empty">No ratings yet</div>
+            </div>
+        </div>
+
+        <!-- MATERIAL BREAKDOWN -->
+        <div class="section">
+            <div class="section-header"><div class="section-title">Material Breakdown</div></div>
+            <div class="section-body" id="materialBreakdown"><div class="empty">No data yet</div></div>
+        </div>
+
+        <!-- AGGREGATORS -->
+        <div class="section">
+            <div class="section-header"><div class="section-title">Aggregators Transacted With</div></div>
+            <div class="section-body" id="aggregatorsList"><div class="empty">No aggregators yet</div></div>
+        </div>
+
+        <!-- RECENT TRANSACTIONS -->
+        <div class="section">
+            <div class="section-header"><div class="section-title">Recent Transactions (last 20)</div></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Material</th>
+                        <th>Net kg</th>
+                        <th>Amount (GHS)</th>
+                        <th>Payment</th>
+                    </tr>
+                </thead>
+                <tbody id="txnBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="errorContent" style="display:none">
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--off-white);padding:20px;">
+        <div class="error-box">
+            <h3 style="margin-bottom:8px;color:var(--green-deep)">Passport Not Found</h3>
+            <p id="errorMsg" style="color:var(--slate-light);font-size:0.9rem">Collector ID not found. Make sure the URL includes a valid ?id= parameter.</p>
+            <a href="/" style="display:inline-block;margin-top:16px;color:var(--green-primary);font-weight:600;font-size:0.9rem">← Back to Circul</a>
+        </div>
+    </div>
+</div>
+
+<footer class="footer" id="passportFooter" style="display:none">
+    <p>This Collector Passport is auto-generated from Circul transaction records. It can be used as a financial identity document with Circul-verified microfinance partners.</p>
+    <p>Generated by Circul · <a href="/" style="color:rgba(255,255,255,0.4)">circul.io</a></p>
+</footer>
+
+<script>
+var passportData = null;
+var MAT_COLORS = { PET: '#16a34a', HDPE: '#0891b2', LDPE: '#7c3aed', PP: '#f59e0b' };
+
+function getParam(name) {
+    var url = new URLSearchParams(window.location.search);
+    return url.get(name);
+}
+
+function init() {
+    var collectorId = getParam('id');
+    var operatorId = getParam('operator_id');
+
+    if (collectorId) {
+        loadPassport(collectorId);
+    } else if (operatorId) {
+        // Try to find collector linked to this operator by looking up their transactions
+        fetchCollectorForOperator(operatorId);
+    } else {
+        // Try from localStorage
+        var saved = localStorage.getItem('circul_collector');
+        if (saved) {
+            try {
+                var c = JSON.parse(saved);
+                if (c.id) { loadPassport(c.id); return; }
+            } catch (e) {}
+        }
+        showError('No collector ID provided. Add ?id=COLLECTOR_ID to the URL.');
+    }
+}
+
+function fetchCollectorForOperator(opId) {
+    // Look up transactions for this operator and find first collector
+    fetch('/api/transactions?operator_id=' + opId + '&limit=1')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.transactions && data.transactions.length) {
+                loadPassport(data.transactions[0].collector_id);
+            } else {
+                showError('No transaction history found for this account. Log your first collection to build your passport.');
+            }
+        })
+        .catch(function() { showError('Unable to load passport data.'); });
+}
+
+function loadPassport(id) {
+    fetch('/api/collectors/' + id + '/passport')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) { showError(data.message || 'Passport not found'); return; }
+            passportData = data.passport;
+            renderPassport(data.passport);
+        })
+        .catch(function() { showError('Unable to load collector passport. Please try again.'); });
+}
+
+function renderPassport(p) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('passportContent').style.display = '';
+    document.getElementById('passportFooter').style.display = '';
+
+    // Header
+    var c = p.collector;
+    document.getElementById('collectorName').textContent = c.first_name + ' ' + (c.last_name || '');
+    document.getElementById('activeSince').textContent = p.active_since ? fmtDate(p.active_since) : 'N/A';
+    document.getElementById('collectorCity').textContent = c.city || c.region || '—';
+    document.getElementById('collectorRegion').textContent = c.region || '—';
+
+    // Stats
+    document.getElementById('statTotalKg').textContent = fmt(p.total_kg_lifetime) + ' kg';
+    document.getElementById('statKg12m').textContent = fmt(p.total_kg_last_12m) + ' kg';
+    document.getElementById('statEarned').textContent = fmt(p.total_earned_ghs);
+    document.getElementById('statTxns').textContent = p.transaction_count;
+
+    // Ratings
+    var rEl = document.getElementById('ratingsDisplay');
+    if (p.avg_rating_from_aggregators && p.ratings_count > 0) {
+        var stars = '';
+        for (var i = 1; i <= 5; i++) {
+            var lit = i <= Math.round(parseFloat(p.avg_rating_from_aggregators));
+            stars += '<div class="star-icon' + (lit ? '' : ' empty') + '"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>';
+        }
+        rEl.innerHTML = '<div class="rating-display"><div class="stars-display">' + stars + '</div><span style="font-family:\'Space Grotesk\',sans-serif;font-size:1.2rem;font-weight:700;color:var(--green-deep);margin-left:8px">' + p.avg_rating_from_aggregators + '</span><span style="color:var(--slate-light);font-size:0.85rem;margin-left:4px">from ' + p.ratings_count + ' ratings</span></div>';
+    } else {
+        rEl.innerHTML = '<div class="empty">No ratings from aggregators yet</div>';
+    }
+
+    // Material breakdown
+    var mEl = document.getElementById('materialBreakdown');
+    if (!p.material_breakdown || !p.material_breakdown.length) { mEl.innerHTML = '<div class="empty">No transactions yet</div>'; }
+    else {
+        var total = p.material_breakdown.reduce(function(s, m) { return s + parseFloat(m.kg || 0); }, 0);
+        var max = parseFloat(p.material_breakdown[0].kg || 0);
+        mEl.innerHTML = p.material_breakdown.map(function(m) {
+            var kg = parseFloat(m.kg || 0);
+            var pct = total > 0 ? (kg / total * 100) : 0;
+            var bw = max > 0 ? (kg / max * 100) : 0;
+            var color = MAT_COLORS[m.material_type] || '#6b7280';
+            return '<div class="mat-row"><span class="mat-label">' + m.material_type + '</span><div class="mat-track"><div class="mat-fill" style="width:' + bw.toFixed(1) + '%;background:' + color + '"></div></div><span class="mat-kg">' + fmt(kg) + ' kg</span><span class="mat-pct">' + pct.toFixed(1) + '%</span></div>';
+        }).join('');
+    }
+
+    // Aggregators
+    var aEl = document.getElementById('aggregatorsList');
+    if (!p.aggregators_transacted_with || !p.aggregators_transacted_with.length) { aEl.innerHTML = '<div class="empty">No aggregators yet</div>'; }
+    else {
+        aEl.innerHTML = '<div class="agg-list">' + p.aggregators_transacted_with.map(function(a) {
+            var initials = (a.name || 'A').slice(0, 2).toUpperCase();
+            return '<div class="agg-item"><div class="agg-icon">' + esc(initials) + '</div><div class="agg-info"><div class="agg-name">' + esc(a.name) + '</div><div class="agg-meta">' + esc(a.company || '') + (a.city ? ' · ' + esc(a.city) : '') + '</div></div></div>';
+        }).join('') + '</div>';
+    }
+
+    // Recent transactions
+    var tbody = document.getElementById('txnBody');
+    if (!p.recent_transactions || !p.recent_transactions.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No transactions yet</td></tr>'; }
+    else {
+        tbody.innerHTML = p.recent_transactions.map(function(t) {
+            var sc = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
+            return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-green">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td><span class="badge ' + sc + '">' + (t.payment_status || 'unpaid') + '</span></td></tr>';
+        }).join('');
+    }
+}
+
+function showError(msg) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('errorContent').style.display = '';
+    document.getElementById('errorMsg').textContent = msg;
+}
+
+function downloadJSON() {
+    if (!passportData) return;
+    var blob = new Blob([JSON.stringify(passportData, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var name = (passportData.collector.first_name + '-' + (passportData.collector.last_name || 'passport')).toLowerCase().replace(/\s+/g, '-');
+    a.href = url; a.download = 'circul-passport-' + name + '.json'; a.click();
+    URL.revokeObjectURL(url);
+}
+
+function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
+function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+init();
+</script>
+</body>
+</html>
+
+
+===== FILE: migrations/1774000000000_expand_schema.js =====
+
+/**
+ * Expand schema for multi-role platform:
+ * - Expand operators.role to include collector, aggregator, processor, converter
+ * - Add location fields to operators and collectors
+ * - Create posted_prices table (self-posted by aggregators/processors)
+ * - Rebuild ratings table to support all role pairs
+ * - Create collector_passports table
+ * - Seed demo operators for all roles
+ * - Seed demo collectors
+ */
+
+module.exports = {
+  name: 'expand_schema',
+  up: async (client) => {
+
+    // 1. Expand operators.role constraint
+    await client.query(`ALTER TABLE operators DROP CONSTRAINT IF EXISTS operators_role_check`);
+    await client.query(`ALTER TABLE operators ADD CONSTRAINT operators_role_check CHECK (role IN ('operator','admin','collector','aggregator','processor','converter'))`);
+
+    // 2. Add location and flag fields to operators
+    await client.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS city VARCHAR(100)`);
+    await client.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS region VARCHAR(100)`);
+    await client.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT 'Ghana'`);
+    await client.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS is_flagged BOOLEAN DEFAULT false`);
+
+    // 3. Add location fields to collectors
+    await client.query(`ALTER TABLE collectors ADD COLUMN IF NOT EXISTS city VARCHAR(100)`);
+
+    // 4. Create posted_prices table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS posted_prices (
+        id SERIAL PRIMARY KEY,
+        operator_id INTEGER NOT NULL REFERENCES operators(id) ON DELETE CASCADE,
+        material_type VARCHAR(10) NOT NULL CHECK (material_type IN ('PET','HDPE','LDPE','PP')),
+        price_per_kg_usd NUMERIC(10,4) NOT NULL CHECK (price_per_kg_usd >= 0),
+        price_per_kg_ghs NUMERIC(10,2),
+        usd_to_ghs_rate NUMERIC(10,4),
+        city VARCHAR(100),
+        region VARCHAR(100),
+        country VARCHAR(100) DEFAULT 'Ghana',
+        expires_at TIMESTAMPTZ NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        posted_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(operator_id, material_type, expires_at)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_posted_prices_material ON posted_prices(material_type)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_posted_prices_city ON posted_prices(city)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_posted_prices_expires ON posted_prices(expires_at)`);
+
+    // 5. Rebuild ratings table to support all role pairs
+    await client.query(`DROP TABLE IF EXISTS ratings CASCADE`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ratings (
+        id SERIAL PRIMARY KEY,
+        transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
+        rater_operator_id INTEGER REFERENCES operators(id) ON DELETE SET NULL,
+        rated_operator_id INTEGER REFERENCES operators(id) ON DELETE CASCADE,
+        rater_collector_id INTEGER REFERENCES collectors(id) ON DELETE SET NULL,
+        rated_collector_id INTEGER REFERENCES collectors(id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        tags JSONB DEFAULT '[]'::jsonb,
+        notes TEXT,
+        rating_direction VARCHAR(50),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        window_expires_at TIMESTAMPTZ,
+        CONSTRAINT one_rating_per_transaction_direction UNIQUE (transaction_id, rater_operator_id, rated_operator_id)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_ratings_rated_operator ON ratings(rated_operator_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_ratings_rater_operator ON ratings(rater_operator_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_ratings_transaction ON ratings(transaction_id)`);
+
+    // 6. Create collector_passports table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS collector_passports (
+        collector_id INTEGER PRIMARY KEY REFERENCES collectors(id) ON DELETE CASCADE,
+        total_kg_lifetime NUMERIC(12,2) DEFAULT 0,
+        total_kg_last_12m NUMERIC(12,2) DEFAULT 0,
+        total_earned_ghs NUMERIC(12,2) DEFAULT 0,
+        total_earned_usd NUMERIC(12,2) DEFAULT 0,
+        transaction_count INTEGER DEFAULT 0,
+        active_since TIMESTAMPTZ,
+        material_breakdown JSONB DEFAULT '{}'::jsonb,
+        unique_aggregators INTEGER DEFAULT 0,
+        avg_rating_from_aggregators NUMERIC(3,2),
+        payment_reliability_score NUMERIC(5,2),
+        last_updated TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // 7. Seed demo operators for all roles
+    // Demo Collector (phone: 0300000001, PIN: 1111)
+    await client.query(`
+      INSERT INTO operators (name, company, phone, pin, role, city, region, country)
+      VALUES ('Ama Mensah', 'Independent', '0300000001', '1111', 'collector', 'Accra', 'Greater Accra', 'Ghana')
+      ON CONFLICT (phone) DO UPDATE SET role='collector', pin='1111', city='Accra', region='Greater Accra'
+    `);
+
+    // Demo Aggregator (phone: 0300000002, PIN: 2222)
+    await client.query(`
+      INSERT INTO operators (name, company, phone, pin, role, city, region, country)
+      VALUES ('Green Collect GH', 'Green Collect Ghana Ltd', '0300000002', '2222', 'aggregator', 'Accra', 'Greater Accra', 'Ghana')
+      ON CONFLICT (phone) DO UPDATE SET role='aggregator', pin='2222', city='Accra', region='Greater Accra'
+    `);
+
+    // Demo Processor = rePATRN (phone: 0300000003, PIN: 3333)
+    await client.query(`
+      INSERT INTO operators (name, company, phone, pin, role, city, region, country)
+      VALUES ('rePATRN', 'rePATRN Ghana', '0300000003', '3333', 'processor', 'Tema', 'Greater Accra', 'Ghana')
+      ON CONFLICT (phone) DO UPDATE SET role='processor', pin='3333', city='Tema', region='Greater Accra'
+    `);
+
+    // Demo Converter (phone: 0300000004, PIN: 4444)
+    await client.query(`
+      INSERT INTO operators (name, company, phone, pin, role, city, region, country)
+      VALUES ('EcoPlast GH', 'EcoPlast Ghana Ltd', '0300000004', '4444', 'converter', 'Tema', 'Greater Accra', 'Ghana')
+      ON CONFLICT (phone) DO UPDATE SET role='converter', pin='4444', city='Tema', region='Greater Accra'
+    `);
+
+    // 8. Seed demo collectors
+    await client.query(`
+      INSERT INTO collectors (first_name, last_name, phone, pin, region, city)
+      VALUES
+        ('Kwame', 'Asante', '0241000001', '0000', 'Greater Accra', 'Accra'),
+        ('Abena', 'Boateng', '0241000002', '0000', 'Greater Accra', 'Accra'),
+        ('Kofi', 'Darko', '0241000003', '0000', 'Greater Accra', 'Accra'),
+        ('Akosua', 'Essien', '0241000004', '0000', 'Greater Accra', 'Accra'),
+        ('Yaw', 'Frimpong', '0241000005', '0000', 'Greater Accra', 'Accra')
+      ON CONFLICT (phone) DO NOTHING
+    `);
+
+    // 9. posted_prices are seeded via the app API after operator creation
+  }
+};
+

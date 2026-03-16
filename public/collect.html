@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a2e1a">
+    <title>Circul - Log Collection</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --green-deep: #0a2e1a;
+            --green-primary: #16a34a;
+            --green-light: #bbf7d0;
+            --green-wash: #f0fdf4;
+            --amber: #f59e0b;
+            --amber-light: #fef3c7;
+            --slate: #334155;
+            --slate-light: #94a3b8;
+            --slate-muted: #64748b;
+            --white: #ffffff;
+            --off-white: #fafaf9;
+            --border: #e2e8f0;
+            --red: #ef4444;
+            --red-wash: #fef2f2;
+            --blue: #3b82f6;
+            --blue-wash: #eff6ff;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        html { height: 100%; -webkit-text-size-adjust: 100%; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--slate);
+            background: var(--off-white);
+            min-height: 100%;
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior: none;
+        }
+
+        h1, h2, h3, h4, h5 { font-family: 'Space Grotesk', sans-serif; }
+
+        .app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--white); position: relative; }
+
+        .screen { display: none; opacity: 0; transform: translateY(8px); transition: opacity 0.3s ease, transform 0.3s ease; padding: 0 20px; padding-bottom: calc(24px + var(--safe-bottom)); }
+        .screen.active { display: block; }
+        .screen.visible { opacity: 1; transform: translateY(0); }
+
+        .header { background: var(--green-deep); padding: calc(16px + var(--safe-top)) 20px 16px; position: sticky; top: 0; z-index: 100; }
+        .header-brand { display: flex; align-items: center; gap: 10px; }
+        .header-logo { width: 32px; height: 32px; background: var(--green-primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; color: var(--white); }
+        .header-title { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--white); }
+        .header-subtitle { font-size: 12px; color: var(--slate-light); margin-top: 1px; }
+
+        /* AUTH */
+        .auth-hero { text-align: center; padding: 48px 20px 32px; }
+        .auth-icon { width: 72px; height: 72px; background: var(--green-wash); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .auth-icon svg { width: 36px; height: 36px; stroke: var(--green-primary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .auth-hero h1 { font-size: 24px; font-weight: 700; color: var(--green-deep); margin-bottom: 8px; }
+        .auth-hero p { font-size: 15px; color: var(--slate-muted); line-height: 1.5; }
+
+        .tabs { display: flex; background: var(--off-white); border-radius: 12px; padding: 4px; margin: 0 0 28px; }
+        .tab { flex: 1; padding: 12px 16px; font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; text-align: center; border: none; border-radius: 10px; background: transparent; color: var(--slate-muted); cursor: pointer; transition: all 0.25s ease; -webkit-tap-highlight-color: transparent; }
+        .tab.active { background: var(--white); color: var(--green-deep); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+        .form-panel { display: none; animation: fadeSlideUp 0.25s ease forwards; }
+        .form-panel.active { display: block; }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 7px; letter-spacing: 0.3px; }
+        .form-label .optional { font-weight: 400; color: var(--slate-light); font-family: 'DM Sans', sans-serif; }
+        .form-input { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; -webkit-appearance: none; }
+        .form-input:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .form-input::placeholder { color: var(--slate-light); }
+
+        .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 16px 24px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; border: none; border-radius: 14px; cursor: pointer; transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; position: relative; overflow: hidden; }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-primary { background: var(--green-primary); color: var(--white); }
+        .btn-primary:active:not(:disabled) { background: #15803d; }
+        .btn-secondary { background: var(--off-white); color: var(--slate); border: 2px solid var(--border); }
+        .btn-danger { background: transparent; color: var(--red); font-size: 14px; padding: 12px; }
+        .btn-danger:active { background: var(--red-wash); }
+
+        .btn .ripple { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.3); transform: scale(0); animation: ripple 0.5s ease-out; pointer-events: none; }
+        @keyframes ripple { to { transform: scale(4); opacity: 0; } }
+
+        .btn .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .form-error { display: none; padding: 12px 16px; background: var(--red-wash); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; color: var(--red); font-size: 14px; margin-bottom: 18px; }
+        .form-error.visible { display: block; }
+
+        /* COLLECTION SCREEN */
+        .greeting { padding: 24px 0 20px; }
+        .greeting-hello { font-size: 14px; color: var(--slate-muted); margin-bottom: 2px; }
+        .greeting-name { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: var(--green-deep); }
+
+        .today-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+        .stat-card { background: var(--green-wash); border-radius: 14px; padding: 16px; }
+        .stat-card.amber { background: var(--amber-light); }
+        .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: var(--green-deep); line-height: 1; }
+        .stat-label { font-size: 13px; color: var(--slate-muted); margin-top: 4px; }
+
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; color: var(--green-deep); margin-bottom: 14px; }
+
+        .material-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 24px; }
+        .material-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px 6px; background: var(--off-white); border: 2px solid var(--border); border-radius: 14px; cursor: pointer; transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; min-height: 68px; }
+        .material-btn:active { transform: scale(0.94); }
+        .material-btn.selected { background: var(--green-wash); border-color: var(--green-primary); box-shadow: 0 0 0 2px rgba(22,163,74,0.15); }
+        .material-btn .material-icon { font-size: 20px; margin-bottom: 4px; }
+        .material-btn .material-name { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 600; color: var(--slate); letter-spacing: 0.3px; }
+        .material-btn.selected .material-name { color: var(--green-primary); }
+
+        .weight-input-wrapper { display: flex; align-items: center; background: var(--off-white); border: 2px solid var(--border); border-radius: 14px; padding: 4px; transition: border-color 0.2s ease, box-shadow 0.2s ease; margin-bottom: 16px; }
+        .weight-input-wrapper:focus-within { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .weight-input-wrapper input { flex: 1; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: var(--green-deep); padding: 12px 16px; outline: none; width: 0; -webkit-appearance: none; -moz-appearance: textfield; }
+        .weight-input-wrapper input::placeholder { color: var(--slate-light); font-weight: 400; font-size: 24px; }
+        .weight-input-wrapper input::-webkit-inner-spin-button, .weight-input-wrapper input::-webkit-outer-spin-button { -webkit-appearance: none; }
+        .weight-unit { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--slate-light); padding: 0 16px; flex-shrink: 0; }
+
+        /* Price input row */
+        .price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+        .price-input-wrapper { display: flex; align-items: center; background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; padding: 4px; transition: border-color 0.2s ease; }
+        .price-input-wrapper:focus-within { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+        .price-input-wrapper input { flex: 1; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--green-deep); padding: 10px 12px; outline: none; width: 0; -webkit-appearance: none; -moz-appearance: textfield; }
+        .price-input-wrapper input::-webkit-inner-spin-button, .price-input-wrapper input::-webkit-outer-spin-button { -webkit-appearance: none; }
+        .price-input-wrapper input::placeholder { color: var(--slate-light); font-weight: 400; font-size: 14px; }
+        .price-unit { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--slate-light); padding: 0 10px; flex-shrink: 0; }
+
+        /* GPS */
+        .gps-status { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--off-white); border-radius: 12px; margin-bottom: 24px; font-size: 14px; color: var(--slate-muted); }
+        .gps-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--slate-light); flex-shrink: 0; transition: background 0.3s ease; }
+        .gps-dot.acquiring { background: var(--amber); animation: pulse 1.2s ease infinite; }
+        .gps-dot.locked { background: var(--green-primary); }
+        .gps-dot.failed { background: var(--red); }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+        .gps-coords { font-family: 'Space Grotesk', sans-serif; font-size: 11px; color: var(--slate-light); margin-top: 2px; }
+
+        .notes-textarea { width: 100%; padding: 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--slate); background: var(--off-white); border: 2px solid var(--border); border-radius: 12px; outline: none; resize: vertical; min-height: 60px; transition: border-color 0.2s ease; -webkit-appearance: none; margin-bottom: 24px; }
+        .notes-textarea:focus { border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.12); background: var(--white); }
+
+        .submit-area { margin-bottom: 32px; }
+
+        /* Star Rating Modal */
+        .rating-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,46,26,0.7); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
+        .rating-overlay.active { display: flex; }
+        .rating-card { background: var(--white); border-radius: 20px; padding: 32px 24px; max-width: 360px; width: 100%; text-align: center; animation: fadeSlideUp 0.3s ease; }
+        .rating-card h3 { font-size: 20px; color: var(--green-deep); margin-bottom: 8px; }
+        .rating-card p { font-size: 14px; color: var(--slate-muted); margin-bottom: 24px; }
+        .stars { display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; }
+        .star { width: 48px; height: 48px; cursor: pointer; transition: transform 0.15s ease; color: var(--border); }
+        .star:active { transform: scale(0.85); }
+        .star.active { color: var(--amber); }
+        .star svg { width: 100%; height: 100%; }
+        .rating-actions { display: flex; gap: 10px; }
+        .rating-actions .btn { flex: 1; padding: 14px; font-size: 14px; }
+
+        /* Toast */
+        .toast { position: fixed; top: -80px; left: 50%; transform: translateX(-50%); z-index: 200; background: var(--green-deep); color: var(--white); padding: 16px 24px; border-radius: 14px; font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.2); transition: top 0.4s cubic-bezier(0.34,1.56,0.64,1); display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 40px); white-space: nowrap; }
+        .toast.show { top: calc(20px + var(--safe-top)); }
+        .toast.error { background: var(--red); }
+        .toast-icon { width: 22px; height: 22px; flex-shrink: 0; }
+
+        /* Recent */
+        .recent-section { margin-top: 8px; margin-bottom: 32px; }
+        .recent-list { display: flex; flex-direction: column; gap: 8px; }
+        .recent-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--off-white); border-radius: 12px; }
+        .recent-badge { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; color: var(--green-deep); background: var(--green-light); flex-shrink: 0; }
+        .recent-info { flex: 1; min-width: 0; }
+        .recent-material { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: var(--green-deep); }
+        .recent-meta { font-size: 12px; color: var(--slate-muted); margin-top: 2px; }
+        .recent-weight { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--green-primary); flex-shrink: 0; }
+        .recent-empty { text-align: center; padding: 32px 16px; color: var(--slate-light); font-size: 14px; }
+
+        .divider { height: 1px; background: var(--border); margin: 24px 0; }
+        .logout-area { padding-bottom: 16px; text-align: center; }
+        .collect-screen { padding-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div class="header-brand">
+                <div class="header-logo">C</div>
+                <div>
+                    <div class="header-title">Circul</div>
+                    <div class="header-subtitle">Collection Logger</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AUTH SCREEN -->
+        <div id="auth-screen" class="screen">
+            <div class="auth-hero">
+                <div class="auth-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1" fill="currentColor" stroke="none"/></svg>
+                </div>
+                <h1>Welcome, Collector</h1>
+                <p>Log your waste collections and track your impact.</p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="login" onclick="switchTab('login')">Log In</button>
+                <button class="tab" data-tab="register" onclick="switchTab('register')">Register</button>
+            </div>
+
+            <div id="login-panel" class="form-panel active">
+                <div id="login-error" class="form-error"></div>
+                <form id="login-form" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="login-phone">Phone Number</label>
+                        <input class="form-input" type="tel" id="login-phone" placeholder="e.g. 0241234567" autocomplete="tel" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="login-pin">PIN</label>
+                        <input class="form-input" type="password" id="login-pin" inputmode="numeric" pattern="[0-9]*" placeholder="4-6 digit PIN" minlength="4" maxlength="6" autocomplete="current-password" required>
+                    </div>
+                    <button class="btn btn-primary" type="submit" id="login-btn"><span class="btn-text">Log In</span></button>
+                </form>
+            </div>
+
+            <div id="register-panel" class="form-panel">
+                <div id="register-error" class="form-error"></div>
+                <form id="register-form" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="reg-first-name">First Name</label>
+                        <input class="form-input" type="text" id="reg-first-name" placeholder="Kofi" autocomplete="given-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-last-name">Last Name</label>
+                        <input class="form-input" type="text" id="reg-last-name" placeholder="Asante" autocomplete="family-name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-phone">Phone Number</label>
+                        <input class="form-input" type="tel" id="reg-phone" placeholder="e.g. 0241234567" autocomplete="tel" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-pin">Create PIN</label>
+                        <input class="form-input" type="password" id="reg-pin" inputmode="numeric" pattern="[0-9]*" placeholder="4-6 digits" minlength="4" maxlength="6" autocomplete="new-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-region">Region <span class="optional">(optional)</span></label>
+                        <input class="form-input" type="text" id="reg-region" placeholder="e.g. Accra, Kumasi" autocomplete="address-level1">
+                    </div>
+                    <button class="btn btn-primary" type="submit" id="register-btn"><span class="btn-text">Create Account</span></button>
+                </form>
+            </div>
+        </div>
+
+        <!-- COLLECTION SCREEN -->
+        <div id="collect-screen" class="screen collect-screen">
+            <div class="greeting">
+                <div class="greeting-hello">Good <span id="time-of-day">morning</span>,</div>
+                <div class="greeting-name" id="collector-name"></div>
+            </div>
+
+            <div class="today-stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="today-weight">0</div>
+                    <div class="stat-label">kg today</div>
+                </div>
+                <div class="stat-card amber">
+                    <div class="stat-value" id="today-count">0</div>
+                    <div class="stat-label">transactions</div>
+                </div>
+            </div>
+
+            <div class="section-title">Log a Transaction</div>
+
+            <!-- Material -->
+            <div class="material-grid" id="material-grid">
+                <button class="material-btn" data-material="PET" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9854;</span>
+                    <span class="material-name">PET</span>
+                </button>
+                <button class="material-btn" data-material="HDPE" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9855;</span>
+                    <span class="material-name">HDPE</span>
+                </button>
+                <button class="material-btn" data-material="LDPE" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9857;</span>
+                    <span class="material-name">LDPE</span>
+                </button>
+                <button class="material-btn" data-material="PP" onclick="selectMaterial(this)">
+                    <span class="material-icon">&#9858;</span>
+                    <span class="material-name">PP</span>
+                </button>
+            </div>
+
+            <!-- Buyer (who collector is selling to) -->
+            <div class="form-group">
+                <label class="form-label" for="buyer-input">Buyer / Processor <span class="optional">(optional)</span></label>
+                <input class="form-input" type="text" id="buyer-input" placeholder="e.g. Miniplast Ghana">
+            </div>
+
+            <!-- Gross Weight -->
+            <div class="section-title">Gross Weight</div>
+            <div class="weight-input-wrapper">
+                <input type="number" id="weight-input" inputmode="decimal" step="0.1" min="0.1" placeholder="0.0" oninput="updateNetWeight()" required>
+                <span class="weight-unit">kg</span>
+            </div>
+
+            <!-- Price per kg -->
+            <div class="price-row">
+                <div>
+                    <label class="form-label">Price per kg <span class="optional">(optional)</span></label>
+                    <div class="price-input-wrapper">
+                        <input type="number" id="price-input" inputmode="decimal" step="0.01" min="0" placeholder="0.00" oninput="updateNetWeight()">
+                        <span class="price-unit">GHS/kg</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Total Price</label>
+                    <div class="price-input-wrapper" style="background: var(--green-wash); border-color: var(--green-light);">
+                        <input type="text" id="total-price-display" readonly placeholder="--" style="color: var(--green-primary);">
+                        <span class="price-unit">GHS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GPS -->
+            <div class="gps-status" id="gps-status">
+                <div class="gps-dot" id="gps-dot"></div>
+                <div>
+                    <div class="gps-text" id="gps-text">Acquiring GPS...</div>
+                    <div class="gps-coords" id="gps-coords"></div>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <textarea class="notes-textarea" id="notes-input" placeholder="Notes (optional)" rows="2"></textarea>
+
+            <!-- Submit -->
+            <div class="submit-area">
+                <div id="collect-error" class="form-error"></div>
+                <button class="btn btn-primary" id="submit-btn" onclick="handleSubmitCollection()">
+                    <span class="btn-text">Log Transaction</span>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Recent -->
+            <div class="recent-section">
+                <div class="section-title">Recent Transactions</div>
+                <div class="recent-list" id="recent-list">
+                    <div class="recent-empty">No transactions yet. Log your first one above.</div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+            <div class="logout-area">
+                <button class="btn btn-danger" onclick="handleLogout()">Log Out</button>
+            </div>
+        </div>
+
+        <!-- RATING OVERLAY -->
+        <div class="rating-overlay" id="rating-overlay">
+            <div class="rating-card">
+                <h3>Rate this Collector</h3>
+                <p id="rating-prompt">How was the quality of materials from this collector?</p>
+                <div class="stars" id="star-container">
+                    <div class="star" data-rating="1" onclick="selectRating(1)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="2" onclick="selectRating(2)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="3" onclick="selectRating(3)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="4" onclick="selectRating(4)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <div class="star" data-rating="5" onclick="selectRating(5)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                </div>
+                <div class="rating-actions">
+                    <button class="btn btn-secondary" onclick="skipRating()"><span class="btn-text">Skip</span></button>
+                    <button class="btn btn-primary" id="submit-rating-btn" onclick="submitRating()" disabled><span class="btn-text">Submit Rating</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div class="toast" id="toast">
+            <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span id="toast-text">Collection logged!</span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        var state = {
+            collector: null,
+            selectedMaterial: null,
+            selectedRating: 0,
+            lastTransactionId: null,
+            gpsLat: null,
+            gpsLng: null,
+            gpsStatus: 'idle',
+            isSubmitting: false,
+            gpsWatchId: null
+        };
+
+        // ---- INIT ----
+        function init() {
+            var saved = localStorage.getItem('circul_collector');
+            if (saved) {
+                try {
+                    state.collector = JSON.parse(saved);
+                    showScreen('collect');
+                    loadCollectorData();
+                } catch (e) {
+                    localStorage.removeItem('circul_collector');
+                    showScreen('auth');
+                }
+            } else {
+                showScreen('auth');
+            }
+            updateTimeOfDay();
+        }
+
+        function updateTimeOfDay() {
+            var hour = new Date().getHours();
+            var el = document.getElementById('time-of-day');
+            if (el) {
+                if (hour < 12) el.textContent = 'morning';
+                else if (hour < 17) el.textContent = 'afternoon';
+                else el.textContent = 'evening';
+            }
+        }
+
+        // ---- SCREENS ----
+        function showScreen(name) {
+            var screens = document.querySelectorAll('.screen');
+            for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active', 'visible');
+            var target = document.getElementById(name + '-screen');
+            if (target) {
+                target.classList.add('active');
+                requestAnimationFrame(function() { requestAnimationFrame(function() { target.classList.add('visible'); }); });
+            }
+            if (name === 'collect') {
+                if (state.collector) {
+                    var fullName = state.collector.first_name;
+                    if (state.collector.last_name) fullName += ' ' + state.collector.last_name;
+                    document.getElementById('collector-name').textContent = fullName;
+                }
+                startGPS();
+            } else {
+                stopGPS();
+            }
+        }
+
+        // ---- TABS ----
+        window.switchTab = function(tabName) {
+            var tabs = document.querySelectorAll('.tab');
+            for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === tabName);
+            var panels = document.querySelectorAll('.form-panel');
+            for (var j = 0; j < panels.length; j++) panels[j].classList.remove('active');
+            document.getElementById(tabName + '-panel').classList.add('active');
+            hideError('login'); hideError('register');
+        };
+
+        // ---- AUTH ----
+        window.handleLogin = function(e) {
+            e.preventDefault();
+            var phone = document.getElementById('login-phone').value.trim();
+            var pin = document.getElementById('login-pin').value.trim();
+            if (!phone || !pin) { showError('login', 'Please enter your phone number and PIN.'); return; }
+            setButtonLoading('login-btn', true); hideError('login');
+            apiPost('/api/collectors/login', { phone: phone, pin: pin })
+                .then(function(data) {
+                    if (data.success) { state.collector = data.collector; localStorage.setItem('circul_collector', JSON.stringify(data.collector)); showScreen('collect'); loadCollectorData(); }
+                    else showError('login', data.message || 'Invalid phone or PIN.');
+                })
+                .catch(function(err) { showError('login', err.message || 'Connection error.'); })
+                .finally(function() { setButtonLoading('login-btn', false); });
+        };
+
+        window.handleRegister = function(e) {
+            e.preventDefault();
+            var first_name = document.getElementById('reg-first-name').value.trim();
+            var last_name = document.getElementById('reg-last-name').value.trim();
+            var phone = document.getElementById('reg-phone').value.trim();
+            var pin = document.getElementById('reg-pin').value.trim();
+            var region = document.getElementById('reg-region').value.trim();
+            if (!first_name || !phone || !pin) { showError('register', 'First name, phone, and PIN are required.'); return; }
+            if (pin.length < 4 || pin.length > 6) { showError('register', 'PIN must be 4-6 digits.'); return; }
+            if (!/^\d+$/.test(pin)) { showError('register', 'PIN must be numbers only.'); return; }
+            setButtonLoading('register-btn', true); hideError('register');
+            apiPost('/api/collectors', { first_name: first_name, last_name: last_name, phone: phone, pin: pin, region: region || undefined })
+                .then(function(data) {
+                    if (data.success) { state.collector = data.collector; localStorage.setItem('circul_collector', JSON.stringify(data.collector)); showScreen('collect'); loadCollectorData(); showToast('Account created! Welcome to Circul.'); }
+                    else showError('register', data.message || 'Registration failed.');
+                })
+                .catch(function(err) { showError('register', err.message || 'Connection error.'); })
+                .finally(function() { setButtonLoading('register-btn', false); });
+        };
+
+        window.handleLogout = function() {
+            state.collector = null; state.selectedMaterial = null; state.gpsLat = null; state.gpsLng = null;
+            localStorage.removeItem('circul_collector'); stopGPS(); resetCollectionForm(); showScreen('auth');
+        };
+
+        // ---- MATERIAL ----
+        window.selectMaterial = function(btn) {
+            var all = document.querySelectorAll('.material-btn');
+            for (var i = 0; i < all.length; i++) all[i].classList.remove('selected');
+            btn.classList.add('selected');
+            state.selectedMaterial = btn.getAttribute('data-material');
+        };
+
+        window.updateNetWeight = function() {
+            var gross = parseFloat(document.getElementById('weight-input').value) || 0;
+            var price = parseFloat(document.getElementById('price-input').value) || 0;
+            var total = gross * price;
+            document.getElementById('total-price-display').value = total > 0 ? total.toFixed(2) : '';
+        };
+
+        // ---- GPS ----
+        function startGPS() {
+            if (!navigator.geolocation) { setGPSStatus('failed', 'GPS not available'); return; }
+            setGPSStatus('acquiring', 'Acquiring GPS...');
+            state.gpsWatchId = navigator.geolocation.watchPosition(
+                function(pos) {
+                    state.gpsLat = pos.coords.latitude; state.gpsLng = pos.coords.longitude;
+                    setGPSStatus('locked', 'GPS locked (' + Math.round(pos.coords.accuracy) + 'm)');
+                    document.getElementById('gps-coords').textContent = state.gpsLat.toFixed(5) + ', ' + state.gpsLng.toFixed(5);
+                },
+                function(err) {
+                    var msg = err.code === 1 ? 'Location denied' : err.code === 2 ? 'GPS signal lost' : 'GPS timed out';
+                    setGPSStatus('failed', msg);
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+            );
+        }
+
+        function stopGPS() {
+            if (state.gpsWatchId !== null) { navigator.geolocation.clearWatch(state.gpsWatchId); state.gpsWatchId = null; }
+        }
+
+        function setGPSStatus(status, text) {
+            state.gpsStatus = status;
+            var dot = document.getElementById('gps-dot');
+            dot.className = 'gps-dot';
+            if (status === 'acquiring') dot.classList.add('acquiring');
+            else if (status === 'locked') dot.classList.add('locked');
+            else if (status === 'failed') dot.classList.add('failed');
+            document.getElementById('gps-text').textContent = text;
+            if (status !== 'locked') document.getElementById('gps-coords').textContent = '';
+        }
+
+        // ---- SUBMIT ----
+        window.handleSubmitCollection = function() {
+            if (state.isSubmitting) return;
+
+            var weight = parseFloat(document.getElementById('weight-input').value);
+            var notes = document.getElementById('notes-input').value.trim();
+            var pricePerKg = parseFloat(document.getElementById('price-input').value) || null;
+            var buyerName = document.getElementById('buyer-input').value.trim();
+
+            if (!state.selectedMaterial) { showError('collect', 'Please select a material type.'); return; }
+            if (!weight || weight <= 0) { showError('collect', 'Please enter a valid weight.'); return; }
+            if (weight > 5000) { showError('collect', 'Weight seems too high.'); return; }
+
+            hideError('collect');
+            state.isSubmitting = true;
+            setButtonLoading('submit-btn', true);
+
+            var payload = {
+                collector_id: state.collector.id,
+                material_type: state.selectedMaterial,
+                gross_weight_kg: weight,
+                price_per_kg: pricePerKg,
+                lat: state.gpsLat,
+                lng: state.gpsLng,
+                notes: notes || (buyerName ? 'Buyer: ' + buyerName : undefined)
+            };
+
+            apiPost('/api/transactions', payload)
+                .then(function(data) {
+                    if (data.success) {
+                        var net = parseFloat(data.transaction.net_weight_kg) || weight;
+                        showToast(net.toFixed(1) + ' kg ' + state.selectedMaterial + ' logged!');
+                        state.lastTransactionId = data.transaction.id;
+                        resetCollectionForm();
+                        loadCollectorData();
+                        // Show rating modal
+                        showRatingModal();
+                    } else {
+                        showError('collect', data.message || 'Failed to log transaction.');
+                    }
+                })
+                .catch(function(err) { showError('collect', err.message || 'Connection error.'); })
+                .finally(function() { state.isSubmitting = false; setButtonLoading('submit-btn', false); });
+        };
+
+        function resetCollectionForm() {
+            state.selectedMaterial = null;
+            var btns = document.querySelectorAll('.material-btn');
+            for (var i = 0; i < btns.length; i++) btns[i].classList.remove('selected');
+            document.getElementById('weight-input').value = '';
+            document.getElementById('price-input').value = '';
+            document.getElementById('buyer-input').value = '';
+            document.getElementById('notes-input').value = '';
+            document.getElementById('total-price-display').value = '';
+            hideError('collect');
+        }
+
+        // ---- RATING ----
+        function showRatingModal() {
+            state.selectedRating = 0;
+            var stars = document.querySelectorAll('.star');
+            for (var i = 0; i < stars.length; i++) stars[i].classList.remove('active');
+            document.getElementById('submit-rating-btn').disabled = true;
+            document.getElementById('rating-overlay').classList.add('active');
+        }
+
+        window.selectRating = function(rating) {
+            state.selectedRating = rating;
+            var stars = document.querySelectorAll('.star');
+            for (var i = 0; i < stars.length; i++) {
+                stars[i].classList.toggle('active', parseInt(stars[i].getAttribute('data-rating')) <= rating);
+            }
+            document.getElementById('submit-rating-btn').disabled = false;
+        };
+
+        window.submitRating = function() {
+            if (!state.selectedRating || !state.collector) return;
+            setButtonLoading('submit-rating-btn', true);
+
+            apiPost('/api/ratings', {
+                transaction_id: state.lastTransactionId,
+                collector_id: state.collector.id,
+                rating: state.selectedRating
+            })
+            .then(function(data) {
+                if (data.success) showToast('Rating submitted!');
+            })
+            .catch(function() { /* silent fail for ratings */ })
+            .finally(function() {
+                setButtonLoading('submit-rating-btn', false);
+                document.getElementById('rating-overlay').classList.remove('active');
+            });
+        };
+
+        window.skipRating = function() {
+            document.getElementById('rating-overlay').classList.remove('active');
+        };
+
+        // ---- LOAD DATA ----
+        function loadCollectorData() {
+            if (!state.collector) return;
+            apiGet('/api/collectors/' + state.collector.id + '/stats')
+                .then(function(data) {
+                    if (data.success) {
+                        document.getElementById('today-weight').textContent = formatWeight(parseFloat(data.stats.today.today_kg) || 0);
+                        document.getElementById('today-count').textContent = parseInt(data.stats.today.today_count) || 0;
+                        renderRecentTransactions(data.stats.recent_transactions || []);
+                    }
+                }).catch(function() {});
+        }
+
+        function renderRecentTransactions(transactions) {
+            var container = document.getElementById('recent-list');
+            if (!transactions || transactions.length === 0) {
+                container.innerHTML = '<div class="recent-empty">No transactions yet. Log your first one above.</div>';
+                return;
+            }
+            var items = transactions.slice(0, 5);
+            var html = '';
+            for (var i = 0; i < items.length; i++) {
+                var t = items[i];
+                var weight = parseFloat(t.net_weight_kg) || 0;
+                var price = t.total_price ? ' | GHS ' + parseFloat(t.total_price).toFixed(2) : '';
+                html += '<div class="recent-item">' +
+                    '<div class="recent-badge">' + escapeHtml(t.material_type) + '</div>' +
+                    '<div class="recent-info">' +
+                        '<div class="recent-material">' + escapeHtml(t.material_type) + price + '</div>' +
+                        '<div class="recent-meta">' + formatTimeAgo(t.transaction_date || t.created_at) + '</div>' +
+                    '</div>' +
+                    '<div class="recent-weight">' + formatWeight(weight) + ' kg</div>' +
+                '</div>';
+            }
+            container.innerHTML = html;
+        }
+
+        // ---- API ----
+        function apiPost(url, body) {
+            return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+                .then(function(res) { return res.json().then(function(data) { if (!res.ok && !data.message) throw new Error('Request failed'); return data; }); });
+        }
+        function apiGet(url) { return fetch(url).then(function(res) { return res.json(); }); }
+
+        // ---- UI HELPERS ----
+        function showError(prefix, message) { var el = document.getElementById(prefix + '-error'); if (el) { el.textContent = message; el.classList.add('visible'); } }
+        function hideError(prefix) { var el = document.getElementById(prefix + '-error'); if (el) el.classList.remove('visible'); }
+
+        function setButtonLoading(btnId, loading) {
+            var btn = document.getElementById(btnId); if (!btn) return;
+            var textEl = btn.querySelector('.btn-text');
+            if (loading) { btn.disabled = true; if (textEl) textEl.style.display = 'none'; var s = document.createElement('div'); s.className = 'spinner'; s.id = btnId + '-spinner'; btn.appendChild(s); }
+            else { btn.disabled = false; if (textEl) textEl.style.display = ''; var es = document.getElementById(btnId + '-spinner'); if (es) es.remove(); }
+        }
+
+        var toastTimer = null;
+        function showToast(message, isError) {
+            var toast = document.getElementById('toast'); var textEl = document.getElementById('toast-text');
+            textEl.textContent = message; toast.classList.toggle('error', !!isError);
+            var iconSvg = toast.querySelector('.toast-icon');
+            iconSvg.innerHTML = isError ? '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' : '<polyline points="20 6 9 17 4 12"/>';
+            toast.classList.add('show');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 3000);
+        }
+
+        function formatWeight(kg) { if (kg >= 1000) return (kg/1000).toFixed(1) + 'k'; if (kg === Math.floor(kg)) return kg.toString(); return kg.toFixed(1); }
+
+        function formatTimeAgo(dateStr) {
+            if (!dateStr) return '';
+            var d = new Date(dateStr); var now = new Date(); var diff = now - d; var mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Just now'; if (mins < 60) return mins + ' min ago';
+            var hrs = Math.floor(mins / 60); if (hrs < 24) return hrs + 'h ago';
+            var days = Math.floor(hrs / 24); if (days === 1) return 'Yesterday'; if (days < 7) return days + 'd ago';
+            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        }
+
+        function escapeHtml(str) { if (!str) return ''; var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+        // ---- RIPPLE ----
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.btn-primary, .btn-secondary');
+            if (!btn) return;
+            var rect = btn.getBoundingClientRect(); var size = Math.max(rect.width, rect.height) * 2;
+            var ripple = document.createElement('span'); ripple.className = 'ripple';
+            ripple.style.width = size + 'px'; ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size/2) + 'px'; ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
+            btn.appendChild(ripple); setTimeout(function() { ripple.remove(); }, 500);
+        });
+
+        // ---- BOOT ----
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+    })();
+    </script>
+
+    <!-- Polsia Analytics -->
+    <script>
+    (function() {
+        var slug = 'circul'; if (!slug) return;
+        var vid = localStorage.getItem('polsia_vid');
+        if (!vid) { vid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { var r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); }); localStorage.setItem('polsia_vid', vid); }
+        new Image().src = 'https://polsia.com/api/beacon/pixel?s=' + encodeURIComponent(slug) + '&v=' + encodeURIComponent(vid);
+    })();
+    </script>
+</body>
+</html>
