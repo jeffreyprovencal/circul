@@ -89,8 +89,8 @@
         <div class="logo"><h2>Circul<span>.</span></h2><p>Converter Dashboard</p></div>
         <div id="loginError" class="login-error"></div>
         <form onsubmit="handleLogin(event)">
-            <div class="form-group"><label class="form-label">Phone Number</label><input type="tel" id="loginPhone" class="form-input" placeholder="0200000000" autocomplete="tel"></div>
-            <div class="form-group"><label class="form-label">PIN</label><input type="password" id="loginPin" class="form-input" placeholder="••••" maxlength="6" autocomplete="current-password"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" id="conv-email" class="form-input" placeholder="name@company.com" autocomplete="email"></div>
+            <div class="form-group"><label class="form-label">Password</label><input type="password" id="conv-password" class="form-input" placeholder="Password" autocomplete="current-password"></div>
             <button type="submit" class="btn-login" id="loginBtn">Log In</button>
         </form>
     </div>
@@ -208,19 +208,32 @@ function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
     document.getElementById('dashboard').style.display = '';
     var op = state.operator;
-    document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
+    document.getElementById('navName').textContent = op.company || op.name || '';
     loadAll();
+    if (op.token) {
+        var tokenId = null;
+        try { tokenId = JSON.parse(atob(op.token.split('.')[1])).id; } catch(e) {}
+        var opId = tokenId || op.id;
+        fetch('/api/operators/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.operator) {
+                    document.getElementById('navName').textContent = data.operator.company || data.operator.name || op.name || '';
+                }
+            })
+            .catch(function() {});
+    }
 }
 
 function handleLogin(e) {
     e.preventDefault();
-    var phone = document.getElementById('loginPhone').value.trim();
-    var pin = document.getElementById('loginPin').value.trim();
-    if (!phone || !pin) return;
+    var email = document.getElementById('conv-email').value.trim();
+    var password = document.getElementById('conv-password').value.trim();
+    if (!email || !password) return;
     var btn = document.getElementById('loginBtn');
     btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
     document.getElementById('loginError').classList.remove('visible');
-    fetch('/api/operators/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone, pin: pin }) })
+    fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password }) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
@@ -232,7 +245,7 @@ function handleLogin(e) {
             }
             showDashboard();
         } else {
-            var el = document.getElementById('loginError'); el.textContent = data.message || 'Invalid phone or PIN'; el.classList.add('visible');
+            var el = document.getElementById('loginError'); el.textContent = data.message || 'Invalid email or password'; el.classList.add('visible');
         }
     })
     .catch(function() { var el = document.getElementById('loginError'); el.textContent = 'Connection error.'; el.classList.add('visible'); })
