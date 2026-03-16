@@ -593,8 +593,8 @@
         document.getElementById('passportId').textContent = cid;
         document.getElementById('passportLink').href = '/report.html?id=' + session.id;
       }
-      if (session.average_rating) {
-        var r = parseFloat(session.average_rating).toFixed(1);
+      if (session.avg_rating) {
+        var r = parseFloat(session.avg_rating).toFixed(1);
         document.getElementById('collectorRating').textContent = r;
         document.getElementById('statRating').textContent = r;
       }
@@ -688,8 +688,8 @@
       }
 
       // Rating
-      if (c.average_rating) {
-        var r = parseFloat(c.average_rating).toFixed(1);
+      if (c.avg_rating) {
+        var r = parseFloat(c.avg_rating).toFixed(1);
         document.getElementById('collectorRating').textContent = r;
         document.getElementById('statRating').textContent = r;
       }
