@@ -618,8 +618,12 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           setLoading(false);
-          if (!data.success) {
-            showError(data.message || 'Incorrect credentials. Please try again.');
+          if (!data.success || data.error) {
+            if (data.error === 'collector_email_login') {
+              showError('Collector and aggregator accounts use phone + PIN. Please enter your phone number.');
+            } else {
+              showError(data.message || 'Incorrect credentials. Please try again.');
+            }
             return;
           }
           // Store session info
