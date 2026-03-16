@@ -30,9 +30,7 @@
     }
 
     /* ── HEADER ──────────────────────────────────── */
-    .header {
-      background: var(--deep);
-    }
+    .header { background: var(--deep); }
 
     .header-inner {
       max-width: 960px;
@@ -118,12 +116,47 @@
       color: var(--mint);
     }
 
+    .identity-status {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      padding: 2px 9px;
+      border-radius: 20px;
+      background: rgba(167,243,208,0.18);
+      color: var(--mint);
+    }
+    .identity-status.inactive {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.4);
+    }
+
     /* ── MAIN ────────────────────────────────────── */
     .main {
       max-width: 960px;
       margin: 0 auto;
       padding: 28px 24px 64px;
     }
+
+    /* ── LOG COLLECTION CTA ──────────────────────── */
+    .action-bar { margin-bottom: 20px; }
+
+    .btn-log {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 15px 28px;
+      background: var(--forest);
+      color: var(--white);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-log:hover { background: #245740; transform: translateY(-1px); }
 
     /* ── STAT GRID (2×2 mobile → 4-col desktop) ─── */
     .stat-grid {
@@ -176,6 +209,10 @@
       padding: 16px 20px;
       border-bottom: 1px solid var(--border);
       background: var(--light-mint);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }
 
     .card-panel-title {
@@ -190,6 +227,77 @@
       color: var(--muted);
     }
 
+    /* ── COLLECTOR PASSPORT ──────────────────────── */
+    .passport-body { padding: 20px; }
+
+    .passport-id-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .passport-id {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--deep);
+      letter-spacing: -1px;
+    }
+
+    .passport-status {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: #dcfce7;
+      color: #14532d;
+    }
+    .passport-status.inactive {
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .passport-meta {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px 20px;
+      margin-bottom: 18px;
+    }
+
+    .passport-meta-item { }
+    .passport-meta-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+    .passport-meta-value {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .btn-passport {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      background: transparent;
+      border: 1.5px solid var(--forest);
+      color: var(--forest);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: -0.1px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-passport:hover { background: var(--forest); color: var(--white); }
+
     /* ── PRICES GRID ─────────────────────────────── */
     .prices-grid {
       display: grid;
@@ -202,7 +310,6 @@
       border-bottom: 1px solid var(--border);
     }
 
-    /* 2-col layout */
     .price-cell:nth-child(2n)        { border-right: none; }
     .price-cell:nth-last-child(-n+2) { border-bottom: none; }
 
@@ -223,9 +330,13 @@
       margin-bottom: 3px;
     }
 
-    .price-per {
-      font-size: 0.71rem;
+    .price-per { font-size: 0.71rem; color: var(--muted); }
+
+    .prices-empty {
+      padding: 28px 20px;
+      font-size: 0.85rem;
       color: var(--muted);
+      text-align: center;
     }
 
     /* ── TRANSACTIONS TABLE ───────────────────────── */
@@ -260,6 +371,13 @@
     .txn-table tr:last-child td { border-bottom: none; }
     .txn-table tbody tr:hover td { background: #fafdf9; }
 
+    .txn-empty {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
     .mat-tag {
       display: inline-block;
       padding: 2px 9px;
@@ -272,6 +390,7 @@
     .mat-tag.hdpe { background: #dbeafe; color: #1e3a8a; }
     .mat-tag.pp   { background: #fef9c3; color: #713f12; }
     .mat-tag.ldpe { background: #ede9fe; color: #4c1d95; }
+    .mat-tag.other { background: #f1f5f9; color: #475569; }
 
     .status-tag {
       display: inline-block;
@@ -282,31 +401,7 @@
     }
     .status-tag.paid    { background: #dcfce7; color: #14532d; }
     .status-tag.pending { background: #fef9c3; color: #713f12; }
-
-    /* ── PASSPORT CTA ────────────────────────────── */
-    .passport-cta {
-      text-align: center;
-      padding: 32px 0 0;
-    }
-
-    .btn-passport {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 14px 32px;
-      background: var(--forest);
-      color: var(--white);
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      font-size: 0.97rem;
-      font-weight: 700;
-      letter-spacing: -0.2px;
-      transition: background 0.15s, transform 0.15s;
-    }
-    .btn-passport:hover {
-      background: #245740;
-      transform: translateY(-1px);
-    }
+    .status-tag.unpaid  { background: #fef9c3; color: #713f12; }
 
     /* ── RESPONSIVE ──────────────────────────────── */
     @media (min-width: 600px) {
@@ -314,11 +409,12 @@
 
       .prices-grid { grid-template-columns: repeat(4, 1fr); }
 
-      /* override 2-col rules */
       .price-cell                      { border-bottom: none; border-right: 1px solid var(--border); }
       .price-cell:nth-child(2n)        { border-right: 1px solid var(--border); }
       .price-cell:nth-last-child(-n+2) { border-bottom: none; }
       .price-cell:last-child           { border-right: none; }
+
+      .passport-meta { grid-template-columns: repeat(4, 1fr); }
     }
 
     @media (max-width: 480px) {
@@ -341,13 +437,15 @@
         </div>
       </div>
 
-      <div class="identity-name" id="collectorName">Kwame Mensah</div>
+      <div class="identity-name" id="collectorName">—</div>
       <div class="identity-meta">
-        <span class="identity-meta-item" id="collectorPhone">+233 20 123 4567</span>
+        <span class="identity-meta-item" id="collectorPhone"></span>
+        <span class="identity-meta-sep" id="metaSep1" aria-hidden="true" style="display:none">·</span>
+        <span class="identity-meta-item" id="collectorRegion"></span>
         <span class="identity-meta-sep" aria-hidden="true">·</span>
-        <span class="identity-meta-item" id="collectorId">COL-00142</span>
+        <span class="identity-rating">⭐ <span id="collectorRating">—</span></span>
         <span class="identity-meta-sep" aria-hidden="true">·</span>
-        <span class="identity-rating">⭐ <span id="collectorRating">4.8</span></span>
+        <span class="identity-status" id="collectorStatus">Active</span>
       </div>
 
     </div>
@@ -356,65 +454,90 @@
   <!-- MAIN CONTENT -->
   <main class="main">
 
-    <!-- 2×2 STAT GRID -->
+    <!-- LOG COLLECTION CTA -->
+    <div class="action-bar">
+      <a href="/collect.html" class="btn-log">+ Log a Collection</a>
+    </div>
+
+    <!-- 4-STAT GRID -->
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">Total kg collected</div>
-        <div class="stat-value">1,247</div>
+        <div class="stat-value" id="statTotalKg">—</div>
         <div class="stat-unit">kilograms lifetime</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Total earned</div>
-        <div class="stat-value">GH₵&thinsp;3,891</div>
+        <div class="stat-value" id="statEarned">—</div>
         <div class="stat-unit">lifetime earnings</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Collections</div>
-        <div class="stat-value">83</div>
+        <div class="stat-value" id="statCollections">—</div>
         <div class="stat-unit">total transactions</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Months active</div>
-        <div class="stat-value">14</div>
-        <div class="stat-unit">on Circul</div>
+        <div class="stat-label">Avg rating</div>
+        <div class="stat-value" id="statRating">—</div>
+        <div class="stat-unit">out of 5.0</div>
       </div>
     </div>
 
-    <!-- NEARBY BUY PRICES -->
+    <!-- COLLECTOR PASSPORT -->
     <div class="card-panel">
       <div class="card-panel-head">
-        <div class="card-panel-title">Buy prices near you</div>
-        <div class="card-panel-sub">Accra · Updated today · Aggregator posted prices</div>
+        <div>
+          <div class="card-panel-title">Collector Passport</div>
+          <div class="card-panel-sub">Your verified Circul identity</div>
+        </div>
       </div>
-      <div class="prices-grid">
-        <div class="price-cell">
-          <div class="price-mat">PET</div>
-          <div class="price-val">GH₵ 3.20</div>
-          <div class="price-per">per kg</div>
+      <div class="passport-body">
+        <div class="passport-id-row">
+          <span class="passport-id" id="passportId">CIR-—</span>
+          <span class="passport-status" id="passportStatus">Active</span>
         </div>
-        <div class="price-cell">
-          <div class="price-mat">HDPE</div>
-          <div class="price-val">GH₵ 2.80</div>
-          <div class="price-per">per kg</div>
+        <div class="passport-meta">
+          <div class="passport-meta-item">
+            <div class="passport-meta-label">Phone</div>
+            <div class="passport-meta-value" id="passportPhone">—</div>
+          </div>
+          <div class="passport-meta-item">
+            <div class="passport-meta-label">Location</div>
+            <div class="passport-meta-value" id="passportLocation">—</div>
+          </div>
+          <div class="passport-meta-item">
+            <div class="passport-meta-label">Member since</div>
+            <div class="passport-meta-value" id="passportSince">—</div>
+          </div>
+          <div class="passport-meta-item">
+            <div class="passport-meta-label">Status</div>
+            <div class="passport-meta-value" id="passportStatusText">Active</div>
+          </div>
         </div>
-        <div class="price-cell">
-          <div class="price-mat">PP</div>
-          <div class="price-val">GH₵ 2.50</div>
-          <div class="price-per">per kg</div>
+        <a href="#" class="btn-passport" id="passportLink">View Collector Passport →</a>
+      </div>
+    </div>
+
+    <!-- MARKET PRICES -->
+    <div class="card-panel">
+      <div class="card-panel-head">
+        <div>
+          <div class="card-panel-title">Buy prices near you</div>
+          <div class="card-panel-sub">Aggregator posted prices · GH₵ per kg</div>
         </div>
-        <div class="price-cell">
-          <div class="price-mat">LDPE</div>
-          <div class="price-val">GH₵ 1.90</div>
-          <div class="price-per">per kg</div>
-        </div>
+      </div>
+      <div class="prices-grid" id="pricesGrid">
+        <div class="prices-empty" style="grid-column:1/-1">Loading prices…</div>
       </div>
     </div>
 
     <!-- RECENT TRANSACTIONS -->
     <div class="card-panel">
       <div class="card-panel-head">
-        <div class="card-panel-title">Recent transactions</div>
-        <div class="card-panel-sub">Your last 5 collection drop-offs</div>
+        <div>
+          <div class="card-panel-title">Recent transactions</div>
+          <div class="card-panel-sub" id="txnSub">Your last 10 collection drop-offs</div>
+        </div>
       </div>
       <div class="txn-wrap">
         <table class="txn-table">
@@ -427,58 +550,20 @@
               <th>Status</th>
             </tr>
           </thead>
-          <tbody>
-            <tr>
-              <td>12 Mar 2026</td>
-              <td><span class="mat-tag pet">PET</span></td>
-              <td>18.4 kg</td>
-              <td>GH₵ 58.88</td>
-              <td><span class="status-tag paid">Paid</span></td>
-            </tr>
-            <tr>
-              <td>08 Mar 2026</td>
-              <td><span class="mat-tag hdpe">HDPE</span></td>
-              <td>12.0 kg</td>
-              <td>GH₵ 33.60</td>
-              <td><span class="status-tag paid">Paid</span></td>
-            </tr>
-            <tr>
-              <td>04 Mar 2026</td>
-              <td><span class="mat-tag pp">PP</span></td>
-              <td>9.5 kg</td>
-              <td>GH₵ 23.75</td>
-              <td><span class="status-tag pending">Pending</span></td>
-            </tr>
-            <tr>
-              <td>28 Feb 2026</td>
-              <td><span class="mat-tag pet">PET</span></td>
-              <td>22.1 kg</td>
-              <td>GH₵ 70.72</td>
-              <td><span class="status-tag paid">Paid</span></td>
-            </tr>
-            <tr>
-              <td>21 Feb 2026</td>
-              <td><span class="mat-tag ldpe">LDPE</span></td>
-              <td>6.8 kg</td>
-              <td>GH₵ 12.92</td>
-              <td><span class="status-tag paid">Paid</span></td>
-            </tr>
+          <tbody id="txnBody">
+            <tr><td colspan="5" class="txn-empty">Loading…</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- COLLECTOR PASSPORT CTA -->
-    <div class="passport-cta">
-      <a href="/collector-passport" class="btn-passport">View My Collector Passport →</a>
-    </div>
-
   </main>
 
   <script>
-    // Auth gate — if no session, send to login
+    var session = null;
+
+    /* ── AUTH GATE ───────────────────────────────── */
     (function () {
-      var session = null;
       try { session = JSON.parse(localStorage.getItem('circul_operator')); } catch (e) {}
 
       if (!session) {
@@ -486,7 +571,6 @@
         return;
       }
 
-      // Route non-collectors away
       if (session.role && session.role !== 'collector') {
         var routes = {
           aggregator: '/aggregator-dashboard',
@@ -494,24 +578,238 @@
           processor:  '/processor-dashboard',
           converter:  '/processor-dashboard'
         };
-        var dest = routes[session.role];
-        if (dest) { window.location.replace(dest); return; }
+        window.location.replace(routes[session.role] || '/login.html');
+        return;
       }
 
-      // Hydrate identity from session (overrides static placeholder text)
-      if (session.name)
-        document.getElementById('collectorName').textContent = session.name;
-      if (session.phone)
+      // Hydrate identity immediately from session (avoids flash of blank)
+      if (session.name)  document.getElementById('collectorName').textContent = session.name;
+      if (session.phone) {
         document.getElementById('collectorPhone').textContent = session.phone;
-      if (session.id)
-        document.getElementById('collectorId').textContent = 'COL-' + String(session.id).padStart(5, '0');
-      if (session.average_rating)
-        document.getElementById('collectorRating').textContent = parseFloat(session.average_rating).toFixed(1);
+        document.getElementById('passportPhone').textContent = session.phone;
+      }
+      if (session.id) {
+        var cid = 'CIR-' + String(session.id).padStart(5, '0');
+        document.getElementById('passportId').textContent = cid;
+        document.getElementById('passportLink').href = '/report.html?id=' + session.id;
+      }
+      if (session.average_rating) {
+        var r = parseFloat(session.average_rating).toFixed(1);
+        document.getElementById('collectorRating').textContent = r;
+        document.getElementById('statRating').textContent = r;
+      }
+
+      loadAll();
     })();
 
+    /* ── API HELPER ──────────────────────────────── */
+    function apiFetch(url) {
+      var headers = {};
+      if (session && session.token) {
+        headers['Authorization'] = 'Bearer ' + session.token;
+      }
+      return fetch(url, { headers: headers }).then(function (r) {
+        if (r.status === 401) { signOut(); throw new Error('Unauthorized'); }
+        return r.json();
+      });
+    }
+
+    /* ── LOAD ALL ────────────────────────────────── */
+    function loadAll() {
+      var id = session.id;
+
+      var profileP  = apiFetch('/api/collectors/' + id).catch(function () { return null; });
+      var txnsP     = apiFetch('/api/transactions?collector_id=' + id).catch(function () { return null; });
+      var pricesP   = apiFetch('/api/prices?role=collector').catch(function () { return null; });
+
+      Promise.all([profileP, txnsP, pricesP]).then(function (results) {
+        var profileData = results[0];
+        var txnsData    = results[1];
+        var pricesData  = results[2];
+
+        if (profileData && profileData.success && profileData.collector) {
+          populateProfile(profileData.collector);
+        }
+
+        if (txnsData && txnsData.success) {
+          var txns = txnsData.transactions || [];
+          populateStats(txns);
+          populateTxns(txns);
+        } else {
+          document.getElementById('txnBody').innerHTML =
+            '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
+        }
+
+        if (pricesData && pricesData.success) {
+          populatePrices(pricesData.prices || []);
+        } else {
+          document.getElementById('pricesGrid').innerHTML =
+            '<div class="prices-empty" style="grid-column:1/-1">Prices unavailable right now</div>';
+        }
+      });
+    }
+
+    /* ── POPULATE PROFILE ────────────────────────── */
+    function populateProfile(c) {
+      if (c.name || (c.first_name && c.last_name)) {
+        var name = c.name || (c.first_name + ' ' + c.last_name);
+        document.getElementById('collectorName').textContent = name;
+      }
+
+      if (c.phone) {
+        document.getElementById('collectorPhone').textContent = c.phone;
+        document.getElementById('passportPhone').textContent = c.phone;
+      }
+
+      // Region / city in header meta
+      var region = [c.city, c.region].filter(Boolean).join(', ');
+      if (region) {
+        var regionEl = document.getElementById('collectorRegion');
+        regionEl.textContent = region;
+        document.getElementById('metaSep1').style.display = '';
+        document.getElementById('passportLocation').textContent = region;
+      }
+
+      // Active status
+      var isActive = c.is_active !== false;
+      var statusEl = document.getElementById('collectorStatus');
+      statusEl.textContent = isActive ? 'Active' : 'Inactive';
+      if (!isActive) statusEl.classList.add('inactive');
+
+      var passportStatusEl = document.getElementById('passportStatus');
+      var passportStatusTextEl = document.getElementById('passportStatusText');
+      passportStatusEl.textContent = isActive ? 'Active' : 'Inactive';
+      passportStatusTextEl.textContent = isActive ? 'Active' : 'Inactive';
+      if (!isActive) passportStatusEl.classList.add('inactive');
+
+      // Member since
+      if (c.created_at) {
+        document.getElementById('passportSince').textContent = fmtMonthYear(c.created_at);
+      }
+
+      // Rating
+      if (c.average_rating) {
+        var r = parseFloat(c.average_rating).toFixed(1);
+        document.getElementById('collectorRating').textContent = r;
+        document.getElementById('statRating').textContent = r;
+      }
+    }
+
+    /* ── POPULATE STATS ──────────────────────────── */
+    function populateStats(txns) {
+      var totalKg  = 0;
+      var totalEarned = 0;
+
+      txns.forEach(function (t) {
+        totalKg += parseFloat(t.net_weight_kg) || 0;
+        if (t.payment_status === 'paid') {
+          totalEarned += parseFloat(t.total_price) || 0;
+        }
+      });
+
+      document.getElementById('statTotalKg').textContent    = fmtNum(totalKg);
+      document.getElementById('statEarned').textContent     = 'GH₵\u202F' + fmtNum(totalEarned);
+      document.getElementById('statCollections').textContent = txns.length.toString();
+
+      // Sub-label on earned
+      if (txns.length > 0) {
+        document.getElementById('txnSub').textContent =
+          'Your last ' + Math.min(txns.length, 10) + ' collection drop-offs';
+      }
+    }
+
+    /* ── POPULATE TRANSACTIONS ───────────────────── */
+    function populateTxns(txns) {
+      var tbody = document.getElementById('txnBody');
+
+      if (!txns.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
+        return;
+      }
+
+      // Most recent first, cap at 10
+      var recent = txns.slice().sort(function (a, b) {
+        return new Date(b.transaction_date) - new Date(a.transaction_date);
+      }).slice(0, 10);
+
+      tbody.innerHTML = recent.map(function (t) {
+        var mat = (t.material_type || '').toUpperCase();
+        var matClass = { PET: 'pet', HDPE: 'hdpe', PP: 'pp', LDPE: 'ldpe' }[mat] || 'other';
+        var kg = parseFloat(t.net_weight_kg) || 0;
+        var earned = parseFloat(t.total_price) || 0;
+        var status = (t.payment_status || 'pending').toLowerCase();
+        var statusLabel = status === 'paid' ? 'Paid' : 'Pending';
+
+        return '<tr>' +
+          '<td>' + fmtDate(t.transaction_date) + '</td>' +
+          '<td><span class="mat-tag ' + matClass + '">' + esc(mat || '—') + '</span></td>' +
+          '<td>' + fmtNum(kg) + ' kg</td>' +
+          '<td>GH₵&thinsp;' + fmtNum(earned) + '</td>' +
+          '<td><span class="status-tag ' + status + '">' + statusLabel + '</span></td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    /* ── POPULATE PRICES ─────────────────────────── */
+    function populatePrices(prices) {
+      var grid = document.getElementById('pricesGrid');
+
+      if (!prices.length) {
+        grid.innerHTML = '<div class="prices-empty" style="grid-column:1/-1">No prices posted yet</div>';
+        return;
+      }
+
+      // Sort by material name for consistent order
+      var order = ['PET', 'HDPE', 'PP', 'LDPE'];
+      prices.sort(function (a, b) {
+        var ai = order.indexOf((a.material_type || '').toUpperCase());
+        var bi = order.indexOf((b.material_type || '').toUpperCase());
+        if (ai === -1) ai = 99;
+        if (bi === -1) bi = 99;
+        return ai - bi;
+      });
+
+      grid.innerHTML = prices.map(function (p) {
+        var ghs = p.price_per_kg_ghs
+          ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2)
+          : '—';
+        return '<div class="price-cell">' +
+          '<div class="price-mat">' + esc((p.material_type || '').toUpperCase()) + '</div>' +
+          '<div class="price-val">' + ghs + '</div>' +
+          '<div class="price-per">per kg</div>' +
+          '</div>';
+      }).join('');
+    }
+
+    /* ── SIGN OUT ────────────────────────────────── */
     function signOut() {
       localStorage.removeItem('circul_operator');
       window.location.href = '/login.html';
+    }
+
+    /* ── UTILS ───────────────────────────────────── */
+    function fmtNum(n) {
+      var v = parseFloat(n);
+      if (isNaN(v)) return '0';
+      if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+      if (v >= 100)   return v.toLocaleString('en-US', { maximumFractionDigits: 1 });
+      return v.toFixed(2);
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function fmtMonthYear(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    }
+
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
     }
   </script>
 
