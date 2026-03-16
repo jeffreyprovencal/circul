@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Circul</title>
+  <meta name="description" content="Sign in to your Circul account.">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --deep:       #1a2e1a;
+      --forest:     #2d6a4f;
+      --mint:       #a7f3d0;
+      --light-mint: #f0fdf4;
+      --white:      #ffffff;
+      --text:       #1a2e1a;
+      --muted:      #6b7280;
+      --border:     #e5e7eb;
+      --error:      #ef4444;
+      --error-bg:   #fef2f2;
+      --radius:     16px;
+      --radius-btn: 10px;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+      background: var(--light-mint);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── MINI NAV ──────────────────────────────── */
+    .nav {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      height: 56px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      text-decoration: none;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--deep);
+      letter-spacing: -0.3px;
+    }
+
+    .nav-back {
+      font-size: 0.84rem;
+      color: var(--muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: color 0.15s;
+    }
+    .nav-back:hover { color: var(--deep); }
+
+    /* ─── MAIN ──────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+    }
+
+    .card-wrap {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    /* Demo banner */
+    .demo-banner {
+      display: none;
+      background: var(--deep);
+      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 16px 24px;
+      text-align: center;
+    }
+
+    .demo-banner.visible { display: block; }
+
+    .demo-banner-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--mint);
+      margin-bottom: 10px;
+    }
+
+    .demo-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .demo-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 14px;
+      background: rgba(167,243,208,0.12);
+      border: 1px solid rgba(167,243,208,0.3);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.85);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .demo-btn:hover {
+      background: rgba(167,243,208,0.22);
+      border-color: rgba(167,243,208,0.5);
+    }
+
+    /* Login card */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 40px 36px 36px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.06);
+    }
+
+    .demo-banner.visible + .card {
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
+
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--light-mint);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+    }
+
+    .card-heading {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--deep);
+      margin-bottom: 6px;
+      letter-spacing: -0.4px;
+    }
+
+    .card-subheading {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .input {
+      display: block;
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-btn);
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--white);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none;
+    }
+
+    .input:focus {
+      border-color: var(--forest);
+      box-shadow: 0 0 0 3px rgba(45,106,79,0.12);
+    }
+
+    .input::placeholder { color: #9ca3af; }
+
+    /* PIN input — 4 large digit boxes */
+    .pin-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .pin-digit {
+      flex: 1;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0;
+      padding: 14px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-btn);
+      color: var(--text);
+      background: var(--white);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -webkit-text-security: disc;
+      appearance: none;
+      max-width: 72px;
+    }
+
+    .pin-digit:focus {
+      border-color: var(--forest);
+      box-shadow: 0 0 0 3px rgba(45,106,79,0.12);
+    }
+
+    /* Slide-in secondary field */
+    .secondary-field {
+      display: none;
+      overflow: hidden;
+      animation: slideDown 0.18s ease;
+    }
+
+    .secondary-field.visible { display: block; }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .auth-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* Error */
+    .error-msg {
+      display: none;
+      background: var(--error-bg);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.84rem;
+      color: var(--error);
+      margin-bottom: 16px;
+    }
+
+    .error-msg.visible { display: block; }
+
+    /* Submit button */
+    .btn-submit {
+      display: block;
+      width: 100%;
+      padding: 13px 20px;
+      background: var(--deep);
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius-btn);
+      font-size: 0.97rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      margin-top: 24px;
+      position: relative;
+    }
+
+    .btn-submit:hover { background: #243d24; }
+    .btn-submit:active { transform: scale(0.99); }
+
+    .btn-submit.loading {
+      pointer-events: none;
+      opacity: 0.75;
+    }
+
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* USSD hint */
+    .ussd-hint {
+      margin-top: 20px;
+      padding: 12px 16px;
+      background: var(--light-mint);
+      border-radius: 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .ussd-hint strong {
+      color: var(--forest);
+      font-weight: 700;
+    }
+
+    /* Footer links */
+    .card-footer {
+      margin-top: 24px;
+      text-align: center;
+    }
+
+    .card-footer-link {
+      font-size: 0.84rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .card-footer-link:hover { color: var(--forest); }
+
+    .card-footer-link strong {
+      color: var(--forest);
+    }
+
+    /* Processor request note */
+    .processor-note {
+      margin-top: 28px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .processor-note p {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .processor-note a {
+      color: var(--forest);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .processor-note a:hover { text-decoration: underline; }
+
+    /* ─── PAGE FOOTER ───────────────────────────── */
+    .page-footer {
+      padding: 24px 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .page-footer p {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* ─── RESPONSIVE ────────────────────────────── */
+    @media (max-width: 480px) {
+      .nav { padding: 0 16px; }
+      .card { padding: 32px 24px 28px; }
+      .demo-banner { padding: 14px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <a href="/" class="nav-brand">
+      <span aria-hidden="true">♻</span>
+      Circul
+    </a>
+    <a href="/" class="nav-back">← Back to home</a>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="card-wrap">
+
+      <!-- Demo banner (shown when ?demo=1) -->
+      <div class="demo-banner" id="demoBanner" aria-label="Demo accounts">
+        <div class="demo-banner-label">&#9679; Try a demo account</div>
+        <div class="demo-buttons">
+          <button class="demo-btn" onclick="fillDemo('0300000001','1111')">Collector</button>
+          <button class="demo-btn" onclick="fillDemo('0300000002','2222')">Aggregator</button>
+          <button class="demo-btn" onclick="fillDemoEmail('abena@circul.demo','demo1234')">Processor</button>
+          <button class="demo-btn" onclick="fillDemoEmail('kweku@circul.demo','demo1234')">Converter</button>
+        </div>
+      </div>
+
+      <!-- Login card -->
+      <div class="card">
+        <div class="card-icon" aria-hidden="true">♻</div>
+        <h1 class="card-heading">Sign in to Circul</h1>
+        <p class="card-subheading">Enter your phone number or email to continue.</p>
+
+        <form id="loginForm" novalidate>
+          <div class="error-msg" id="errorMsg" role="alert" aria-live="polite"></div>
+
+          <!-- Identifier (always visible) -->
+          <div class="form-group">
+            <label for="identifier">Phone number or email</label>
+            <input
+              class="input"
+              type="text"
+              id="identifier"
+              name="identifier"
+              placeholder="0244 000 000 or name@example.com"
+              autocomplete="username"
+              inputmode="tel"
+              required
+            />
+            <p class="auth-hint" id="authHint" aria-live="polite"></p>
+          </div>
+
+          <!-- Password field (email auth) -->
+          <div class="secondary-field" id="passwordField">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="password">Password</label>
+              <input
+                class="input"
+                type="password"
+                id="password"
+                name="password"
+                placeholder="Your password"
+                autocomplete="current-password"
+              />
+            </div>
+          </div>
+
+          <!-- PIN field (phone auth) -->
+          <div class="secondary-field" id="pinField">
+            <div class="form-group" style="margin-bottom:0">
+              <label>4-digit PIN</label>
+              <div class="pin-row" role="group" aria-label="Enter your 4-digit PIN">
+                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="one-time-code" id="pin1" aria-label="PIN digit 1" />
+                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" id="pin2" aria-label="PIN digit 2" />
+                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" id="pin3" aria-label="PIN digit 3" />
+                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" id="pin4" aria-label="PIN digit 4" />
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-submit" id="submitBtn">Continue</button>
+        </form>
+
+        <!-- USSD hint -->
+        <div class="ussd-hint">
+          Using a basic phone? Dial <strong>*737#</strong> from any network to log collections without a data connection.
+        </div>
+
+        <!-- Processor request note -->
+        <div class="processor-note">
+          <p>New processor? <a href="mailto:hello@circul.app?subject=Processor%20Access">Request an account →</a></p>
+        </div>
+      </div>
+
+      <div class="card-footer">
+        <a href="/" class="card-footer-link">← Back to <strong>circul.app</strong></a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="page-footer">
+    <p>© 2026 Circul — The Waste-to-Resource Operating System · Built in Accra</p>
+  </footer>
+
+  <script>
+    var ROLE_ROUTES = {
+      collector:  '/collector-dashboard',
+      aggregator: '/aggregator-dashboard',
+      processor:  '/processor-dashboard',
+      converter:  '/processor-dashboard',
+      admin:      '/admin',
+      operator:   '/admin'
+    };
+
+    /* ── Detect auth mode ─────────────────────── */
+    var identifier = document.getElementById('identifier');
+    var passwordField = document.getElementById('passwordField');
+    var pinField      = document.getElementById('pinField');
+    var authHint      = document.getElementById('authHint');
+    var mode          = null; // 'email' | 'phone' | null
+
+    identifier.addEventListener('input', function () {
+      var val = this.value.trim();
+      if (!val) {
+        setMode(null);
+        return;
+      }
+      if (val.indexOf('@') !== -1) {
+        setMode('email');
+      } else {
+        setMode('phone');
+      }
+    });
+
+    function setMode(m) {
+      if (m === mode) return;
+      mode = m;
+      clearError();
+
+      if (m === 'email') {
+        passwordField.classList.add('visible');
+        pinField.classList.remove('visible');
+        identifier.setAttribute('inputmode', 'email');
+        authHint.textContent = 'Sign in with email and password.';
+      } else if (m === 'phone') {
+        pinField.classList.add('visible');
+        passwordField.classList.remove('visible');
+        identifier.setAttribute('inputmode', 'tel');
+        authHint.textContent = 'Sign in with your 4-digit PIN.';
+      } else {
+        passwordField.classList.remove('visible');
+        pinField.classList.remove('visible');
+        identifier.setAttribute('inputmode', 'tel');
+        authHint.textContent = '';
+      }
+    }
+
+    /* ── PIN box auto-advance ─────────────────── */
+    var pinBoxes = [
+      document.getElementById('pin1'),
+      document.getElementById('pin2'),
+      document.getElementById('pin3'),
+      document.getElementById('pin4')
+    ];
+
+    pinBoxes.forEach(function (box, i) {
+      box.addEventListener('input', function () {
+        // Allow only digits
+        this.value = this.value.replace(/[^0-9]/g, '');
+        if (this.value && i < 3) pinBoxes[i + 1].focus();
+      });
+      box.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' && !this.value && i > 0) {
+          pinBoxes[i - 1].focus();
+        }
+      });
+    });
+
+    function getPinValue() {
+      return pinBoxes.map(function (b) { return b.value; }).join('');
+    }
+
+    function setPinValue(str) {
+      var digits = String(str).split('');
+      pinBoxes.forEach(function (b, i) { b.value = digits[i] || ''; });
+    }
+
+    /* ── Demo fill ────────────────────────────── */
+    function fillDemo(phone, pin) {
+      identifier.value = phone;
+      setMode('phone');
+      pinField.classList.add('visible');
+      setPinValue(pin);
+      identifier.dispatchEvent(new Event('input'));
+    }
+
+    function fillDemoEmail(email, password) {
+      setMode('email');
+      document.getElementById('identifier').value = email;
+      document.getElementById('password').value = password;
+    }
+
+    /* ── Demo banner ──────────────────────────── */
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('demo') === '1') {
+      document.getElementById('demoBanner').classList.add('visible');
+    }
+
+    /* ── Form submit ──────────────────────────── */
+    document.getElementById('loginForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      clearError();
+
+      var id = identifier.value.trim();
+      if (!id) { showError('Please enter your phone number or email.'); return; }
+
+      var body;
+      if (mode === 'email') {
+        var pw = document.getElementById('password').value;
+        if (!pw) { showError('Please enter your password.'); return; }
+        body = { email: id, password: pw, type: 'email' };
+      } else {
+        var pin = getPinValue();
+        if (pin.length < 4) { showError('Please enter your 4-digit PIN.'); pinBoxes[pin.length].focus(); return; }
+        body = { phone: id, pin: pin, type: 'phone' };
+      }
+
+      setLoading(true);
+
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          setLoading(false);
+          if (!data.success) {
+            showError(data.message || 'Incorrect credentials. Please try again.');
+            return;
+          }
+          // Store session info
+          if (data.token) localStorage.setItem('circul_token', data.token);
+          if (data.operator) localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+
+          // Route by role
+          var role = (data.role || (data.operator && data.operator.role) || '').toLowerCase();
+          var dest  = ROLE_ROUTES[role] || '/';
+          window.location.href = dest;
+        })
+        .catch(function () {
+          setLoading(false);
+          showError('Unable to connect. Please check your internet connection and try again.');
+        });
+    });
+
+    /* ── Helpers ──────────────────────────────── */
+    function showError(msg) {
+      var el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function clearError() {
+      var el = document.getElementById('errorMsg');
+      el.textContent = '';
+      el.classList.remove('visible');
+    }
+
+    function setLoading(on) {
+      var btn = document.getElementById('submitBtn');
+      if (on) {
+        btn.classList.add('loading');
+        btn.innerHTML = '<span class="btn-spinner"></span>Signing in…';
+      } else {
+        btn.classList.remove('loading');
+        btn.textContent = 'Continue';
+      }
+    }
+  </script>
+
+</body>
+</html>
