@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Log a Collection — Circul</title>
+  <title>Log a Sale — Circul</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -33,7 +33,7 @@
     }
     h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
 
-    /* ── HEADER ── same as collector-dashboard */
+    /* ── HEADER ── */
     .header { background: var(--deep); }
 
     .header-inner {
@@ -86,12 +86,13 @@
       padding: 28px 24px 64px;
     }
 
-    /* ── CARD ── */
+    /* ── FORM CARD ── */
     .form-card {
       background: var(--white);
       border-radius: var(--radius);
       border: 1px solid var(--border);
       overflow: hidden;
+      margin-bottom: 24px;
     }
 
     .form-card-body { padding: 28px 24px; }
@@ -117,8 +118,7 @@
     }
 
     .form-select,
-    .form-input,
-    .form-textarea {
+    .form-input {
       width: 100%;
       padding: 13px 16px;
       border: 1.5px solid var(--border);
@@ -132,10 +132,7 @@
       -webkit-appearance: none;
     }
     .form-select:focus,
-    .form-input:focus,
-    .form-textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(45,106,79,0.08); }
-
-    .form-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+    .form-input:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(45,106,79,0.08); }
 
     /* ── SUBMIT ── */
     .btn-submit {
@@ -217,7 +214,6 @@
     }
     .btn-back:hover { background: var(--forest); color: var(--white); }
 
-    /* ── LOG ANOTHER ── */
     .btn-log-another {
       display: inline-flex;
       align-items: center;
@@ -237,9 +233,69 @@
     }
     .btn-log-another:hover { background: #86efcc; }
 
+    /* ── PENDING CARD ── */
+    .pending-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .pending-card-header {
+      padding: 16px 24px;
+      background: var(--deep);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--mint);
+      letter-spacing: 0.3px;
+    }
+
+    .pending-card-body { padding: 0; }
+
+    .pending-empty {
+      padding: 28px 24px;
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .pending-row {
+      display: grid;
+      grid-template-columns: 80px 60px 70px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .pending-row:last-child { border-bottom: none; }
+
+    .pending-row-date  { color: var(--muted); font-size: 0.78rem; }
+    .pending-row-mat   { font-weight: 700; color: var(--forest); }
+    .pending-row-kg    { color: var(--text); }
+    .pending-row-agg   { color: var(--muted); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .badge-pending   { background: #fef9c3; color: #854d0e; }
+    .badge-confirmed { background: #dcfce7; color: #166534; }
+    .badge-rejected  { background: #fee2e2; color: #991b1b; }
+    .badge-cancelled { background: #f3f4f6; color: #4b5563; }
+
     @media (max-width: 480px) {
       .header-inner { padding: 18px 16px 24px; }
       .main         { padding: 20px 16px 52px; }
+      .pending-row  { grid-template-columns: 70px 52px 60px 1fr auto; gap: 8px; padding: 12px 16px; }
+      .form-card-body { padding: 24px 16px; }
     }
   </style>
 </head>
@@ -249,14 +305,16 @@
     <div class="header-inner">
       <div class="header-top">
         <a href="/" class="brand">♻ Circul</a>
-        <a href="/collector-dashboard.html" class="header-back">← Dashboard</a>
+        <a href="/collector-dashboard" class="header-back">← Dashboard</a>
       </div>
-      <div class="header-title">Log a Collection</div>
+      <div class="header-title">Log a Sale</div>
       <div class="header-sub" id="collectorSub">Loading…</div>
     </div>
   </header>
 
   <main class="main">
+
+    <!-- ── FORM CARD ── -->
     <div class="form-card">
 
       <!-- Loading -->
@@ -278,63 +336,74 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="weightInput">Quantity (kg)</label>
+          <label class="form-label" for="weightInput">Weight (kg)</label>
           <input type="number" class="form-input" id="weightInput"
-                 placeholder="0.0" min="0.1" step="0.1" inputmode="decimal">
+                 placeholder="0.0" min="0.1" max="100" step="0.1" inputmode="decimal">
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="notesInput">
-            Notes <span class="optional">(optional)</span>
-          </label>
-          <textarea class="form-textarea" id="notesInput"
-                    placeholder="Any notes about this collection…"></textarea>
+          <label class="form-label" for="aggregatorSelect">Aggregator</label>
+          <select class="form-select" id="aggregatorSelect">
+            <option value="">Loading aggregators…</option>
+          </select>
         </div>
 
-        <button class="btn-submit" id="submitBtn" onclick="submitCollection()">
-          Log Collection
+        <div class="form-group">
+          <label class="form-label" for="priceInput">
+            Price (GH₵/kg) <span class="optional">(optional — leave blank to use posted price)</span>
+          </label>
+          <input type="number" class="form-input" id="priceInput"
+                 placeholder="Leave blank to use posted price" min="0" step="0.01" inputmode="decimal">
+        </div>
+
+        <button class="btn-submit" id="submitBtn" onclick="submitSale()">
+          Log Sale
         </button>
       </div>
 
       <!-- Success -->
       <div class="success-state" id="successState">
         <div class="success-icon">✅</div>
-        <div class="success-title">Collection logged ✓</div>
-        <div class="success-sub" id="successSub">Your collection has been recorded.</div>
+        <div class="success-title">Sale logged ✓</div>
+        <div class="success-sub" id="successSub">Sale logged — waiting for aggregator to confirm.</div>
         <div>
           <button class="btn-log-another" onclick="resetForm()">+ Log another</button>
-          <a href="/collector-dashboard.html" class="btn-back">← Back to dashboard</a>
+          <a href="/collector-dashboard" class="btn-back">← Back to dashboard</a>
         </div>
       </div>
 
     </div>
+
+    <!-- ── PENDING SALES ── -->
+    <div class="pending-card" id="pendingCard" style="display:none">
+      <div class="pending-card-header">⏳ Pending Sales</div>
+      <div class="pending-card-body" id="pendingList">
+        <div class="pending-empty">Loading…</div>
+      </div>
+    </div>
+
   </main>
 
   <script>
     var session     = null;
-    var collectorId = null; // resolved collectors.id from /api/collectors?phone=
+    var collectorId = null; // resolved collectors.id
 
     /* ── AUTH GATE ─────────────────────────────── */
     (function () {
       try { session = JSON.parse(localStorage.getItem('circul_operator')); } catch (e) {}
-
       if (!session || session.role !== 'collector') {
         window.location.replace('/login.html');
         return;
       }
-
-      // Hydrate header from session immediately
       document.getElementById('collectorSub').textContent = session.name || session.phone || '';
-
-      // Resolve the collector's collectors.id (different from operators.id / session.id)
       resolveCollectorId();
     })();
 
     /* ── RESOLVE COLLECTOR ID ───────────────────── */
     function resolveCollectorId() {
       if (!session || !session.phone) {
-        showError('Could not identify your account. Please sign in again.');
-        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('loadingState').textContent =
+          'Could not identify your account. Please sign in again.';
         return;
       }
 
@@ -350,6 +419,8 @@
           collectorId = row.id;
           document.getElementById('loadingState').style.display = 'none';
           document.getElementById('formBody').style.display = 'block';
+          loadAggregators();
+          loadPendingSales();
         })
         .catch(function () {
           document.getElementById('loadingState').textContent =
@@ -357,15 +428,43 @@
         });
     }
 
-    /* ── SUBMIT COLLECTION ──────────────────────── */
-    function submitCollection() {
-      var material = document.getElementById('materialSelect').value;
-      var weight   = parseFloat(document.getElementById('weightInput').value);
-      var notes    = document.getElementById('notesInput').value.trim();
+    /* ── LOAD AGGREGATORS ───────────────────────── */
+    function loadAggregators() {
+      fetch('/api/operators?role=aggregator')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var sel = document.getElementById('aggregatorSelect');
+          var aggs = data.operators || [];
+          if (!aggs.length) {
+            sel.innerHTML = '<option value="">No aggregators available</option>';
+            return;
+          }
+          sel.innerHTML = '<option value="">Select aggregator…</option>' +
+            aggs.map(function (a) {
+              var label = a.name || a.company || ('Aggregator #' + a.id);
+              if (a.city) label += ' — ' + a.city;
+              return '<option value="' + a.id + '">' + label + '</option>';
+            }).join('');
+        })
+        .catch(function () {
+          document.getElementById('aggregatorSelect').innerHTML =
+            '<option value="">Failed to load aggregators</option>';
+        });
+    }
 
-      if (!material) { showError('Please select a material type.'); return; }
+    /* ── SUBMIT SALE ────────────────────────────── */
+    function submitSale() {
+      var material  = document.getElementById('materialSelect').value;
+      var weight    = parseFloat(document.getElementById('weightInput').value);
+      var aggId     = parseInt(document.getElementById('aggregatorSelect').value, 10);
+      var priceVal  = document.getElementById('priceInput').value.trim();
+      var price     = priceVal !== '' ? parseFloat(priceVal) : null;
+
+      if (!material)           { showError('Please select a material type.'); return; }
       if (!weight || weight <= 0) { showError('Please enter a valid weight greater than 0 kg.'); return; }
-      if (!collectorId) { showError('Account not ready — please wait or refresh.'); return; }
+      if (weight > 100)        { showError('Maximum weight per sale is 100 kg.'); return; }
+      if (!aggId)              { showError('Please select an aggregator.'); return; }
+      if (!collectorId)        { showError('Account not ready — please wait or refresh.'); return; }
 
       hideError();
       var btn = document.getElementById('submitBtn');
@@ -373,49 +472,88 @@
       btn.textContent = 'Logging…';
 
       var payload = {
-        collector_id:     collectorId,
-        material_type:    material,
-        gross_weight_kg:  weight,
-        net_weight_kg:    weight,
-        price_per_kg:     0,
-        total_price:      0,
-        payment_status:   'unpaid'
+        transaction_type:       'collector_sale',
+        collector_id:           collectorId,
+        aggregator_operator_id: aggId,
+        material_type:          material,
+        gross_weight_kg:        weight
       };
-      if (notes) payload.notes = notes;
+      if (price !== null && !isNaN(price)) payload.price_per_kg = price;
 
-      fetch('/api/transactions', {
-        method: 'POST',
+      fetch('/api/pending-transactions', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body:    JSON.stringify(payload)
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.success) {
-            var net = parseFloat(data.transaction && data.transaction.net_weight_kg) || weight;
+            var pt = data.pending_transaction;
+            var kg = parseFloat(pt.gross_weight_kg).toFixed(1);
             document.getElementById('successSub').textContent =
-              net.toFixed(1) + ' kg of ' + material + ' Plastic recorded.';
+              kg + ' kg of ' + pt.material_type + ' logged — waiting for aggregator to confirm.';
             document.getElementById('formBody').style.display = 'none';
             document.getElementById('successState').classList.add('visible');
+            loadPendingSales();
           } else {
-            showError(data.message || 'Failed to log collection. Please try again.');
+            showError(data.message || 'Failed to log sale. Please try again.');
             btn.disabled = false;
-            btn.textContent = 'Log Collection';
+            btn.textContent = 'Log Sale';
           }
         })
         .catch(function () {
           showError('Connection error. Please check your internet and try again.');
           btn.disabled = false;
-          btn.textContent = 'Log Collection';
+          btn.textContent = 'Log Sale';
+        });
+    }
+
+    /* ── LOAD PENDING SALES ─────────────────────── */
+    function loadPendingSales() {
+      if (!collectorId) return;
+      var card = document.getElementById('pendingCard');
+      var list = document.getElementById('pendingList');
+
+      fetch('/api/pending-transactions?collector_id=' + collectorId)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var rows = data.pending_transactions || [];
+          card.style.display = '';
+          if (!rows.length) {
+            list.innerHTML = '<div class="pending-empty">No pending sales — all confirmed or none logged yet.</div>';
+            return;
+          }
+          list.innerHTML = rows.map(function (pt) {
+            var date = new Date(pt.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+            var kg   = parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg';
+            var agg  = pt.aggregator_name || '—';
+            var badgeClass = 'badge-' + (pt.status || 'pending');
+            return '<div class="pending-row">' +
+              '<span class="pending-row-date">'  + date + '</span>' +
+              '<span class="pending-row-mat">'   + pt.material_type + '</span>' +
+              '<span class="pending-row-kg">'    + kg + '</span>' +
+              '<span class="pending-row-agg">'   + agg + '</span>' +
+              '<span class="badge ' + badgeClass + '">' + (pt.status || 'pending') + '</span>' +
+            '</div>';
+          }).join('');
+        })
+        .catch(function () {
+          card.style.display = '';
+          list.innerHTML = '<div class="pending-empty">Could not load pending sales.</div>';
         });
     }
 
     /* ── RESET (log another) ─────────────────────── */
     function resetForm() {
       document.getElementById('materialSelect').value = '';
-      document.getElementById('weightInput').value = '';
-      document.getElementById('notesInput').value = '';
+      document.getElementById('weightInput').value   = '';
+      document.getElementById('priceInput').value    = '';
+      document.getElementById('aggregatorSelect').value = '';
       document.getElementById('successState').classList.remove('visible');
       document.getElementById('formBody').style.display = 'block';
+      var btn = document.getElementById('submitBtn');
+      btn.disabled = false;
+      btn.textContent = 'Log Sale';
       hideError();
     }
 
