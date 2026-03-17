@@ -1403,6 +1403,163 @@ app.get('/api/buyers', async (req, res) => {
 });
 
 // ============================================
+// PROCESSOR QUEUE — PRE-DISPATCH & ARRIVAL
+// ============================================
+
+// GET /api/pending-transactions/processor-queue
+// Returns all aggregator_sale pending_transactions for this processor, all statuses
+app.get('/api/pending-transactions/processor-queue', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'processor') {
+      return res.status(403).json({ success: false, message: 'Processor access only' });
+    }
+    const result = await pool.query(`
+      SELECT pt.*, o.name AS aggregator_name, o.company AS aggregator_company
+      FROM pending_transactions pt
+      LEFT JOIN operators o ON o.id = pt.aggregator_operator_id
+      WHERE pt.processor_buyer_id = $1
+        AND pt.transaction_type = 'aggregator_sale'
+      ORDER BY pt.created_at DESC
+    `, [req.buyer.id]);
+    res.json({ success: true, pending_transactions: result.rows });
+  } catch (err) {
+    console.error('Processor queue error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/pending-transactions/:id/dispatch-decision
+// Processor approves or rejects pre-dispatch; enforces photo rule for batches >500 kg
+app.post('/api/pending-transactions/:id/dispatch-decision', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'processor') {
+      return res.status(403).json({ success: false, message: 'Processor access only' });
+    }
+    const { id } = req.params;
+    const { decision, rejection_reason, waive_photos } = req.body;
+
+    if (!decision || !['approve', 'reject'].includes(decision)) {
+      return res.status(400).json({ success: false, message: 'decision must be "approve" or "reject"' });
+    }
+
+    const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id = $1`, [id]);
+    if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    const pt = ptResult.rows[0];
+
+    if (parseInt(pt.processor_buyer_id) !== parseInt(req.buyer.id)) {
+      return res.status(403).json({ success: false, message: 'Not authorised to action this transaction' });
+    }
+    if (pt.status !== 'pending') {
+      return res.status(409).json({ success: false, message: 'Transaction is no longer pending' });
+    }
+
+    if (decision === 'reject') {
+      if (!rejection_reason || !rejection_reason.trim()) {
+        return res.status(400).json({ success: false, message: 'Rejection reason is required' });
+      }
+      const updated = await pool.query(`
+        UPDATE pending_transactions
+        SET status = 'dispatch_rejected', rejection_reason = $1, updated_at = NOW()
+        WHERE id = $2 RETURNING *
+      `, [rejection_reason.trim(), id]);
+      return res.json({ success: true, pending_transaction: updated.rows[0] });
+    }
+
+    // Approve — enforce photo requirement for large batches
+    const photoUrls = pt.photo_urls || [];
+    const noPhotos = !Array.isArray(photoUrls) || photoUrls.length === 0;
+    if (parseFloat(pt.gross_weight_kg) > 500 && noPhotos && !waive_photos) {
+      return res.status(400).json({
+        success: false,
+        message: 'Photos required for batches over 500 kg',
+        error: 'photos_required'
+      });
+    }
+
+    const updated = await pool.query(`
+      UPDATE pending_transactions
+      SET status = 'dispatch_approved',
+          dispatch_approved = true,
+          dispatch_approved_at = NOW(),
+          dispatch_approved_by_buyer_id = $1,
+          updated_at = NOW()
+      WHERE id = $2 RETURNING *
+    `, [req.buyer.id, id]);
+    return res.json({ success: true, pending_transaction: updated.rows[0] });
+  } catch (err) {
+    console.error('Dispatch decision error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/pending-transactions/:id/arrival-confirmation
+// Processor confirms delivery arrived, logs actual weight + grade, writes to transactions ledger
+app.post('/api/pending-transactions/:id/arrival-confirmation', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'processor') {
+      return res.status(403).json({ success: false, message: 'Processor access only' });
+    }
+    const { id } = req.params;
+    const { actual_weight_kg, grade, rejection_reason } = req.body;
+
+    if (!actual_weight_kg || isNaN(parseFloat(actual_weight_kg)) || parseFloat(actual_weight_kg) <= 0) {
+      return res.status(400).json({ success: false, message: 'actual_weight_kg is required and must be positive' });
+    }
+    if (!grade || !['A', 'B', 'C'].includes(grade)) {
+      return res.status(400).json({ success: false, message: 'grade must be A, B, or C' });
+    }
+
+    const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id = $1`, [id]);
+    if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    const pt = ptResult.rows[0];
+
+    if (parseInt(pt.processor_buyer_id) !== parseInt(req.buyer.id)) {
+      return res.status(403).json({ success: false, message: 'Not authorised to action this transaction' });
+    }
+    if (pt.status !== 'dispatch_approved') {
+      return res.status(400).json({ success: false, message: 'Dispatch must be approved before logging arrival' });
+    }
+
+    const kg = parseFloat(actual_weight_kg);
+    const basePrice = parseFloat(pt.price_per_kg || 0);
+    const multiplier = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
+    const finalPrice = parseFloat((basePrice * multiplier).toFixed(2));
+    const totalPrice = parseFloat((finalPrice * kg).toFixed(2));
+    const newStatus = grade === 'C' ? 'grade_c_flagged' : 'arrived';
+
+    // Update pending_transaction
+    const updatedPt = await pool.query(`
+      UPDATE pending_transactions
+      SET status = $1, grade = $2, gross_weight_kg = $3, total_price = $4,
+          rejection_reason = $5, updated_at = NOW()
+      WHERE id = $6 RETURNING *
+    `, [newStatus, grade, kg, totalPrice, rejection_reason || null, id]);
+
+    // Write to transactions ledger
+    await pool.query(`
+      INSERT INTO transactions
+        (operator_id, processor_id, material_type,
+         gross_weight_kg, net_weight_kg, contamination_deduction_percent,
+         price_per_kg, total_price, payment_status, notes)
+      VALUES ($1, $2, $3, $4, $4, 0, $5, $6, 'unpaid', $7)
+    `, [
+      pt.aggregator_operator_id,
+      req.buyer.id,
+      pt.material_type,
+      kg,
+      finalPrice,
+      totalPrice,
+      'From pending transaction #' + id + ' grade:' + grade
+    ]);
+
+    res.json({ success: true, pending_transaction: updatedPt.rows[0] });
+  } catch (err) {
+    console.error('Arrival confirmation error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
 // ADMIN AUTH + BUYERS + PRICES
 // ============================================
 

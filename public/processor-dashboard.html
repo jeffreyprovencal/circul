@@ -79,6 +79,40 @@
         .price-post-btn:hover { background: #15803d; }
         .dl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green-deep); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: background 0.15s; }
         .dl-btn:hover { background: #0f3d22; }
+
+        /* INCOMING DELIVERIES */
+        .panel-subheader { padding: 10px 20px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); background: var(--off-white); border-bottom: 1px solid var(--border); }
+        .delivery-card { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+        .delivery-card:last-child { border-bottom: none; }
+        .delivery-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .delivery-title { font-weight: 600; font-size: 0.9rem; color: var(--green-deep); }
+        .delivery-meta { font-size: 0.82rem; color: var(--slate-light); }
+        .delivery-price { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.88rem; color: var(--green-deep); }
+        .delivery-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+        .btn-approve { padding: 8px 18px; background: var(--green-primary); color: white; border: none; border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+        .btn-approve:hover { background: #15803d; }
+        .btn-decline { padding: 8px 18px; background: transparent; color: var(--red); border: 1.5px solid var(--red); border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+        .btn-decline:hover { background: var(--red-wash); }
+        .btn-log-arrival { padding: 8px 18px; background: #1d4ed8; color: white; border: none; border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+        .btn-log-arrival:hover { background: #1e40af; }
+        .delivery-inline-form { background: #f8fafc; border-top: 1px solid var(--border); padding: 16px 20px; }
+        .di-label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 5px; }
+        .di-input, .di-select, .di-textarea { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; background: var(--white); margin-bottom: 10px; transition: border-color 0.15s; }
+        .di-input:focus, .di-select:focus, .di-textarea:focus { border-color: var(--green-primary); }
+        .di-textarea { resize: vertical; min-height: 60px; }
+        .di-grade-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+        .di-grade-btn { flex: 1; min-width: 80px; padding: 9px 8px; border: 1.5px solid var(--border); border-radius: 7px; background: var(--white); font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; text-align: center; line-height: 1.4; transition: all 0.12s; }
+        .di-grade-btn.sel-a { background: #dcfce7; border-color: var(--green-primary); color: #166534; }
+        .di-grade-btn.sel-b { background: var(--amber-light); border-color: var(--amber); color: #92400e; }
+        .di-grade-btn.sel-c { background: #fee2e2; border-color: var(--red); color: #991b1b; }
+        .di-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .di-confirm { padding: 9px 20px; background: var(--green-primary); color: white; border: none; border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+        .di-confirm:hover:not(:disabled) { background: #15803d; }
+        .di-confirm:disabled { opacity: 0.55; cursor: not-allowed; }
+        .di-cancel { padding: 9px 14px; background: transparent; border: 1px solid var(--border); color: var(--slate-light); border-radius: 7px; font-size: 0.82rem; cursor: pointer; font-family: 'Space Grotesk', sans-serif; }
+        .di-cancel:hover { border-color: var(--slate); color: var(--slate); }
+        .di-msg { font-size: 0.82rem; margin-top: 8px; }
+
         @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .main { padding: 16px; } }
     </style>
 </head>
@@ -120,6 +154,23 @@
             <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value" id="statTxns">—</div></div>
             <div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value" id="statPending">—</div></div>
             <div class="stat-card"><div class="stat-label">Total processed</div><div class="stat-value" id="statTotal">—</div><div class="stat-sub">kg lifetime</div></div>
+        </div>
+
+        <!-- INCOMING DELIVERIES -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Incoming Deliveries</span>
+                <button onclick="loadDeliveries()" style="padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:7px;font-family:'Space Grotesk',sans-serif;font-size:0.78rem;cursor:pointer;color:var(--slate)">↻ Refresh</button>
+            </div>
+            <!-- Panel A: Pending Pre-Dispatch Review -->
+            <div class="panel-subheader">Pending Pre-Dispatch Review</div>
+            <div id="queuePending"><div class="empty">Loading…</div></div>
+            <!-- Panel B: Approved — Awaiting Arrival -->
+            <div class="panel-subheader">Approved — Awaiting Arrival</div>
+            <div id="queueApproved"><div class="empty">Loading…</div></div>
+            <!-- Panel C: Completed / Flagged -->
+            <div class="panel-subheader">Completed / Flagged</div>
+            <div id="queueCompleted"><div class="empty">Loading…</div></div>
         </div>
 
         <!-- COMPLIANCE REPORT -->
@@ -175,6 +226,10 @@
 <script>
 var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+var deliveries = [];
+var activeDispatchId = null;
+var activeArrivalId = null;
+var arrivalGradeMap = {};
 var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
 
 function checkAuth() {
@@ -273,6 +328,7 @@ function loadAll() {
         });
     loadTxns();
     loadAggregators();
+    loadDeliveries();
 }
 
 function loadTxns() {
@@ -360,6 +416,274 @@ function downloadCompliance(e) {
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
 function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function timeAgo(iso) {
+    if (!iso) return '—';
+    var diff = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.floor(hrs / 24) + 'd ago';
+}
+
+// ── INCOMING DELIVERIES ───────────────────────────────────────────────────────
+
+function loadDeliveries() {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/processor-queue', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        deliveries = data.pending_transactions || [];
+        var pending   = deliveries.filter(function(d) { return d.status === 'pending'; });
+        var approved  = deliveries.filter(function(d) { return d.status === 'dispatch_approved'; });
+        var completed = deliveries.filter(function(d) {
+            return ['arrived','grade_c_flagged','dispatch_rejected'].indexOf(d.status) !== -1;
+        }).slice(0, 10);
+
+        document.getElementById('queuePending').innerHTML  = pending.length  ? pending.map(buildPendingCard).join('')   : '<div class="empty">No pending deliveries awaiting review.</div>';
+        document.getElementById('queueApproved').innerHTML = approved.length ? approved.map(buildApprovedCard).join('') : '<div class="empty">No deliveries awaiting arrival confirmation.</div>';
+        if (!completed.length) {
+            document.getElementById('queueCompleted').innerHTML = '<div class="empty">No completed or flagged deliveries yet.</div>';
+        } else {
+            document.getElementById('queueCompleted').innerHTML =
+                '<table><thead><tr>' +
+                '<th>Seller</th><th>Material</th><th>Weight</th><th>Grade</th><th>Total</th><th>Status</th><th>Date</th>' +
+                '</tr></thead><tbody>' + completed.map(buildCompletedRow).join('') + '</tbody></table>';
+        }
+    })
+    .catch(function() {
+        document.getElementById('queuePending').innerHTML = '<div class="empty">Could not load deliveries.</div>';
+    });
+}
+
+function buildPendingCard(pt) {
+    var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
+    var hasPhotos = photos.length > 0;
+    var bigBatch  = parseFloat(pt.gross_weight_kg) > 500;
+    var aggName   = esc(pt.aggregator_company || pt.aggregator_name || '—');
+    var photoHtml = hasPhotos
+        ? '<span class="badge badge-green">✓ ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
+        : '<span class="badge badge-amber">⚠ No photos</span>';
+    var warnHtml = bigBatch && !hasPhotos
+        ? '<div style="font-size:0.8rem;padding:7px 10px;background:var(--amber-light);color:#92400e;border-radius:6px;margin-top:8px">Photos required for batches over 500 kg — you may waive below.</div>'
+        : '';
+    return '<div class="delivery-card" id="dc-' + pt.id + '">' +
+        '<div class="delivery-row">' +
+        '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        '<span class="delivery-title">' + aggName + '</span>' +
+        '<span class="delivery-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
+        '<span class="delivery-meta">GHS ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="delivery-price">GHS ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
+        photoHtml +
+        '</div>' +
+        warnHtml +
+        '<div class="delivery-actions">' +
+        '<button class="btn-approve" onclick="openDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
+        '<button class="btn-decline" onclick="openDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
+        '</div>' +
+        '<div id="dispatch-form-' + pt.id + '" style="display:none"></div>' +
+    '</div>';
+}
+
+function buildApprovedCard(pt) {
+    var aggName = esc(pt.aggregator_company || pt.aggregator_name || '—');
+    return '<div class="delivery-card" id="dc-arr-' + pt.id + '">' +
+        '<div class="delivery-row">' +
+        '<span class="badge badge-green">✓ Approved</span>' +
+        '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        '<span class="delivery-title">' + aggName + '</span>' +
+        '<span class="delivery-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
+        '<span class="delivery-meta">GHS ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="delivery-price">GHS ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
+        '</div>' +
+        '<div class="delivery-actions"><button class="btn-log-arrival" onclick="openArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
+        '<div id="arrival-form-' + pt.id + '" style="display:none"></div>' +
+    '</div>';
+}
+
+function buildCompletedRow(pt) {
+    var aggName = esc(pt.aggregator_company || pt.aggregator_name || '—');
+    var statusBadge = pt.status === 'arrived'
+        ? '<span class="badge badge-green">Arrived</span>'
+        : pt.status === 'grade_c_flagged'
+        ? '<span class="badge badge-amber">Flagged</span>'
+        : '<span class="badge" style="background:#fee2e2;color:#991b1b">Rejected</span>';
+    var gradeBadge = pt.grade
+        ? '<span class="badge ' + (pt.grade === 'A' ? 'badge-green' : pt.grade === 'B' ? 'badge-amber' : '') + '" style="' + (pt.grade === 'C' ? 'background:#fee2e2;color:#991b1b' : '') + '">' + pt.grade + '</span>'
+        : '—';
+    var total = pt.total_price ? 'GHS ' + fmt(pt.total_price) + ' <span style="font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price) * 0.067).toFixed(0) + '</span>' : '—';
+    return '<tr>' +
+        '<td>' + aggName + '</td>' +
+        '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
+        '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
+        '<td>' + gradeBadge + '</td>' +
+        '<td>' + total + '</td>' +
+        '<td>' + statusBadge + '</td>' +
+        '<td>' + fmtDate(pt.created_at) + '</td>' +
+    '</tr>';
+}
+
+// ── DISPATCH DECISION FORMS ───────────────────────────────────────────────────
+
+function openDispatchForm(ptId, type) {
+    var formEl = document.getElementById('dispatch-form-' + ptId);
+    // Toggle off
+    if (activeDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
+        formEl.style.display = 'none'; activeDispatchId = null; return;
+    }
+    // Close previous
+    if (activeDispatchId && activeDispatchId !== ptId) {
+        var prev = document.getElementById('dispatch-form-' + activeDispatchId);
+        if (prev) prev.style.display = 'none';
+    }
+    activeDispatchId = ptId;
+    formEl.dataset.formType = type;
+
+    var pt = deliveries.find(function(d) { return d.id === ptId; });
+    var bigBatch = pt && parseFloat(pt.gross_weight_kg) > 500;
+    var photos = pt && Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
+    var noPhotos = photos.length === 0;
+
+    if (type === 'approve') {
+        var waiveHtml = bigBatch && noPhotos
+            ? '<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="waive-' + ptId + '"> Waive photo requirement for this batch</label>'
+            : '';
+        formEl.innerHTML = '<div class="delivery-inline-form">' + waiveHtml +
+            '<div class="di-actions">' +
+            '<button class="di-confirm" onclick="submitDispatchDecision(' + ptId + ',\'approve\')">✓ Confirm Dispatch Approval</button>' +
+            '<button class="di-cancel" onclick="cancelDispatchForm(' + ptId + ')">Cancel</button>' +
+            '</div><div class="di-msg" id="dispatch-msg-' + ptId + '"></div></div>';
+    } else {
+        formEl.innerHTML = '<div class="delivery-inline-form">' +
+            '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
+            '<textarea class="di-textarea" id="reject-reason-' + ptId + '" placeholder="Describe the issue…" rows="2"></textarea>' +
+            '<div class="di-actions">' +
+            '<button class="di-confirm" style="background:var(--red)" onclick="submitDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-cancel" onclick="cancelDispatchForm(' + ptId + ')">Cancel</button>' +
+            '</div><div class="di-msg" id="dispatch-msg-' + ptId + '"></div></div>';
+    }
+    formEl.style.display = '';
+}
+
+function cancelDispatchForm(ptId) {
+    var f = document.getElementById('dispatch-form-' + ptId);
+    if (f) f.style.display = 'none';
+    if (activeDispatchId === ptId) activeDispatchId = null;
+}
+
+function submitDispatchDecision(ptId, decision) {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var msgEl = document.getElementById('dispatch-msg-' + ptId);
+    var body = { decision: decision };
+    if (decision === 'reject') {
+        var reason = document.getElementById('reject-reason-' + ptId).value.trim();
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = 'var(--red)'; return; }
+        body.rejection_reason = reason;
+    } else {
+        var waiveEl = document.getElementById('waive-' + ptId);
+        if (waiveEl) body.waive_photos = waiveEl.checked;
+    }
+    fetch('/api/pending-transactions/' + ptId + '/dispatch-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { activeDispatchId = null; loadDeliveries(); }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+    })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+}
+
+// ── ARRIVAL CONFIRMATION FORMS ────────────────────────────────────────────────
+
+function openArrivalForm(ptId) {
+    var formEl = document.getElementById('arrival-form-' + ptId);
+    if (activeArrivalId === ptId && formEl.style.display !== 'none') {
+        formEl.style.display = 'none'; activeArrivalId = null; return;
+    }
+    if (activeArrivalId && activeArrivalId !== ptId) {
+        var prev = document.getElementById('arrival-form-' + activeArrivalId);
+        if (prev) prev.style.display = 'none';
+    }
+    activeArrivalId = ptId;
+    arrivalGradeMap[ptId] = null;
+
+    var pt = deliveries.find(function(d) { return d.id === ptId; });
+    var origWeight = pt ? parseFloat(pt.gross_weight_kg).toFixed(1) : '';
+
+    formEl.innerHTML = '<div class="delivery-inline-form">' +
+        '<div style="margin-bottom:12px"><label class="di-label">Actual weight received (kg)</label>' +
+        '<input type="number" class="di-input" id="arr-weight-' + ptId + '" value="' + esc(String(origWeight)) + '" min="0.1" step="0.1" style="max-width:200px;margin-bottom:0"></div>' +
+        '<label class="di-label">Grade</label>' +
+        '<div class="di-grade-row">' +
+        '<button class="di-grade-btn" id="agA-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.7rem;font-weight:400">&lt;5% contamination · +10%</span></button>' +
+        '<button class="di-grade-btn" id="agB-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.7rem;font-weight:400">5–15% contamination · standard</span></button>' +
+        '<button class="di-grade-btn" id="agC-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.7rem;font-weight:400">&gt;15% contamination · flagged</span></button>' +
+        '</div>' +
+        '<div id="grade-c-warn-' + ptId + '" style="display:none;font-size:0.8rem;padding:7px 10px;background:var(--amber-light);color:#92400e;border-radius:6px;margin-bottom:10px">Grade C flags this delivery — full rejection flow coming soon.</div>' +
+        '<div id="grade-c-reason-' + ptId + '" style="display:none">' +
+        '<label class="di-label">Rejection / flag reason <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>' +
+        '<textarea class="di-textarea" id="arr-reason-' + ptId + '" placeholder="Describe the issue…" rows="2"></textarea>' +
+        '</div>' +
+        '<div class="di-actions">' +
+        '<button class="di-confirm" id="arr-confirm-' + ptId + '" onclick="submitArrivalConfirmation(' + ptId + ')" disabled>Confirm Arrival</button>' +
+        '<button class="di-cancel" onclick="cancelArrivalForm(' + ptId + ')">Cancel</button>' +
+        '</div><div class="di-msg" id="arrival-msg-' + ptId + '"></div>' +
+    '</div>';
+    formEl.style.display = '';
+}
+
+function selectArrivalGrade(ptId, grade) {
+    arrivalGradeMap[ptId] = grade;
+    ['A', 'B', 'C'].forEach(function(g) {
+        var btn = document.getElementById('ag' + g + '-' + ptId);
+        if (btn) btn.className = 'di-grade-btn' + (g === grade ? ' sel-' + g.toLowerCase() : '');
+    });
+    var cWarn   = document.getElementById('grade-c-warn-' + ptId);
+    var cReason = document.getElementById('grade-c-reason-' + ptId);
+    if (cWarn)   cWarn.style.display   = grade === 'C' ? '' : 'none';
+    if (cReason) cReason.style.display = grade === 'C' ? '' : 'none';
+    var confirmBtn = document.getElementById('arr-confirm-' + ptId);
+    if (confirmBtn) confirmBtn.disabled = false;
+}
+
+function cancelArrivalForm(ptId) {
+    var f = document.getElementById('arrival-form-' + ptId);
+    if (f) f.style.display = 'none';
+    if (activeArrivalId === ptId) activeArrivalId = null;
+}
+
+function submitArrivalConfirmation(ptId) {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var msgEl = document.getElementById('arrival-msg-' + ptId);
+    var weight = document.getElementById('arr-weight-' + ptId).value;
+    var grade  = arrivalGradeMap[ptId];
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!grade) { msgEl.textContent = 'Select a grade.'; msgEl.style.color = 'var(--red)'; return; }
+    var body = { actual_weight_kg: parseFloat(weight), grade: grade };
+    if (grade === 'C') {
+        var reasonEl = document.getElementById('arr-reason-' + ptId);
+        if (reasonEl && reasonEl.value.trim()) body.rejection_reason = reasonEl.value.trim();
+    }
+    fetch('/api/pending-transactions/' + ptId + '/arrival-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { activeArrivalId = null; loadDeliveries(); loadAll(); }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+    })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+}
 
 checkAuth();
 </script>
