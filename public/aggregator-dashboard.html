@@ -47,6 +47,8 @@
         .role-badge { font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; background: var(--amber); color: var(--green-deep); }
         .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--red); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
         .btn-logout:hover { background: rgba(239,68,68,0.1); }
+        .nav-back-home { font-size: 0.78rem; color: rgba(255,255,255,0.55); text-decoration: none; transition: color 0.15s; }
+        .nav-back-home:hover { color: var(--white); }
         .refresh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-primary); animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
@@ -159,7 +161,8 @@
             <div class="refresh-dot" title="Auto-refresh active"></div>
             <span class="nav-name" id="navName"></span>
             <span class="role-badge">aggregator</span>
-            <button class="btn-logout" onclick="handleLogout()">Logout</button>
+            <a href="/" class="nav-back-home">← Back to home</a>
+            <button class="btn-logout" onclick="handleLogout()">Log out</button>
         </div>
     </nav>
 
