@@ -1111,13 +1111,13 @@ app.post('/api/pending-transactions', async (req, res) => {
   }
 });
 
-// GET /api/pending-transactions — list pending transactions for a collector or aggregator
+// GET /api/pending-transactions — list pending transactions for a collector, aggregator, or processor
 app.get('/api/pending-transactions', async (req, res) => {
   try {
-    const { collector_id, aggregator_operator_id } = req.query;
+    const { collector_id, aggregator_operator_id, processor_buyer_id, type } = req.query;
 
-    if (!collector_id && !aggregator_operator_id) {
-      return res.status(400).json({ success: false, message: 'collector_id or aggregator_operator_id query param required' });
+    if (!collector_id && !aggregator_operator_id && !processor_buyer_id) {
+      return res.status(400).json({ success: false, message: 'collector_id, aggregator_operator_id, or processor_buyer_id query param required' });
     }
 
     let query, params;
@@ -1130,7 +1130,27 @@ app.get('/api/pending-transactions', async (req, res) => {
         ORDER BY pt.created_at DESC
       `;
       params = [collector_id];
+    } else if (processor_buyer_id) {
+      query = `
+        SELECT pt.*, o.name AS aggregator_name
+        FROM pending_transactions pt
+        LEFT JOIN operators o ON o.id = pt.aggregator_operator_id
+        WHERE pt.processor_buyer_id = $1 AND pt.status = 'pending' AND pt.transaction_type = 'aggregator_sale'
+        ORDER BY pt.created_at DESC
+      `;
+      params = [processor_buyer_id];
+    } else if (type === 'aggregator_sale') {
+      // Aggregator viewing their own pending sales to processors
+      query = `
+        SELECT pt.*, b.name AS processor_name, b.company AS processor_company
+        FROM pending_transactions pt
+        LEFT JOIN buyers b ON b.id = pt.processor_buyer_id
+        WHERE pt.aggregator_operator_id = $1 AND pt.status = 'pending' AND pt.transaction_type = 'aggregator_sale'
+        ORDER BY pt.created_at DESC
+      `;
+      params = [aggregator_operator_id];
     } else {
+      // Aggregator viewing incoming collections from collectors (all non-aggregator_sale types)
       query = `
         SELECT pt.*,
                c.first_name AS collector_first_name,
@@ -1138,6 +1158,7 @@ app.get('/api/pending-transactions', async (req, res) => {
         FROM pending_transactions pt
         LEFT JOIN collectors c ON c.id = pt.collector_id
         WHERE pt.aggregator_operator_id = $1 AND pt.status = 'pending'
+          AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
         ORDER BY pt.created_at DESC
       `;
       params = [aggregator_operator_id];
@@ -1284,6 +1305,99 @@ app.post('/api/pending-transactions/aggregator-purchase', async (req, res) => {
     res.status(201).json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) {
     console.error('Aggregator purchase error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/pending-transactions/aggregator-sale — aggregator logs a batch sale to a processor
+app.post('/api/pending-transactions/aggregator-sale', async (req, res) => {
+  try {
+    const { aggregator_operator_id, processor_buyer_id, material_type, gross_weight_kg, price_per_kg, notes, photo_urls } = req.body;
+
+    if (!aggregator_operator_id || !processor_buyer_id || !material_type || !gross_weight_kg || !price_per_kg) {
+      return res.status(400).json({ success: false, message: 'aggregator_operator_id, processor_buyer_id, material_type, gross_weight_kg, and price_per_kg are required' });
+    }
+
+    // Processors don't accept LDPE
+    const validMaterials = ['PET', 'HDPE', 'PP'];
+    if (!validMaterials.includes(material_type.toUpperCase())) {
+      return res.status(400).json({ success: false, message: 'material_type must be one of PET, HDPE, PP (processors do not accept LDPE)' });
+    }
+
+    const kg = parseFloat(gross_weight_kg);
+    if (isNaN(kg) || kg <= 0 || kg > 4000) {
+      return res.status(400).json({ success: false, message: 'gross_weight_kg must be greater than 0 and at most 4000 kg' });
+    }
+
+    const aggCheck = await pool.query(
+      `SELECT id FROM operators WHERE id = $1 AND role = 'aggregator' AND is_active = true`,
+      [aggregator_operator_id]
+    );
+    if (!aggCheck.rows.length) return res.status(400).json({ success: false, message: 'Aggregator not found' });
+
+    const procCheck = await pool.query(
+      `SELECT id FROM buyers WHERE id = $1 AND role = 'processor' AND is_active = true`,
+      [processor_buyer_id]
+    );
+    if (!procCheck.rows.length) return res.status(400).json({ success: false, message: 'Processor not found' });
+
+    const price = parseFloat(price_per_kg);
+    const totalPrice = parseFloat((kg * price).toFixed(2));
+
+    // Batches > 500 kg require photo review before dispatch
+    const photosRequired = kg > 500;
+    const dispatchApproved = photosRequired ? null : true;
+
+    const result = await pool.query(`
+      INSERT INTO pending_transactions
+        (transaction_type, aggregator_operator_id, processor_buyer_id, material_type,
+         gross_weight_kg, price_per_kg, total_price, status,
+         photos_required, photos_submitted, dispatch_approved, photo_urls, notes)
+      VALUES ('aggregator_sale', $1, $2, $3, $4, $5, $6, 'pending', $7, false, $8, $9, $10)
+      RETURNING *
+    `, [
+      aggregator_operator_id, processor_buyer_id, material_type.toUpperCase(),
+      kg, price, totalPrice,
+      photosRequired, dispatchApproved,
+      JSON.stringify(photo_urls || []), notes || null
+    ]);
+
+    res.status(201).json({
+      success: true,
+      pending_transaction: result.rows[0],
+      photos_required: photosRequired
+    });
+  } catch (err) {
+    console.error('Aggregator sale error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// PUBLIC BUYERS ENDPOINT
+// ============================================
+
+// GET /api/buyers — public list of buyers, filterable by role (no password_hash returned)
+app.get('/api/buyers', async (req, res) => {
+  try {
+    const { role } = req.query;
+    const validRoles = ['processor', 'aggregator', 'converter'];
+    const params = [];
+    let where = 'WHERE is_active = true';
+    if (role) {
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ success: false, message: 'role must be one of processor, aggregator, converter' });
+      }
+      where += ' AND role = $1';
+      params.push(role);
+    }
+    const result = await pool.query(
+      `SELECT id, name, company, role FROM buyers ${where} ORDER BY name`,
+      params
+    );
+    res.json({ success: true, buyers: result.rows });
+  } catch (err) {
+    console.error('Get buyers error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

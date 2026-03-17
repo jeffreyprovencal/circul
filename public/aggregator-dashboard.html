@@ -174,12 +174,30 @@
         .toast.show { opacity: 1; transform: translateY(0); }
         .toast.toast-error { background: #991b1b; }
 
+        /* LOG A SALE TO PROCESSOR */
+        .sell-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+        .sell-label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 5px; }
+        .sell-input, .sell-select { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; background: var(--white); transition: border-color 0.15s; }
+        .sell-input:focus, .sell-select:focus { border-color: var(--green-primary); }
+        .photo-area { padding: 14px; border: 1.5px solid var(--border); border-radius: 10px; margin-bottom: 4px; transition: border-color 0.2s, background 0.2s; }
+        .photo-area.photo-required { border-color: var(--amber); background: var(--amber-light); }
+        .photo-note { font-size: 0.82rem; color: var(--slate-light); }
+        .photo-warning { font-size: 0.82rem; color: #92400e; font-weight: 600; margin-top: 4px; }
+        .btn-sell-submit { padding: 11px 28px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+        .btn-sell-submit:hover { background: #15803d; }
+        .pending-sale-item { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .pending-sale-item:last-child { border-bottom: none; }
+        .pending-sale-meta { font-size: 0.82rem; color: var(--slate-light); }
+        .dispatch-ok { color: var(--green-primary); font-size: 0.82rem; font-weight: 600; }
+        .dispatch-pending { color: var(--amber); font-size: 0.82rem; font-weight: 600; }
+
         @media (max-width: 900px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
             .price-cards { grid-template-columns: repeat(2, 1fr); }
             .main { padding: 16px; }
             .review-fields { grid-template-columns: 1fr; }
             .register-grid { grid-template-columns: 1fr; }
+            .sell-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -303,6 +321,59 @@
             </div>
             <!-- Pending incoming list -->
             <div id="incomingList"><div class="empty">Loading…</div></div>
+        </div>
+
+        <!-- LOG A SALE TO PROCESSOR -->
+        <div class="card" id="sellCard">
+            <div class="card-header">
+                <span class="card-title">Log a Sale to Processor</span>
+            </div>
+            <div class="card-body" style="padding-bottom:0">
+                <div class="sell-grid">
+                    <div>
+                        <label class="sell-label">Material</label>
+                        <select class="sell-select" id="sellMaterial" onchange="updatePhotoWarning()">
+                            <option value="">Select material…</option>
+                            <option value="PET">PET</option>
+                            <option value="HDPE">HDPE</option>
+                            <option value="PP">PP</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="sell-label">Processor</label>
+                        <select class="sell-select" id="sellProcessor">
+                            <option value="">Loading…</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="sell-label">Batch weight (kg)</label>
+                        <input type="number" class="sell-input" id="sellWeight" placeholder="0" min="1" max="4000" step="1" inputmode="decimal" oninput="updatePhotoWarning()">
+                    </div>
+                    <div>
+                        <label class="sell-label">Price (GH₵/kg)</label>
+                        <input type="number" class="sell-input" id="sellPrice" placeholder="0.00" min="0" step="0.01" inputmode="decimal">
+                    </div>
+                </div>
+                <div style="margin-bottom:14px">
+                    <label class="sell-label">Notes <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
+                    <input type="text" class="sell-input" id="sellNotes" placeholder="Any notes for the processor…">
+                </div>
+                <div class="photo-area" id="photoArea">
+                    <label class="sell-label" style="margin-bottom:8px">Batch photos <span style="text-transform:none;letter-spacing:0;font-weight:400">(mandatory for batches over 500 kg)</span></label>
+                    <input type="file" accept="image/*" multiple style="display:block;margin-bottom:8px">
+                    <div class="photo-note">Photos sent to processor for pre-dispatch approval.</div>
+                    <div class="photo-warning" id="photoWarning" style="display:none">⚠ Photos required for this batch size.</div>
+                </div>
+                <div style="margin-top:16px;margin-bottom:4px">
+                    <button class="btn-sell-submit" onclick="submitAggregatorSale()">Log Sale</button>
+                </div>
+                <div id="sellMsg" style="margin-top:10px;font-size:0.85rem;padding-bottom:4px;display:none"></div>
+            </div>
+            <!-- Pending Sales list -->
+            <div style="margin-top:8px">
+                <div style="padding:0 24px 10px;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--slate-light)">Pending Sales</div>
+                <div id="pendingSalesList"><div class="empty" style="padding:0 24px 16px">No pending sales.</div></div>
+            </div>
         </div>
 
         <!-- TOP COLLECTORS -->
@@ -508,6 +579,8 @@ function loadAll() {
         });
     loadPendingTxns();
     loadIncomingCollections();
+    loadPendingSales();
+    loadProcessors();
 }
 
 function renderPriceCards(prices) {
@@ -905,6 +978,127 @@ function submitAggregatorPurchase() {
         msg.style.color = 'var(--red)';
         msg.style.display = '';
     });
+}
+
+// ── LOG A SALE TO PROCESSOR ────────────────────────────────────────────────────
+
+function loadProcessors() {
+    fetch('/api/buyers?role=processor')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var sel = document.getElementById('sellProcessor');
+            var buyers = data.buyers || [];
+            sel.innerHTML = buyers.length
+                ? '<option value="">Select processor…</option>' + buyers.map(function(b) {
+                    return '<option value="' + b.id + '">' + esc(b.company || b.name) + '</option>';
+                  }).join('')
+                : '<option value="">No processors found</option>';
+        })
+        .catch(function() {
+            document.getElementById('sellProcessor').innerHTML = '<option value="">Could not load processors</option>';
+        });
+}
+
+function updatePhotoWarning() {
+    var weight = parseFloat(document.getElementById('sellWeight').value) || 0;
+    var area   = document.getElementById('photoArea');
+    var warn   = document.getElementById('photoWarning');
+    if (weight > 500) {
+        area.classList.add('photo-required');
+        warn.style.display = '';
+    } else {
+        area.classList.remove('photo-required');
+        warn.style.display = 'none';
+    }
+}
+
+function submitAggregatorSale() {
+    var material    = document.getElementById('sellMaterial').value;
+    var processorId = document.getElementById('sellProcessor').value;
+    var weight      = document.getElementById('sellWeight').value;
+    var price       = document.getElementById('sellPrice').value;
+    var notes       = document.getElementById('sellNotes').value.trim();
+    var msg         = document.getElementById('sellMsg');
+
+    if (!material || !processorId || !weight || parseFloat(weight) <= 0 || !price || parseFloat(price) <= 0) {
+        msg.textContent = 'Material, processor, weight, and price are all required.';
+        msg.style.color = 'var(--red)';
+        msg.style.display = '';
+        return;
+    }
+
+    fetch('/api/pending-transactions/aggregator-sale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            aggregator_operator_id: state.operator.id,
+            processor_buyer_id:     parseInt(processorId, 10),
+            material_type:          material,
+            gross_weight_kg:        parseFloat(weight),
+            price_per_kg:           parseFloat(price),
+            notes:                  notes || null,
+            photo_urls:             []
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            msg.textContent = data.photos_required
+                ? '✓ Sale logged — submit photos for processor approval before dispatching.'
+                : '✓ Sale logged — processor has been notified.';
+            msg.style.color = 'var(--green-primary)';
+            msg.style.display = '';
+            document.getElementById('sellMaterial').value  = '';
+            document.getElementById('sellProcessor').value = '';
+            document.getElementById('sellWeight').value    = '';
+            document.getElementById('sellPrice').value     = '';
+            document.getElementById('sellNotes').value     = '';
+            updatePhotoWarning();
+            loadPendingSales();
+        } else {
+            msg.textContent = data.message || 'Error logging sale.';
+            msg.style.color = 'var(--red)';
+            msg.style.display = '';
+        }
+    })
+    .catch(function() {
+        msg.textContent = 'Connection error. Please try again.';
+        msg.style.color = 'var(--red)';
+        msg.style.display = '';
+    });
+}
+
+function loadPendingSales() {
+    var aggId = state.operator.id;
+    fetch('/api/pending-transactions?aggregator_operator_id=' + aggId + '&type=aggregator_sale')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = document.getElementById('pendingSalesList');
+            var rows = data.pending_transactions || [];
+            if (!rows.length) {
+                list.innerHTML = '<div class="empty" style="padding:0 24px 16px">No pending sales.</div>';
+                return;
+            }
+            list.innerHTML = rows.map(function(pt) {
+                var proc = pt.processor_company || pt.processor_name || '—';
+                var kg   = parseFloat(pt.gross_weight_kg).toFixed(0);
+                var date = fmtDate(pt.created_at);
+                var dispatchHtml = pt.dispatch_approved
+                    ? '<span class="dispatch-ok">✓ Dispatch approved</span>'
+                    : '<span class="dispatch-pending">⏳ Awaiting approval</span>';
+                return '<div class="pending-sale-item">' +
+                    '<span class="badge badge-green">' + esc(pt.material_type) + '</span>' +
+                    '<span style="font-weight:600;font-size:0.9rem">' + esc(proc) + '</span>' +
+                    '<span class="pending-sale-meta">' + kg + ' kg</span>' +
+                    '<span class="pending-sale-meta">GH₵ ' + parseFloat(pt.price_per_kg || 0).toFixed(2) + '/kg</span>' +
+                    '<span class="pending-sale-meta">' + date + '</span>' +
+                    dispatchHtml +
+                    '</div>';
+            }).join('');
+        })
+        .catch(function() {
+            document.getElementById('pendingSalesList').innerHTML = '<div class="empty" style="padding:0 24px 16px">Could not load pending sales.</div>';
+        });
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
