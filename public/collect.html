@@ -9,7 +9,7 @@
     <title>Circul - Log Collection</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -37,7 +37,7 @@
         html { height: 100%; -webkit-text-size-adjust: 100%; }
 
         body {
-            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             color: var(--slate);
             background: var(--off-white);
             min-height: 100%;
@@ -417,14 +417,15 @@
 
         // ---- INIT ----
         function init() {
-            var saved = localStorage.getItem('circul_collector');
+            var saved = localStorage.getItem('circul_operator');
             if (saved) {
                 try {
                     state.collector = JSON.parse(saved);
+                    if (state.collector.role && state.collector.role !== 'collector') { state.collector = null; showScreen('auth'); return; }
                     showScreen('collect');
                     loadCollectorData();
                 } catch (e) {
-                    localStorage.removeItem('circul_collector');
+                    localStorage.removeItem('circul_operator');
                     showScreen('auth');
                 }
             } else {
@@ -454,8 +455,7 @@
             }
             if (name === 'collect') {
                 if (state.collector) {
-                    var fullName = state.collector.first_name;
-                    if (state.collector.last_name) fullName += ' ' + state.collector.last_name;
+                    var fullName = state.collector.name || ((state.collector.first_name || '') + (state.collector.last_name ? ' ' + state.collector.last_name : '')).trim();
                     document.getElementById('collector-name').textContent = fullName;
                 }
                 startGPS();
@@ -483,8 +483,13 @@
             setButtonLoading('login-btn', true); hideError('login');
             apiPost('/api/collectors/login', { phone: phone, pin: pin })
                 .then(function(data) {
-                    if (data.success) { state.collector = data.collector; localStorage.setItem('circul_collector', JSON.stringify(data.collector)); showScreen('collect'); loadCollectorData(); }
-                    else showError('login', data.message || 'Invalid phone or PIN.');
+                    if (data.success) {
+                        var c = data.collector;
+                        var op = { id: c.id, name: ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim(), phone: c.phone, role: 'collector', avg_rating: c.avg_rating || null };
+                        state.collector = op;
+                        localStorage.setItem('circul_operator', JSON.stringify(op));
+                        showScreen('collect'); loadCollectorData();
+                    } else showError('login', data.message || 'Invalid phone or PIN.');
                 })
                 .catch(function(err) { showError('login', err.message || 'Connection error.'); })
                 .finally(function() { setButtonLoading('login-btn', false); });
@@ -503,8 +508,13 @@
             setButtonLoading('register-btn', true); hideError('register');
             apiPost('/api/collectors', { first_name: first_name, last_name: last_name, phone: phone, pin: pin, region: region || undefined })
                 .then(function(data) {
-                    if (data.success) { state.collector = data.collector; localStorage.setItem('circul_collector', JSON.stringify(data.collector)); showScreen('collect'); loadCollectorData(); showToast('Account created! Welcome to Circul.'); }
-                    else showError('register', data.message || 'Registration failed.');
+                    if (data.success) {
+                        var c = data.collector;
+                        var op = { id: c.id, name: ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim(), phone: c.phone, role: 'collector', avg_rating: c.avg_rating || null };
+                        state.collector = op;
+                        localStorage.setItem('circul_operator', JSON.stringify(op));
+                        showScreen('collect'); loadCollectorData(); showToast('Account created! Welcome to Circul.');
+                    } else showError('register', data.message || 'Registration failed.');
                 })
                 .catch(function(err) { showError('register', err.message || 'Connection error.'); })
                 .finally(function() { setButtonLoading('register-btn', false); });
@@ -512,7 +522,7 @@
 
         window.handleLogout = function() {
             state.collector = null; state.selectedMaterial = null; state.gpsLat = null; state.gpsLng = null;
-            localStorage.removeItem('circul_collector'); stopGPS(); resetCollectionForm(); showScreen('auth');
+            localStorage.removeItem('circul_operator'); stopGPS(); resetCollectionForm(); showScreen('auth');
         };
 
         // ---- MATERIAL ----

@@ -1108,7 +1108,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { type, phone, pin, email, password } = req.body;
 
-    if (type === 'email' || email) {
+    if (email || type === 'email') {
       // Email path — admin_users first, then buyers (processor / converter)
       if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
 
@@ -1118,7 +1118,7 @@ app.post('/api/auth/login', async (req, res) => {
         [email.toLowerCase().trim()]
       );
 
-      // 2. Fall back to buyers table (processor / converter — possibly aggregator)
+      // 2. Fall back to buyers table (processor / converter)
       if (userResult.rows.length === 0) {
         userResult = await pool.query(
           `SELECT id, email, name, company, password_hash, role FROM buyers WHERE email = $1 AND is_active = true`,
@@ -1129,7 +1129,7 @@ app.post('/api/auth/login', async (req, res) => {
       if (userResult.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid credentials' });
       const user = userResult.rows[0];
 
-      // Guard: collector and aggregator accounts must use phone + PIN — block before password check
+      // Guard: only fires after DB lookup confirms role — collector/aggregator must use phone + PIN
       if (user.role === 'collector' || user.role === 'aggregator') {
         return res.status(403).json({
           error: 'collector_email_login',
@@ -1137,7 +1137,7 @@ app.post('/api/auth/login', async (req, res) => {
         });
       }
 
-      // Verify password only after role check
+      // Verify password — only reached for admin, processor, converter
       const valid = await verifyPassword(password, user.password_hash);
       if (!valid) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
@@ -1149,17 +1149,17 @@ app.post('/api/auth/login', async (req, res) => {
       // processor / converter from buyers table
       const token = generateToken({ type: 'buyer', id: user.id, email: user.email, role: user.role }, BUYER_SECRET);
       return res.json({ success: true, role: user.role, token, operator: { id: user.id, email: user.email, name: user.name, company: user.company || null, role: user.role } });
+    } else {
+      // Phone + PIN path — operators table covers all field roles
+      if (!phone || !pin) return res.status(400).json({ success: false, message: 'Phone and PIN required' });
+      const result = await pool.query(
+        `SELECT id, name, company, phone, role FROM operators WHERE phone = $1 AND pin = $2 AND is_active = true`,
+        [phone.trim(), pin.trim()]
+      );
+      if (result.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid phone number or PIN' });
+      const op = result.rows[0];
+      return res.json({ success: true, role: op.role, operator: op });
     }
-
-    // Phone + PIN path — operators table covers all field roles
-    if (!phone || !pin) return res.status(400).json({ success: false, message: 'Phone and PIN required' });
-    const result = await pool.query(
-      `SELECT id, name, company, phone, role FROM operators WHERE phone = $1 AND pin = $2 AND is_active = true`,
-      [phone.trim(), pin.trim()]
-    );
-    if (result.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid phone number or PIN' });
-    const op = result.rows[0];
-    return res.json({ success: true, role: op.role, operator: op });
   } catch (err) {
     console.error('Unified auth login error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
