@@ -1569,34 +1569,53 @@ app.get('/api/prices', async (req, res) => {
     let params = [buyerRoles, new Date().toISOString()];
     let whereExtra = '';
     if (material) { params.push(material.toUpperCase()); whereExtra += ` AND pp.material_type = $${params.length}`; }
+    // Mirror of whereExtra for the buyer_prices side of UNIONs (uses bp. prefix instead of pp.)
+    const bpWhereExtra = whereExtra.replace('pp.material_type', 'bp.material_type');
 
     let nearPrices = { rows: [] };
     if (city) {
       const nearParams = [...params, city];
       nearPrices = await pool.query(`
-        SELECT pp.*, o.name as operator_name, o.company, o.role as operator_role, o.city,
-               COALESCE((SELECT AVG(t.price_per_kg) FROM transactions t WHERE t.operator_id=pp.operator_id AND t.material_type=pp.material_type AND t.price_per_kg > 0 AND t.transaction_date >= NOW() - INTERVAL '30 days'), NULL) as actual_avg_price_30d
+        SELECT pp.material_type, pp.price_per_kg_ghs, pp.updated_at,
+               o.name as operator_name, o.role as operator_role, pp.city
         FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
         WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true AND pp.city = $${nearParams.length}${whereExtra}
-        ORDER BY pp.material_type, pp.price_per_kg_usd DESC
+        UNION ALL
+        SELECT bp.material_type, bp.price_per_kg as price_per_kg_ghs, bp.updated_at,
+               b.name as operator_name, b.role as operator_role, NULL as city
+        FROM buyer_prices bp JOIN buyers b ON b.id=bp.buyer_id
+        WHERE b.role = ANY($1) AND b.is_active=true${bpWhereExtra}
+        ORDER BY material_type, price_per_kg_ghs DESC
       `, nearParams);
     }
 
     const nationalAvg = await pool.query(`
-      SELECT pp.material_type,
-             AVG(pp.price_per_kg_usd) as avg_usd,
-             COUNT(DISTINCT pp.operator_id) as buyer_count
-      FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
-      WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true${material ? ` AND pp.material_type = $${params.length}` : ''}
-      GROUP BY pp.material_type ORDER BY pp.material_type
+      SELECT sub.material_type,
+             AVG(sub.price_ghs) as avg_usd,
+             COUNT(DISTINCT sub.buyer_id) as buyer_count
+      FROM (
+        SELECT pp.material_type, pp.price_per_kg_ghs as price_ghs, pp.operator_id as buyer_id
+        FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
+        WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true${material ? ` AND pp.material_type = $${params.length}` : ''}
+        UNION ALL
+        SELECT bp.material_type, bp.price_per_kg as price_ghs, b.id as buyer_id
+        FROM buyer_prices bp JOIN buyers b ON b.id=bp.buyer_id
+        WHERE b.role = ANY($1) AND b.is_active=true${material ? ` AND bp.material_type = $${params.length}` : ''}
+      ) sub
+      GROUP BY sub.material_type ORDER BY sub.material_type
     `, params);
 
     const allPrices = await pool.query(`
-      SELECT pp.*, o.name as operator_name, o.company, o.role as operator_role, o.city,
-             COALESCE((SELECT AVG(t.price_per_kg) FROM transactions t WHERE t.operator_id=pp.operator_id AND t.material_type=pp.material_type AND t.price_per_kg > 0 AND t.transaction_date >= NOW() - INTERVAL '30 days'), NULL) as actual_avg_price_30d
+      SELECT pp.material_type, pp.price_per_kg_ghs, pp.updated_at,
+             o.name as operator_name, o.role as operator_role, pp.city
       FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
       WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true${whereExtra}
-      ORDER BY pp.material_type, pp.price_per_kg_usd DESC
+      UNION ALL
+      SELECT bp.material_type, bp.price_per_kg as price_per_kg_ghs, bp.updated_at,
+             b.name as operator_name, b.role as operator_role, NULL as city
+      FROM buyer_prices bp JOIN buyers b ON b.id=bp.buyer_id
+      WHERE b.role = ANY($1) AND b.is_active=true${bpWhereExtra}
+      ORDER BY material_type, price_per_kg_ghs DESC
     `, params);
 
     res.json({
