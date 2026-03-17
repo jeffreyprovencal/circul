@@ -194,7 +194,7 @@
         <div class="card">
             <div class="card-header">
                 <span class="card-title">Post Your Buy Prices</span>
-                <span class="card-note">Prices in USD/kg. Enter xe.com rate for GHS equivalent. Active through end of month.</span>
+                <span class="card-note">Prices in GH₵/kg. Active through end of month.</span>
             </div>
             <div class="card-body">
                 <div class="price-cards" id="priceCards">
@@ -404,18 +404,16 @@ function renderPriceCards(prices) {
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     var html = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
-        var ghs = p && p.price_per_kg_ghs ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—';
-        var actual = p && p.actual_avg_price_30d ? 'Actual avg (30d): GHS ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : 'No actual data yet';
+        var current = p && p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : 'Not set';
+        var actual = p && p.actual_avg_price_30d ? 'Actual avg (30d): GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : 'No actual data yet';
         var updated = p ? 'Updated ' + fmtDate(p.posted_at) : '';
         return '<div class="price-card">' +
             '<div class="price-card-mat">' + mat + '</div>' +
             '<div class="price-card-current">' + current + '</div>' +
-            '<div class="price-card-sub">' + ghs + ' · ' + updated + '</div>' +
+            '<div class="price-card-sub">' + updated + '</div>' +
             '<div class="price-card-actual">' + actual + '</div>' +
             '<div class="price-input-row">' +
-            '<input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0">' +
-            '<input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px">' +
+            '<input type="number" class="price-input" id="price-ghs-' + mat + '" placeholder="GH₵ / kg" step="0.01" min="0">' +
             '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
@@ -423,13 +421,11 @@ function renderPriceCards(prices) {
 }
 
 function postPrice(mat) {
-    var usd = document.getElementById('price-usd-' + mat).value;
-    var rate = document.getElementById('price-rate-' + mat).value;
-    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
-    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    var ghs = document.getElementById('price-ghs-' + mat).value;
+    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) { if (data.success) { loadAll(); } else { alert(data.message); } });
