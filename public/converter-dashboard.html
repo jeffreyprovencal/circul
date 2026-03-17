@@ -52,11 +52,6 @@
         .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
         .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
         .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
-        .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 24px; width: fit-content; }
-        .tab { padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 0.9rem; font-weight: 500; color: var(--slate-light); border: none; background: none; font-family: inherit; transition: all 0.15s; }
-        .tab.active { background: var(--green-primary); color: white; font-weight: 600; }
-        .tab-panel { display: none; }
-        .tab-panel.active { display: block; }
         .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
         .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
         .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
@@ -72,6 +67,11 @@
         .badge-amber { background: var(--amber-light); color: #92400e; }
         .badge-gray { background: #f1f5f9; color: #475569; }
         .badge-blue { background: #dbeafe; color: #1e40af; }
+        .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 24px; width: fit-content; }
+        .tab { padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 0.9rem; font-weight: 500; color: var(--slate-light); border: none; background: none; font-family: inherit; transition: all 0.15s; }
+        .tab.active { background: var(--green-primary); color: white; font-weight: 600; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
         .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; overflow: hidden; }
         .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
         .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
@@ -83,7 +83,68 @@
         .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
         .dl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green-deep); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
         .dl-btn:hover { background: #0f3d22; }
-        @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .main { padding: 16px; } }
+
+        /* SHARED PANEL COMPONENTS */
+        .panel-subheader { padding: 10px 20px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); background: var(--off-white); border-bottom: 1px solid var(--border); }
+
+        /* ORDER FORM */
+        .cv-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+        .cv-form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+        .cv-label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 5px; }
+        .cv-input, .cv-select, .cv-textarea { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; background: var(--white); transition: border-color 0.15s; }
+        .cv-input:focus, .cv-select:focus, .cv-textarea:focus { border-color: var(--green-primary); }
+        .cv-textarea { resize: vertical; min-height: 56px; }
+        .cv-total-box { background: var(--green-wash); border: 1px solid var(--green-light); border-radius: 8px; padding: 10px 14px; font-family: 'Space Grotesk', sans-serif; font-size: 1rem; font-weight: 700; color: var(--green-deep); margin-bottom: 14px; display: none; }
+        .cv-total-sub { font-size: 0.75rem; font-weight: 400; color: var(--slate-light); margin-top: 2px; }
+        .cv-submit-btn { padding: 11px 28px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; margin-top: 4px; }
+        .cv-submit-btn:hover:not(:disabled) { background: #15803d; }
+        .cv-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .cv-msg { font-size: 0.82rem; margin-top: 8px; }
+
+        /* ORDER CARDS */
+        .order-card { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+        .order-card:last-child { border-bottom: none; }
+        .order-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+        .order-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.92rem; color: var(--green-deep); }
+        .order-price { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.88rem; color: var(--green-primary); margin-left: auto; }
+        .order-meta { font-size: 0.8rem; color: var(--slate-light); }
+        .order-specs { font-size: 0.8rem; color: var(--slate); margin-top: 5px; display: flex; flex-wrap: wrap; gap: 14px; }
+        .order-spec-item { display: flex; flex-direction: column; gap: 1px; }
+        .order-spec-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--slate-light); }
+        .order-spec-val { font-size: 0.8rem; color: var(--slate); }
+
+        /* DELIVERY CARDS */
+        .del-card { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+        .del-card:last-child { border-bottom: none; }
+        .del-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .del-title { font-weight: 600; font-size: 0.9rem; color: var(--green-deep); }
+        .del-meta { font-size: 0.82rem; color: var(--slate-light); }
+        .del-price { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.88rem; color: var(--green-deep); }
+        .del-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+        .btn-approve { padding: 8px 18px; background: var(--green-primary); color: white; border: none; border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+        .btn-approve:hover { background: #15803d; }
+        .btn-decline { padding: 8px 18px; background: transparent; color: var(--red); border: 1.5px solid var(--red); border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+        .btn-decline:hover { background: var(--red-wash); }
+        .btn-log-arrival { padding: 8px 18px; background: #1d4ed8; color: white; border: none; border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+        .btn-log-arrival:hover { background: #1e40af; }
+        .del-inline-form { background: #f8fafc; border-top: 1px solid var(--border); padding: 16px 20px; }
+        .di-label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 5px; }
+        .di-input, .di-textarea { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; background: var(--white); margin-bottom: 10px; transition: border-color 0.15s; }
+        .di-input:focus, .di-textarea:focus { border-color: var(--green-primary); }
+        .di-textarea { resize: vertical; min-height: 60px; }
+        .di-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .di-confirm { padding: 9px 20px; background: var(--green-primary); color: white; border: none; border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+        .di-confirm:hover:not(:disabled) { background: #15803d; }
+        .di-confirm:disabled { opacity: 0.55; cursor: not-allowed; }
+        .di-cancel { padding: 9px 14px; background: transparent; border: 1px solid var(--border); color: var(--slate-light); border-radius: 7px; font-size: 0.82rem; cursor: pointer; font-family: 'Space Grotesk', sans-serif; }
+        .di-cancel:hover { border-color: var(--slate); color: var(--slate); }
+        .di-msg { font-size: 0.82rem; margin-top: 8px; }
+
+        /* TOAST */
+        .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--green-deep); color: white; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; padding: 12px 24px; border-radius: 10px; z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,0.18); transition: opacity 0.3s; pointer-events: none; }
+        .toast.hidden { opacity: 0; }
+
+        @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .cv-form-grid { grid-template-columns: 1fr; } .cv-form-grid-3 { grid-template-columns: 1fr 1fr; } .main { padding: 16px; } }
     </style>
 </head>
 <body>
@@ -116,15 +177,107 @@
     </nav>
 
     <div class="main">
-        <!-- STATS -->
+
+        <!-- SECTION 3: SUMMARY STATS (top) -->
         <div class="stats-row">
-            <div class="stat-card"><div class="stat-label">Batches purchased</div><div class="stat-value" id="statTxns">—</div></div>
-            <div class="stat-card"><div class="stat-label">Total kg</div><div class="stat-value" id="statTotalKg">—</div></div>
-            <div class="stat-card"><div class="stat-label">Unique processors</div><div class="stat-value" id="statProcessors">—</div></div>
-            <div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value" id="statPending">—</div></div>
+            <div class="stat-card">
+                <div class="stat-label">Volume Received</div>
+                <div class="stat-value" id="statTotalKg">—</div>
+                <div class="stat-sub">kg lifetime</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Spent</div>
+                <div class="stat-value" id="statSpentGhs">—</div>
+                <div class="stat-sub">GHS</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Spent</div>
+                <div class="stat-value" id="statSpentUsd">—</div>
+                <div class="stat-sub">USD</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Open Orders</div>
+                <div class="stat-value" id="statOpenOrders">—</div>
+            </div>
         </div>
 
-        <!-- TABS -->
+        <!-- SECTION 1: PURCHASE ORDERS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Purchase Orders</span>
+                <button onclick="loadOrders()" style="padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:7px;font-family:'Space Grotesk',sans-serif;font-size:0.78rem;cursor:pointer;color:var(--slate)">↻ Refresh</button>
+            </div>
+
+            <!-- Panel A: Place a New Order -->
+            <div class="panel-subheader">Place a New Order</div>
+            <div class="card-body" style="border-bottom:1px solid var(--border)">
+                <div class="cv-form-grid">
+                    <div>
+                        <label class="cv-label">Material type</label>
+                        <input type="text" id="ord-material" class="cv-input" placeholder="e.g. PET Flake, Clear HDPE">
+                    </div>
+                    <div>
+                        <label class="cv-label">Target quantity (kg)</label>
+                        <input type="number" id="ord-qty" class="cv-input" placeholder="e.g. 5000" min="1" step="1" oninput="calcOrderTotal()">
+                    </div>
+                </div>
+                <div class="cv-form-grid">
+                    <div>
+                        <label class="cv-label">Price per kg (GHS)</label>
+                        <input type="number" id="ord-price" class="cv-input" placeholder="e.g. 6.50" min="0.01" step="0.01" oninput="calcOrderTotal()">
+                    </div>
+                    <div>
+                        <label class="cv-label">Max contamination %</label>
+                        <input type="number" id="ord-contam" class="cv-input" placeholder="e.g. 5" min="0" max="100" step="0.1">
+                    </div>
+                </div>
+                <div id="ord-total-box" class="cv-total-box">
+                    <div id="ord-total-ghs">—</div>
+                    <div id="ord-total-usd" class="cv-total-sub">—</div>
+                </div>
+                <div class="cv-form-grid">
+                    <div>
+                        <label class="cv-label">Accepted colours</label>
+                        <input type="text" id="ord-colours" class="cv-input" placeholder="e.g. Clear, Light Blue">
+                    </div>
+                    <div>
+                        <label class="cv-label">Excluded contaminants</label>
+                        <input type="text" id="ord-excl" class="cv-input" placeholder="e.g. PVC, Labels, Metal">
+                    </div>
+                </div>
+                <div style="margin-bottom:14px">
+                    <label class="cv-label">Notes <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
+                    <textarea id="ord-notes" class="cv-textarea" placeholder="e.g. Delivery location, urgency, packaging requirements…"></textarea>
+                </div>
+                <button class="cv-submit-btn" onclick="submitOrder()" id="ord-submit-btn">Place Order</button>
+                <div id="ord-msg" class="cv-msg"></div>
+            </div>
+
+            <!-- Panel B: Active & Past Orders -->
+            <div class="panel-subheader">Active &amp; Past Orders</div>
+            <div id="ordersList"><div class="empty">Loading…</div></div>
+        </div>
+
+        <!-- SECTION 2: INCOMING DELIVERIES -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Incoming Deliveries</span>
+                <button onclick="loadConverterQueue()" style="padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:7px;font-family:'Space Grotesk',sans-serif;font-size:0.78rem;cursor:pointer;color:var(--slate)">↻ Refresh</button>
+            </div>
+            <!-- Panel A: Pending Pre-Dispatch Review -->
+            <div class="panel-subheader">Pending Pre-Dispatch Review</div>
+            <div id="cvQueuePending"><div class="empty">Loading…</div></div>
+            <!-- Panel B: Approved — Awaiting Arrival -->
+            <div class="panel-subheader">Approved — Awaiting Arrival</div>
+            <div id="cvQueueApproved"><div class="empty">Loading…</div></div>
+            <!-- Panel C: Completed / Rejected -->
+            <div class="panel-subheader">Completed / Rejected</div>
+            <div id="cvQueueCompleted"><div class="empty">Loading…</div></div>
+        </div>
+
+        <div id="cvToast" class="toast hidden"></div>
+
+        <!-- EXISTING TABS -->
         <div class="tabs">
             <button class="tab active" onclick="showTab('supply', this)">Supply Chain</button>
             <button class="tab" onclick="showTab('prices', this)">Available Material</button>
@@ -143,7 +296,6 @@
                     <tbody id="supplyBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
                 </table>
             </div>
-            <!-- POST OWN PRICES -->
             <div class="card">
                 <div class="card-header"><span class="card-title">Post Your Buy Prices</span><span style="font-size:0.78rem;color:var(--slate-light)">For suppliers to see</span></div>
                 <div class="card-body"><div class="price-cards" id="priceCards"><div class="empty" style="grid-column:1/-1">Loading…</div></div></div>
@@ -176,15 +328,14 @@
         <div id="tab-ratings" class="tab-panel">
             <div class="card">
                 <div class="card-header"><span class="card-title">Rate Processors</span></div>
-                <div class="card-body">
-                    <div id="processorRatingsList"><div class="empty">Loading processors…</div></div>
-                </div>
+                <div class="card-body"><div id="processorRatingsList"><div class="empty">Loading processors…</div></div></div>
             </div>
             <div class="card">
                 <div class="card-header"><span class="card-title">Your Ratings Received</span></div>
                 <div class="card-body" id="ratingsReceived"><div class="empty">Loading…</div></div>
             </div>
         </div>
+
     </div>
 </div>
 
@@ -192,13 +343,17 @@
 var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
+var orders = [];
+var converterDeliveries = [];
+var activeConvDispatchId = null;
+var activeConvArrivalId = null;
+var cvToastTimer = null;
 
 function checkAuth() {
     var saved = localStorage.getItem('circul_operator');
     if (saved) {
         try {
             state.operator = JSON.parse(saved);
-            // Load token from separate key if not embedded in operator object
             var t = localStorage.getItem('circul_token');
             if (t && !state.operator.token) state.operator.token = t;
             if (state.operator.role !== 'converter') {
@@ -225,9 +380,7 @@ function showDashboard() {
         fetch('/api/operators/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.operator) {
-                    document.getElementById('navName').textContent = data.operator.company || data.operator.name || op.name || '';
-                }
+                if (data.operator) document.getElementById('navName').textContent = data.operator.company || data.operator.name || op.name || '';
             })
             .catch(function() {});
     }
@@ -246,10 +399,7 @@ function handleLogin(e) {
     .then(function(data) {
         if (data.success) {
             state.operator = data.operator;
-            if (data.token) {
-                state.operator.token = data.token;
-                localStorage.setItem('circul_token', data.token);
-            }
+            if (data.token) { state.operator.token = data.token; localStorage.setItem('circul_token', data.token); }
             localStorage.setItem('circul_operator', JSON.stringify(state.operator));
             if (data.operator.role !== 'converter') {
                 var route = ROLE_ROUTES[data.operator.role];
@@ -282,30 +432,378 @@ function loadAll() {
     var id = state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
+    // TODO: wire converter stats when endpoint returns total_value for converter transactions
     fetch('/api/buyers/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
             var s = data.stats;
-            document.getElementById('statTxns').textContent = s.totals.total_txns;
-            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg) + ' kg';
-            document.getElementById('statPending').textContent = fmt(s.pending_payments.value);
+            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg);
+            var ghs = parseFloat(s.totals.total_value || 0);
+            document.getElementById('statSpentGhs').textContent = fmt(ghs);
+            document.getElementById('statSpentUsd').textContent = '$' + fmt(ghs * 0.067);
             renderPriceCards(s.posted_prices);
         });
     loadTxns();
+    loadOrders();
+    loadConverterQueue();
 }
+
+// ── PURCHASE ORDERS ────────────────────────────────────────────────────────────
+
+function calcOrderTotal() {
+    var q = parseFloat(document.getElementById('ord-qty').value);
+    var p = parseFloat(document.getElementById('ord-price').value);
+    var box = document.getElementById('ord-total-box');
+    if (!isNaN(q) && q > 0 && !isNaN(p) && p > 0) {
+        var total = q * p;
+        document.getElementById('ord-total-ghs').textContent = 'Est. GH₵ ' + fmt(total) + ' total value';
+        document.getElementById('ord-total-usd').textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
+        box.style.display = '';
+    } else {
+        box.style.display = 'none';
+    }
+}
+
+function submitOrder() {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var msgEl = document.getElementById('ord-msg');
+    var btn   = document.getElementById('ord-submit-btn');
+    var material = document.getElementById('ord-material').value.trim();
+    var qty      = document.getElementById('ord-qty').value;
+    var price    = document.getElementById('ord-price').value;
+    var colours  = document.getElementById('ord-colours').value.trim();
+    var excl     = document.getElementById('ord-excl').value.trim();
+    var contam   = document.getElementById('ord-contam').value;
+    var notes    = document.getElementById('ord-notes').value.trim();
+
+    msgEl.textContent = '';
+    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = 'var(--red)'; return; }
+    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = 'var(--red)'; return; }
+
+    btn.disabled = true; btn.textContent = 'Placing…';
+    fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({
+            material_type:       material,
+            target_quantity_kg:  parseFloat(qty),
+            price_per_kg:        parseFloat(price),
+            accepted_colours:    colours || null,
+            excluded_contaminants: excl || null,
+            max_contamination_pct: contam !== '' && !isNaN(parseFloat(contam)) ? parseFloat(contam) : null,
+            notes:               notes || null
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            document.getElementById('ord-material').value = '';
+            document.getElementById('ord-qty').value      = '';
+            document.getElementById('ord-price').value    = '';
+            document.getElementById('ord-colours').value  = '';
+            document.getElementById('ord-excl').value     = '';
+            document.getElementById('ord-contam').value   = '';
+            document.getElementById('ord-notes').value    = '';
+            document.getElementById('ord-total-box').style.display = 'none';
+            msgEl.textContent = '';
+            showCvToast('Order placed successfully');
+            loadOrders();
+        } else {
+            msgEl.textContent = data.message || 'Error placing order.';
+            msgEl.style.color = 'var(--red)';
+        }
+    })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Place Order'; });
+}
+
+function loadOrders() {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/orders/my', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            orders = data.orders || [];
+            renderOrders();
+            // Update open orders stat
+            var open = orders.filter(function(o) { return o.status === 'open'; }).length;
+            document.getElementById('statOpenOrders').textContent = open;
+        })
+        .catch(function() {
+            var el = document.getElementById('ordersList');
+            if (el) el.innerHTML = '<div class="empty">Could not load orders.</div>';
+        });
+}
+
+function renderOrders() {
+    var el = document.getElementById('ordersList');
+    if (!el) return;
+    if (!orders.length) { el.innerHTML = '<div class="empty">No orders placed yet.</div>'; return; }
+    el.innerHTML = orders.map(function(o) {
+        var statusBadge = buildOrderStatusBadge(o.status);
+        var estTotal = parseFloat(o.target_quantity_kg) * parseFloat(o.price_per_kg);
+        var specs = [];
+        if (o.accepted_colours) specs.push({ label: 'Accepted colours', val: o.accepted_colours });
+        if (o.excluded_contaminants) specs.push({ label: 'Excluded', val: o.excluded_contaminants });
+        if (o.max_contamination_pct != null) specs.push({ label: 'Max contam.', val: o.max_contamination_pct + '%' });
+        var specsHtml = specs.length ? '<div class="order-specs">' + specs.map(function(s) {
+            return '<div class="order-spec-item"><span class="order-spec-label">' + esc(s.label) + '</span><span class="order-spec-val">' + esc(s.val) + '</span></div>';
+        }).join('') + '</div>' : '';
+        var notesHtml = o.notes ? '<div style="font-size:0.8rem;color:var(--slate-light);margin-top:5px">' + esc(o.notes) + '</div>' : '';
+        return '<div class="order-card">' +
+            '<div class="order-header">' +
+            '<span class="badge badge-blue">' + esc(o.material_type) + '</span>' +
+            '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
+            '<span class="order-meta">GH₵ ' + fmt(o.price_per_kg) + '/kg</span>' +
+            statusBadge +
+            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '</div>' +
+            specsHtml + notesHtml +
+            '<div style="font-size:0.75rem;color:var(--slate-light);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
+            '</div>';
+    }).join('');
+}
+
+function buildOrderStatusBadge(status) {
+    if (status === 'open')                return '<span class="badge badge-green">Open</span>';
+    if (status === 'partially_fulfilled') return '<span class="badge badge-blue">Partially Filled</span>';
+    if (status === 'fulfilled')           return '<span class="badge badge-green">Fulfilled</span>';
+    if (status === 'cancelled')           return '<span class="badge badge-gray">Cancelled</span>';
+    return '<span class="badge badge-gray">' + esc(status) + '</span>';
+}
+
+// ── INCOMING DELIVERIES ────────────────────────────────────────────────────────
+
+function loadConverterQueue() {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/converter-queue', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        converterDeliveries = data.pending_transactions || [];
+        var pending   = converterDeliveries.filter(function(d) { return d.status === 'pending'; });
+        var approved  = converterDeliveries.filter(function(d) { return d.status === 'dispatch_approved'; });
+        var completed = converterDeliveries.filter(function(d) {
+            return ['arrived', 'completed', 'dispatch_rejected'].indexOf(d.status) !== -1;
+        }).slice(0, 10);
+
+        document.getElementById('cvQueuePending').innerHTML  = pending.length  ? pending.map(buildConvPendingCard).join('')   : '<div class="empty">No deliveries awaiting review.</div>';
+        document.getElementById('cvQueueApproved').innerHTML = approved.length ? approved.map(buildConvApprovedCard).join('') : '<div class="empty">No deliveries awaiting arrival confirmation.</div>';
+        if (!completed.length) {
+            document.getElementById('cvQueueCompleted').innerHTML = '<div class="empty">No completed or rejected deliveries yet.</div>';
+        } else {
+            document.getElementById('cvQueueCompleted').innerHTML =
+                '<table><thead><tr>' +
+                '<th>Processor</th><th>Material</th><th>Weight</th><th>Total (GHS)</th><th>Total (USD)</th><th>Status</th><th>Date</th>' +
+                '</tr></thead><tbody>' + completed.map(buildConvCompletedRow).join('') + '</tbody></table>';
+        }
+    })
+    .catch(function() {
+        document.getElementById('cvQueuePending').innerHTML = '<div class="empty">Could not load deliveries.</div>';
+    });
+}
+
+function buildConvPendingCard(pt) {
+    var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
+    var hasPhotos = photos.length > 0;
+    var procName = esc(pt.processor_company || pt.processor_name || '—');
+    var photoHtml = hasPhotos
+        ? '<span class="badge badge-green">✓ ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
+        : '<span class="badge badge-amber">⚠ No photos</span>';
+    var photoWarn = !hasPhotos
+        ? '<div style="font-size:0.8rem;padding:7px 10px;background:var(--amber-light);color:#92400e;border-radius:6px;margin-top:8px">Photos required on all processor→converter deliveries. Approve for demo — real uploads coming.</div>'
+        : '';
+    return '<div class="del-card" id="cvdc-' + pt.id + '">' +
+        '<div class="del-row">' +
+        '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        '<span class="del-title">' + procName + '</span>' +
+        '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
+        '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
+        photoHtml +
+        '</div>' +
+        photoWarn +
+        '<div class="del-actions">' +
+        '<button class="btn-approve" onclick="openConvDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
+        '<button class="btn-decline" onclick="openConvDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
+        '</div>' +
+        '<div id="cvdispatch-form-' + pt.id + '" style="display:none"></div>' +
+        '</div>';
+}
+
+function buildConvApprovedCard(pt) {
+    var procName = esc(pt.processor_company || pt.processor_name || '—');
+    return '<div class="del-card" id="cvdc-arr-' + pt.id + '">' +
+        '<div class="del-row">' +
+        '<span class="badge badge-green">✓ Approved</span>' +
+        '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        '<span class="del-title">' + procName + '</span>' +
+        '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
+        '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
+        '</div>' +
+        '<div class="del-actions"><button class="btn-log-arrival" onclick="openConvArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
+        '<div id="cvarr-form-' + pt.id + '" style="display:none"></div>' +
+        '</div>';
+}
+
+function buildConvCompletedRow(pt) {
+    var procName = esc(pt.processor_company || pt.processor_name || '—');
+    var total = pt.total_price ? parseFloat(pt.total_price) : 0;
+    var statusBadge = (pt.status === 'arrived' || pt.status === 'completed')
+        ? '<span class="badge badge-green">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
+        : '<span class="badge" style="background:#fee2e2;color:#991b1b">Rejected</span>';
+    var rejNote = (pt.status === 'dispatch_rejected' && pt.rejection_reason)
+        ? '<div style="font-size:0.74rem;color:#991b1b;margin-top:2px">✗ ' + esc(pt.rejection_reason) + '</div>'
+        : '';
+    return '<tr>' +
+        '<td>' + procName + '</td>' +
+        '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
+        '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
+        '<td>GH₵ ' + fmt(total) + '</td>' +
+        '<td>$' + (total * 0.067).toFixed(0) + '</td>' +
+        '<td>' + statusBadge + (rejNote ? '<br>' + rejNote : '') + '</td>' +
+        '<td>' + fmtDate(pt.created_at) + '</td>' +
+        '</tr>';
+}
+
+function openConvDispatchForm(ptId, type) {
+    var formEl = document.getElementById('cvdispatch-form-' + ptId);
+    if (activeConvDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
+        formEl.style.display = 'none'; activeConvDispatchId = null; return;
+    }
+    if (activeConvDispatchId && activeConvDispatchId !== ptId) {
+        var prev = document.getElementById('cvdispatch-form-' + activeConvDispatchId);
+        if (prev) prev.style.display = 'none';
+    }
+    activeConvDispatchId = ptId;
+    formEl.dataset.formType = type;
+
+    if (type === 'approve') {
+        formEl.innerHTML = '<div class="del-inline-form">' +
+            '<div class="di-actions">' +
+            '<button class="di-confirm" onclick="submitConvDispatchDecision(' + ptId + ',\'approve\')">✓ Confirm Dispatch Approval</button>' +
+            '<button class="di-cancel" onclick="cancelConvDispatchForm(' + ptId + ')">Cancel</button>' +
+            '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
+    } else {
+        formEl.innerHTML = '<div class="del-inline-form">' +
+            '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
+            '<textarea class="di-textarea" id="cvreject-reason-' + ptId + '" placeholder="Describe the issue…" rows="2"></textarea>' +
+            '<div class="di-actions">' +
+            '<button class="di-confirm" style="background:var(--red)" onclick="submitConvDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-cancel" onclick="cancelConvDispatchForm(' + ptId + ')">Cancel</button>' +
+            '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
+    }
+    formEl.style.display = '';
+}
+
+function cancelConvDispatchForm(ptId) {
+    var f = document.getElementById('cvdispatch-form-' + ptId);
+    if (f) f.style.display = 'none';
+    if (activeConvDispatchId === ptId) activeConvDispatchId = null;
+}
+
+function submitConvDispatchDecision(ptId, decision) {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var msgEl = document.getElementById('cvdisp-msg-' + ptId);
+    var body = { decision: decision };
+    if (decision === 'reject') {
+        var reason = document.getElementById('cvreject-reason-' + ptId).value.trim();
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = 'var(--red)'; return; }
+        body.rejection_reason = reason;
+    }
+    fetch('/api/pending-transactions/' + ptId + '/converter-dispatch-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { activeConvDispatchId = null; loadConverterQueue(); }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+    })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+}
+
+function openConvArrivalForm(ptId) {
+    var formEl = document.getElementById('cvarr-form-' + ptId);
+    if (activeConvArrivalId === ptId && formEl.style.display !== 'none') {
+        formEl.style.display = 'none'; activeConvArrivalId = null; return;
+    }
+    if (activeConvArrivalId && activeConvArrivalId !== ptId) {
+        var prev = document.getElementById('cvarr-form-' + activeConvArrivalId);
+        if (prev) prev.style.display = 'none';
+    }
+    activeConvArrivalId = ptId;
+    var pt = converterDeliveries.find(function(d) { return d.id === ptId; });
+    var origWeight = pt ? parseFloat(pt.gross_weight_kg).toFixed(1) : '';
+
+    formEl.innerHTML = '<div class="del-inline-form">' +
+        '<div style="margin-bottom:12px"><label class="di-label">Actual weight received (kg)</label>' +
+        '<input type="number" class="di-input" id="cvarr-weight-' + ptId + '" value="' + esc(String(origWeight)) + '" min="0.1" step="0.1" style="max-width:220px;margin-bottom:0"></div>' +
+        '<div class="di-actions">' +
+        '<button class="di-confirm" onclick="submitConvArrival(' + ptId + ')">Confirm Arrival</button>' +
+        '<button class="di-cancel" onclick="cancelConvArrivalForm(' + ptId + ')">Cancel</button>' +
+        '</div><div class="di-msg" id="cvarr-msg-' + ptId + '"></div>' +
+        '</div>';
+    formEl.style.display = '';
+}
+
+function cancelConvArrivalForm(ptId) {
+    var f = document.getElementById('cvarr-form-' + ptId);
+    if (f) f.style.display = 'none';
+    if (activeConvArrivalId === ptId) activeConvArrivalId = null;
+}
+
+function submitConvArrival(ptId) {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var msgEl = document.getElementById('cvarr-msg-' + ptId);
+    var weight = document.getElementById('cvarr-weight-' + ptId).value;
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = 'var(--red)'; return; }
+    fetch('/api/pending-transactions/' + ptId + '/converter-arrival', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ actual_weight_kg: parseFloat(weight) })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) { activeConvArrivalId = null; loadConverterQueue(); loadAll(); }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+    })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+}
+
+function showCvToast(msg) {
+    var el = document.getElementById('cvToast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    if (cvToastTimer) clearTimeout(cvToastTimer);
+    cvToastTimer = setTimeout(function() { el.classList.add('hidden'); }, 3500);
+}
+
+function timeAgo(iso) {
+    if (!iso) return '—';
+    var diff = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.floor(hrs / 24) + 'd ago';
+}
+
+// ── EXISTING TABS FUNCTIONS ────────────────────────────────────────────────────
 
 function loadTxns() {
     fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=30')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var tbody = document.getElementById('supplyBody');
-            // Count unique processors
-            var uniqueProcs = new Set();
-            if (data.success && data.transactions) {
-                data.transactions.forEach(function(t) { if (t.operator_id) uniqueProcs.add(t.operator_id); });
-                document.getElementById('statProcessors').textContent = uniqueProcs.size;
-            }
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
                 var sc = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
@@ -325,11 +823,23 @@ function loadProcessorPrices() {
             var el = document.getElementById('processorPrices');
             var all = data.all_prices || [];
             if (!all.length) { el.innerHTML = '<div class="empty">No processor prices posted yet</div>'; return; }
-            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Price</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Processor</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">City</th><th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actual avg</th></tr></thead><tbody>' +
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
+                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th>' +
+                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Price</th>' +
+                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Processor</th>' +
+                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">City</th>' +
+                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actual avg</th>' +
+                '</tr></thead><tbody>' +
                 all.map(function(p) {
                     var ghsLine = p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : '—';
                     var usdLine = p.price_per_kg_ghs ? '<div style="font-size:0.72rem;color:var(--slate-light)">≈ $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD</div>' : '';
-                    return '<tr><td style="padding:10px 0;font-weight:600">' + p.material_type + '</td><td style="padding:10px 0;color:var(--green-primary);font-weight:600">' + ghsLine + usdLine + '</td><td style="padding:10px 0">' + esc(p.operator_name || '—') + '</td><td style="padding:10px 0">' + esc(p.city || '—') + '</td><td style="padding:10px 0;color:var(--slate-light)">' + (p.actual_avg_price_30d ? 'GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td></tr>';
+                    return '<tr>' +
+                        '<td style="padding:10px 0;font-weight:600">' + p.material_type + '</td>' +
+                        '<td style="padding:10px 0;color:var(--green-primary);font-weight:600">' + ghsLine + usdLine + '</td>' +
+                        '<td style="padding:10px 0">' + esc(p.operator_name || '—') + '</td>' +
+                        '<td style="padding:10px 0">' + esc(p.city || '—') + '</td>' +
+                        '<td style="padding:10px 0;color:var(--slate-light)">' + (p.actual_avg_price_30d ? 'GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td>' +
+                        '</tr>';
                 }).join('') + '</tbody></table>';
         });
 }
@@ -340,7 +850,12 @@ function loadTxnCerts() {
         .then(function(data) {
             var el = document.getElementById('txnCerts');
             if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
-            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Date</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">kg</th><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actions</th></tr></thead><tbody>' +
+            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
+                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Date</th>' +
+                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th>' +
+                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">kg</th>' +
+                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actions</th>' +
+                '</tr></thead><tbody>' +
                 data.transactions.map(function(t) {
                     return '<tr><td style="padding:10px 0">' + fmtDate(t.transaction_date) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + t.material_type + '</span></td><td style="padding:10px 0">' + fmt(t.net_weight_kg) + ' kg</td><td style="padding:10px 0"><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--green-primary);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
                 }).join('') + '</tbody></table>';

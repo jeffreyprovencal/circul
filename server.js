@@ -1645,6 +1645,179 @@ app.get('/api/pending-transactions/processor-sales', requireBuyer, async (req, r
 });
 
 // ============================================
+// ORDERS API — CONVERTER PURCHASE ORDERS
+// ============================================
+
+// POST /api/orders — converter places a new purchase order
+app.post('/api/orders', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'converter') {
+      return res.status(403).json({ success: false, message: 'Converter access only' });
+    }
+    const { material_type, target_quantity_kg, price_per_kg, accepted_colours, excluded_contaminants, max_contamination_pct, notes } = req.body;
+    if (!material_type || !target_quantity_kg || !price_per_kg) {
+      return res.status(400).json({ success: false, message: 'material_type, target_quantity_kg, price_per_kg required' });
+    }
+    const qty   = parseFloat(target_quantity_kg);
+    const price = parseFloat(price_per_kg);
+    if (isNaN(qty)   || qty   <= 0) return res.status(400).json({ success: false, message: 'Invalid target_quantity_kg' });
+    if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price_per_kg' });
+    const result = await pool.query(
+      `INSERT INTO orders
+         (converter_id, material_type, target_quantity_kg, price_per_kg,
+          accepted_colours, excluded_contaminants, max_contamination_pct,
+          status, fulfilled_kg, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', 0, $8)
+       RETURNING *`,
+      [req.buyer.id, material_type, qty, price,
+       accepted_colours || null, excluded_contaminants || null,
+       max_contamination_pct != null && max_contamination_pct !== '' ? parseFloat(max_contamination_pct) : null,
+       notes || null]
+    );
+    res.status(201).json({ success: true, order: result.rows[0] });
+  } catch (err) {
+    console.error('Create order error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/orders/my — converter's own orders, newest first, last 20
+app.get('/api/orders/my', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'converter') {
+      return res.status(403).json({ success: false, message: 'Converter access only' });
+    }
+    const result = await pool.query(
+      `SELECT * FROM orders WHERE converter_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      [req.buyer.id]
+    );
+    res.json({ success: true, orders: result.rows });
+  } catch (err) {
+    console.error('Get my orders error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// CONVERTER QUEUE — INCOMING DELIVERIES
+// ============================================
+
+// GET /api/pending-transactions/converter-queue
+// Returns all processor_sale rows for this converter, JOINs processor company name
+app.get('/api/pending-transactions/converter-queue', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'converter') {
+      return res.status(403).json({ success: false, message: 'Converter access only' });
+    }
+    const result = await pool.query(
+      `SELECT pt.*,
+              p.name    AS processor_name,
+              p.company AS processor_company
+       FROM pending_transactions pt
+       LEFT JOIN buyers p ON p.id = pt.processor_buyer_id
+       WHERE pt.transaction_type = 'processor_sale'
+         AND pt.converter_buyer_id = $1
+       ORDER BY pt.created_at DESC`,
+      [req.buyer.id]
+    );
+    res.json({ success: true, pending_transactions: result.rows });
+  } catch (err) {
+    console.error('Converter queue error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/pending-transactions/:id/converter-dispatch-decision
+// Converter approves or rejects a pending processor_sale delivery
+app.post('/api/pending-transactions/:id/converter-dispatch-decision', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'converter') {
+      return res.status(403).json({ success: false, message: 'Converter access only' });
+    }
+    const { id } = req.params;
+    const { decision, rejection_reason } = req.body;
+    if (!decision || !['approve', 'reject'].includes(decision)) {
+      return res.status(400).json({ success: false, message: 'decision must be approve or reject' });
+    }
+    const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id = $1`, [id]);
+    if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    const pt = ptResult.rows[0];
+    if (parseInt(pt.converter_buyer_id) !== parseInt(req.buyer.id)) {
+      return res.status(403).json({ success: false, message: 'Not your delivery' });
+    }
+    if (pt.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Delivery is not in pending status' });
+    }
+    if (decision === 'reject') {
+      if (!rejection_reason || !rejection_reason.trim()) {
+        return res.status(400).json({ success: false, message: 'rejection_reason required when rejecting' });
+      }
+      const updated = await pool.query(
+        `UPDATE pending_transactions
+         SET status = 'dispatch_rejected', rejection_reason = $1, updated_at = NOW()
+         WHERE id = $2 RETURNING *`,
+        [rejection_reason.trim(), id]
+      );
+      return res.json({ success: true, pending_transaction: updated.rows[0] });
+    }
+    const updated = await pool.query(
+      `UPDATE pending_transactions SET status = 'dispatch_approved', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    res.json({ success: true, pending_transaction: updated.rows[0] });
+  } catch (err) {
+    console.error('Converter dispatch decision error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/pending-transactions/:id/converter-arrival
+// Converter confirms delivery arrived, logs actual weight, writes to transactions ledger
+app.post('/api/pending-transactions/:id/converter-arrival', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'converter') {
+      return res.status(403).json({ success: false, message: 'Converter access only' });
+    }
+    const { id } = req.params;
+    const { actual_weight_kg } = req.body;
+    const kg = parseFloat(actual_weight_kg);
+    if (!actual_weight_kg || isNaN(kg) || kg <= 0) {
+      return res.status(400).json({ success: false, message: 'Valid actual_weight_kg required' });
+    }
+    const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id = $1`, [id]);
+    if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    const pt = ptResult.rows[0];
+    if (parseInt(pt.converter_buyer_id) !== parseInt(req.buyer.id)) {
+      return res.status(403).json({ success: false, message: 'Not your delivery' });
+    }
+    if (pt.status !== 'dispatch_approved') {
+      return res.status(400).json({ success: false, message: 'Delivery must be in dispatch_approved status' });
+    }
+    const totalPrice = kg * parseFloat(pt.price_per_kg);
+    const updatedPt = await pool.query(
+      `UPDATE pending_transactions
+       SET status = 'arrived', gross_weight_kg = $1, total_price = $2, updated_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [kg, totalPrice, id]
+    );
+    await pool.query(
+      `INSERT INTO transactions
+         (processor_id, converter_id, material_type,
+          gross_weight_kg, net_weight_kg, contamination_deduction_percent,
+          price_per_kg, total_price, payment_status, notes)
+       VALUES ($1, $2, $3, $4, $4, 0, $5, $6, 'unpaid', $7)`,
+      [pt.processor_buyer_id, req.buyer.id, pt.material_type,
+       kg, pt.price_per_kg, totalPrice,
+       'From pending transaction #' + id]
+    );
+    res.json({ success: true, pending_transaction: updatedPt.rows[0] });
+  } catch (err) {
+    console.error('Converter arrival error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
 // ADMIN AUTH + BUYERS + PRICES
 // ============================================
 
