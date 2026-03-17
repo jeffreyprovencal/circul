@@ -578,10 +578,16 @@
       identifier.dispatchEvent(new Event('input'));
     }
 
-    function fillDemoEmail(email, password) {
-      setMode('email');
-      document.getElementById('identifier').value = email;
-      document.getElementById('password').value = password;
+    function fillDemoEmail(email, pw) {
+      // 1. Set identifier value (@ triggers email mode via input event)
+      identifier.value = email;
+      // 2. Dispatch 'input' to fire the mode-switch logic (detects '@' → setMode('email'))
+      identifier.dispatchEvent(new Event('input'));
+      // 3. After the password field is revealed, fill it in
+      setTimeout(function () {
+        var pwField = document.getElementById('password');
+        if (pwField) pwField.value = pw;
+      }, 100);
     }
 
     /* ── Demo banner ──────────────────────────── */

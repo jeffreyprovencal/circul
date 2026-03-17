@@ -582,16 +582,12 @@
         return;
       }
 
-      // Hydrate identity immediately from session (avoids flash of blank)
+      // Hydrate name and phone immediately from session (avoids flash of blank)
+      // passportId and passportLink are set in loadAll() after resolving collectors.id from phone
       if (session.name)  document.getElementById('collectorName').textContent = session.name;
       if (session.phone) {
         document.getElementById('collectorPhone').textContent = session.phone;
         document.getElementById('passportPhone').textContent = session.phone;
-      }
-      if (session.id) {
-        var cid = 'CIR-' + String(session.id).padStart(5, '0');
-        document.getElementById('passportId').textContent = cid;
-        document.getElementById('passportLink').href = '/report.html?id=' + session.id;
       }
       if (session.avg_rating) {
         var r = parseFloat(session.avg_rating).toFixed(1);
@@ -616,30 +612,10 @@
 
     /* ── LOAD ALL ────────────────────────────────── */
     function loadAll() {
-      var id = session.id;
+      // Start prices fetch immediately (not dependent on collector ID resolution)
+      var pricesP = apiFetch('/api/prices?role=collector').catch(function () { return null; });
 
-      var profileP  = apiFetch('/api/collectors/' + id).catch(function () { return null; });
-      var txnsP     = apiFetch('/api/transactions?collector_id=' + id).catch(function () { return null; });
-      var pricesP   = apiFetch('/api/prices?role=collector').catch(function () { return null; });
-
-      Promise.all([profileP, txnsP, pricesP]).then(function (results) {
-        var profileData = results[0];
-        var txnsData    = results[1];
-        var pricesData  = results[2];
-
-        if (profileData && profileData.success && profileData.collector) {
-          populateProfile(profileData.collector);
-        }
-
-        if (txnsData && txnsData.success) {
-          var txns = txnsData.transactions || [];
-          populateStats(txns);
-          populateTxns(txns);
-        } else {
-          document.getElementById('txnBody').innerHTML =
-            '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
-        }
-
+      pricesP.then(function (pricesData) {
         if (pricesData && pricesData.success) {
           populatePrices(pricesData.prices || []);
         } else {
@@ -647,6 +623,56 @@
             '<div class="prices-empty" style="grid-column:1/-1">Prices unavailable right now</div>';
         }
       });
+
+      // Resolve the collector's actual collectors.id from their phone number.
+      // session.id is operators.id — not the same as collectors.id.
+      // Use GET /api/collectors?phone= to find the matching row.
+      if (!session.phone) {
+        document.getElementById('txnBody').innerHTML =
+          '<tr><td colspan="5" class="txn-empty">Account error — please sign in again</td></tr>';
+        return;
+      }
+
+      apiFetch('/api/collectors?phone=' + encodeURIComponent(session.phone))
+        .then(function (data) {
+          var collectorRow = data && data.collectors && data.collectors[0];
+          if (!collectorRow) {
+            document.getElementById('txnBody').innerHTML =
+              '<tr><td colspan="5" class="txn-empty">No collector record found for this account</td></tr>';
+            return;
+          }
+
+          var collectorId = collectorRow.id;
+
+          // Now set the correct passport ID and link using collectors.id
+          document.getElementById('passportId').textContent = 'CIR-' + String(collectorId).padStart(5, '0');
+          document.getElementById('passportLink').href = '/report.html?id=' + collectorId;
+
+          // Populate profile from the collector row (has name, phone, region, rating, etc.)
+          collectorRow.name = collectorRow.name || ((collectorRow.first_name || '') + (collectorRow.last_name ? ' ' + collectorRow.last_name : '')).trim();
+          populateProfile(collectorRow);
+
+          // Fetch transactions using the resolved collectors.id
+          apiFetch('/api/transactions?collector_id=' + collectorId)
+            .then(function (txnsData) {
+              if (txnsData && txnsData.success) {
+                var txns = txnsData.transactions || [];
+                populateStats(txns);
+                populateTxns(txns);
+              } else {
+                document.getElementById('txnBody').innerHTML =
+                  '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
+              }
+            })
+            .catch(function () {
+              document.getElementById('txnBody').innerHTML =
+                '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
+            });
+        })
+        .catch(function () {
+          document.getElementById('txnBody').innerHTML =
+            '<tr><td colspan="5" class="txn-empty">Failed to load. Please refresh.</td></tr>';
+        });
     }
 
     /* ── POPULATE PROFILE ────────────────────────── */

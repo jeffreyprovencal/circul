@@ -85,19 +85,51 @@ app.post('/api/collectors/login', async (req, res) => {
 // List collectors (for operator)
 app.get('/api/collectors', async (req, res) => {
   try {
+    const { phone } = req.query;
+    const params = [];
+    let whereExtra = '';
+    if (phone) {
+      params.push(phone.trim());
+      whereExtra = ' AND c.phone = $1';
+    }
     const result = await pool.query(
-      `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.average_rating, c.created_at,
+      `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.average_rating, c.created_at, c.is_active,
         COALESCE(SUM(t.net_weight_kg), 0) as total_weight_kg,
         COUNT(t.id) as transaction_count
        FROM collectors c
        LEFT JOIN transactions t ON t.collector_id = c.id
-       WHERE c.is_active = true
+       WHERE c.is_active = true${whereExtra}
        GROUP BY c.id
-       ORDER BY c.average_rating DESC NULLS LAST, c.created_at DESC`
+       ORDER BY c.average_rating DESC NULLS LAST, c.created_at DESC`,
+      params
     );
     res.json({ success: true, collectors: result.rows });
   } catch (err) {
     console.error('Error listing collectors:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET single collector by collectors.id
+app.get('/api/collectors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.average_rating, c.created_at, c.is_active,
+        COALESCE(SUM(t.net_weight_kg), 0) as total_weight_kg,
+        COUNT(t.id) as transaction_count
+       FROM collectors c
+       LEFT JOIN transactions t ON t.collector_id = c.id
+       WHERE c.id = $1
+       GROUP BY c.id`,
+      [parseInt(id)]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Collector not found' });
+    const c = result.rows[0];
+    c.name = ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim();
+    return res.json({ success: true, collector: c });
+  } catch (err) {
+    console.error('Error fetching collector:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
