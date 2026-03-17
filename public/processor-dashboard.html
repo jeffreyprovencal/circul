@@ -67,11 +67,12 @@
         .badge-amber { background: var(--amber-light); color: #92400e; }
         .badge-gray { background: #f1f5f9; color: #475569; }
         .badge-blue { background: #dbeafe; color: #1e40af; }
-        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .price-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; overflow: hidden; }
         .price-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
         .price-card-mat { font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
-        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 8px; }
-        .price-input-row { display: flex; gap: 6px; }
+        .price-card-current { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--green-primary); margin-bottom: 2px; }
+        .price-card-usd { font-size: 0.72rem; color: var(--slate-light); margin-bottom: 10px; }
+        .price-input-row { display: flex; gap: 6px; overflow: hidden; flex-wrap: wrap; }
         .price-input { flex: 1; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; }
         .price-input:focus { border-color: var(--green-primary); }
         .price-post-btn { padding: 8px 14px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
@@ -320,26 +321,25 @@ function renderPriceCards(prices) {
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p ? '$' + parseFloat(p.price_per_kg_usd).toFixed(4) : 'Not set';
+        var current = p && p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : 'Not set';
+        var usdLine = p && p.price_per_kg_ghs ? '≈ $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD' : '';
         return '<div class="price-card">' +
             '<div class="price-card-mat">' + mat + '</div>' +
             '<div class="price-card-current">' + current + '</div>' +
+            '<div class="price-card-usd">' + usdLine + '</div>' +
             '<div class="price-input-row">' +
-            '<input type="number" class="price-input" id="price-usd-' + mat + '" placeholder="USD/kg" step="0.0001" min="0">' +
-            '<input type="number" class="price-input" id="price-rate-' + mat + '" placeholder="Rate" step="0.01" min="0" style="width:70px">' +
+            '<input type="number" class="price-input" id="price-ghs-' + mat + '" placeholder="GH₵ / kg" step="0.01" min="0">' +
             '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
 }
 
 function postPrice(mat) {
-    var usd = document.getElementById('price-usd-' + mat).value;
-    var rate = document.getElementById('price-rate-' + mat).value;
-    if (!usd || parseFloat(usd) <= 0) { alert('Enter a valid USD price'); return; }
-    var ghs = (rate && parseFloat(rate) > 0) ? (parseFloat(usd) * parseFloat(rate)).toFixed(2) : null;
+    var ghs = document.getElementById('price-ghs-' + mat).value;
+    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_usd: parseFloat(usd), price_per_kg_ghs: ghs ? parseFloat(ghs) : null, usd_to_ghs_rate: rate ? parseFloat(rate) : null })
+        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
     }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
 }
 
