@@ -467,7 +467,7 @@ app.get('/api/collectors/:id/stats', async (req, res) => {
        WHERE r.collector_id = $1
        ORDER BY r.created_at DESC LIMIT 10`,
       [id]
-    );
+    ).catch(() => ({ rows: [] }));
 
     res.json({
       success: true,
@@ -1584,7 +1584,7 @@ app.get('/api/prices', async (req, res) => {
         SELECT bp.material_type, bp.price_per_kg as price_per_kg_ghs, bp.updated_at,
                b.name as operator_name, b.role as operator_role, NULL as city
         FROM buyer_prices bp JOIN buyers b ON b.id=bp.buyer_id
-        WHERE b.role = ANY($1) AND b.is_active=true${bpWhereExtra}
+        WHERE b.role IN ('aggregator', 'processor', 'converter') AND b.is_active=true${bpWhereExtra}
         ORDER BY material_type, price_per_kg_ghs DESC
       `, nearParams);
     }
@@ -1600,7 +1600,7 @@ app.get('/api/prices', async (req, res) => {
         UNION ALL
         SELECT bp.material_type, bp.price_per_kg as price_ghs, b.id as buyer_id
         FROM buyer_prices bp JOIN buyers b ON b.id=bp.buyer_id
-        WHERE b.role = ANY($1) AND b.is_active=true${material ? ` AND bp.material_type = $${params.length}` : ''}
+        WHERE b.role IN ('aggregator', 'processor', 'converter') AND b.is_active=true${material ? ` AND bp.material_type = $${params.length}` : ''}
       ) sub
       GROUP BY sub.material_type ORDER BY sub.material_type
     `, params);
@@ -1614,7 +1614,7 @@ app.get('/api/prices', async (req, res) => {
       SELECT bp.material_type, bp.price_per_kg as price_per_kg_ghs, bp.updated_at,
              b.name as operator_name, b.role as operator_role, NULL as city
       FROM buyer_prices bp JOIN buyers b ON b.id=bp.buyer_id
-      WHERE b.role = ANY($1) AND b.is_active=true${bpWhereExtra}
+      WHERE b.role IN ('aggregator', 'processor', 'converter') AND b.is_active=true${bpWhereExtra}
       ORDER BY material_type, price_per_kg_ghs DESC
     `, params);
 
