@@ -1517,6 +1517,63 @@ app.get('/api/operators/:id/dashboard-stats', async (req, res) => {
   }
 });
 
+// GET /api/buyers/:id/stats — returns dashboard stats for a buyer (processor or converter)
+app.get('/api/buyers/:id/stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const buyerResult = await pool.query(
+      `SELECT id, name, company, email, role FROM buyers WHERE id = $1 AND is_active = true`,
+      [id]
+    );
+    if (!buyerResult.rows.length) return res.status(404).json({ success: false, message: 'Buyer not found' });
+    const buyer = buyerResult.rows[0];
+
+    // Processors appear in transactions via processor_id; converters via converter_id
+    const idCol = buyer.role === 'converter' ? 'converter_id' : 'processor_id';
+
+    const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0, 0, 0, 0);
+
+    const [totals, monthlyTotals, byMaterial, recentTxns, buyerPrices] = await Promise.all([
+      pool.query(
+        `SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM transactions WHERE ${idCol} = $1`,
+        [id]
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(net_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM transactions WHERE ${idCol} = $1 AND transaction_date >= $2`,
+        [id, thisMonth.toISOString()]
+      ),
+      pool.query(
+        `SELECT material_type, SUM(net_weight_kg) as kg, COUNT(*) as txns FROM transactions WHERE ${idCol} = $1 GROUP BY material_type ORDER BY kg DESC`,
+        [id]
+      ),
+      pool.query(
+        `SELECT * FROM transactions WHERE ${idCol} = $1 ORDER BY transaction_date DESC LIMIT 20`,
+        [id]
+      ),
+      pool.query(
+        `SELECT material_type, price_per_kg AS price_per_kg_ghs, updated_at FROM buyer_prices WHERE buyer_id = $1 ORDER BY material_type`,
+        [id]
+      )
+    ]);
+
+    res.json({
+      success: true,
+      buyer,
+      stats: {
+        totals: totals.rows[0],
+        this_month: monthlyTotals.rows[0],
+        pending_payments: { count: 0, value: 0 },
+        by_material: byMaterial.rows,
+        posted_prices: buyerPrices.rows,
+        recent_transactions: recentTxns.rows
+      }
+    });
+  } catch (err) {
+    console.error('Buyer stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ============================================
 // POSTED PRICES API
 // ============================================

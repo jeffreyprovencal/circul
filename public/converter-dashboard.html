@@ -198,6 +198,9 @@ function checkAuth() {
     if (saved) {
         try {
             state.operator = JSON.parse(saved);
+            // Load token from separate key if not embedded in operator object
+            var t = localStorage.getItem('circul_token');
+            if (t && !state.operator.token) state.operator.token = t;
             if (state.operator.role !== 'converter') {
                 var route = ROLE_ROUTES[state.operator.role];
                 if (route) { window.location.href = route; return; }
@@ -243,7 +246,11 @@ function handleLogin(e) {
     .then(function(data) {
         if (data.success) {
             state.operator = data.operator;
-            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
+            if (data.token) {
+                state.operator.token = data.token;
+                localStorage.setItem('circul_token', data.token);
+            }
+            localStorage.setItem('circul_operator', JSON.stringify(state.operator));
             if (data.operator.role !== 'converter') {
                 var route = ROLE_ROUTES[data.operator.role];
                 if (route) { window.location.href = route; return; }
@@ -273,7 +280,9 @@ function showTab(tab, el) {
 
 function loadAll() {
     var id = state.operator.id;
-    fetch('/api/operators/' + id + '/dashboard-stats')
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
+    fetch('/api/buyers/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;

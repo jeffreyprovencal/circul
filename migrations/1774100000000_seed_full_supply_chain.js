@@ -232,6 +232,13 @@ module.exports = {
       }
     }
 
+    // Update processor_id on agg→proc rows by parsing the notes field
+    await client.query(`
+      UPDATE transactions
+      SET processor_id = CAST(SUBSTRING(notes FROM 'agg_to_proc:processor_id=(\\d+)') AS INTEGER)
+      WHERE notes LIKE 'agg_to_proc:%' AND processor_id IS NULL
+    `);
+
     // ── 12. Resolve converter buyer IDs
     const converterEmails = ['kweku@circul.demo', 'info@iterum.demo'];
     const converterBuyerIds = [];
@@ -281,6 +288,15 @@ module.exports = {
             `proc_to_conv:processor_id=${procId},converter_id=${convId}`, txDate]);
       }
     }
+
+    // Update processor_id and converter_id on proc→conv rows by parsing the notes field
+    await client.query(`
+      UPDATE transactions
+      SET
+        processor_id = CAST(SUBSTRING(notes FROM 'proc_to_conv:processor_id=(\\d+)') AS INTEGER),
+        converter_id = CAST(SUBSTRING(notes FROM 'converter_id=(\\d+)') AS INTEGER)
+      WHERE notes LIKE 'proc_to_conv:%' AND processor_id IS NULL
+    `);
 
     // ── 14. Posted prices for all 5 aggregators (PET, HDPE, PP, LDPE)
     //   Uses ON CONFLICT DO UPDATE for idempotency.
