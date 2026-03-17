@@ -1132,7 +1132,9 @@ app.get('/api/pending-transactions', async (req, res) => {
       params = [collector_id];
     } else {
       query = `
-        SELECT pt.*, c.first_name || ' ' || c.last_name AS collector_name
+        SELECT pt.*,
+               c.first_name AS collector_first_name,
+               c.last_name  AS collector_last_name
         FROM pending_transactions pt
         LEFT JOIN collectors c ON c.id = pt.collector_id
         WHERE pt.aggregator_operator_id = $1 AND pt.status = 'pending'
@@ -1145,6 +1147,143 @@ app.get('/api/pending-transactions', async (req, res) => {
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) {
     console.error('Get pending transactions error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// PATCH /api/pending-transactions/:id/review — aggregator accepts or rejects a collector_sale
+app.patch('/api/pending-transactions/:id/review', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, grade, grade_notes, rejection_reason, price_per_kg } = req.body;
+
+    if (!action || !['accept', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'action must be "accept" or "reject"' });
+    }
+
+    // Fetch pending transaction
+    const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id = $1`, [id]);
+    if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    const pt = ptResult.rows[0];
+    if (pt.status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction is no longer pending' });
+    if (pt.transaction_type !== 'collector_sale') return res.status(400).json({ success: false, message: 'Only collector_sale transactions can be reviewed this way' });
+
+    // ── REJECT ──────────────────────────────────────────────────────────────
+    if (action === 'reject') {
+      if (!rejection_reason) return res.status(400).json({ success: false, message: 'rejection_reason is required when rejecting' });
+      const updated = await pool.query(
+        `UPDATE pending_transactions
+         SET status = 'rejected', rejected_at = NOW(), rejection_reason = $1, updated_at = NOW()
+         WHERE id = $2 RETURNING *`,
+        [rejection_reason, id]
+      );
+      return res.json({ success: true, pending_transaction: updated.rows[0] });
+    }
+
+    // ── ACCEPT ───────────────────────────────────────────────────────────────
+    if (!grade || !['A', 'B', 'C'].includes(grade)) {
+      return res.status(400).json({ success: false, message: 'grade (A, B, or C) is required when accepting' });
+    }
+
+    // Determine base price: body override → posted price → pending_transaction.price_per_kg
+    let basePricePerKg;
+    if (price_per_kg !== undefined && price_per_kg !== null && !isNaN(parseFloat(price_per_kg))) {
+      basePricePerKg = parseFloat(price_per_kg);
+    } else {
+      const postedResult = await pool.query(
+        `SELECT price_per_kg_ghs FROM posted_prices
+         WHERE operator_id = $1 AND material_type = $2 AND is_active = true AND expires_at > NOW()
+         ORDER BY posted_at DESC LIMIT 1`,
+        [pt.aggregator_operator_id, pt.material_type]
+      );
+      basePricePerKg = postedResult.rows.length
+        ? parseFloat(postedResult.rows[0].price_per_kg_ghs)
+        : parseFloat(pt.price_per_kg || 0);
+    }
+
+    // Grade multiplier
+    const multiplier = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
+    const adjustedPrice = parseFloat((basePricePerKg * multiplier).toFixed(2));
+    const totalPrice    = parseFloat((adjustedPrice * parseFloat(pt.gross_weight_kg)).toFixed(2));
+
+    // Try to find aggregator's collectors.id by matching phones
+    const aggRow = await pool.query(`SELECT phone FROM operators WHERE id = $1`, [pt.aggregator_operator_id]);
+    let buyerId = null;
+    if (aggRow.rows.length && aggRow.rows[0].phone) {
+      const collRow = await pool.query(`SELECT id FROM collectors WHERE phone = $1`, [aggRow.rows[0].phone]);
+      if (collRow.rows.length) buyerId = collRow.rows[0].id;
+    }
+
+    // Insert finalised transaction
+    const txnResult = await pool.query(`
+      INSERT INTO transactions
+        (collector_id, operator_id, buyer_id, material_type,
+         gross_weight_kg, net_weight_kg, contamination_deduction_percent,
+         price_per_kg, total_price, payment_status, notes)
+      VALUES ($1, $2, $3, $4, $5, $5, 0, $6, $7, 'unpaid', $8)
+      RETURNING *
+    `, [pt.collector_id, pt.aggregator_operator_id, buyerId,
+        pt.material_type, pt.gross_weight_kg, adjustedPrice, totalPrice,
+        'grade:' + grade]);
+    const newTxn = txnResult.rows[0];
+
+    // Update pending_transaction to confirmed
+    const updatedPt = await pool.query(`
+      UPDATE pending_transactions
+      SET status = 'confirmed', grade = $1, grade_notes = $2, transaction_id = $3, updated_at = NOW()
+      WHERE id = $4
+      RETURNING *
+    `, [grade, grade_notes || null, newTxn.id, id]);
+
+    return res.json({
+      success: true,
+      pending_transaction: updatedPt.rows[0],
+      transaction: newTxn,
+      final_price_per_kg: adjustedPrice
+    });
+  } catch (err) {
+    console.error('Review pending transaction error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/pending-transactions/aggregator-purchase — aggregator initiates a purchase from a collector
+app.post('/api/pending-transactions/aggregator-purchase', async (req, res) => {
+  try {
+    const { aggregator_operator_id, collector_id, material_type, gross_weight_kg, price_per_kg } = req.body;
+
+    if (!aggregator_operator_id || !collector_id || !material_type || !gross_weight_kg) {
+      return res.status(400).json({ success: false, message: 'aggregator_operator_id, collector_id, material_type, and gross_weight_kg are required' });
+    }
+    const validMaterials = ['PET', 'HDPE', 'LDPE', 'PP'];
+    if (!validMaterials.includes(material_type.toUpperCase())) {
+      return res.status(400).json({ success: false, message: 'material_type must be one of PET, HDPE, LDPE, PP' });
+    }
+    const kg = parseFloat(gross_weight_kg);
+    if (isNaN(kg) || kg <= 0 || kg > 100) {
+      return res.status(400).json({ success: false, message: 'gross_weight_kg must be greater than 0 and at most 100 kg' });
+    }
+
+    const aggCheck = await pool.query(`SELECT id FROM operators WHERE id = $1 AND role = 'aggregator' AND is_active = true`, [aggregator_operator_id]);
+    if (!aggCheck.rows.length) return res.status(400).json({ success: false, message: 'Aggregator not found' });
+
+    const collCheck = await pool.query(`SELECT id FROM collectors WHERE id = $1 AND is_active = true`, [collector_id]);
+    if (!collCheck.rows.length) return res.status(400).json({ success: false, message: 'Collector not found' });
+
+    const totalPrice = price_per_kg ? parseFloat((kg * parseFloat(price_per_kg)).toFixed(2)) : null;
+
+    const result = await pool.query(`
+      INSERT INTO pending_transactions
+        (transaction_type, collector_id, aggregator_operator_id, material_type,
+         gross_weight_kg, price_per_kg, total_price, status)
+      VALUES ('aggregator_purchase', $1, $2, $3, $4, $5, $6, 'pending')
+      RETURNING *
+    `, [collector_id, aggregator_operator_id, material_type.toUpperCase(), kg,
+        price_per_kg ? parseFloat(price_per_kg) : null, totalPrice]);
+
+    res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+  } catch (err) {
+    console.error('Aggregator purchase error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

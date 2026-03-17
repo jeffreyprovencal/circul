@@ -118,10 +118,68 @@
         .btn-pay { padding: 6px 14px; background: var(--green-primary); color: white; border: none; border-radius: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
         .btn-pay:hover { background: #15803d; }
 
+        /* INCOMING COLLECTIONS */
+        .incoming-item { border-bottom: 1px solid var(--border); }
+        .incoming-item:last-child { border-bottom: none; }
+        .incoming-item-row { display: flex; align-items: center; gap: 12px; padding: 14px 24px; flex-wrap: wrap; }
+        .incoming-item-name { font-weight: 600; color: var(--green-deep); font-size: 0.9rem; }
+        .incoming-item-detail { color: var(--slate-light); font-size: 0.82rem; }
+        .btn-review { padding: 6px 16px; background: var(--green-wash); color: var(--green-primary); border: 1.5px solid var(--green-light); border-radius: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; margin-left: auto; }
+        .btn-review:hover { background: var(--green-light); }
+        .btn-review.active { background: var(--green-primary); color: white; border-color: var(--green-primary); }
+
+        /* REVIEW PANEL */
+        .review-panel { padding: 20px 24px; background: #f8fafc; border-top: 1px solid var(--border); }
+        .review-section-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 10px; }
+        .grade-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .grade-btn { flex: 1; min-width: 100px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--white); font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center; line-height: 1.4; }
+        .grade-btn:hover { border-color: var(--green-primary); }
+        .grade-btn.sel-a { background: #dcfce7; border-color: var(--green-primary); color: #166534; }
+        .grade-btn.sel-b { background: var(--amber-light); border-color: var(--amber); color: #92400e; }
+        .grade-btn.sel-c { background: #fee2e2; border-color: var(--red); color: #991b1b; }
+        .price-preview { padding: 10px 14px; background: var(--green-wash); border: 1px solid var(--green-light); border-radius: 8px; font-size: 0.88rem; color: var(--green-deep); margin-bottom: 14px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; }
+        .review-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .review-field-label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 5px; }
+        .review-input { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; background: var(--white); transition: border-color 0.15s; }
+        .review-input:focus { border-color: var(--green-primary); }
+        .review-textarea { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; resize: vertical; min-height: 60px; background: var(--white); transition: border-color 0.15s; }
+        .review-textarea:focus { border-color: var(--green-primary); }
+        .review-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .btn-accept { padding: 10px 20px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+        .btn-accept:hover:not(:disabled) { background: #15803d; }
+        .btn-accept:disabled { opacity: 0.55; cursor: not-allowed; }
+        .btn-reject-toggle { padding: 10px 20px; background: transparent; color: var(--red); border: 1.5px solid var(--red); border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+        .btn-reject-toggle:hover { background: var(--red-wash); }
+        .btn-cancel-review { padding: 8px 14px; background: transparent; border: 1px solid var(--border); color: var(--slate-light); border-radius: 6px; font-size: 0.82rem; cursor: pointer; margin-left: auto; font-family: 'Space Grotesk', sans-serif; }
+        .btn-cancel-review:hover { border-color: var(--slate); color: var(--slate); }
+        .reject-block { margin-top: 12px; display: none; }
+        .btn-confirm-reject { padding: 10px 20px; background: var(--red); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+        .btn-confirm-reject:hover { background: #b91c1c; }
+
+        /* REGISTER PURCHASE FORM */
+        .btn-register { padding: 7px 16px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+        .btn-register:hover { background: #15803d; }
+        .register-form { padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid var(--border); }
+        .register-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+        .register-label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 5px; }
+        .register-select, .register-input { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; background: var(--white); transition: border-color 0.15s; }
+        .register-select:focus, .register-input:focus { border-color: var(--green-primary); }
+        .register-actions { display: flex; gap: 10px; }
+        .btn-reg-submit { padding: 10px 20px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+        .btn-reg-submit:hover { background: #15803d; }
+        .btn-reg-cancel { padding: 10px 16px; background: transparent; border: 1.5px solid var(--border); color: var(--slate); border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; cursor: pointer; }
+
+        /* TOAST */
+        .toast { position: fixed; bottom: 28px; right: 28px; background: var(--green-deep); color: white; padding: 14px 22px; border-radius: 10px; font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; font-weight: 600; z-index: 9999; opacity: 0; transform: translateY(10px); transition: opacity 0.25s, transform 0.25s; pointer-events: none; max-width: 320px; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.toast-error { background: #991b1b; }
+
         @media (max-width: 900px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
             .price-cards { grid-template-columns: repeat(2, 1fr); }
             .main { padding: 16px; }
+            .review-fields { grid-template-columns: 1fr; }
+            .register-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -203,6 +261,50 @@
             </div>
         </div>
 
+        <!-- INCOMING COLLECTIONS -->
+        <div class="card" id="incomingCard">
+            <div class="card-header">
+                <span class="card-title">Incoming Collections</span>
+                <button class="btn-register" onclick="toggleRegisterForm()">+ Register Purchase</button>
+            </div>
+            <!-- Register Purchase inline form -->
+            <div id="registerForm" class="register-form" style="display:none">
+                <div class="register-grid">
+                    <div>
+                        <label class="register-label">Collector</label>
+                        <select class="register-select" id="regCollector">
+                            <option value="">Select collector…</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="register-label">Material</label>
+                        <select class="register-select" id="regMaterial">
+                            <option value="">Select material…</option>
+                            <option value="PET">PET</option>
+                            <option value="HDPE">HDPE</option>
+                            <option value="LDPE">LDPE</option>
+                            <option value="PP">PP</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="register-label">Weight (kg)</label>
+                        <input type="number" class="register-input" id="regWeight" placeholder="0.0" min="0.1" max="100" step="0.1" inputmode="decimal">
+                    </div>
+                    <div>
+                        <label class="register-label">Price (GH₵/kg) <span style="font-weight:400;text-transform:none;letter-spacing:0">optional</span></label>
+                        <input type="number" class="register-input" id="regPrice" placeholder="Leave blank for posted price" min="0" step="0.01" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="register-actions">
+                    <button class="btn-reg-submit" onclick="submitAggregatorPurchase()">Register Purchase</button>
+                    <button class="btn-reg-cancel" onclick="toggleRegisterForm()">Cancel</button>
+                </div>
+                <div id="registerMsg" style="margin-top:10px;font-size:0.85rem;display:none"></div>
+            </div>
+            <!-- Pending incoming list -->
+            <div id="incomingList"><div class="empty">Loading…</div></div>
+        </div>
+
         <!-- TOP COLLECTORS -->
         <div class="card">
             <div class="card-header">
@@ -271,6 +373,9 @@
     </div>
 </div>
 
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
 <!-- RATING MODAL -->
 <div class="modal-overlay" id="ratingModal">
     <div class="modal">
@@ -300,9 +405,14 @@
 </div>
 
 <script>
-var state = { operator: null, currentRatingCollectorId: null, currentRatingStar: 0, selectedTags: [] };
+var state = { operator: null, topCollectors: [], currentRatingCollectorId: null, currentRatingStar: 0, selectedTags: [] };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var refreshTimer = null;
+var postedPriceMap  = {};  // material_type → price_per_kg_ghs (string)
+var pendingMap      = {};  // ptId → pending_transaction row
+var reviewStateMap  = {};  // ptId → { grade }
+var activeReviewId  = null;
+var toastTimer      = null;
 
 var ROLE_ROUTES = {
     collector: '/collector-dashboard',
@@ -397,9 +507,13 @@ function loadAll() {
             renderPL(s);
         });
     loadPendingTxns();
+    loadIncomingCollections();
 }
 
 function renderPriceCards(prices) {
+    // Store posted prices so review panels can pre-fill them
+    postedPriceMap = {};
+    (prices || []).forEach(function(p) { if (p.price_per_kg_ghs) postedPriceMap[p.material_type] = p.price_per_kg_ghs; });
     var priceMap = {};
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     var html = MATERIALS.map(function(mat) {
@@ -432,6 +546,7 @@ function postPrice(mat) {
 }
 
 function renderCollectors(collectors) {
+    state.topCollectors = collectors || [];
     var tbody = document.getElementById('collectorsBody');
     if (!collectors || !collectors.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No collectors yet</td></tr>'; return; }
     tbody.innerHTML = collectors.map(function(c) {
@@ -536,6 +651,274 @@ function submitRating() {
 document.getElementById('ratingModal').addEventListener('click', function(e) {
     if (e.target === this) closeRatingModal();
 });
+
+// ── INCOMING COLLECTIONS ──────────────────────────────────────────────────────
+
+function loadIncomingCollections() {
+    var aggId = state.operator.id;
+    fetch('/api/pending-transactions?aggregator_operator_id=' + aggId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = document.getElementById('incomingList');
+            var rows = data.pending_transactions || [];
+            pendingMap = {};
+            rows.forEach(function(pt) { pendingMap[pt.id] = pt; });
+            if (!rows.length) {
+                list.innerHTML = '<div class="empty">No pending collections — collectors will appear here when they log a sale.</div>';
+                return;
+            }
+            list.innerHTML = rows.map(function(pt) {
+                var name = ((pt.collector_first_name || '') + ' ' + (pt.collector_last_name || '')).trim() || '—';
+                var kg   = parseFloat(pt.gross_weight_kg).toFixed(1);
+                var date = fmtDate(pt.created_at);
+                return '<div class="incoming-item" id="pt-item-' + pt.id + '">' +
+                    '<div class="incoming-item-row">' +
+                    '<span class="badge badge-green">' + esc(pt.material_type) + '</span>' +
+                    '<span class="incoming-item-name">' + esc(name) + '</span>' +
+                    '<span class="incoming-item-detail">' + kg + ' kg</span>' +
+                    '<span class="incoming-item-detail">' + date + '</span>' +
+                    (pt.price_per_kg ? '<span class="incoming-item-detail">GH₵ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg offered</span>' : '') +
+                    '<button class="btn-review" id="review-btn-' + pt.id + '" onclick="openReview(' + pt.id + ')">Review</button>' +
+                    '</div>' +
+                    '<div class="review-panel" id="review-panel-' + pt.id + '" style="display:none"></div>' +
+                '</div>';
+            }).join('');
+        })
+        .catch(function() {
+            document.getElementById('incomingList').innerHTML = '<div class="empty">Could not load incoming collections.</div>';
+        });
+}
+
+function openReview(ptId) {
+    var panel = document.getElementById('review-panel-' + ptId);
+    var btn   = document.getElementById('review-btn-' + ptId);
+    var isOpen = panel.style.display !== 'none';
+
+    // Close any other open review
+    if (activeReviewId && activeReviewId !== ptId) {
+        var prevPanel = document.getElementById('review-panel-' + activeReviewId);
+        var prevBtn   = document.getElementById('review-btn-' + activeReviewId);
+        if (prevPanel) prevPanel.style.display = 'none';
+        if (prevBtn)   prevBtn.classList.remove('active');
+    }
+
+    if (isOpen) {
+        panel.style.display = 'none';
+        btn.classList.remove('active');
+        activeReviewId = null;
+        return;
+    }
+
+    activeReviewId = ptId;
+    btn.classList.add('active');
+
+    var pt = pendingMap[ptId];
+    var basePrice = postedPriceMap[pt.material_type] || (pt.price_per_kg ? parseFloat(pt.price_per_kg).toFixed(2) : '');
+    panel.innerHTML = buildReviewPanel(ptId, pt, basePrice);
+    panel.style.display = '';
+}
+
+function buildReviewPanel(ptId, pt, basePrice) {
+    var kg = parseFloat(pt.gross_weight_kg).toFixed(1);
+    return '<div>' +
+        '<div class="review-section-label">Assign Grade</div>' +
+        '<div class="grade-row">' +
+        '<button class="grade-btn" id="gbA-' + ptId + '" onclick="selectGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.72rem;font-weight:400">&lt;5% contamination · +10%</span></button>' +
+        '<button class="grade-btn" id="gbB-' + ptId + '" onclick="selectGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.72rem;font-weight:400">5–15% contamination · standard</span></button>' +
+        '<button class="grade-btn" id="gbC-' + ptId + '" onclick="selectGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.72rem;font-weight:400">&gt;15% contamination · −25%</span></button>' +
+        '</div>' +
+        '<div id="price-preview-' + ptId + '" class="price-preview" style="display:none"></div>' +
+        '<div class="review-fields">' +
+        '<div>' +
+        '<label class="review-field-label">Price (GH₵/kg)</label>' +
+        '<input type="number" class="review-input" id="rev-price-' + ptId + '" value="' + esc(String(basePrice)) + '" placeholder="GH₵/kg" step="0.01" min="0" oninput="updatePricePreview(' + ptId + ')">' +
+        '</div>' +
+        '<div>' +
+        '<label class="review-field-label">Grade notes <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>' +
+        '<input type="text" class="review-input" id="rev-notes-' + ptId + '" placeholder="Notes on condition…">' +
+        '</div>' +
+        '</div>' +
+        '<div class="review-actions">' +
+        '<button class="btn-accept" id="accept-btn-' + ptId + '" onclick="submitReview(' + ptId + ',\'accept\')" disabled>Accept</button>' +
+        '<button class="btn-reject-toggle" onclick="toggleRejectBlock(' + ptId + ')">Reject</button>' +
+        '<button class="btn-cancel-review" onclick="openReview(' + ptId + ')">Cancel</button>' +
+        '</div>' +
+        '<div class="reject-block" id="reject-block-' + ptId + '">' +
+        '<textarea class="review-textarea" id="reject-reason-' + ptId + '" placeholder="Reason for rejection (required)…" rows="2" style="margin-top:12px;margin-bottom:8px"></textarea>' +
+        '<button class="btn-confirm-reject" onclick="submitReview(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+        '</div>' +
+    '</div>';
+}
+
+function selectGrade(ptId, grade) {
+    if (!reviewStateMap[ptId]) reviewStateMap[ptId] = {};
+    reviewStateMap[ptId].grade = grade;
+    ['A','B','C'].forEach(function(g) {
+        var btn = document.getElementById('gbA-'.replace('A', g) + ptId);
+        // Rebuild id based on grade letter
+        var b = document.getElementById('gb' + g + '-' + ptId);
+        if (b) b.className = 'grade-btn' + (g === grade ? ' sel-' + g.toLowerCase() : '');
+    });
+    document.getElementById('accept-btn-' + ptId).disabled = false;
+    updatePricePreview(ptId);
+}
+
+function updatePricePreview(ptId) {
+    var preview   = document.getElementById('price-preview-' + ptId);
+    var priceEl   = document.getElementById('rev-price-' + ptId);
+    var pt        = pendingMap[ptId];
+    var grade     = reviewStateMap[ptId] && reviewStateMap[ptId].grade;
+    if (!preview || !priceEl || !pt || !grade) { if (preview) preview.style.display = 'none'; return; }
+    var basePrice = parseFloat(priceEl.value);
+    if (isNaN(basePrice) || basePrice <= 0) { preview.style.display = 'none'; return; }
+    var mult       = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
+    var final      = parseFloat((basePrice * mult).toFixed(2));
+    var total      = parseFloat((final * parseFloat(pt.gross_weight_kg)).toFixed(2));
+    preview.textContent = 'Final price: GH₵ ' + final.toFixed(2) + '/kg — Total: GH₵ ' + total.toFixed(2) + ' (' + parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg)';
+    preview.style.display = '';
+}
+
+function toggleRejectBlock(ptId) {
+    var block = document.getElementById('reject-block-' + ptId);
+    if (block) block.style.display = block.style.display === 'none' ? '' : 'none';
+}
+
+function submitReview(ptId, action) {
+    var body;
+    if (action === 'reject') {
+        var reason = document.getElementById('reject-reason-' + ptId).value.trim();
+        if (!reason) { showToast('Please enter a rejection reason', true); return; }
+        body = { action: 'reject', rejection_reason: reason };
+    } else {
+        var grade  = reviewStateMap[ptId] && reviewStateMap[ptId].grade;
+        if (!grade) { showToast('Please select a grade first', true); return; }
+        var price  = document.getElementById('rev-price-' + ptId).value.trim();
+        var notes  = document.getElementById('rev-notes-' + ptId).value.trim();
+        body = { action: 'accept', grade: grade };
+        if (notes) body.grade_notes = notes;
+        if (price && parseFloat(price) > 0) body.price_per_kg = parseFloat(price);
+    }
+
+    fetch('/api/pending-transactions/' + ptId + '/review', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            var item = document.getElementById('pt-item-' + ptId);
+            if (item) {
+                item.style.opacity = '0';
+                item.style.transition = 'opacity 0.3s';
+                setTimeout(function() {
+                    if (item.parentNode) item.parentNode.removeChild(item);
+                    var list = document.getElementById('incomingList');
+                    if (list && !list.querySelector('.incoming-item')) {
+                        list.innerHTML = '<div class="empty">No pending collections.</div>';
+                    }
+                }, 300);
+            }
+            if (activeReviewId === ptId) activeReviewId = null;
+            showToast(action === 'accept'
+                ? '✓ Sale accepted — transaction recorded'
+                : 'Sale rejected');
+            loadAll();
+        } else {
+            showToast(data.message || 'Error processing review', true);
+        }
+    })
+    .catch(function() { showToast('Connection error. Please try again.', true); });
+}
+
+// ── REGISTER PURCHASE ─────────────────────────────────────────────────────────
+
+function toggleRegisterForm() {
+    var form = document.getElementById('registerForm');
+    var visible = form.style.display !== 'none';
+    form.style.display = visible ? 'none' : '';
+    if (!visible) {
+        populateRegisterCollectors();
+        document.getElementById('registerMsg').style.display = 'none';
+        document.getElementById('regCollector').value = '';
+        document.getElementById('regMaterial').value  = '';
+        document.getElementById('regWeight').value    = '';
+        document.getElementById('regPrice').value     = '';
+    }
+}
+
+function populateRegisterCollectors() {
+    var sel = document.getElementById('regCollector');
+    var collectors = state.topCollectors || [];
+    sel.innerHTML = collectors.length
+        ? '<option value="">Select collector…</option>' + collectors.map(function(c) {
+            return '<option value="' + c.id + '">' + esc(c.first_name + ' ' + c.last_name) + '</option>';
+          }).join('')
+        : '<option value="">No collectors found yet</option>';
+}
+
+function submitAggregatorPurchase() {
+    var collectorId = document.getElementById('regCollector').value;
+    var material    = document.getElementById('regMaterial').value;
+    var weight      = document.getElementById('regWeight').value;
+    var price       = document.getElementById('regPrice').value;
+    var msg         = document.getElementById('registerMsg');
+
+    if (!collectorId || !material || !weight || parseFloat(weight) <= 0) {
+        msg.textContent = 'Collector, material, and weight are required.';
+        msg.style.color = 'var(--red)';
+        msg.style.display = '';
+        return;
+    }
+
+    var body = {
+        aggregator_operator_id: state.operator.id,
+        collector_id:           parseInt(collectorId, 10),
+        material_type:          material,
+        gross_weight_kg:        parseFloat(weight)
+    };
+    if (price && parseFloat(price) > 0) body.price_per_kg = parseFloat(price);
+
+    fetch('/api/pending-transactions/aggregator-purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            msg.textContent = '✓ Purchase registered — waiting for collector to confirm.';
+            msg.style.color = 'var(--green-primary)';
+            msg.style.display = '';
+            document.getElementById('regCollector').value = '';
+            document.getElementById('regMaterial').value  = '';
+            document.getElementById('regWeight').value    = '';
+            document.getElementById('regPrice').value     = '';
+        } else {
+            msg.textContent = data.message || 'Error registering purchase.';
+            msg.style.color = 'var(--red)';
+            msg.style.display = '';
+        }
+    })
+    .catch(function() {
+        msg.textContent = 'Connection error. Please try again.';
+        msg.style.color = 'var(--red)';
+        msg.style.display = '';
+    });
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+
+function showToast(message, isError) {
+    var toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast' + (isError ? ' toast-error' : '');
+    // Force reflow then show
+    toast.offsetHeight;
+    toast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 3500);
+}
 
 function fmt(n) {
     var v = parseFloat(n);
