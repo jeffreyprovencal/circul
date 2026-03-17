@@ -1402,6 +1402,19 @@ app.get('/api/buyers', async (req, res) => {
   }
 });
 
+// GET /api/buyers/converters — public list of converter buyers (must be before /:id/stats)
+app.get('/api/buyers/converters', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, company, role FROM buyers WHERE role = 'converter' AND is_active = true ORDER BY company, name`
+    );
+    res.json({ success: true, buyers: result.rows });
+  } catch (err) {
+    console.error('Get converters error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ============================================
 // PROCESSOR QUEUE — PRE-DISPATCH & ARRIVAL
 // ============================================
@@ -1555,6 +1568,78 @@ app.post('/api/pending-transactions/:id/arrival-confirmation', requireBuyer, asy
     res.json({ success: true, pending_transaction: updatedPt.rows[0] });
   } catch (err) {
     console.error('Arrival confirmation error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// PROCESSOR SELL-SIDE — SALES TO CONVERTERS
+// ============================================
+
+// POST /api/pending-transactions/processor-sale
+// Processor logs a batch sale to a converter; photos mandatory (UI-only for demo)
+app.post('/api/pending-transactions/processor-sale', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'processor') {
+      return res.status(403).json({ success: false, message: 'Processor access only' });
+    }
+    const { converter_buyer_id, material_type, gross_weight_kg, price_per_kg, notes } = req.body;
+    if (!converter_buyer_id || !material_type || !gross_weight_kg || !price_per_kg) {
+      return res.status(400).json({ success: false, message: 'converter_buyer_id, material_type, gross_weight_kg, price_per_kg required' });
+    }
+    const kg    = parseFloat(gross_weight_kg);
+    const price = parseFloat(price_per_kg);
+    if (isNaN(kg)    || kg    <= 0) return res.status(400).json({ success: false, message: 'Invalid weight' });
+    if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price' });
+
+    // Verify converter exists
+    const convResult = await pool.query(
+      `SELECT id FROM buyers WHERE id = $1 AND role = 'converter' AND is_active = true`,
+      [converter_buyer_id]
+    );
+    if (!convResult.rows.length) {
+      return res.status(400).json({ success: false, message: 'Converter not found' });
+    }
+
+    const totalPrice = kg * price;
+    const result = await pool.query(
+      `INSERT INTO pending_transactions
+         (transaction_type, status, processor_buyer_id, converter_buyer_id,
+          material_type, gross_weight_kg, price_per_kg, total_price,
+          photos_required, photos_submitted, photo_urls, notes)
+       VALUES ($1, 'pending', $2, $3, $4, $5, $6, $7, true, false, '[]', $8)
+       RETURNING *`,
+      ['processor_sale', req.buyer.id, converter_buyer_id, material_type, kg, price, totalPrice, notes || null]
+    );
+    res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+  } catch (err) {
+    console.error('Processor sale error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/pending-transactions/processor-sales
+// Returns last 20 processor_sale rows for this processor, JOINs converter company name
+app.get('/api/pending-transactions/processor-sales', requireBuyer, async (req, res) => {
+  try {
+    if (req.buyer.role !== 'processor') {
+      return res.status(403).json({ success: false, message: 'Processor access only' });
+    }
+    const result = await pool.query(
+      `SELECT pt.*,
+              c.name    AS converter_name,
+              c.company AS converter_company
+       FROM pending_transactions pt
+       LEFT JOIN buyers c ON c.id = pt.converter_buyer_id
+       WHERE pt.transaction_type = 'processor_sale'
+         AND pt.processor_buyer_id = $1
+       ORDER BY pt.created_at DESC
+       LIMIT 20`,
+      [req.buyer.id]
+    );
+    res.json({ success: true, pending_transactions: result.rows });
+  } catch (err) {
+    console.error('Get processor sales error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

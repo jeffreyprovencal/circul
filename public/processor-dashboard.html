@@ -114,6 +114,32 @@
         .di-msg { font-size: 0.82rem; margin-top: 8px; }
 
         @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .price-cards { grid-template-columns: repeat(2, 1fr); } .main { padding: 16px; } }
+
+        /* SALES TO CONVERTERS */
+        .ps-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .ps-form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .ps-label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-light); margin-bottom: 5px; }
+        .ps-input, .ps-select, .ps-textarea { width: 100%; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; background: var(--white); transition: border-color 0.15s; }
+        .ps-input:focus, .ps-select:focus, .ps-textarea:focus { border-color: var(--green-primary); }
+        .ps-textarea { resize: vertical; min-height: 56px; }
+        .ps-total-box { background: var(--green-wash); border: 1px solid var(--green-light); border-radius: 8px; padding: 10px 14px; font-family: 'Space Grotesk', sans-serif; font-size: 1rem; font-weight: 700; color: var(--green-deep); }
+        .ps-total-sub { font-size: 0.75rem; font-weight: 400; color: var(--slate-light); margin-top: 2px; }
+        .ps-photo-banner { background: var(--amber-light); border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px; margin: 14px 0; }
+        .ps-photo-banner-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.82rem; font-weight: 700; color: #92400e; margin-bottom: 3px; }
+        .ps-photo-banner-body { font-size: 0.8rem; color: #78350f; line-height: 1.5; }
+        .ps-upload-stub { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; padding: 8px 16px; background: var(--white); border: 1.5px dashed #fbbf24; border-radius: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 600; color: #92400e; cursor: not-allowed; opacity: 0.7; }
+        .ps-submit-btn { padding: 11px 28px; background: var(--green-primary); color: white; border: none; border-radius: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; margin-top: 4px; }
+        .ps-submit-btn:hover:not(:disabled) { background: #15803d; }
+        .ps-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .ps-msg { font-size: 0.82rem; margin-top: 8px; }
+        .ps-sale-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+        .ps-sale-row:last-child { border-bottom: none; }
+        .ps-sale-title { font-weight: 600; font-size: 0.88rem; color: var(--green-deep); }
+        .ps-sale-meta { font-size: 0.8rem; color: var(--slate-light); }
+        .ps-sale-price { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.85rem; color: var(--green-deep); margin-left: auto; }
+        .ps-rejection { font-size: 0.78rem; color: #991b1b; background: #fef2f2; border-radius: 5px; padding: 4px 8px; margin-top: 4px; }
+        .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--green-deep); color: white; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 600; padding: 12px 24px; border-radius: 10px; z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,0.18); transition: opacity 0.3s; pointer-events: none; }
+        .toast.hidden { opacity: 0; }
     </style>
 </head>
 <body>
@@ -173,6 +199,71 @@
             <div id="queueCompleted"><div class="empty">Loading…</div></div>
         </div>
 
+        <!-- SALES TO CONVERTERS -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Sales to Converters</span>
+                <button onclick="loadProcessorSales()" style="padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:7px;font-family:'Space Grotesk',sans-serif;font-size:0.78rem;cursor:pointer;color:var(--slate)">↻ Refresh</button>
+            </div>
+
+            <!-- Panel A: Log a Sale -->
+            <div class="panel-subheader">Log a Sale to Converter</div>
+            <div class="card-body" style="border-bottom:1px solid var(--border)">
+                <div class="ps-form-grid" style="margin-bottom:14px">
+                    <div>
+                        <label class="ps-label">Converter</label>
+                        <select id="ps-converter" class="ps-select">
+                            <option value="">Loading converters…</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ps-label">Material</label>
+                        <select id="ps-material" class="ps-select">
+                            <option value="">Select material</option>
+                            <option value="PET">PET</option>
+                            <option value="HDPE">HDPE</option>
+                            <option value="LDPE">LDPE</option>
+                            <option value="PP">PP</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="ps-form-grid" style="margin-bottom:14px">
+                    <div>
+                        <label class="ps-label">Gross weight (kg)</label>
+                        <input type="number" id="ps-weight" class="ps-input" placeholder="e.g. 800" min="0.1" step="0.1" oninput="calcProcSaleTotal()">
+                    </div>
+                    <div>
+                        <label class="ps-label">Price per kg (GHS)</label>
+                        <input type="number" id="ps-price" class="ps-input" placeholder="e.g. 4.50" min="0.01" step="0.01" oninput="calcProcSaleTotal()">
+                    </div>
+                </div>
+                <div id="ps-total-box" style="display:none" class="ps-total-box" style="margin-bottom:14px">
+                    <div id="ps-total-ghs">—</div>
+                    <div id="ps-total-usd" class="ps-total-sub">—</div>
+                </div>
+
+                <!-- Mandatory photo banner -->
+                <div class="ps-photo-banner">
+                    <div class="ps-photo-banner-title">📸 Photos required on every delivery</div>
+                    <div class="ps-photo-banner-body">All processor → converter batches require delivery photos. For this demo, photos are submitted as an empty array — attach real photos before going live.</div>
+                    <div class="ps-upload-stub">&#128247; Upload Photos (demo: not yet active)</div>
+                </div>
+
+                <div style="margin-bottom:14px">
+                    <label class="ps-label">Notes <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
+                    <textarea id="ps-notes" class="ps-textarea" placeholder="e.g. Batch ref, truck details…"></textarea>
+                </div>
+
+                <button class="ps-submit-btn" onclick="submitProcessorSale()" id="ps-submit-btn">Log Sale to Converter</button>
+                <div id="ps-msg" class="ps-msg"></div>
+            </div>
+
+            <!-- Panel B: Recent Sales -->
+            <div class="panel-subheader">Pending &amp; Completed Sales</div>
+            <div id="procSalesList"><div class="empty">Loading…</div></div>
+        </div>
+        <div id="procToast" class="toast hidden"></div>
+
         <!-- COMPLIANCE REPORT -->
         <div class="card">
             <div class="card-header">
@@ -230,6 +321,9 @@ var deliveries = [];
 var activeDispatchId = null;
 var activeArrivalId = null;
 var arrivalGradeMap = {};
+var processorSales = [];
+var convertersList = [];
+var procToastTimer = null;
 var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
 
 function checkAuth() {
@@ -329,6 +423,8 @@ function loadAll() {
     loadTxns();
     loadAggregators();
     loadDeliveries();
+    loadConverters();
+    loadProcessorSales();
 }
 
 function loadTxns() {
@@ -683,6 +779,156 @@ function submitArrivalConfirmation(ptId) {
         else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
     })
     .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+}
+
+// ── SALES TO CONVERTERS ────────────────────────────────────────────────────────
+
+function loadConverters() {
+    fetch('/api/buyers/converters')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            convertersList = data.buyers || [];
+            var sel = document.getElementById('ps-converter');
+            if (!sel) return;
+            if (!convertersList.length) {
+                sel.innerHTML = '<option value="">No converters found</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">Select converter…</option>' +
+                convertersList.map(function(c) {
+                    return '<option value="' + c.id + '">' + esc(c.company || c.name) + '</option>';
+                }).join('');
+        })
+        .catch(function() {
+            var sel = document.getElementById('ps-converter');
+            if (sel) sel.innerHTML = '<option value="">Could not load converters</option>';
+        });
+}
+
+function calcProcSaleTotal() {
+    var w = parseFloat(document.getElementById('ps-weight').value);
+    var p = parseFloat(document.getElementById('ps-price').value);
+    var box = document.getElementById('ps-total-box');
+    if (!box) return;
+    if (!isNaN(w) && w > 0 && !isNaN(p) && p > 0) {
+        var total = w * p;
+        document.getElementById('ps-total-ghs').textContent = 'GH₵ ' + fmt(total) + ' total';
+        document.getElementById('ps-total-usd').textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
+        box.style.display = '';
+    } else {
+        box.style.display = 'none';
+    }
+}
+
+function submitProcessorSale() {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var msgEl = document.getElementById('ps-msg');
+    var btn   = document.getElementById('ps-submit-btn');
+    var converterId  = document.getElementById('ps-converter').value;
+    var material     = document.getElementById('ps-material').value;
+    var weight       = document.getElementById('ps-weight').value;
+    var price        = document.getElementById('ps-price').value;
+    var notes        = document.getElementById('ps-notes').value.trim();
+
+    msgEl.textContent = '';
+    if (!converterId)            { msgEl.textContent = 'Select a converter.';       msgEl.style.color = 'var(--red)'; return; }
+    if (!material)               { msgEl.textContent = 'Select a material.';        msgEl.style.color = 'var(--red)'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!price  || parseFloat(price)  <= 0) { msgEl.textContent = 'Enter a valid price.';  msgEl.style.color = 'var(--red)'; return; }
+
+    btn.disabled = true; btn.textContent = 'Logging…';
+    fetch('/api/pending-transactions/processor-sale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({
+            converter_buyer_id: parseInt(converterId),
+            material_type:      material,
+            gross_weight_kg:    parseFloat(weight),
+            price_per_kg:       parseFloat(price),
+            notes:              notes || null
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            document.getElementById('ps-converter').value = '';
+            document.getElementById('ps-material').value  = '';
+            document.getElementById('ps-weight').value    = '';
+            document.getElementById('ps-price').value     = '';
+            document.getElementById('ps-notes').value     = '';
+            document.getElementById('ps-total-box').style.display = 'none';
+            msgEl.textContent = '';
+            showProcToast('Sale logged — awaiting converter dispatch approval');
+            loadProcessorSales();
+        } else {
+            msgEl.textContent = data.message || 'Error submitting sale.';
+            msgEl.style.color = 'var(--red)';
+        }
+    })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Log Sale to Converter'; });
+}
+
+function loadProcessorSales() {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/processor-sales', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        processorSales = data.pending_transactions || [];
+        renderProcessorSales();
+    })
+    .catch(function() {
+        var el = document.getElementById('procSalesList');
+        if (el) el.innerHTML = '<div class="empty">Could not load sales.</div>';
+    });
+}
+
+function renderProcessorSales() {
+    var el = document.getElementById('procSalesList');
+    if (!el) return;
+    if (!processorSales.length) {
+        el.innerHTML = '<div class="empty">No sales logged yet.</div>';
+        return;
+    }
+    el.innerHTML = processorSales.map(function(s) {
+        var convName = esc(s.converter_company || s.converter_name || '—');
+        var statusBadge = buildProcSaleStatusBadge(s.status);
+        var total = s.total_price ? 'GH₵ ' + fmt(s.total_price) + ' <span style="font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(s.total_price) * 0.067).toFixed(0) + '</span>' : '—';
+        var rejHtml = (s.status === 'dispatch_rejected' && s.rejection_reason)
+            ? '<div class="ps-rejection">✗ Rejected: ' + esc(s.rejection_reason) + '</div>'
+            : '';
+        return '<div class="ps-sale-row">' +
+            '<span class="badge badge-blue">' + esc(s.material_type) + '</span>' +
+            '<span class="ps-sale-title">' + convName + '</span>' +
+            '<span class="ps-sale-meta">' + fmt(s.gross_weight_kg) + ' kg</span>' +
+            '<span class="ps-sale-meta">GH₵ ' + fmt(s.price_per_kg || 0) + '/kg</span>' +
+            statusBadge +
+            '<span class="ps-sale-price">' + total + '</span>' +
+            '<span class="ps-sale-meta" style="width:100%;margin-top:2px">' + fmtDate(s.created_at) + '</span>' +
+            (rejHtml ? '<div style="width:100%">' + rejHtml + '</div>' : '') +
+            '</div>';
+    }).join('');
+}
+
+function buildProcSaleStatusBadge(status) {
+    if (status === 'pending')           return '<span class="badge badge-amber">Pending</span>';
+    if (status === 'dispatch_approved') return '<span class="badge badge-blue">Dispatch Approved</span>';
+    if (status === 'dispatch_rejected') return '<span class="badge" style="background:#fee2e2;color:#991b1b">Rejected</span>';
+    if (status === 'arrived')           return '<span class="badge badge-green">Arrived</span>';
+    if (status === 'completed')         return '<span class="badge badge-green">Completed</span>';
+    if (status === 'grade_c_flagged')   return '<span class="badge badge-amber">Flagged</span>';
+    return '<span class="badge badge-gray">' + esc(status) + '</span>';
+}
+
+function showProcToast(msg) {
+    var el = document.getElementById('procToast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    if (procToastTimer) clearTimeout(procToastTimer);
+    procToastTimer = setTimeout(function() { el.classList.add('hidden'); }, 3500);
 }
 
 checkAuth();
