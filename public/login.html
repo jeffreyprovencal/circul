@@ -495,7 +495,7 @@
       collector:  '/collector-dashboard',
       aggregator: '/aggregator-dashboard',
       processor:  '/processor-dashboard',
-      converter:  '/processor-dashboard',
+      converter:  '/converter-dashboard',
       admin:      '/admin',
       operator:   '/admin'
     };
@@ -587,11 +587,14 @@
       identifier.value = email;
       // 2. Dispatch 'input' to fire the mode-switch logic (detects '@' → setMode('email'))
       identifier.dispatchEvent(new Event('input'));
-      // 3. After the password field is revealed, fill it in
+      // 3. After the password field is revealed, fill it in and fire its input event
       setTimeout(function () {
         var pwField = document.getElementById('password');
-        if (pwField) pwField.value = pw;
-      }, 100);
+        if (pwField) {
+          pwField.value = pw;
+          pwField.dispatchEvent(new Event('input'));
+        }
+      }, 50);
     }
 
     /* ── Demo banner ──────────────────────────── */
