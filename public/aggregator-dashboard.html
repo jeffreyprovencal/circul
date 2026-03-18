@@ -191,6 +191,28 @@
         .dispatch-ok { color: var(--green-primary); font-size: 0.82rem; font-weight: 600; }
         .dispatch-pending { color: var(--amber); font-size: 0.82rem; font-weight: 600; }
 
+        /* MY BATCH SALES */
+        .bs-item { padding: 14px 24px; border-bottom: 1px solid var(--border); }
+        .bs-item:last-child { border-bottom: none; }
+        .bs-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+        .bs-proc { font-weight: 600; font-size: 0.9rem; color: var(--green-deep); }
+        .bs-meta { font-size: 0.82rem; color: var(--slate-light); }
+        .bs-status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+        .bs-reject-reason { font-size: 0.82rem; color: var(--red); margin-top: 6px; padding: 6px 10px; background: var(--red-wash); border-radius: 6px; }
+        .bs-photo-ok { font-size: 0.78rem; color: var(--green-primary); font-weight: 600; }
+        .bs-photo-warn { font-size: 0.78rem; color: #92400e; font-weight: 600; }
+        .badge-status-pending { background: var(--amber-light); color: #92400e; }
+        .badge-status-dispatch-approved { background: #dbeafe; color: #1e40af; }
+        .badge-status-dispatch-rejected { background: #fee2e2; color: #991b1b; }
+        .badge-status-arrived { background: var(--green-light); color: #166534; }
+        .badge-status-grade-c { background: #ffedd5; color: #9a3412; }
+        .badge-status-completed { background: #bbf7d0; color: #14532d; }
+        .badge-grade-a { background: #dcfce7; color: #166534; }
+        .badge-grade-b { background: var(--amber-light); color: #92400e; }
+        .badge-grade-c-val { background: #fee2e2; color: #991b1b; }
+        .bs-card-header-refresh { background: none; border: none; cursor: pointer; font-size: 0.8rem; color: var(--green-primary); font-family: 'Space Grotesk', sans-serif; font-weight: 600; padding: 2px 6px; }
+        .bs-card-header-refresh:hover { text-decoration: underline; }
+
         @media (max-width: 900px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
             .price-cards { grid-template-columns: repeat(2, 1fr); }
@@ -369,11 +391,15 @@
                 </div>
                 <div id="sellMsg" style="margin-top:10px;font-size:0.85rem;padding-bottom:4px;display:none"></div>
             </div>
-            <!-- Pending Sales list -->
-            <div style="margin-top:8px">
-                <div style="padding:0 24px 10px;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--slate-light)">Pending Sales</div>
-                <div id="pendingSalesList"><div class="empty" style="padding:0 24px 16px">No pending sales.</div></div>
+        </div>
+
+        <!-- MY BATCH SALES -->
+        <div class="card" id="myBatchSalesCard">
+            <div class="card-header">
+                <span class="card-title">My Batch Sales</span>
+                <button class="bs-card-header-refresh" onclick="loadMyBatchSales()">↻ Refresh</button>
             </div>
+            <div id="myBatchSalesList"><div class="empty">Loading…</div></div>
         </div>
 
         <!-- TOP COLLECTORS -->
@@ -579,7 +605,7 @@ function loadAll() {
         });
     loadPendingTxns();
     loadIncomingCollections();
-    loadPendingSales();
+    loadMyBatchSales();
     loadProcessors();
 }
 
@@ -1054,7 +1080,7 @@ function submitAggregatorSale() {
             document.getElementById('sellPrice').value     = '';
             document.getElementById('sellNotes').value     = '';
             updatePhotoWarning();
-            loadPendingSales();
+            loadMyBatchSales();
         } else {
             msg.textContent = data.message || 'Error logging sale.';
             msg.style.color = 'var(--red)';
@@ -1068,37 +1094,89 @@ function submitAggregatorSale() {
     });
 }
 
-function loadPendingSales() {
+function loadMyBatchSales() {
     var aggId = state.operator.id;
-    fetch('/api/pending-transactions?aggregator_operator_id=' + aggId + '&type=aggregator_sale')
+    fetch('/api/pending-transactions/aggregator-sales?aggregator_operator_id=' + aggId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var list = document.getElementById('pendingSalesList');
+            var list = document.getElementById('myBatchSalesList');
             var rows = data.pending_transactions || [];
             if (!rows.length) {
-                list.innerHTML = '<div class="empty" style="padding:0 24px 16px">No pending sales.</div>';
+                list.innerHTML = '<div class="empty">No batch sales yet.</div>';
                 return;
             }
-            list.innerHTML = rows.map(function(pt) {
-                var proc = pt.processor_company || pt.processor_name || '—';
-                var kg   = parseFloat(pt.gross_weight_kg).toFixed(0);
-                var date = fmtDate(pt.created_at);
-                var dispatchHtml = pt.dispatch_approved
-                    ? '<span class="dispatch-ok">✓ Dispatch approved</span>'
-                    : '<span class="dispatch-pending">⏳ Awaiting approval</span>';
-                return '<div class="pending-sale-item">' +
-                    '<span class="badge badge-green">' + esc(pt.material_type) + '</span>' +
-                    '<span style="font-weight:600;font-size:0.9rem">' + esc(proc) + '</span>' +
-                    '<span class="pending-sale-meta">' + kg + ' kg</span>' +
-                    '<span class="pending-sale-meta">GH₵ ' + parseFloat(pt.price_per_kg || 0).toFixed(2) + '/kg</span>' +
-                    '<span class="pending-sale-meta">' + date + '</span>' +
-                    dispatchHtml +
-                    '</div>';
-            }).join('');
+            list.innerHTML = rows.map(renderBatchSaleItem).join('');
         })
         .catch(function() {
-            document.getElementById('pendingSalesList').innerHTML = '<div class="empty" style="padding:0 24px 16px">Could not load pending sales.</div>';
+            document.getElementById('myBatchSalesList').innerHTML = '<div class="empty">Could not load batch sales.</div>';
         });
+}
+
+function renderBatchSaleItem(pt) {
+    var proc  = pt.processor_company || pt.processor_name || '—';
+    var kg    = parseFloat(pt.gross_weight_kg || 0).toFixed(0);
+    var price = parseFloat(pt.price_per_kg || 0).toFixed(2);
+    var total = parseFloat(pt.total_price || 0);
+    var totalFmt = total >= 1000
+        ? total.toLocaleString('en-US', { maximumFractionDigits: 0 })
+        : total.toFixed(2);
+    var date  = fmtDate(pt.created_at);
+
+    // Status badge
+    var statusBadge = buildBatchSaleStatusBadge(pt.status);
+
+    // Grade badge (shown when grade is set and status reflects grading)
+    var gradeBadge = '';
+    if (pt.grade && ['arrived', 'grade_c_flagged', 'completed'].indexOf(pt.status) !== -1) {
+        var gc = pt.grade === 'A' ? 'badge-grade-a' : pt.grade === 'B' ? 'badge-grade-b' : 'badge-grade-c-val';
+        gradeBadge = '<span class="badge ' + gc + '">Grade ' + esc(pt.grade) + '</span>';
+    }
+
+    // Photo indicator — photo_urls is JSONB, node-pg parses it as a JS array
+    var photoUrls = pt.photo_urls;
+    var hasPhotos = Array.isArray(photoUrls) ? photoUrls.length > 0
+                  : (typeof photoUrls === 'string' && photoUrls !== '[]' && photoUrls !== 'null' && photoUrls !== '');
+    var photoHtml = '';
+    if (hasPhotos) {
+        photoHtml = '<span class="bs-photo-ok">✓ Photos attached</span>';
+    } else if (parseFloat(pt.gross_weight_kg || 0) > 500) {
+        photoHtml = '<span class="bs-photo-warn">⚠ No photos (&gt;500 kg)</span>';
+    }
+
+    // Rejection reason
+    var rejectHtml = '';
+    if (pt.status === 'dispatch_rejected' && pt.rejection_reason) {
+        rejectHtml = '<div class="bs-reject-reason">Reason: ' + esc(pt.rejection_reason) + '</div>';
+    }
+
+    return '<div class="bs-item">' +
+        '<div class="bs-top">' +
+            '<span class="badge badge-green">' + esc(pt.material_type || '—') + '</span>' +
+            '<span class="bs-proc">' + esc(proc) + '</span>' +
+            '<span class="bs-meta">' + kg + ' kg</span>' +
+            '<span class="bs-meta">GH₵ ' + price + '/kg</span>' +
+            '<span class="bs-meta">GH₵ ' + totalFmt + ' total</span>' +
+            '<span class="bs-meta" style="margin-left:auto">' + date + '</span>' +
+        '</div>' +
+        '<div class="bs-status-row">' +
+            statusBadge +
+            gradeBadge +
+            photoHtml +
+        '</div>' +
+        rejectHtml +
+    '</div>';
+}
+
+function buildBatchSaleStatusBadge(status) {
+    switch (status) {
+        case 'pending':           return '<span class="badge badge-status-pending">⏳ Awaiting Approval</span>';
+        case 'dispatch_approved': return '<span class="badge badge-status-dispatch-approved">✓ Dispatch Approved</span>';
+        case 'dispatch_rejected': return '<span class="badge badge-status-dispatch-rejected">✗ Dispatch Rejected</span>';
+        case 'arrived':           return '<span class="badge badge-status-arrived">✓ Arrived</span>';
+        case 'grade_c_flagged':   return '<span class="badge badge-status-grade-c">⚠ Grade C Flagged</span>';
+        case 'completed':         return '<span class="badge badge-status-completed">✓ Completed</span>';
+        default:                  return '<span class="badge badge-gray">' + esc(status || '—') + '</span>';
+    }
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────

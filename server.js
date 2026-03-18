@@ -1202,6 +1202,33 @@ app.get('/api/pending-transactions/collector-sales', async (req, res) => {
   }
 });
 
+// GET /api/pending-transactions/aggregator-sales
+// Returns all aggregator_sale rows for an aggregator (all statuses), JOINs processor company name
+app.get('/api/pending-transactions/aggregator-sales', async (req, res) => {
+  try {
+    const { aggregator_operator_id } = req.query;
+    if (!aggregator_operator_id) {
+      return res.status(400).json({ success: false, message: 'aggregator_operator_id query param required' });
+    }
+    const result = await pool.query(
+      `SELECT pt.*,
+              b.company AS processor_company,
+              b.name    AS processor_name
+       FROM pending_transactions pt
+       LEFT JOIN buyers b ON b.id = pt.processor_buyer_id
+       WHERE pt.transaction_type = 'aggregator_sale'
+         AND pt.aggregator_operator_id = $1
+       ORDER BY pt.created_at DESC
+       LIMIT 20`,
+      [aggregator_operator_id]
+    );
+    res.json({ success: true, pending_transactions: result.rows });
+  } catch (err) {
+    console.error('Aggregator sales error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // PATCH /api/pending-transactions/:id/review — aggregator accepts or rejects a collector_sale
 app.patch('/api/pending-transactions/:id/review', async (req, res) => {
   try {
