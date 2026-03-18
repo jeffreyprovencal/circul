@@ -2510,8 +2510,8 @@ app.get('/api/prices', async (req, res) => {
       all_prices: allPrices.rows
     });
   } catch (err) {
-    console.error('Get prices error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Get prices error:', err.message, err.stack);
+    res.status(500).json({ success: false, message: 'Server error', detail: err.message });
   }
 });
 
