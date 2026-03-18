@@ -471,10 +471,6 @@
           USSD access via <strong>*737#</strong> — coming soon.
         </div>
 
-        <!-- Processor request note -->
-        <div class="processor-note">
-          <p>New processor? <a href="mailto:hello@circul.app?subject=Processor%20Access">Request an account →</a></p>
-        </div>
       </div>
 
       <div class="card-footer">
@@ -575,26 +571,17 @@
 
     /* ── Demo fill ────────────────────────────── */
     function fillDemo(phone, pin) {
+      mode = null; // force reset so setMode always runs the full transition
       identifier.value = phone;
       setMode('phone');
-      pinField.classList.add('visible');
       setPinValue(pin);
-      identifier.dispatchEvent(new Event('input'));
     }
 
     function fillDemoEmail(email, pw) {
-      // 1. Set identifier value (@ triggers email mode via input event)
+      mode = null; // force reset so setMode always runs the full transition
       identifier.value = email;
-      // 2. Dispatch 'input' to fire the mode-switch logic (detects '@' → setMode('email'))
-      identifier.dispatchEvent(new Event('input'));
-      // 3. After the password field is revealed, fill it in and fire its input event
-      setTimeout(function () {
-        var pwField = document.getElementById('password');
-        if (pwField) {
-          pwField.value = pw;
-          pwField.dispatchEvent(new Event('input'));
-        }
-      }, 50);
+      setMode('email');
+      document.getElementById('password').value = pw;
     }
 
     /* ── Demo banner ──────────────────────────── */
