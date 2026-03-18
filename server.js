@@ -2461,7 +2461,7 @@ app.get('/api/prices', async (req, res) => {
     if (city) {
       const nearParams = [...params, city];
       nearPrices = await pool.query(`
-        SELECT pp.material_type, pp.price_per_kg_ghs, pp.updated_at,
+        SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at,
                o.name as operator_name, o.role as operator_role, pp.city
         FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
         WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true AND pp.city = $${nearParams.length}${whereExtra}
@@ -2491,7 +2491,7 @@ app.get('/api/prices', async (req, res) => {
     `, params);
 
     const allPrices = await pool.query(`
-      SELECT pp.material_type, pp.price_per_kg_ghs, pp.updated_at,
+      SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at,
              o.name as operator_name, o.role as operator_role, pp.city
       FROM posted_prices pp JOIN operators o ON o.id=pp.operator_id
       WHERE o.role = ANY($1) AND pp.expires_at > $2 AND pp.is_active=true${whereExtra}
@@ -2510,8 +2510,8 @@ app.get('/api/prices', async (req, res) => {
       all_prices: allPrices.rows
     });
   } catch (err) {
-    console.error('Get prices error:', err.message, err.stack);
-    res.status(500).json({ success: false, message: 'Server error', detail: err.message });
+    console.error('Get prices error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
