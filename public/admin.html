@@ -179,12 +179,8 @@
         <div style="display:flex;gap:8px;align-items:center">
           <select id="role-filter" onchange="loadOperators()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-family:inherit;font-size:0.85rem">
             <option value="">All Roles</option>
-            <option value="collector">Collector</option>
             <option value="aggregator">Aggregator</option>
-            <option value="processor">Processor</option>
-            <option value="converter">Converter</option>
-            <option value="operator">Operator</option>
-            <option value="admin">Admin</option>
+            <option value="collector">Collector</option>
           </select>
           <button class="btn btn-sm" onclick="openModal('operator')">+ Add Operator</button>
         </div>
@@ -445,11 +441,19 @@ const ROLE_BADGE_CLASS = { admin:'badge-blue', aggregator:'badge-green', process
 
 async function loadOperators() {
   const roleFilter = document.getElementById('role-filter') ? document.getElementById('role-filter').value : '';
-  const data = await apiFetch('/api/admin/operators');
-  if (!data || !data.success) return;
+  const [aggData, colData] = await Promise.all([
+    apiFetch('/api/admin/aggregators'),
+    apiFetch('/api/admin/collectors')
+  ]);
   const tbody = document.getElementById('operators-tbody');
-  let ops = data.operators;
-  if (roleFilter) ops = ops.filter(o => o.role === roleFilter);
+  const aggregators = ((aggData && aggData.aggregators) || []).map(a => Object.assign({}, a, { _type: 'aggregator', role: 'aggregator' }));
+  const collectors  = ((colData && colData.collectors)  || []).map(c => Object.assign({}, c, {
+    _type: 'collector', role: 'collector',
+    name: ((c.first_name || '') + ' ' + (c.last_name || '')).trim()
+  }));
+  let ops = [...aggregators, ...collectors];
+  if (roleFilter === 'aggregator') ops = aggregators;
+  else if (roleFilter === 'collector') ops = collectors;
   if (!ops.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No operators found.</td></tr>'; return; }
   tbody.innerHTML = ops.map(op => `
     <tr>
@@ -462,16 +466,24 @@ async function loadOperators() {
       <td><span class="badge ${op.is_active ? 'badge-green' : 'badge-red'}">${op.is_active ? 'Active' : 'Inactive'}</span></td>
       <td>
         <button class="btn btn-outline btn-sm" onclick="editOperator(${JSON.stringify(op).replace(/"/g,'&quot;')})">Edit</button>
-        ${op.is_active ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},false)">Disable</button>` : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},true)">Enable</button>`}
+        ${op.is_active
+          ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},'${op._type}',false)">Disable</button>`
+          : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},'${op._type}',true)">Enable</button>`}
       </td>
     </tr>`).join('');
 }
 
 async function loadReputation() {
-  const data = await apiFetch('/api/admin/operators');
-  if (!data || !data.success) return;
+  const [aggData, procData, convData] = await Promise.all([
+    apiFetch('/api/admin/aggregators'),
+    apiFetch('/api/admin/processors'),
+    apiFetch('/api/admin/converters')
+  ]);
   const tbody = document.getElementById('reputation-tbody');
-  const ops = data.operators.filter(o => ['aggregator','processor','converter','collector'].includes(o.role));
+  const aggs  = ((aggData  && aggData.aggregators)  || []).map(a => Object.assign({}, a, { role: 'aggregator', _type: 'aggregator' }));
+  const procs = ((procData && procData.processors)  || []).map(p => Object.assign({}, p, { role: 'processor',  _type: 'processor'  }));
+  const convs = ((convData && convData.converters)   || []).map(c => Object.assign({}, c, { role: 'converter',  _type: 'converter'  }));
+  const ops = [...aggs, ...procs, ...convs];
   if (!ops.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No operators with reputation data.</td></tr>'; return; }
 
   // Fetch ratings for each operator in parallel (cap at 20)
@@ -491,15 +503,19 @@ async function loadReputation() {
       <td>${avg !== '—' ? '⭐ ' + avg : '—'}</td>
       <td>${cnt}</td>
       <td>
-        <button class="btn btn-danger btn-sm" onclick="flagOperator(${op.id})" title="Flag for review">Flag</button>
+        <button class="btn btn-danger btn-sm" onclick="flagOperator(${op.id},'${op._type}')" title="Flag for review">Flag</button>
       </td>
     </tr>`;
   }).join('');
 }
 
-async function flagOperator(id) {
+async function flagOperator(id, type) {
   if (!confirm('Flag this operator for review? This will mark them as flagged but keep them active.')) return;
-  await apiFetch(`/api/admin/operators/${id}`, { method: 'PUT', body: JSON.stringify({ is_flagged: true }) });
+  const base = type === 'aggregator' ? '/api/admin/aggregators'
+             : type === 'converter'  ? '/api/admin/converters'
+             : type === 'collector'  ? '/api/admin/collectors'
+             : '/api/admin/processors';
+  await apiFetch(`${base}/${id}`, { method: 'PUT', body: JSON.stringify({ is_flagged: true }) });
   loadReputation();
 }
 
@@ -639,7 +655,11 @@ async function saveOperator() {
   }
   const errEl = document.getElementById('op-error');
   errEl.textContent = '';
-  const url = id ? `/api/admin/operators/${id}` : '/api/admin/operators';
+  const base = role === 'collector'  ? '/api/admin/collectors'
+             : role === 'aggregator' ? '/api/admin/aggregators'
+             : role === 'converter'  ? '/api/admin/converters'
+             : '/api/admin/processors';
+  const url = id ? `${base}/${id}` : base;
   const method = id ? 'PUT' : 'POST';
   const data = await apiFetch(url, { method, body: JSON.stringify(body) });
   if (!data) return;
@@ -671,8 +691,9 @@ async function saveBuyer() {
   loadBuyers();
 }
 
-async function toggleOperator(id, active) {
-  await apiFetch(`/api/admin/operators/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
+async function toggleOperator(id, type, active) {
+  const base = type === 'collector' ? '/api/admin/collectors' : '/api/admin/aggregators';
+  await apiFetch(`${base}/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
   loadOperators();
 }
 

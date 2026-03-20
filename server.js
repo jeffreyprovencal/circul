@@ -1030,6 +1030,29 @@ app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
+  try {
+    const { first_name, last_name, phone, pin, is_active, is_flagged, city, region } = req.body;
+    const fields = [], params = [];
+    if (first_name  !== undefined) { params.push(first_name);  fields.push(`first_name=$${params.length}`); }
+    if (last_name   !== undefined) { params.push(last_name);   fields.push(`last_name=$${params.length}`); }
+    if (phone       !== undefined) { params.push(phone);       fields.push(`phone=$${params.length}`); }
+    if (pin         !== undefined) { params.push(pin);         fields.push(`pin=$${params.length}`); }
+    if (is_active   !== undefined) { params.push(is_active);   fields.push(`is_active=$${params.length}`); }
+    if (is_flagged  !== undefined) { params.push(is_flagged);  fields.push(`is_flagged=$${params.length}`); }
+    if (city        !== undefined) { params.push(city);        fields.push(`city=$${params.length}`); }
+    if (region      !== undefined) { params.push(region);      fields.push(`region=$${params.length}`); }
+    if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
+    params.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE collectors SET ${fields.join(',')} WHERE id=$${params.length} RETURNING id, first_name, last_name, phone, is_active, city`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, collector: result.rows[0] });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 app.put('/api/admin/collectors/:id/verify', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`UPDATE collectors SET id_verified=true, id_verified_at=NOW(), id_verified_by=$1 WHERE id=$2 RETURNING id, first_name, last_name, id_verified, id_verified_at`, [req.admin.email, req.params.id]);
