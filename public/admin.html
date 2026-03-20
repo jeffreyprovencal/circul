@@ -158,8 +158,8 @@
     <div id="tab-collectors" style="display:none">
       <div class="section-header"><h3>All Collectors</h3></div>
       <table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Region</th><th>Rating</th><th>Total kg</th><th>Transactions</th><th>Joined</th></tr></thead>
-        <tbody id="collectors-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+        <thead><tr><th>Name</th><th>Phone</th><th>Region</th><th>Rating</th><th>Total kg</th><th>Transactions</th><th>Joined</th><th>ID</th></tr></thead>
+        <tbody id="collectors-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
       </table>
     </div>
 
@@ -405,17 +405,25 @@ async function loadCollectors() {
   const data = await apiFetch('/api/admin/collectors');
   if (!data || !data.success) return;
   const tbody = document.getElementById('collectors-tbody');
-  if (!data.collectors.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No collectors yet.</td></tr>'; return; }
-  tbody.innerHTML = data.collectors.map(c => `
-    <tr>
-      <td>${escHtml(c.first_name + ' ' + c.last_name)}</td>
+  if (!data.collectors.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No collectors yet.</td></tr>'; return; }
+  tbody.innerHTML = data.collectors.map(c => {
+    const verifiedBadge = c.id_verified
+      ? '<span style="color:#2563eb;font-weight:700;font-size:0.85rem;margin-left:6px" title="ID Verified">✓</span>'
+      : '';
+    const verifyBtn = c.id_verified
+      ? ''
+      : `<button id="verify-btn-collector-${c.id}" class="btn btn-outline btn-sm" style="color:#2563eb;border-color:#2563eb" onclick="verifyId('collector',${c.id})">Verify ID</button>`;
+    return `<tr>
+      <td>${escHtml(c.first_name + ' ' + c.last_name)}${verifiedBadge}</td>
       <td>${escHtml(c.phone || '—')}</td>
       <td>${escHtml(c.region || '—')}</td>
       <td>${c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—'}</td>
       <td>${parseFloat(c.total_weight_kg).toFixed(2)} kg</td>
       <td>${c.transaction_count}</td>
       <td>${fmtDate(c.created_at)}</td>
-    </tr>`).join('');
+      <td>${verifyBtn}</td>
+    </tr>`;
+  }).join('');
 }
 
 async function loadTransactions() {
@@ -455,9 +463,14 @@ async function loadOperators() {
   if (roleFilter === 'aggregator') ops = aggregators;
   else if (roleFilter === 'collector') ops = collectors;
   if (!ops.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No operators found.</td></tr>'; return; }
-  tbody.innerHTML = ops.map(op => `
-    <tr>
-      <td>${escHtml(op.name)}</td>
+  tbody.innerHTML = ops.map(op => {
+    const verifiedBadge = op.id_verified
+      ? '<span style="color:#2563eb;font-weight:700;font-size:0.85rem;margin-left:6px" title="ID Verified">✓</span>'
+      : '';
+    const verifyBtn = (op.id_verified || op._type === 'collector') ? ''
+      : `<button id="verify-btn-${op._type}-${op.id}" class="btn btn-outline btn-sm" style="margin-left:6px;color:#2563eb;border-color:#2563eb" onclick="verifyId('${op._type}',${op.id})">Verify ID</button>`;
+    return `<tr>
+      <td>${escHtml(op.name)}${verifiedBadge}</td>
       <td>${escHtml(op.company || '—')}</td>
       <td>${escHtml(op.phone || '—')}</td>
       <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">${op.pin || '—'}</code></td>
@@ -469,8 +482,10 @@ async function loadOperators() {
         ${op.is_active
           ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},'${op._type}',false)">Disable</button>`
           : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},'${op._type}',true)">Enable</button>`}
+        ${verifyBtn}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function loadReputation() {
@@ -507,6 +522,25 @@ async function loadReputation() {
       </td>
     </tr>`;
   }).join('');
+}
+
+async function verifyId(type, id) {
+  if (!confirm(`Mark this ${type} as ID-verified?`)) return;
+  const base = type === 'collector' ? '/api/admin/collectors' : '/api/admin/aggregators';
+  const data = await apiFetch(`${base}/${id}/verify`, { method: 'PUT' });
+  if (!data || !data.success) { alert('Verification failed — try again.'); return; }
+  // Update in-place: swap button for blue check, no page reload needed
+  const btn = document.getElementById(`verify-btn-${type}-${id}`);
+  if (btn) {
+    const span = document.createElement('span');
+    span.style.cssText = 'color:#2563eb;font-weight:700;font-size:0.85rem;margin-left:6px';
+    span.title = 'ID Verified';
+    span.textContent = '✓';
+    // Append check to name cell (first td in the row)
+    const row = btn.closest('tr');
+    if (row) row.cells[0].appendChild(span);
+    btn.remove();
+  }
 }
 
 async function flagOperator(id, type) {

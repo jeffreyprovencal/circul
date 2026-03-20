@@ -46,6 +46,8 @@
         .btn-logout:hover { background: rgba(239,68,68,0.1); }
         .nav-back-home { font-size: 0.78rem; color: rgba(255,255,255,0.55); text-decoration: none; transition: color 0.15s; }
         .nav-back-home:hover { color: var(--white); }
+        .btn-switch-role { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.45); color: var(--amber); font-family: 'Space Grotesk', sans-serif; font-size: 0.78rem; font-weight: 600; padding: 5px 13px; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+        .btn-switch-role:hover { background: rgba(245,158,11,0.28); }
         .main { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
         .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
         .stat-card { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
@@ -171,6 +173,7 @@
         <div class="nav-right">
             <span class="nav-name" id="navName"></span>
             <span class="role-badge">converter</span>
+            <button id="switch-role-btn" class="btn-switch-role" style="display:none" onclick="window.location='/processor-dashboard'">⇄ Switch to Processor View</button>
             <a href="/" class="nav-back-home">← Back to home</a>
             <button class="btn-logout" onclick="handleLogout()">Log out</button>
         </div>
@@ -367,11 +370,31 @@ function checkAuth() {
     document.getElementById('loginOverlay').classList.remove('hidden');
 }
 
+function checkDualRole() {
+    try {
+        var token = (state.operator && state.operator.token) || localStorage.getItem('circul_token');
+        if (token) {
+            var parts = token.split('.');
+            // Custom HMAC tokens: payload may be at index 0 (payload.sig) or index 1 (header.payload.sig)
+            for (var i = 0; i < Math.min(parts.length, 2); i++) {
+                try {
+                    var p = JSON.parse(atob(parts[i]));
+                    if (p && p.roles && p.roles.indexOf('processor') !== -1) {
+                        document.getElementById('switch-role-btn').style.display = 'inline-block';
+                        return;
+                    }
+                } catch(e) {}
+            }
+        }
+    } catch(e) {}
+}
+
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
     document.getElementById('dashboard').style.display = '';
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
+    checkDualRole();
     loadAll();
     if (op.token) {
         var tokenId = null;
