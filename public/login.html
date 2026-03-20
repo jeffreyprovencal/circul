@@ -482,10 +482,11 @@
       <div class="demo-banner" id="demoBanner" aria-label="Demo accounts">
         <div class="demo-banner-label">&#9679; Try a demo account</div>
         <div class="demo-buttons">
-          <button class="demo-btn" onclick="fillDemo('0300000001','1111')">Collector</button>
-          <button class="demo-btn" onclick="fillDemo('0300000002','2222')">Aggregator</button>
-          <button class="demo-btn" onclick="fillDemoEmail('jeffrey@circul.demo','demo1234')">Processor</button>
+          <button class="demo-btn" onclick="fillDemo('0300000001','1111')">Ama (Collector)</button>
+          <button class="demo-btn" onclick="fillDemo('0300000002','2222')">Kwesi (Aggregator)</button>
+          <button class="demo-btn" onclick="fillDemoEmail('jeffrey@circul.demo','demo1234')">rePATRN (Processor)</button>
           <button class="demo-btn" onclick="fillDemoEmail('miniplast@circul.demo','demo1234')">Miniplast ↗</button>
+          <button class="demo-btn" onclick="fillDemoEmail('poly@circul.demo','demo1234')">Poly Recycling AG</button>
         </div>
       </div>
 
@@ -653,17 +654,26 @@
     }
 
     /* ── Demo fill ────────────────────────────── */
+    // Bypass setMode()'s early-return guard by directly setting state + classes.
     function fillDemo(phone, pin) {
-      mode = null;
+      clearError();
       identifier.value = phone;
-      setMode('phone');
+      mode = 'phone';
+      pinField.classList.add('visible');
+      passwordField.classList.remove('visible');
+      identifier.setAttribute('inputmode', 'tel');
+      authHint.textContent = 'Sign in with your 4-digit PIN.';
       setPinValue(pin);
     }
 
     function fillDemoEmail(email, pw) {
-      mode = null;
+      clearError();
       identifier.value = email;
-      setMode('email');
+      mode = 'email';
+      passwordField.classList.add('visible');
+      pinField.classList.remove('visible');
+      identifier.setAttribute('inputmode', 'email');
+      authHint.textContent = 'Sign in with email and password.';
       document.getElementById('password').value = pw;
     }
 
