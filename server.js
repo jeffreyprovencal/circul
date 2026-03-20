@@ -365,7 +365,9 @@ app.post('/api/transactions', async (req, res) => {
     if (!collector_id || !material_type || !gross_weight_kg) return res.status(400).json({ success: false, message: 'collector_id, material_type, and gross_weight_kg are required' });
     const validMaterials = ['PET','HDPE','LDPE','PP'];
     if (!validMaterials.includes(material_type.toUpperCase())) return res.status(400).json({ success: false, message: `Invalid material type. Must be one of: ${validMaterials.join(', ')}` });
-    if (parseFloat(gross_weight_kg) <= 0) return res.status(400).json({ success: false, message: 'Weight must be greater than 0' });
+    const _wkg = parseFloat(gross_weight_kg);
+    if (_wkg <= 0) return res.status(400).json({ success: false, message: 'Weight must be greater than 0' });
+    if (_wkg > 500) return res.status(400).json({ success: false, message: 'gross_weight_kg must be > 0 and at most 500 kg' });
     const deduction = parseFloat(contamination_deduction_percent) || 0;
     const net_weight = parseFloat(gross_weight_kg) * (1 - deduction / 100);
     const pricePer = parseFloat(price_per_kg) || 0;
