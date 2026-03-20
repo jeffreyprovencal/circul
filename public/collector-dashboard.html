@@ -568,7 +568,7 @@
 
     /* ── AUTH GATE ───────────────────────────────── */
     (function () {
-      try { session = JSON.parse(localStorage.getItem('circul_operator')); } catch (e) {}
+      try { session = JSON.parse(localStorage.getItem('circul_user')); } catch (e) {}
 
       if (!session) {
         window.location.replace('/login.html');
@@ -813,7 +813,7 @@
 
     /* ── SIGN OUT ────────────────────────────────── */
     function signOut() {
-      localStorage.removeItem('circul_operator');
+      localStorage.removeItem('circul_user');
       window.location.href = '/login.html';
     }
 

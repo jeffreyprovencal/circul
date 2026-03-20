@@ -519,7 +519,7 @@ var ROLE_ROUTES = {
 };
 
 function checkAuth() {
-    var saved = localStorage.getItem('circul_operator');
+    var saved = localStorage.getItem('circul_user');
     if (saved) {
         try {
             state.operator = JSON.parse(saved);
@@ -529,7 +529,7 @@ function checkAuth() {
             }
             showDashboard();
             return;
-        } catch (e) { localStorage.removeItem('circul_operator'); }
+        } catch (e) { localStorage.removeItem('circul_user'); }
     }
     document.getElementById('loginOverlay').classList.remove('hidden');
 }
@@ -551,17 +551,19 @@ function handleLogin(e) {
     var btn = document.getElementById('loginBtn');
     btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
     document.getElementById('loginError').classList.remove('visible');
-    fetch('/api/operators/login', {
+    fetch('/api/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone, pin: pin })
+        body: JSON.stringify({ phone: phone, pin: pin, type: 'phone' })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
-            state.operator = data.operator;
-            localStorage.setItem('circul_operator', JSON.stringify(data.operator));
-            if (data.operator.role !== 'aggregator') {
-                var route = ROLE_ROUTES[data.operator.role];
+            var user = data.user || data.operator;
+            state.operator = user;
+            if (data.token) localStorage.setItem('circul_token', data.token);
+            localStorage.setItem('circul_user', JSON.stringify(user));
+            if (user.role !== 'aggregator') {
+                var route = ROLE_ROUTES[user.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();
@@ -582,13 +584,14 @@ function handleLogin(e) {
 function handleLogout() {
     if (refreshTimer) clearInterval(refreshTimer);
     state.operator = null;
-    localStorage.removeItem('circul_operator');
-    window.location.href = '/dashboard';
+    localStorage.removeItem('circul_user');
+    localStorage.removeItem('circul_token');
+    window.location.href = '/login';
 }
 
 function loadAll() {
     var id = state.operator.id;
-    fetch('/api/operators/' + id + '/dashboard-stats')
+    fetch('/api/aggregators/' + id + '/stats')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -638,7 +641,7 @@ function postPrice(mat) {
     if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
+        body: JSON.stringify({ poster_type: 'aggregator', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) { if (data.success) { loadAll(); } else { alert(data.message); } });
@@ -663,7 +666,7 @@ function renderCollectors(collectors) {
 }
 
 function loadPendingTxns() {
-    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=50')
+    fetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -735,8 +738,10 @@ function submitRating() {
     fetch('/api/ratings/operator', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            rater_operator_id: state.operator.id,
-            rated_collector_id: state.currentRatingCollectorId,
+            rater_type: 'aggregator',
+            rater_id: state.operator.id,
+            rated_type: 'collector',
+            rated_id: state.currentRatingCollectorId,
             rating: state.currentRatingStar,
             tags: state.selectedTags,
             notes: document.getElementById('ratingNote').value || null,
@@ -755,7 +760,7 @@ document.getElementById('ratingModal').addEventListener('click', function(e) {
 
 function loadIncomingCollections() {
     var aggId = state.operator.id;
-    fetch('/api/pending-transactions?aggregator_operator_id=' + aggId)
+    fetch('/api/pending-transactions?aggregator_id=' + aggId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var list = document.getElementById('incomingList');
@@ -971,10 +976,10 @@ function submitAggregatorPurchase() {
     }
 
     var body = {
-        aggregator_operator_id: state.operator.id,
-        collector_id:           parseInt(collectorId, 10),
-        material_type:          material,
-        gross_weight_kg:        parseFloat(weight)
+        aggregator_id:   state.operator.id,
+        collector_id:    parseInt(collectorId, 10),
+        material_type:   material,
+        gross_weight_kg: parseFloat(weight)
     };
     if (price && parseFloat(price) > 0) body.price_per_kg = parseFloat(price);
 
@@ -1009,20 +1014,28 @@ function submitAggregatorPurchase() {
 // ── LOG A SALE TO PROCESSOR ────────────────────────────────────────────────────
 
 function loadProcessors() {
-    fetch('/api/buyers?role=processor')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var sel = document.getElementById('sellProcessor');
-            var buyers = data.buyers || [];
-            sel.innerHTML = buyers.length
-                ? '<option value="">Select processor…</option>' + buyers.map(function(b) {
-                    return '<option value="' + b.id + '">' + esc(b.company || b.name) + '</option>';
-                  }).join('')
-                : '<option value="">No processors found</option>';
-        })
-        .catch(function() {
-            document.getElementById('sellProcessor').innerHTML = '<option value="">Could not load processors</option>';
+    Promise.all([
+        fetch('/api/processors').then(function(r) { return r.json(); }),
+        fetch('/api/converters?country=Ghana').then(function(r) { return r.json(); })
+    ])
+    .then(function(results) {
+        var sel = document.getElementById('sellProcessor');
+        var processors = (results[0].processors || []).map(function(p) {
+            return { id: p.id, label: esc(p.company || p.name), type: 'processor' };
         });
+        var converters = (results[1].converters || []).map(function(c) {
+            return { id: c.id, label: esc(c.company || c.name) + ' (converter)', type: 'converter' };
+        });
+        var all = processors.concat(converters);
+        sel.innerHTML = all.length
+            ? '<option value="">Select buyer…</option>' + all.map(function(b) {
+                return '<option value="' + b.id + '" data-type="' + b.type + '">' + b.label + '</option>';
+              }).join('')
+            : '<option value="">No buyers found</option>';
+    })
+    .catch(function() {
+        document.getElementById('sellProcessor').innerHTML = '<option value="">Could not load buyers</option>';
+    });
 }
 
 function updatePhotoWarning() {
@@ -1056,15 +1069,25 @@ function submitAggregatorSale() {
     fetch('/api/pending-transactions/aggregator-sale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            aggregator_operator_id: state.operator.id,
-            processor_buyer_id:     parseInt(processorId, 10),
-            material_type:          material,
-            gross_weight_kg:        parseFloat(weight),
-            price_per_kg:           parseFloat(price),
-            notes:                  notes || null,
-            photo_urls:             []
-        })
+        body: (function() {
+            var sel = document.getElementById('sellProcessor');
+            var opt = sel.options[sel.selectedIndex];
+            var btype = opt ? opt.getAttribute('data-type') : 'processor';
+            var payload = {
+                aggregator_id:   state.operator.id,
+                material_type:   material,
+                gross_weight_kg: parseFloat(weight),
+                price_per_kg:    parseFloat(price),
+                notes:           notes || null,
+                photo_urls:      []
+            };
+            if (btype === 'converter') {
+                payload.converter_id = parseInt(processorId, 10);
+            } else {
+                payload.processor_id = parseInt(processorId, 10);
+            }
+            return JSON.stringify(payload);
+        })()
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -1096,7 +1119,7 @@ function submitAggregatorSale() {
 
 function loadMyBatchSales() {
     var aggId = state.operator.id;
-    fetch('/api/pending-transactions/aggregator-sales?aggregator_operator_id=' + aggId)
+    fetch('/api/pending-transactions/aggregator-sales?aggregator_id=' + aggId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var list = document.getElementById('myBatchSalesList');

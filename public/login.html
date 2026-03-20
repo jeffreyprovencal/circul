@@ -382,6 +382,85 @@
       .card { padding: 32px 24px 28px; }
       .demo-banner { padding: 14px 20px; }
     }
+
+    /* ─── ROLE SELECTOR OVERLAY ─────────────────── */
+    .role-selector {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(26,46,26,0.55);
+      backdrop-filter: blur(2px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .role-selector.visible {
+      display: flex;
+    }
+    .role-selector-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 40px 32px 32px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+    }
+    .role-selector-heading {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--deep);
+      margin: 12px 0 6px;
+    }
+    .role-selector-sub {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+    .role-selector-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .role-btn {
+      display: block;
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-btn);
+      background: var(--white);
+      color: var(--deep);
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Space Grotesk', sans-serif;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .role-btn:hover {
+      border-color: var(--forest);
+      background: var(--light-mint);
+    }
+    .role-btn-sub {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 400;
+      color: var(--muted);
+      margin-top: 2px;
+      font-family: 'Inter', sans-serif;
+    }
+    .role-selector-cancel {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 4px;
+    }
+    .role-selector-cancel:hover { color: var(--deep); }
   </style>
 </head>
 <body>
@@ -405,8 +484,8 @@
         <div class="demo-buttons">
           <button class="demo-btn" onclick="fillDemo('0300000001','1111')">Collector</button>
           <button class="demo-btn" onclick="fillDemo('0300000002','2222')">Aggregator</button>
-          <button class="demo-btn" onclick="fillDemoEmail('abena@circul.demo','demo1234')">Processor</button>
-          <button class="demo-btn" onclick="fillDemoEmail('kweku@circul.demo','demo1234')">Converter</button>
+          <button class="demo-btn" onclick="fillDemoEmail('jeffrey@circul.demo','demo1234')">Processor</button>
+          <button class="demo-btn" onclick="fillDemoEmail('miniplast@circul.demo','demo1234')">Miniplast ↗</button>
         </div>
       </div>
 
@@ -477,6 +556,17 @@
         <a href="/" class="card-footer-link">← Back to <strong>circul.app</strong></a>
       </div>
 
+      <!-- Role selector (shown when account has multiple roles) -->
+      <div class="role-selector" id="roleSelector" aria-hidden="true">
+        <div class="role-selector-card">
+          <div class="card-icon" aria-hidden="true">♻</div>
+          <h2 class="role-selector-heading">Continue as…</h2>
+          <p class="role-selector-sub">This account has access to multiple dashboards.</p>
+          <div class="role-selector-btns" id="roleSelectorBtns"></div>
+          <button class="role-selector-cancel" onclick="cancelRoleSelector()">← Back</button>
+        </div>
+      </div>
+
     </div>
   </main>
 
@@ -486,7 +576,6 @@
   </footer>
 
   <script>
-    // dashboard.html retired — superseded by aggregator-dashboard.html
     var ROLE_ROUTES = {
       collector:  '/collector-dashboard',
       aggregator: '/aggregator-dashboard',
@@ -496,8 +585,13 @@
       operator:   '/admin'
     };
 
+    var ROLE_LABELS = {
+      processor: { title: 'Processor Dashboard', sub: 'Manage incoming material, grade & confirm.' },
+      converter: { title: 'Converter Dashboard', sub: 'Full supply chain view + conversion outputs.' }
+    };
+
     /* ── Detect auth mode ─────────────────────── */
-    var identifier = document.getElementById('identifier');
+    var identifier    = document.getElementById('identifier');
     var passwordField = document.getElementById('passwordField');
     var pinField      = document.getElementById('pinField');
     var authHint      = document.getElementById('authHint');
@@ -505,22 +599,14 @@
 
     identifier.addEventListener('input', function () {
       var val = this.value.trim();
-      if (!val) {
-        setMode(null);
-        return;
-      }
-      if (val.indexOf('@') !== -1) {
-        setMode('email');
-      } else {
-        setMode('phone');
-      }
+      if (!val) { setMode(null); return; }
+      setMode(val.indexOf('@') !== -1 ? 'email' : 'phone');
     });
 
     function setMode(m) {
       if (m === mode) return;
       mode = m;
       clearError();
-
       if (m === 'email') {
         passwordField.classList.add('visible');
         pinField.classList.remove('visible');
@@ -549,14 +635,11 @@
 
     pinBoxes.forEach(function (box, i) {
       box.addEventListener('input', function () {
-        // Allow only digits
         this.value = this.value.replace(/[^0-9]/g, '');
         if (this.value && i < 3) pinBoxes[i + 1].focus();
       });
       box.addEventListener('keydown', function (e) {
-        if (e.key === 'Backspace' && !this.value && i > 0) {
-          pinBoxes[i - 1].focus();
-        }
+        if (e.key === 'Backspace' && !this.value && i > 0) pinBoxes[i - 1].focus();
       });
     });
 
@@ -571,14 +654,14 @@
 
     /* ── Demo fill ────────────────────────────── */
     function fillDemo(phone, pin) {
-      mode = null; // force reset so setMode always runs the full transition
+      mode = null;
       identifier.value = phone;
       setMode('phone');
       setPinValue(pin);
     }
 
     function fillDemoEmail(email, pw) {
-      mode = null; // force reset so setMode always runs the full transition
+      mode = null;
       identifier.value = email;
       setMode('email');
       document.getElementById('password').value = pw;
@@ -627,20 +710,54 @@
             }
             return;
           }
-          // Store session info
-          if (data.token) localStorage.setItem('circul_token', data.token);
-          if (data.operator) localStorage.setItem('circul_operator', JSON.stringify(data.operator));
 
-          // Route by role
-          var role = (data.role || (data.operator && data.operator.role) || '').toLowerCase();
-          var dest  = ROLE_ROUTES[role] || '/';
-          window.location.href = dest;
+          // Store session
+          if (data.token) localStorage.setItem('circul_token', data.token);
+          var userObj = data.user || data.operator || null;
+          if (userObj) localStorage.setItem('circul_user', JSON.stringify(userObj));
+
+          // Multi-role: show role selector
+          var roles = data.roles;
+          if (Array.isArray(roles) && roles.length > 1) {
+            showRoleSelector(data.token, userObj, roles);
+            return;
+          }
+
+          // Single role: redirect immediately
+          var role = (data.role || '').toLowerCase();
+          window.location.href = ROLE_ROUTES[role] || '/';
         })
         .catch(function () {
           setLoading(false);
           showError('Unable to connect. Please check your internet connection and try again.');
         });
     });
+
+    /* ── Role selector ────────────────────────── */
+    function showRoleSelector(token, user, roles) {
+      var btnsEl = document.getElementById('roleSelectorBtns');
+      btnsEl.innerHTML = '';
+      roles.forEach(function (role) {
+        var info  = ROLE_LABELS[role] || { title: role, sub: '' };
+        var btn   = document.createElement('button');
+        btn.className   = 'role-btn';
+        btn.innerHTML   = info.title + (info.sub ? '<span class="role-btn-sub">' + info.sub + '</span>' : '');
+        btn.onclick = function () { selectRole(role); };
+        btnsEl.appendChild(btn);
+      });
+      document.getElementById('roleSelector').classList.add('visible');
+      document.getElementById('roleSelector').removeAttribute('aria-hidden');
+    }
+
+    function selectRole(role) {
+      document.getElementById('roleSelector').classList.remove('visible');
+      window.location.href = ROLE_ROUTES[role] || '/';
+    }
+
+    function cancelRoleSelector() {
+      document.getElementById('roleSelector').classList.remove('visible');
+      document.getElementById('roleSelector').setAttribute('aria-hidden', 'true');
+    }
 
     /* ── Helpers ──────────────────────────────── */
     function showError(msg) {

@@ -372,7 +372,7 @@
         };
 
         function checkAuth() {
-            var saved = localStorage.getItem('circul_operator');
+            var saved = localStorage.getItem('circul_user');
             if (saved) {
                 try {
                     state.operator = JSON.parse(saved);
@@ -381,7 +381,7 @@
                     showDashboard();
                     return;
                 } catch (e) {
-                    localStorage.removeItem('circul_operator');
+                    localStorage.removeItem('circul_user');
                 }
             }
             showLogin();
@@ -420,17 +420,19 @@
             btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
             document.getElementById('loginError').classList.remove('visible');
 
-            fetch('/api/operators/login', {
+            fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: phone, pin: pin })
+                body: JSON.stringify({ phone: phone, pin: pin, type: 'phone' })
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
-                    state.operator = data.operator;
-                    localStorage.setItem('circul_operator', JSON.stringify(data.operator));
-                    var route = ROLE_ROUTES[data.operator.role];
+                    var user = data.user || data.operator;
+                    state.operator = user;
+                    if (data.token) localStorage.setItem('circul_token', data.token);
+                    localStorage.setItem('circul_user', JSON.stringify(user));
+                    var route = ROLE_ROUTES[user.role];
                     if (route) { window.location.href = route; return; }
                     showDashboard();
                 } else {
@@ -451,7 +453,7 @@
 
         window.handleLogout = function() {
             state.operator = null;
-            localStorage.removeItem('circul_operator');
+            localStorage.removeItem('circul_user');
             if (state.refreshTimer) clearInterval(state.refreshTimer);
             document.getElementById('navUser').style.display = 'none';
             document.getElementById('logoutBtn').style.display = 'none';

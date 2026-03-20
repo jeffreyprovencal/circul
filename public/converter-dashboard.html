@@ -350,7 +350,7 @@ var activeConvArrivalId = null;
 var cvToastTimer = null;
 
 function checkAuth() {
-    var saved = localStorage.getItem('circul_operator');
+    var saved = localStorage.getItem('circul_user');
     if (saved) {
         try {
             state.operator = JSON.parse(saved);
@@ -362,7 +362,7 @@ function checkAuth() {
             }
             showDashboard();
             return;
-        } catch (e) { localStorage.removeItem('circul_operator'); }
+        } catch (e) { localStorage.removeItem('circul_user'); }
     }
     document.getElementById('loginOverlay').classList.remove('hidden');
 }
@@ -377,10 +377,10 @@ function showDashboard() {
         var tokenId = null;
         try { tokenId = JSON.parse(atob(op.token.split('.')[1])).id; } catch(e) {}
         var opId = tokenId || op.id;
-        fetch('/api/operators/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
+        fetch('/api/converters/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.operator) document.getElementById('navName').textContent = data.operator.company || data.operator.name || op.name || '';
+                if (data.converter) document.getElementById('navName').textContent = data.converter.company || data.converter.name || op.name || '';
             })
             .catch(function() {});
     }
@@ -398,11 +398,12 @@ function handleLogin(e) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
-            state.operator = data.operator;
+            var user = data.user || data.operator;
+            state.operator = user;
             if (data.token) { state.operator.token = data.token; localStorage.setItem('circul_token', data.token); }
-            localStorage.setItem('circul_operator', JSON.stringify(state.operator));
-            if (data.operator.role !== 'converter') {
-                var route = ROLE_ROUTES[data.operator.role];
+            localStorage.setItem('circul_user', JSON.stringify(state.operator));
+            if (user.role !== 'converter') {
+                var route = ROLE_ROUTES[user.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();
@@ -415,7 +416,7 @@ function handleLogin(e) {
 }
 
 function handleLogout() {
-    state.operator = null; localStorage.removeItem('circul_operator'); window.location.href = '/dashboard';
+    state.operator = null; localStorage.removeItem('circul_user'); localStorage.removeItem('circul_token'); window.location.href = '/login';
 }
 
 function showTab(tab, el) {
@@ -433,7 +434,7 @@ function loadAll() {
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
     // TODO: wire converter stats when endpoint returns total_value for converter transactions
-    fetch('/api/buyers/' + id + '/stats', fetchOpts)
+    fetch('/api/converters/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -800,7 +801,7 @@ function timeAgo(iso) {
 // ── EXISTING TABS FUNCTIONS ────────────────────────────────────────────────────
 
 function loadTxns() {
-    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=30')
+    fetch('/api/transactions?converter_id=' + state.operator.id + '&limit=30')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var tbody = document.getElementById('supplyBody');
@@ -845,7 +846,7 @@ function loadProcessorPrices() {
 }
 
 function loadTxnCerts() {
-    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=20')
+    fetch('/api/transactions?converter_id=' + state.operator.id + '&limit=20')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('txnCerts');
@@ -863,13 +864,13 @@ function loadTxnCerts() {
 }
 
 function loadRatings() {
-    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=100')
+    fetch('/api/transactions?converter_id=' + state.operator.id + '&limit=100')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('processorRatingsList');
             if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
             var seen = {};
-            data.transactions.forEach(function(t) { if (t.operator_id && t.operator_name && !seen[t.operator_id]) seen[t.operator_id] = t.operator_name; });
+            data.transactions.forEach(function(t) { if (t.aggregator_id && t.aggregator_name && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name; });
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
@@ -890,7 +891,7 @@ function rateProcessor(procId, name) {
     if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
     fetch('/api/ratings/operator', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rater_operator_id: state.operator.id, rated_operator_id: procId, rating: parseInt(r), rating_direction: 'converter_rates_processor' })
+        body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: procId, rating: parseInt(r), rating_direction: 'converter_rates_processor' })
     }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
 }
 
@@ -917,7 +918,7 @@ function postPrice(mat) {
     if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
+        body: JSON.stringify({ poster_type: 'converter', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
     }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
 }
 

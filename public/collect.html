@@ -465,7 +465,7 @@
         <div class="form-group">
           <label class="form-label" for="weightInput">Weight (kg)</label>
           <input type="number" class="form-input" id="weightInput"
-                 placeholder="0.0" min="0.1" max="100" step="0.1" inputmode="decimal">
+                 placeholder="0.0" min="0.1" max="500" step="0.1" inputmode="decimal">
         </div>
 
         <div class="form-group">
@@ -520,7 +520,7 @@
 
     /* ── AUTH GATE ─────────────────────────────── */
     (function () {
-      try { session = JSON.parse(localStorage.getItem('circul_operator')); } catch (e) {}
+      try { session = JSON.parse(localStorage.getItem('circul_user')); } catch (e) {}
       if (!session || session.role !== 'collector') {
         window.location.replace('/login.html');
         return;
@@ -560,18 +560,18 @@
 
     /* ── LOAD AGGREGATORS ───────────────────────── */
     function loadAggregators() {
-      fetch('/api/operators?role=aggregator')
+      fetch('/api/aggregators')
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var sel = document.getElementById('aggregatorSelect');
-          var aggs = data.operators || [];
+          var aggs = data.aggregators || [];
           if (!aggs.length) {
             sel.innerHTML = '<option value="">No aggregators available</option>';
             return;
           }
           sel.innerHTML = '<option value="">Select aggregator…</option>' +
             aggs.map(function (a) {
-              var label = a.name || a.company || ('Aggregator #' + a.id);
+              var label = 'AGG-' + String(a.id).padStart(5, '0') + ' — ' + (a.name || a.company || ('Aggregator #' + a.id));
               if (a.city) label += ' — ' + a.city;
               return '<option value="' + a.id + '">' + label + '</option>';
             }).join('');
@@ -592,7 +592,7 @@
 
       if (!material)           { showError('Please select a material type.'); return; }
       if (!weight || weight <= 0) { showError('Please enter a valid weight greater than 0 kg.'); return; }
-      if (weight > 100)        { showError('Maximum weight per sale is 100 kg.'); return; }
+      if (weight > 500)        { showError('Maximum weight per sale is 500 kg.'); return; }
       if (!aggId)              { showError('Please select an aggregator.'); return; }
       if (!collectorId)        { showError('Account not ready — please wait or refresh.'); return; }
 
@@ -604,7 +604,7 @@
       var payload = {
         transaction_type:       'collector_sale',
         collector_id:           collectorId,
-        aggregator_operator_id: aggId,
+        aggregator_id: aggId,
         material_type:          material,
         gross_weight_kg:        weight
       };

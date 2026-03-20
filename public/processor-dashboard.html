@@ -327,11 +327,10 @@ var procToastTimer = null;
 var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
 
 function checkAuth() {
-    var saved = localStorage.getItem('circul_operator');
+    var saved = localStorage.getItem('circul_user');
     if (saved) {
         try {
             state.operator = JSON.parse(saved);
-            // Load token from separate key if not embedded in operator object
             var t = localStorage.getItem('circul_token');
             if (t && !state.operator.token) state.operator.token = t;
             if (state.operator.role !== 'processor') {
@@ -340,7 +339,7 @@ function checkAuth() {
             }
             showDashboard();
             return;
-        } catch (e) { localStorage.removeItem('circul_operator'); }
+        } catch (e) { localStorage.removeItem('circul_user'); }
     }
     document.getElementById('loginOverlay').classList.remove('hidden');
 }
@@ -355,11 +354,11 @@ function showDashboard() {
         var tokenId = null;
         try { tokenId = JSON.parse(atob(op.token.split('.')[1])).id; } catch(e) {}
         var opId = tokenId || op.id;
-        fetch('/api/operators/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
+        fetch('/api/processors/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.operator) {
-                    document.getElementById('navName').textContent = data.operator.company || data.operator.name || op.name || '';
+                if (data.processor) {
+                    document.getElementById('navName').textContent = data.processor.company || data.processor.name || op.name || '';
                 }
             })
             .catch(function() {});
@@ -378,14 +377,15 @@ function handleLogin(e) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
-            state.operator = data.operator;
+            var user = data.user || data.operator;
+            state.operator = user;
             if (data.token) {
                 state.operator.token = data.token;
                 localStorage.setItem('circul_token', data.token);
             }
-            localStorage.setItem('circul_operator', JSON.stringify(state.operator));
-            if (data.operator.role !== 'processor') {
-                var route = ROLE_ROUTES[data.operator.role];
+            localStorage.setItem('circul_user', JSON.stringify(state.operator));
+            if (user.role !== 'processor') {
+                var route = ROLE_ROUTES[user.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();
@@ -402,14 +402,14 @@ function handleLogin(e) {
 }
 
 function handleLogout() {
-    state.operator = null; localStorage.removeItem('circul_operator'); window.location.href = '/dashboard';
+    state.operator = null; localStorage.removeItem('circul_user'); localStorage.removeItem('circul_token'); window.location.href = '/login';
 }
 
 function loadAll() {
     var id = state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
-    fetch('/api/buyers/' + id + '/stats', fetchOpts)
+    fetch('/api/processors/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -428,7 +428,7 @@ function loadAll() {
 }
 
 function loadTxns() {
-    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=30')
+    fetch('/api/transactions?processor_id=' + state.operator.id + '&limit=30')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var tbody = document.getElementById('supplyBody');
@@ -449,7 +449,7 @@ function loadTxns() {
 }
 
 function loadAggregators() {
-    fetch('/api/transactions?operator_id=' + state.operator.id + '&limit=100')
+    fetch('/api/transactions?processor_id=' + state.operator.id + '&limit=100')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('aggregatorRatingsList');
@@ -457,7 +457,7 @@ function loadAggregators() {
             // Unique aggregators from transactions
             var seen = {};
             data.transactions.forEach(function(t) {
-                if (t.operator_id && t.operator_name && !seen[t.operator_id]) seen[t.operator_id] = t.operator_name;
+                if (t.aggregator_id && t.aggregator_name && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name;
             });
             var aggs = Object.keys(seen);
             if (!aggs.length) { el.innerHTML = '<div class="empty">No aggregators to rate yet</div>'; return; }
@@ -473,7 +473,7 @@ function rateAggregator(aggId, name) {
     if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
     fetch('/api/ratings/operator', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rater_operator_id: state.operator.id, rated_operator_id: aggId, rating: parseInt(r), rating_direction: 'processor_rates_aggregator' })
+        body: JSON.stringify({ rater_type: 'processor', rater_id: state.operator.id, rated_type: 'aggregator', rated_id: aggId, rating: parseInt(r), rating_direction: 'processor_rates_aggregator' })
     }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
 }
 
@@ -500,7 +500,7 @@ function postPrice(mat) {
     if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
+        body: JSON.stringify({ poster_type: 'processor', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
     }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
 }
 
@@ -784,10 +784,10 @@ function submitArrivalConfirmation(ptId) {
 // ── SALES TO CONVERTERS ────────────────────────────────────────────────────────
 
 function loadConverters() {
-    fetch('/api/buyers/converters')
+    fetch('/api/converters')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            convertersList = data.buyers || [];
+            convertersList = data.converters || [];
             var sel = document.getElementById('ps-converter');
             if (!sel) return;
             if (!convertersList.length) {
@@ -841,7 +841,7 @@ function submitProcessorSale() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({
-            converter_buyer_id: parseInt(converterId),
+            converter_id: parseInt(converterId),
             material_type:      material,
             gross_weight_kg:    parseFloat(weight),
             price_per_kg:       parseFloat(price),

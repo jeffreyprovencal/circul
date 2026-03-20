@@ -242,8 +242,8 @@ function init() {
         // Try to find collector linked to this operator by looking up their transactions
         fetchCollectorForOperator(operatorId);
     } else {
-        // Try from session (circul_operator is the key used by login.html and collector-dashboard)
-        var saved = localStorage.getItem('circul_operator') || sessionStorage.getItem('circul_session');
+        // Try from session
+        var saved = localStorage.getItem('circul_user') || sessionStorage.getItem('circul_session');
         if (saved) {
             try {
                 var c = JSON.parse(saved);
@@ -256,7 +256,7 @@ function init() {
 
 function fetchCollectorForOperator(opId) {
     // Look up transactions for this operator and find first collector
-    fetch('/api/transactions?operator_id=' + opId + '&limit=1')
+    fetch('/api/transactions?aggregator_id=' + opId + '&limit=1')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success && data.transactions && data.transactions.length) {

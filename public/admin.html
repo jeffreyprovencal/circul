@@ -140,7 +140,7 @@
       <button class="tab" onclick="showTab('collectors', this)">Collectors</button>
       <button class="tab" onclick="showTab('transactions', this)">Transactions</button>
       <button class="tab" onclick="showTab('operators', this)">Operators</button>
-      <button class="tab" onclick="showTab('buyers', this)">Buyers</button>
+      <button class="tab" onclick="showTab('buyers', this)">Processors / Converters</button>
       <button class="tab" onclick="showTab('reputation', this)">Reputation</button>
     </div>
 
@@ -195,11 +195,11 @@
       </table>
     </div>
 
-    <!-- BUYERS -->
+    <!-- BUYERS (processors + converters) -->
     <div id="tab-buyers" style="display:none">
       <div class="section-header">
-        <h3>Buyers (Aggregators &amp; Processors)</h3>
-        <button class="btn btn-sm" onclick="openModal('buyer')">+ Add Buyer</button>
+        <h3>Processors &amp; Converters</h3>
+        <button class="btn btn-sm" onclick="openModal('buyer')">+ Add</button>
       </div>
       <table>
         <thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Role</th><th>Prices Set</th><th>Status</th><th>Actions</th></tr></thead>
@@ -258,7 +258,7 @@
     <div class="form-group"><label>Email</label><input type="email" id="buyer-email" placeholder="buyer@company.com"></div>
     <div class="form-group"><label>Password</label><input type="text" id="buyer-password" placeholder="Set login password"></div>
     <div class="form-group"><label>Role</label>
-      <select id="buyer-role"><option value="aggregator">Aggregator</option><option value="processor">Processor</option></select>
+      <select id="buyer-role"><option value="processor">Processor</option><option value="converter">Converter</option></select>
     </div>
     <div id="buyer-error" class="error-msg"></div>
     <div class="modal-footer">
@@ -363,18 +363,21 @@ async function loadOverview() {
   if (!data || !data.success) return;
   const s = data.stats;
 
-  // Role breakdown from operators list
-  const opsData = await apiFetch('/api/admin/operators');
-  const roleCounts = { collector:0, aggregator:0, processor:0, converter:0, operator:0, admin:0 };
-  if (opsData && opsData.operators) {
-    opsData.operators.forEach(o => { if (roleCounts[o.role] !== undefined) roleCounts[o.role]++; });
-  }
+  // Role breakdown from tier tables
+  const [aggsData, procsData, convsData] = await Promise.all([
+    apiFetch('/api/admin/aggregators'),
+    apiFetch('/api/admin/processors'),
+    apiFetch('/api/admin/converters')
+  ]);
+  const aggCount  = aggsData  && aggsData.aggregators  ? aggsData.aggregators.length  : 0;
+  const procCount = procsData && procsData.processors  ? procsData.processors.length  : 0;
+  const convCount = convsData && convsData.converters  ? convsData.converters.length  : 0;
 
   document.getElementById('stat-grid').innerHTML = `
-    <div class="stat-card"><div class="num">${s.collectors}</div><div class="label">Collectors (USSD)</div></div>
-    <div class="stat-card"><div class="num">${roleCounts.aggregator}</div><div class="label">Aggregators</div></div>
-    <div class="stat-card"><div class="num">${roleCounts.processor}</div><div class="label">Processors</div></div>
-    <div class="stat-card"><div class="num">${roleCounts.converter}</div><div class="label">Converters</div></div>
+    <div class="stat-card"><div class="num">${s.collectors}</div><div class="label">Collectors</div></div>
+    <div class="stat-card"><div class="num">${aggCount}</div><div class="label">Aggregators</div></div>
+    <div class="stat-card"><div class="num">${procCount}</div><div class="label">Processors</div></div>
+    <div class="stat-card"><div class="num">${convCount}</div><div class="label">Converters</div></div>
     <div class="stat-card"><div class="num">${s.transactions}</div><div class="label">Transactions</div></div>
     <div class="stat-card"><div class="num">${parseFloat(s.total_volume_kg).toFixed(1)}</div><div class="label">Total kg collected</div></div>
   `;
@@ -396,8 +399,8 @@ async function loadOverview() {
   document.getElementById('system-health-content').innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
       <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.transactions}</div><div style="font-size:0.82rem;color:var(--slate-light)">Total DB transactions</div></div>
-      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.operators}</div><div style="font-size:0.82rem;color:var(--slate-light)">Active operators (all roles)</div></div>
-      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.buyers}</div><div style="font-size:0.82rem;color:var(--slate-light)">Legacy buyer accounts</div></div>
+      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${aggCount + procCount + convCount}</div><div style="font-size:0.82rem;color:var(--slate-light)">Business accounts</div></div>
+      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.collectors}</div><div style="font-size:0.82rem;color:var(--slate-light)">Collector accounts</div></div>
     </div>
   `;
 }
@@ -434,7 +437,7 @@ async function loadTransactions() {
       <td>${t.price_per_kg ? 'GHS ' + parseFloat(t.price_per_kg).toFixed(2) : '—'}</td>
       <td>${t.total_price ? 'GHS ' + parseFloat(t.total_price).toFixed(2) : '—'}</td>
       <td><span class="badge ${t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray'}">${t.payment_status || 'unpaid'}</span></td>
-      <td>${escHtml(t.operator_name || '—')}</td>
+      <td>${escHtml(t.aggregator_name || '—')}</td>
     </tr>`).join('');
 }
 
@@ -501,24 +504,35 @@ async function flagOperator(id) {
 }
 
 async function loadBuyers() {
-  const data = await apiFetch('/api/admin/buyers');
-  if (!data || !data.success) return;
+  const [procData, convData] = await Promise.all([
+    apiFetch('/api/admin/processors'),
+    apiFetch('/api/admin/converters')
+  ]);
   const tbody = document.getElementById('buyers-tbody');
-  if (!data.buyers.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No buyers yet. Add aggregators and processors above.</td></tr>'; return; }
-  tbody.innerHTML = data.buyers.map(b => {
+  const processors = (procData && procData.processors) || [];
+  const converters  = (convData && convData.converters)  || [];
+  const all = [
+    ...processors.map(p => Object.assign({}, p, { _type: 'processor', role: 'processor' })),
+    ...converters.map(c => Object.assign({}, c, { _type: 'converter', role: 'converter' }))
+  ];
+  if (!all.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No processors or converters yet.</td></tr>'; return; }
+  tbody.innerHTML = all.map(b => {
     const priceCount = (b.prices || []).length;
     const priceDisplay = priceCount ? `${priceCount}/4 materials` : '—';
+    const bJson = JSON.stringify(b).replace(/"/g,'&quot;');
     return `
     <tr>
       <td>${escHtml(b.name)}</td>
       <td>${escHtml(b.company || '—')}</td>
-      <td>${(b.role === 'collector' || b.role === 'aggregator') ? '—' : escHtml(b.email)}</td>
-      <td><span class="badge ${b.role === 'aggregator' ? 'badge-green' : 'badge-blue'}">${b.role}</span></td>
+      <td>${escHtml(b.email || '—')}</td>
+      <td><span class="badge ${b.role === 'converter' ? 'badge-amber' : 'badge-blue'}">${b.role}</span></td>
       <td>${priceDisplay}</td>
       <td><span class="badge ${b.is_active ? 'badge-green' : 'badge-red'}">${b.is_active ? 'Active' : 'Inactive'}</span></td>
       <td>
-        <button class="btn btn-outline btn-sm" onclick="editBuyer(${JSON.stringify(b).replace(/"/g,'&quot;')})">Edit</button>
-        ${b.is_active ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},false)">Disable</button>` : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},true)">Enable</button>`}
+        <button class="btn btn-outline btn-sm" onclick="editBuyer(${bJson})">Edit</button>
+        ${b.is_active
+          ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},'${b._type}',false)">Disable</button>`
+          : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},'${b._type}',true)">Enable</button>`}
       </td>
     </tr>`;
   }).join('');
@@ -537,7 +551,7 @@ function openModal(type) {
     document.getElementById('buyer-modal-title').textContent = 'Add Buyer';
     document.getElementById('buyer-edit-id').value = '';
     ['buyer-name','buyer-company','buyer-email','buyer-password'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('buyer-role').value = 'aggregator';
+    document.getElementById('buyer-role').value = 'processor';
     document.getElementById('buyer-error').textContent = '';
   }
   document.getElementById('modal-' + type).classList.add('open');
@@ -594,7 +608,7 @@ function editBuyer(b) {
   document.getElementById('buyer-company').value = b.company || '';
   document.getElementById('buyer-email').value = b.email || '';
   document.getElementById('buyer-password').value = '';
-  document.getElementById('buyer-role').value = b.role || 'aggregator';
+  document.getElementById('buyer-role').value = b.role || 'processor';
   document.getElementById('buyer-error').textContent = '';
   document.getElementById('modal-buyer').classList.add('open');
 }
@@ -635,21 +649,22 @@ async function saveOperator() {
 }
 
 async function saveBuyer() {
-  const id = document.getElementById('buyer-edit-id').value;
+  const id   = document.getElementById('buyer-edit-id').value;
+  const role = document.getElementById('buyer-role').value; // 'processor' | 'converter'
   const body = {
-    name: document.getElementById('buyer-name').value.trim(),
-    company: document.getElementById('buyer-company').value.trim(),
-    email: document.getElementById('buyer-email').value.trim(),
-    password: document.getElementById('buyer-password').value,
-    role: document.getElementById('buyer-role').value
+    name:     document.getElementById('buyer-name').value.trim(),
+    company:  document.getElementById('buyer-company').value.trim(),
+    email:    document.getElementById('buyer-email').value.trim(),
+    password: document.getElementById('buyer-password').value
   };
-  if (!id && !body.password) { document.getElementById('buyer-error').textContent = 'Password required for new buyers'; return; }
+  if (!id && !body.password) { document.getElementById('buyer-error').textContent = 'Password required for new accounts'; return; }
   if (!body.password) delete body.password;
   const errEl = document.getElementById('buyer-error');
   errEl.textContent = '';
-  const url = id ? `/api/admin/buyers/${id}` : '/api/admin/buyers';
+  const base   = role === 'converter' ? '/api/admin/converters' : '/api/admin/processors';
+  const url    = id ? `${base}/${id}` : base;
   const method = id ? 'PUT' : 'POST';
-  const data = await apiFetch(url, { method, body: JSON.stringify(body) });
+  const data   = await apiFetch(url, { method, body: JSON.stringify(body) });
   if (!data) return;
   if (!data.success) { errEl.textContent = data.message || 'Error saving'; return; }
   closeModal('buyer');
@@ -661,8 +676,9 @@ async function toggleOperator(id, active) {
   loadOperators();
 }
 
-async function toggleBuyer(id, active) {
-  await apiFetch(`/api/admin/buyers/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
+async function toggleBuyer(id, type, active) {
+  const base = type === 'converter' ? '/api/admin/converters' : '/api/admin/processors';
+  await apiFetch(`${base}/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
   loadBuyers();
 }
 
