@@ -996,7 +996,7 @@
         body: JSON.stringify({
           transaction_id: _ratingTxnId,
           rater_type: 'collector',
-          rater_id: null,
+          rater_id: session ? session.id : null,
           rated_type: 'aggregator',
           rated_id: _ratingAggId,
           rating: _ratingVal,
