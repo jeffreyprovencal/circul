@@ -678,10 +678,7 @@
     }
 
     /* ── Demo banner ──────────────────────────── */
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('demo') === '1') {
-      document.getElementById('demoBanner').classList.add('visible');
-    }
+    document.getElementById('demoBanner').classList.add('visible');
 
     /* ── Form submit ──────────────────────────── */
     document.getElementById('loginForm').addEventListener('submit', function (e) {
