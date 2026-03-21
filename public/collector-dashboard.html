@@ -425,6 +425,90 @@
       .header-inner { padding: 18px 16px 28px; }
       .main         { padding: 20px 16px 52px; }
     }
+
+    /* ── RATING MODAL ─────────────────────────── */
+    .rating-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(26,46,26,0.5);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .rating-overlay.visible { display: flex; }
+    .rating-modal {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 32px 28px 28px;
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+      text-align: center;
+    }
+    .rating-modal-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--deep);
+      margin-bottom: 6px;
+    }
+    .rating-modal-sub { font-size: 0.83rem; color: var(--muted); margin-bottom: 20px; }
+    .star-row { display: flex; gap: 6px; justify-content: center; margin-bottom: 20px; }
+    .star-btn {
+      background: none; border: none; font-size: 1.8rem; cursor: pointer;
+      color: #d1d5db; transition: color 0.1s; line-height: 1;
+    }
+    .star-btn.active { color: #f59e0b; }
+    .rating-actions { display: flex; gap: 10px; justify-content: center; }
+    .btn-rate-submit {
+      padding: 9px 22px; background: var(--deep); color: var(--white);
+      border: none; border-radius: var(--radius-sm); font-family: inherit;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-rate-cancel {
+      padding: 9px 16px; background: transparent; color: var(--muted);
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-family: inherit; font-size: 0.9rem; cursor: pointer;
+    }
+
+    /* ── PENDING FROM AGG CARD ────────────────── */
+    .pend-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+      overflow: visible;
+    }
+    .pend-card-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--light-mint);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .pend-card-title { font-size: 0.93rem; font-weight: 700; color: var(--deep); }
+    .pend-card-sub   { font-size: 0.76rem; color: var(--muted); }
+    .pend-row {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 13px 20px; border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .pend-row:last-child { border-bottom: none; }
+    .pend-mat { font-weight: 700; color: var(--forest); }
+    .pend-meta { color: var(--muted); font-size: 0.8rem; }
+    .pend-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+    .btn-approve {
+      padding: 5px 12px; background: var(--forest); color: white;
+      border: none; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; white-space: nowrap;
+    }
+    .btn-decline {
+      padding: 5px 12px; background: transparent; color: #dc2626;
+      border: 1px solid #dc2626; border-radius: 6px; font-size: 0.78rem;
+      font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
+    }
+    .pend-empty { padding: 24px 20px; text-align: center; font-size: 0.85rem; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -535,6 +619,17 @@
       </div>
     </div>
 
+    <!-- PENDING FROM AGGREGATOR -->
+    <div class="pend-card" id="pendAggCard" style="display:none">
+      <div class="pend-card-head">
+        <div>
+          <div class="pend-card-title">Pending from your aggregator</div>
+          <div class="pend-card-sub">Purchases initiated by your aggregator — approve or decline</div>
+        </div>
+      </div>
+      <div id="pendAggList"><div class="pend-empty">Loading…</div></div>
+    </div>
+
     <!-- RECENT TRANSACTIONS -->
     <div class="card-panel">
       <div class="card-panel-head">
@@ -563,6 +658,25 @@
     </div>
 
   </main>
+
+  <!-- RATING MODAL -->
+  <div class="rating-overlay" id="ratingOverlay">
+    <div class="rating-modal">
+      <div class="rating-modal-title">Rate your Aggregator</div>
+      <div class="rating-modal-sub" id="ratingModalSub">How was your experience?</div>
+      <div class="star-row" id="starRow">
+        <button class="star-btn" data-v="1" onclick="setStarRating(1)">★</button>
+        <button class="star-btn" data-v="2" onclick="setStarRating(2)">★</button>
+        <button class="star-btn" data-v="3" onclick="setStarRating(3)">★</button>
+        <button class="star-btn" data-v="4" onclick="setStarRating(4)">★</button>
+        <button class="star-btn" data-v="5" onclick="setStarRating(5)">★</button>
+      </div>
+      <div class="rating-actions">
+        <button class="btn-rate-cancel" onclick="closeRatingModal()">Cancel</button>
+        <button class="btn-rate-submit" onclick="submitRating()">Submit</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     var session = null;
@@ -622,7 +736,7 @@
 
       pricesP.then(function (pricesData) {
         if (pricesData && pricesData.success) {
-          populatePrices(pricesData.prices || []);
+          populatePrices(pricesData.near_prices || pricesData.all_prices || []);
         } else {
           document.getElementById('pricesGrid').innerHTML =
             '<div class="prices-empty" style="grid-column:1/-1">Prices unavailable right now</div>';
@@ -656,6 +770,9 @@
           // Populate profile from the collector row (has name, phone, region, rating, etc.)
           collectorRow.name = collectorRow.name || ((collectorRow.first_name || '') + (collectorRow.last_name ? ' ' + collectorRow.last_name : '')).trim();
           populateProfile(collectorRow);
+
+          // Load pending purchases from aggregators
+          loadPendingFromAgg(collectorId);
 
           // Fetch transactions using the resolved collectors.id
           apiFetch('/api/transactions?collector_id=' + collectorId)
@@ -733,9 +850,7 @@
 
       txns.forEach(function (t) {
         totalKg += parseFloat(t.net_weight_kg) || 0;
-        if (t.payment_status === 'paid') {
-          totalEarned += parseFloat(t.total_price) || 0;
-        }
+        totalEarned += parseFloat(t.total_price) || 0;
       });
 
       document.getElementById('statTotalKg').textContent    = fmtNum(totalKg);
@@ -772,9 +887,12 @@
         var payBadge, actionCell = '';
         if (ps === 'paid') {
           payBadge = '<span class="status-tag paid">Paid ✓</span>';
+          if (t.aggregator_id) {
+            actionCell = '<button onclick="openRateModal(' + t.id + ',' + t.aggregator_id + ')" style="padding:5px 12px;background:transparent;color:var(--forest);border:1.5px solid var(--forest);border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">Rate Aggregator</button>';
+          }
         } else if (ps === 'payment_sent') {
           payBadge = '<span class="status-tag payment_sent" style="background:#fef3c7;color:#92400e;border-color:#fbbf24">Payment Sent</span>';
-          actionCell = '<button onclick="confirmReceipt(' + t.id + ')" style="padding:5px 12px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;font-family:inherit">Confirm Receipt</button>';
+          actionCell = '<button onclick="confirmReceipt(' + t.id + ')" style="padding:5px 12px;background:var(--forest);color:white;border:none;border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;min-width:130px">Confirm Receipt</button>';
         } else {
           payBadge = '<span class="status-tag unpaid" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">Unpaid</span>';
         }
@@ -848,6 +966,98 @@
     function signOut() {
       localStorage.removeItem('circul_user');
       window.location.href = '/login.html';
+    }
+
+    /* ── RATE AGGREGATOR ─────────────────────────── */
+    var _ratingTxnId = null, _ratingAggId = null, _ratingVal = 0;
+
+    function openRateModal(txnId, aggId) {
+      _ratingTxnId = txnId; _ratingAggId = aggId; _ratingVal = 0;
+      setStarRating(0);
+      document.getElementById('ratingOverlay').classList.add('visible');
+    }
+
+    function closeRatingModal() {
+      document.getElementById('ratingOverlay').classList.remove('visible');
+    }
+
+    function setStarRating(val) {
+      _ratingVal = val;
+      document.querySelectorAll('.star-btn').forEach(function(btn) {
+        btn.classList.toggle('active', parseInt(btn.dataset.v) <= val);
+      });
+    }
+
+    function submitRating() {
+      if (!_ratingVal) { alert('Please select a star rating.'); return; }
+      fetch('/api/ratings/operator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_id: _ratingTxnId,
+          rater_type: 'collector',
+          rater_id: null,
+          rated_type: 'aggregator',
+          rated_id: _ratingAggId,
+          rating: _ratingVal,
+          rating_direction: 'collector_rates_aggregator'
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        closeRatingModal();
+        if (!d.success) alert(d.message || 'Could not submit rating.');
+      })
+      .catch(function() { closeRatingModal(); alert('Connection error.'); });
+    }
+
+    /* ── PENDING FROM AGGREGATOR ─────────────────── */
+    function loadPendingFromAgg(collectorId) {
+      fetch('/api/pending-transactions?collector_id=' + collectorId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var rows = (data.pending_transactions || []).filter(function(pt) {
+            return pt.transaction_type === 'aggregator_purchase';
+          });
+          var card = document.getElementById('pendAggCard');
+          var list = document.getElementById('pendAggList');
+          if (!rows.length) { card.style.display = 'none'; return; }
+          card.style.display = '';
+          list.innerHTML = rows.map(function(pt) {
+            var aggName = esc(pt.aggregator_display_name || pt.aggregator_name || '—');
+            var kg = parseFloat(pt.gross_weight_kg).toFixed(1);
+            var price = pt.price_per_kg ? 'GH₵ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg' : 'Price TBD';
+            var date = fmtDate(pt.created_at);
+            return '<div class="pend-row">' +
+              '<span class="pend-mat">' + esc(pt.material_type) + '</span>' +
+              '<span class="pend-meta">' + kg + ' kg · ' + price + ' · ' + aggName + ' · ' + date + '</span>' +
+              '<div class="pend-actions">' +
+                '<button class="btn-approve" onclick="reviewPending(' + pt.id + ',\'accept\')">Approve</button>' +
+                '<button class="btn-decline" onclick="reviewPending(' + pt.id + ',\'reject\')">Decline</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        })
+        .catch(function() { /* silent fail — section stays hidden */ });
+    }
+
+    function reviewPending(ptId, action) {
+      var body = action === 'accept'
+        ? { action: 'accept', grade: 'B' }
+        : { action: 'reject', rejection_reason: 'Declined by collector' };
+      fetch('/api/pending-transactions/' + ptId + '/review', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success) {
+          var collectorId = document.getElementById('passportId').textContent.replace('CIR-','').replace(/^0+/,'');
+          if (collectorId) loadPendingFromAgg(collectorId);
+        } else { alert(d.message || 'Error processing request.'); }
+      })
+      .catch(function() { alert('Connection error.'); });
     }
 
     /* ── UTILS ───────────────────────────────────── */

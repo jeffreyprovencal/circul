@@ -831,10 +831,9 @@ function loadTxns() {
             var tbody = document.getElementById('supplyBody');
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
-                var sc = t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray';
                 var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '—';
                 var journey = '<a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="font-size:0.78rem;color:var(--green-primary)">View</a>';
-                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td><span class="badge ' + sc + '">' + (t.payment_status || 'unpaid') + '</span></td><td>' + gps + '</td><td>' + journey + '</td></tr>';
+                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td><td>' + gps + '</td><td>' + journey + '</td></tr>';
             }).join('');
         });
 }
@@ -951,6 +950,11 @@ function downloadCompliance(e) {
     window.location.href = '/api/reports/compliance/' + state.operator.id + '?format=json';
 }
 
+function paymentBadge(ps) {
+    if (ps === 'paid') return '<span class="badge badge-green">Paid ✓</span>';
+    if (ps === 'payment_sent') return '<span class="badge badge-amber">Payment Sent</span>';
+    return '<span class="badge badge-gray">' + (ps || 'Unpaid') + '</span>';
+}
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
 function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }

@@ -1108,7 +1108,10 @@ function loadProcessors() {
         var converters = (results[1].converters || []).map(function(c) {
             return { id: c.id, label: esc(c.company || c.name) + ' (converter)', type: 'converter' };
         });
-        var all = processors.concat(converters);
+        var processorNames = new Set(processors.map(function(p) { return p.label.toLowerCase(); }));
+        var all = processors.concat(converters.filter(function(b) {
+            return !processorNames.has(b.label.replace(' (converter)', '').toLowerCase());
+        }));
         sel.innerHTML = all.length
             ? '<option value="">Select buyer…</option>' + all.map(function(b) {
                 return '<option value="' + b.id + '" data-type="' + b.type + '">' + b.label + '</option>';
