@@ -54,7 +54,8 @@
         .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
         .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
         .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
-        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: visible; margin-bottom: 24px; }
+        .table-scroll { overflow-x: auto; }
         .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
         .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
         .card-body { padding: 20px 24px; }
@@ -294,10 +295,10 @@
                 <div class="card-header">
                     <span class="card-title">Full Supply Chain — Collector → Aggregator → Processor → You</span>
                 </div>
-                <table>
+                <div class="table-scroll"><table>
                     <thead><tr><th>Date</th><th>Material</th><th>Net kg</th><th>Price (GHS)</th><th>Payment</th><th>GPS</th><th>Journey</th></tr></thead>
                     <tbody id="supplyBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
-                </table>
+                </table></div>
             </div>
             <div class="card">
                 <div class="card-header"><span class="card-title">Post Your Buy Prices</span><span style="font-size:0.78rem;color:var(--slate-light)">For suppliers to see</span></div>
@@ -619,9 +620,9 @@ function loadConverterQueue() {
             document.getElementById('cvQueueCompleted').innerHTML = '<div class="empty">No completed or rejected deliveries yet.</div>';
         } else {
             document.getElementById('cvQueueCompleted').innerHTML =
-                '<table><thead><tr>' +
+                '<div style="overflow-x:auto"><table><thead><tr>' +
                 '<th>Processor</th><th>Material</th><th>Weight</th><th>Total (GHS)</th><th>Total (USD)</th><th>Status</th><th>Date</th>' +
-                '</tr></thead><tbody>' + completed.map(buildConvCompletedRow).join('') + '</tbody></table>';
+                '</tr></thead><tbody>' + completed.map(buildConvCompletedRow).join('') + '</tbody></table></div>';
         }
     })
     .catch(function() {
@@ -847,7 +848,7 @@ function loadProcessorPrices() {
             var el = document.getElementById('processorPrices');
             var all = data.all_prices || [];
             if (!all.length) { el.innerHTML = '<div class="empty">No processor prices posted yet</div>'; return; }
-            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
+            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
                 '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th>' +
                 '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Price</th>' +
                 '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Processor</th>' +
@@ -864,7 +865,7 @@ function loadProcessorPrices() {
                         '<td style="padding:10px 0">' + esc(p.city || '—') + '</td>' +
                         '<td style="padding:10px 0;color:var(--slate-light)">' + (p.actual_avg_price_30d ? 'GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td>' +
                         '</tr>';
-                }).join('') + '</tbody></table>';
+                }).join('') + '</tbody></table></div>';
         });
 }
 
@@ -874,7 +875,7 @@ function loadTxnCerts() {
         .then(function(data) {
             var el = document.getElementById('txnCerts');
             if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
-            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
+            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
                 '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Date</th>' +
                 '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th>' +
                 '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">kg</th>' +
@@ -882,7 +883,7 @@ function loadTxnCerts() {
                 '</tr></thead><tbody>' +
                 data.transactions.map(function(t) {
                     return '<tr><td style="padding:10px 0">' + fmtDate(t.transaction_date) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + t.material_type + '</span></td><td style="padding:10px 0">' + fmt(t.net_weight_kg) + ' kg</td><td style="padding:10px 0"><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--green-primary);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
-                }).join('') + '</tbody></table>';
+                }).join('') + '</tbody></table></div>';
         });
 }
 
