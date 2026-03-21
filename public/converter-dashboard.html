@@ -893,7 +893,7 @@ function loadRatings() {
             var el = document.getElementById('processorRatingsList');
             if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
             var seen = {};
-            data.transactions.forEach(function(t) { if (t.aggregator_id && t.aggregator_name && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name; });
+            data.transactions.forEach(function(t) { if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_display_name || t.aggregator_name; });
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
