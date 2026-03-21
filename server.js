@@ -843,6 +843,96 @@ app.post('/api/pending-transactions/:id/converter-arrival', requireAuth, async (
 });
 
 // ============================================
+// PAYMENT FLOW
+// ============================================
+
+app.patch('/api/transactions/:id/payment-initiate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { payment_method, payment_reference } = req.body;
+    if (!['cash', 'mobile_money'].includes(payment_method))
+      return res.status(400).json({ success: false, message: 'payment_method must be cash or mobile_money' });
+    let ref;
+    if (payment_method === 'mobile_money') {
+      if (!payment_reference || !payment_reference.trim())
+        return res.status(400).json({ success: false, message: 'payment_reference required for mobile_money' });
+      if (payment_reference.trim().length > 50)
+        return res.status(400).json({ success: false, message: 'payment_reference max 50 characters' });
+      ref = payment_reference.trim();
+    } else {
+      ref = 'CASH';
+    }
+    const existing = await pool.query('SELECT payment_status FROM transactions WHERE id=$1', [id]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    if (existing.rows[0].payment_status !== 'unpaid')
+      return res.status(400).json({ success: false, message: 'Payment already recorded' });
+    const result = await pool.query(
+      `UPDATE transactions SET payment_status='payment_sent', payment_method=$1, payment_reference=$2, payment_initiated_at=NOW() WHERE id=$3 RETURNING *`,
+      [payment_method, ref, id]
+    );
+    res.json({ success: true, transaction: result.rows[0] });
+  } catch (err) { console.error('Payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.patch('/api/transactions/:id/payment-confirm', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await pool.query('SELECT payment_status FROM transactions WHERE id=$1', [id]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    if (existing.rows[0].payment_status !== 'payment_sent')
+      return res.status(400).json({ success: false, message: 'No payment to confirm' });
+    const result = await pool.query(
+      `UPDATE transactions SET payment_status='paid', payment_completed_at=NOW() WHERE id=$1 RETURNING *`,
+      [id]
+    );
+    res.json({ success: true, transaction: result.rows[0] });
+  } catch (err) { console.error('Payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.patch('/api/pending-transactions/:id/payment-initiate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { payment_method, payment_reference } = req.body;
+    if (!['cash', 'mobile_money'].includes(payment_method))
+      return res.status(400).json({ success: false, message: 'payment_method must be cash or mobile_money' });
+    let ref;
+    if (payment_method === 'mobile_money') {
+      if (!payment_reference || !payment_reference.trim())
+        return res.status(400).json({ success: false, message: 'payment_reference required for mobile_money' });
+      if (payment_reference.trim().length > 50)
+        return res.status(400).json({ success: false, message: 'payment_reference max 50 characters' });
+      ref = payment_reference.trim();
+    } else {
+      ref = 'CASH';
+    }
+    const existing = await pool.query('SELECT payment_status FROM pending_transactions WHERE id=$1', [id]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    if (existing.rows[0].payment_status !== 'unpaid')
+      return res.status(400).json({ success: false, message: 'Payment already recorded' });
+    const result = await pool.query(
+      `UPDATE pending_transactions SET payment_status='payment_sent', payment_method=$1, payment_reference=$2, payment_initiated_at=NOW() WHERE id=$3 RETURNING *`,
+      [payment_method, ref, id]
+    );
+    res.json({ success: true, pending_transaction: result.rows[0] });
+  } catch (err) { console.error('PT payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.patch('/api/pending-transactions/:id/payment-confirm', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await pool.query('SELECT payment_status FROM pending_transactions WHERE id=$1', [id]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    if (existing.rows[0].payment_status !== 'payment_sent')
+      return res.status(400).json({ success: false, message: 'No payment to confirm' });
+    const result = await pool.query(
+      `UPDATE pending_transactions SET payment_status='paid', payment_completed_at=NOW() WHERE id=$1 RETURNING *`,
+      [id]
+    );
+    res.json({ success: true, pending_transaction: result.rows[0] });
+  } catch (err) { console.error('PT payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ============================================
 // ORDERS API
 // ============================================
 

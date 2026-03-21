@@ -546,13 +546,76 @@ function loadDeliveries() {
         } else {
             document.getElementById('queueCompleted').innerHTML =
                 '<table><thead><tr>' +
-                '<th>Seller</th><th>Material</th><th>Weight</th><th>Grade</th><th>Total</th><th>Status</th><th>Date</th>' +
+                '<th>Seller</th><th>Material</th><th>Weight</th><th>Grade</th><th>Total</th><th>Status</th><th>Date</th><th>Payment</th>' +
                 '</tr></thead><tbody>' + completed.map(buildCompletedRow).join('') + '</tbody></table>';
         }
     })
     .catch(function() {
         document.getElementById('queuePending').innerHTML = '<div class="empty">Could not load deliveries.</div>';
     });
+}
+
+function ptPayBadge(ps) {
+    if (ps === 'paid')         return '<span class="badge badge-green">Paid ✓</span>';
+    if (ps === 'payment_sent') return '<span class="badge badge-amber">Payment Sent</span>';
+    return '<span class="badge badge-gray">Unpaid</span>';
+}
+
+function buildPTPaymentUI(pt) {
+    var ps = pt.payment_status || 'unpaid';
+    if (ps === 'paid') return ptPayBadge(ps);
+    if (ps === 'payment_sent') return ptPayBadge(ps) + ' <span style="font-size:0.78rem;color:var(--slate-light)">Awaiting aggregator confirmation</span>';
+    // unpaid — show Record Payment form
+    return ptPayBadge(ps) +
+        ' <button class="btn-approve" style="font-size:0.78rem;padding:5px 12px" onclick="openPTPayForm(' + pt.id + ')">Record Payment</button>' +
+        '<div id="pt-pay-form-' + pt.id + '" style="display:none;margin-top:8px;padding:10px;background:#f8fafc;border-radius:8px;border:1px solid var(--border)">' +
+            '<label style="display:block;margin-bottom:8px;font-size:0.82rem;font-weight:600">Payment method</label>' +
+            '<label style="font-size:0.82rem;margin-right:16px"><input type="radio" name="pt-pm-' + pt.id + '" value="cash" onchange="togglePTMoMo(' + pt.id + ')"> Cash</label>' +
+            '<label style="font-size:0.82rem"><input type="radio" name="pt-pm-' + pt.id + '" value="mobile_money" onchange="togglePTMoMo(' + pt.id + ')"> Mobile Money</label>' +
+            '<div id="pt-momo-' + pt.id + '" style="display:none;margin-top:8px">' +
+                '<input type="text" id="pt-momo-ref-' + pt.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit">' +
+            '</div>' +
+            '<div style="margin-top:10px">' +
+                '<button class="di-confirm" onclick="submitPTPayInitiate(' + pt.id + ')">Confirm Payment</button>' +
+                '<button class="di-cancel" style="margin-left:8px" onclick="document.getElementById(\'pt-pay-form-' + pt.id + '\').style.display=\'none\'">Cancel</button>' +
+            '</div>' +
+        '</div>';
+}
+
+function openPTPayForm(id) {
+    var el = document.getElementById('pt-pay-form-' + id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function togglePTMoMo(id) {
+    var cashR = document.querySelector('input[name="pt-pm-' + id + '"][value="cash"]');
+    var el = document.getElementById('pt-momo-' + id);
+    if (el) el.style.display = (cashR && cashR.checked) ? 'none' : 'block';
+}
+
+function submitPTPayInitiate(id) {
+    var radios = document.querySelectorAll('input[name="pt-pm-' + id + '"]');
+    var method = '';
+    radios.forEach(function(r) { if (r.checked) method = r.value; });
+    if (!method) { alert('Please select a payment method.'); return; }
+    var body = { payment_method: method };
+    if (method === 'mobile_money') {
+        var ref = (document.getElementById('pt-momo-ref-' + id) || {}).value || '';
+        if (!ref.trim()) { alert('Please enter the MoMo transaction code.'); return; }
+        body.payment_reference = ref.trim();
+    }
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/' + id + '/payment-initiate', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) loadDeliveries();
+        else alert(d.message || 'Error recording payment.');
+    })
+    .catch(function() { alert('Connection error.'); });
 }
 
 function buildPendingCard(pt) {
@@ -576,11 +639,12 @@ function buildPendingCard(pt) {
         '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
-        warnHtml +
-        '<div class="delivery-actions">' +
+        '<div class="delivery-actions" style="flex-wrap:wrap;gap:8px">' +
         '<button class="btn-approve" onclick="openDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
+        '<div style="padding:10px 0 4px 0">' + buildPTPaymentUI(pt) + '</div>' +
+        warnHtml +
         '<div id="dispatch-form-' + pt.id + '" style="display:none"></div>' +
     '</div>';
 }
@@ -598,6 +662,7 @@ function buildApprovedCard(pt) {
         '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="delivery-actions"><button class="btn-log-arrival" onclick="openArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
+        '<div style="padding:10px 0 4px 0">' + buildPTPaymentUI(pt) + '</div>' +
         '<div id="arrival-form-' + pt.id + '" style="display:none"></div>' +
     '</div>';
 }
@@ -613,6 +678,13 @@ function buildCompletedRow(pt) {
         ? '<span class="badge ' + (pt.grade === 'A' ? 'badge-green' : pt.grade === 'B' ? 'badge-amber' : '') + '" style="' + (pt.grade === 'C' ? 'background:#fee2e2;color:#991b1b' : '') + '">' + pt.grade + '</span>'
         : '—';
     var total = pt.total_price ? 'GHS ' + fmt(pt.total_price) + ' <span style="font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price) * 0.067).toFixed(0) + '</span>' : '—';
+    var ps = pt.payment_status || 'unpaid';
+    var payCell = ps === 'paid'
+        ? '<span class="badge badge-green">Paid ✓</span>'
+        : ps === 'payment_sent'
+        ? '<span class="badge badge-amber">Sent</span>'
+        : '<button class="btn-approve" style="font-size:0.75rem;padding:4px 10px" onclick="openPTPayForm(' + pt.id + ')">Pay</button>' +
+          '<div id="pt-pay-form-' + pt.id + '" style="display:none;margin-top:6px">' + buildPTPaymentUI(pt) + '</div>';
     return '<tr>' +
         '<td>' + aggName + '</td>' +
         '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
@@ -621,6 +693,7 @@ function buildCompletedRow(pt) {
         '<td>' + total + '</td>' +
         '<td>' + statusBadge + '</td>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
+        '<td>' + payCell + '</td>' +
     '</tr>';
 }
 
