@@ -122,7 +122,8 @@ app.post('/api/collectors/login', async (req, res) => {
       [phone, pin]
     );
     if (!result.rows.length) return res.status(401).json({ success: false, message: 'Invalid phone or PIN' });
-    res.json({ success: true, collector: result.rows[0] });
+    const collector = result.rows[0];
+    res.json({ success: true, collector: { ...collector, role: 'collector' } });
   } catch (err) {
     console.error('Error logging in collector:', err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -444,10 +445,18 @@ app.post('/api/ratings/operator', async (req, res) => {
     if (!finalRaterId || !finalRatedId || !rating) return res.status(400).json({ success: false, message: 'rater, rated, and rating are required' });
     if (rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1-5' });
     const windowExpires = new Date(); windowExpires.setDate(windowExpires.getDate() + 30);
-    const result = await pool.query(
-      `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction, window_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, JSON.stringify(tags||[]), notes||null, rating_direction||null, windowExpires.toISOString()]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction, window_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, JSON.stringify(tags||[]), notes||null, rating_direction||null, windowExpires.toISOString()]
+      );
+    } catch (insertErr) {
+      result = await pool.query(
+        `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, JSON.stringify(tags||[]), notes||null, rating_direction||null]
+      );
+    }
     res.status(201).json({ success: true, rating: result.rows[0] });
   } catch (err) {
     console.error('Rating error:', err);
@@ -708,7 +717,7 @@ app.post('/api/pending-transactions/aggregator-sale', async (req, res) => {
     const price = parseFloat(price_per_kg);
     const totalPrice = parseFloat((kg * price).toFixed(2));
     const photosRequired = kg > 500;
-    const dispatchApproved = photosRequired ? null : true;
+    const dispatchApproved = photosRequired ? false : true;
     const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_id, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,'pending',$8,false,$9,$10,$11) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, JSON.stringify(photo_urls||[]), notes||null]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0], photos_required: photosRequired });
   } catch (err) { console.error('Aggregator sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
@@ -1258,7 +1267,11 @@ app.get('/api/prices', async (req, res) => {
     }
     const allPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, params);
     const nationalAvg = await pool.query(`SELECT material_type, AVG(price_per_kg_ghs) as avg_usd, COUNT(DISTINCT poster_id) as buyer_count FROM posted_prices WHERE poster_type=ANY($1) AND is_active=true${whereExtra.replace(/pp\./g,'')} GROUP BY material_type ORDER BY material_type`, params);
-    res.json({ success: true, near_prices: nearPrices.rows, national_averages: nationalAvg.rows, all_prices: allPrices.rows });
+    let nearRows = nearPrices.rows;
+    if (nearRows.length === 0 && allPrices.rows.length > 0) {
+      nearRows = allPrices.rows.slice(0, 10);
+    }
+    res.json({ success: true, near_prices: nearRows, national_averages: nationalAvg.rows, all_prices: allPrices.rows });
   } catch (err) { console.error('Get prices error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
