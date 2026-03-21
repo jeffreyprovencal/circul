@@ -52,7 +52,8 @@
         .stat-label { font-size: 0.8rem; font-weight: 500; color: var(--slate-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
         .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1.1; }
         .stat-sub { font-size: 0.78rem; color: var(--slate-light); margin-top: 4px; }
-        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: visible; margin-bottom: 24px; }
+        .table-scroll { overflow-x: auto; }
         .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
         .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--green-deep); }
         .card-body { padding: 20px 24px; }
@@ -278,7 +279,7 @@
         <!-- SUPPLY CHAIN VIEW -->
         <div class="card">
             <div class="card-header"><span class="card-title">Supply Chain — Recent Transactions</span></div>
-            <table>
+            <div class="table-scroll"><table>
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -290,7 +291,7 @@
                     </tr>
                 </thead>
                 <tbody id="supplyBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
-            </table>
+            </table></div>
         </div>
 
         <!-- PRICE SETTING FOR CONVERTERS -->
@@ -461,10 +462,10 @@ function loadAggregators() {
             });
             var aggs = Object.keys(seen);
             if (!aggs.length) { el.innerHTML = '<div class="empty">No aggregators to rate yet</div>'; return; }
-            el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Aggregator</th><th style="padding:8px 0;border-bottom:1px solid var(--border)"></th></tr></thead><tbody>' +
+            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Aggregator</th><th style="padding:8px 0;border-bottom:1px solid var(--border)"></th></tr></thead><tbody>' +
                 aggs.map(function(id) {
                     return '<tr><td style="padding:10px 0">' + esc(seen[id]) + '</td><td style="padding:10px 0;text-align:right"><button onclick="rateAggregator(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-family:\'Space Grotesk\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></td></tr>';
-                }).join('') + '</tbody></table>';
+                }).join('') + '</tbody></table></div>';
         });
 }
 
@@ -545,9 +546,9 @@ function loadDeliveries() {
             document.getElementById('queueCompleted').innerHTML = '<div class="empty">No completed or flagged deliveries yet.</div>';
         } else {
             document.getElementById('queueCompleted').innerHTML =
-                '<table><thead><tr>' +
+                '<div style="overflow-x:auto"><table><thead><tr>' +
                 '<th>Seller</th><th>Material</th><th>Weight</th><th>Grade</th><th>Total</th><th>Status</th><th>Date</th><th>Payment</th>' +
-                '</tr></thead><tbody>' + completed.map(buildCompletedRow).join('') + '</tbody></table>';
+                '</tr></thead><tbody>' + completed.map(buildCompletedRow).join('') + '</tbody></table></div>';
         }
     })
     .catch(function() {
