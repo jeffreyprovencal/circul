@@ -428,7 +428,7 @@
         <!-- PENDING COLLECTIONS -->
         <div class="card">
             <div class="card-header">
-                <span class="card-title">Pending Collections (Unpaid)</span>
+                <span class="card-title">Collector Payments</span>
             </div>
             <table>
                 <thead>
@@ -671,26 +671,101 @@ function renderCollectors(collectors) {
     }).join('');
 }
 
+function paymentBadge(ps) {
+    if (ps === 'paid')         return '<span class="badge badge-green">Paid ✓</span>';
+    if (ps === 'payment_sent') return '<span class="badge badge-amber">Payment Sent</span>';
+    return '<span class="badge badge-gray">Unpaid</span>';
+}
+
 function loadPendingTxns() {
     fetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
-            var pending = (data.transactions || []).filter(function(t) { return t.payment_status === 'unpaid' && parseFloat(t.total_price) > 0; });
+            var txns = (data.transactions || []).filter(function(t) { return parseFloat(t.total_price) > 0 && t.payment_status !== 'paid'; });
             var tbody = document.getElementById('pendingBody');
-            if (!pending.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pending payments</td></tr>'; return; }
-            tbody.innerHTML = pending.map(function(t) {
+            if (!txns.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pending payments</td></tr>'; return; }
+            tbody.innerHTML = txns.map(function(t) {
                 var name = t.collector_display_name || ((t.collector_first_name || '') + ' ' + (t.collector_last_name || '')).trim();
+                var action = '';
+                if (t.payment_status === 'unpaid') {
+                    action = '<button class="btn-pay" onclick="openPaymentForm(\'txn\',' + t.id + ',this)">Record Payment</button>' +
+                        '<div id="pay-form-txn-' + t.id + '" style="display:none;margin-top:8px">' +
+                        '<label style="display:block;margin-bottom:6px;font-size:0.82rem">' +
+                            '<input type="radio" name="pm-' + t.id + '" value="cash" onchange="toggleMoMo(\'txn\',' + t.id + ')"> Cash&nbsp;&nbsp;' +
+                            '<input type="radio" name="pm-' + t.id + '" value="mobile_money" onchange="toggleMoMo(\'txn\',' + t.id + ')"> Mobile Money' +
+                        '</label>' +
+                        '<div id="momo-field-txn-' + t.id + '" style="display:none;margin-bottom:6px">' +
+                            '<input type="text" id="momo-ref-txn-' + t.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit">' +
+                        '</div>' +
+                        '<button class="btn-pay" style="font-size:0.78rem" onclick="submitPaymentInitiate(\'txn\',' + t.id + ')">Confirm Payment</button>' +
+                        '</div>';
+                } else if (t.payment_status === 'payment_sent') {
+                    action = '<span style="font-size:0.8rem;color:var(--slate-light)">Awaiting confirmation</span>';
+                }
                 return '<tr>' +
                     '<td>' + fmtDate(t.transaction_date) + '</td>' +
                     '<td>' + esc(name) + '</td>' +
                     '<td><span class="badge badge-green">' + t.material_type + '</span></td>' +
                     '<td>' + fmt(t.net_weight_kg) + '</td>' +
                     '<td>GHS ' + fmt(t.total_price) + '</td>' +
-                    '<td><span class="badge badge-amber">Unpaid</span></td>' +
+                    '<td>' + paymentBadge(t.payment_status) + '<div style="margin-top:6px">' + action + '</div></td>' +
                     '</tr>';
             }).join('');
         });
+}
+
+function openPaymentForm(table, id, btn) {
+    var form = document.getElementById('pay-form-' + table + '-' + id);
+    if (!form) return;
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleMoMo(table, id) {
+    var cashRadio = document.querySelector('input[name="pm-' + id + '"][value="cash"]');
+    var field = document.getElementById('momo-field-' + table + '-' + id);
+    if (!field) return;
+    field.style.display = (cashRadio && cashRadio.checked) ? 'none' : 'block';
+}
+
+function submitPaymentInitiate(table, id) {
+    var radios = document.querySelectorAll('input[name="pm-' + id + '"]');
+    var method = '';
+    radios.forEach(function(r) { if (r.checked) method = r.value; });
+    if (!method) { alert('Please select a payment method.'); return; }
+    var body = { payment_method: method };
+    if (method === 'mobile_money') {
+        var ref = (document.getElementById('momo-ref-' + table + '-' + id) || {}).value || '';
+        if (!ref.trim()) { alert('Please enter the MoMo transaction code.'); return; }
+        body.payment_reference = ref.trim();
+    }
+    var endpoint = table === 'txn'
+        ? '/api/transactions/' + id + '/payment-initiate'
+        : '/api/pending-transactions/' + id + '/payment-initiate';
+    fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) { loadPendingTxns(); loadMyBatchSales(); }
+        else alert(d.message || 'Error recording payment.');
+    })
+    .catch(function() { alert('Connection error.'); });
+}
+
+function submitPaymentConfirm(table, id) {
+    var endpoint = table === 'txn'
+        ? '/api/transactions/' + id + '/payment-confirm'
+        : '/api/pending-transactions/' + id + '/payment-confirm';
+    fetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json' } })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) { loadPendingTxns(); loadMyBatchSales(); }
+        else alert(d.message || 'Error confirming payment.');
+    })
+    .catch(function() { alert('Connection error.'); });
 }
 
 function renderPL(s) {
@@ -1179,6 +1254,15 @@ function renderBatchSaleItem(pt) {
         rejectHtml = '<div class="bs-reject-reason">Reason: ' + esc(pt.rejection_reason) + '</div>';
     }
 
+    // Payment row (aggregator is receiver — shows Confirm Receipt when payment_sent)
+    var payHtml = '';
+    var ps = pt.payment_status || 'unpaid';
+    if (ps === 'payment_sent') {
+        payHtml = paymentBadge(ps) + ' <button class="btn-pay" style="font-size:0.78rem;margin-left:8px" onclick="submitPaymentConfirm(\'pt\',' + pt.id + ')">Confirm Receipt</button>';
+    } else {
+        payHtml = paymentBadge(ps);
+    }
+
     return '<div class="bs-item">' +
         '<div class="bs-top">' +
             '<span class="badge badge-green">' + esc(pt.material_type || '—') + '</span>' +
@@ -1192,6 +1276,7 @@ function renderBatchSaleItem(pt) {
             statusBadge +
             gradeBadge +
             photoHtml +
+            '<span style="margin-left:auto">' + payHtml + '</span>' +
         '</div>' +
         rejectHtml +
     '</div>';

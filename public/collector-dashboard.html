@@ -551,11 +551,12 @@
               <th>Material</th>
               <th>Weight</th>
               <th>Earned</th>
-              <th>Status</th>
+              <th>Payment</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="txnBody">
-            <tr><td colspan="5" class="txn-empty">Loading…</td></tr>
+            <tr><td colspan="6" class="txn-empty">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -753,7 +754,7 @@
       var tbody = document.getElementById('txnBody');
 
       if (!txns.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="txn-empty">No transactions yet</td></tr>';
         return;
       }
 
@@ -767,17 +768,49 @@
         var matClass = { PET: 'pet', HDPE: 'hdpe', PP: 'pp', LDPE: 'ldpe' }[mat] || 'other';
         var kg = parseFloat(t.net_weight_kg) || 0;
         var earned = parseFloat(t.total_price) || 0;
-        var status = (t.payment_status || 'pending').toLowerCase();
-        var statusLabel = status === 'paid' ? 'Paid' : 'Pending';
+        var ps = (t.payment_status || 'unpaid').toLowerCase();
+        var payBadge, actionCell = '';
+        if (ps === 'paid') {
+          payBadge = '<span class="status-tag paid">Paid ✓</span>';
+        } else if (ps === 'payment_sent') {
+          payBadge = '<span class="status-tag payment_sent" style="background:#fef3c7;color:#92400e;border-color:#fbbf24">Payment Sent</span>';
+          actionCell = '<button onclick="confirmReceipt(' + t.id + ')" style="padding:5px 12px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;font-family:inherit">Confirm Receipt</button>';
+        } else {
+          payBadge = '<span class="status-tag unpaid" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">Unpaid</span>';
+        }
 
         return '<tr>' +
           '<td>' + fmtDate(t.transaction_date) + '</td>' +
           '<td><span class="mat-tag ' + matClass + '">' + esc(mat || '—') + '</span></td>' +
           '<td>' + fmtNum(kg) + ' kg</td>' +
           '<td>GH₵&thinsp;' + fmtNum(earned) + '</td>' +
-          '<td><span class="status-tag ' + status + '">' + statusLabel + '</span></td>' +
+          '<td>' + payBadge + '</td>' +
+          '<td>' + actionCell + '</td>' +
           '</tr>';
       }).join('');
+    }
+
+    function confirmReceipt(txnId) {
+      fetch('/api/transactions/' + txnId + '/payment-confirm', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success) {
+          // Reload transactions from the cached state
+          var saved = localStorage.getItem('circul_user');
+          if (saved) {
+            try {
+              var u = JSON.parse(saved);
+              fetch('/api/collectors/' + u.id + '/stats')
+                .then(function(r) { return r.json(); })
+                .then(function(data) { if (data.success) populateTxns(data.stats.recent_transactions || []); });
+            } catch(e) {}
+          }
+        } else { alert(d.message || 'Error confirming receipt.'); }
+      })
+      .catch(function() { alert('Connection error.'); });
     }
 
     /* ── POPULATE PRICES ─────────────────────────── */
