@@ -457,7 +457,7 @@ function loadAggregators() {
             // Unique aggregators from transactions
             var seen = {};
             data.transactions.forEach(function(t) {
-                if (t.aggregator_id && t.aggregator_name && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name;
+                if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_display_name || t.aggregator_name;
             });
             var aggs = Object.keys(seen);
             if (!aggs.length) { el.innerHTML = '<div class="empty">No aggregators to rate yet</div>'; return; }
@@ -559,7 +559,7 @@ function buildPendingCard(pt) {
     var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
     var hasPhotos = photos.length > 0;
     var bigBatch  = parseFloat(pt.gross_weight_kg) > 500;
-    var aggName   = esc(pt.aggregator_company || pt.aggregator_name || '—');
+    var aggName   = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
     var photoHtml = hasPhotos
         ? '<span class="badge badge-green">✓ ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
         : '<span class="badge badge-amber">⚠ No photos</span>';
@@ -586,7 +586,7 @@ function buildPendingCard(pt) {
 }
 
 function buildApprovedCard(pt) {
-    var aggName = esc(pt.aggregator_company || pt.aggregator_name || '—');
+    var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
     return '<div class="delivery-card" id="dc-arr-' + pt.id + '">' +
         '<div class="delivery-row">' +
         '<span class="badge badge-green">✓ Approved</span>' +
@@ -603,7 +603,7 @@ function buildApprovedCard(pt) {
 }
 
 function buildCompletedRow(pt) {
-    var aggName = esc(pt.aggregator_company || pt.aggregator_name || '—');
+    var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
     var statusBadge = pt.status === 'arrived'
         ? '<span class="badge badge-green">Arrived</span>'
         : pt.status === 'grade_c_flagged'
