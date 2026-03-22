@@ -679,11 +679,11 @@ function paymentBadge(ps) {
 }
 
 function loadPendingTxns() {
-    fetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50')
+    fetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50&payment_status=unpaid,payment_sent')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
-            var txns = (data.transactions || []).filter(function(t) { return parseFloat(t.total_price) > 0 && t.payment_status !== 'paid'; });
+            var txns = (data.transactions || []).filter(function(t) { return t.payment_status === 'unpaid' || t.payment_status === 'payment_sent'; });
             var tbody = document.getElementById('pendingBody');
             if (!txns.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pending payments</td></tr>'; return; }
             tbody.innerHTML = txns.map(function(t) {
@@ -909,9 +909,9 @@ function buildReviewPanel(ptId, pt, basePrice) {
     return '<div>' +
         '<div class="review-section-label">Assign Grade</div>' +
         '<div class="grade-row">' +
-        '<button class="grade-btn" id="gbA-' + ptId + '" onclick="selectGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.72rem;font-weight:400">&lt;5% contamination · +10%</span></button>' +
-        '<button class="grade-btn" id="gbB-' + ptId + '" onclick="selectGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.72rem;font-weight:400">5–15% contamination · standard</span></button>' +
-        '<button class="grade-btn" id="gbC-' + ptId + '" onclick="selectGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.72rem;font-weight:400">&gt;15% contamination · −25%</span></button>' +
+        '<button class="grade-btn" id="gbA-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.72rem;font-weight:400">&lt;5% contamination · +10%</span></button>' +
+        '<button class="grade-btn" id="gbB-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.72rem;font-weight:400">5–15% contamination · standard</span></button>' +
+        '<button class="grade-btn" id="gbC-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.72rem;font-weight:400">&gt;15% contamination · −25%</span></button>' +
         '</div>' +
         '<div id="price-preview-' + ptId + '" class="price-preview" style="display:none"></div>' +
         '<div class="review-fields">' +

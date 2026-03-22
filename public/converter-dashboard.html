@@ -205,6 +205,12 @@
             </div>
         </div>
 
+        <!-- POST BUY PRICES -->
+        <div class="card">
+            <div class="card-header"><span class="card-title">Post Your Buy Prices</span><span style="font-size:0.78rem;color:var(--slate-light)">For suppliers to see</span></div>
+            <div class="card-body"><div class="price-cards" id="priceCards"><div class="empty" style="grid-column:1/-1">Loading…</div></div></div>
+        </div>
+
         <!-- SECTION 1: PURCHASE ORDERS -->
         <div class="card">
             <div class="card-header">
@@ -299,10 +305,6 @@
                     <thead><tr><th>Date</th><th>Material</th><th>Net kg</th><th>Price (GHS)</th><th>Payment</th><th>GPS</th><th>Journey</th></tr></thead>
                     <tbody id="supplyBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
                 </table></div>
-            </div>
-            <div class="card">
-                <div class="card-header"><span class="card-title">Post Your Buy Prices</span><span style="font-size:0.78rem;color:var(--slate-light)">For suppliers to see</span></div>
-                <div class="card-body"><div class="price-cards" id="priceCards"><div class="empty" style="grid-column:1/-1">Loading…</div></div></div>
             </div>
         </div>
 
@@ -909,13 +911,58 @@ function loadRatings() {
         });
 }
 
-function rateProcessor(procId, name) {
-    var r = prompt('Rate ' + name + ' (1-5):');
-    if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
-    fetch('/api/ratings/operator', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: procId, rating: parseInt(r), rating_direction: 'converter_rates_processor' })
-    }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
+var _rateProcessorId = null;
+var _rateProcessorScore = null;
+
+function rateProcessor(processorId, processorName) {
+    _rateProcessorId = processorId;
+    _rateProcessorScore = null;
+    document.getElementById('rateProcessorName').textContent = processorName || 'Your processor';
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.style.color = '#ccc'; });
+    document.getElementById('rateProcessorMsg').style.display = 'none';
+    var modal = document.getElementById('rateProcessorModal');
+    modal.style.display = 'flex';
+}
+
+function selectProcessorStar(val) {
+    _rateProcessorScore = val;
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) {
+        b.style.color = parseInt(b.dataset.val) <= val ? '#f5a623' : '#ccc';
+    });
+}
+
+function closeRateProcessorModal() {
+    document.getElementById('rateProcessorModal').style.display = 'none';
+}
+
+async function submitProcessorRating() {
+    if (!_rateProcessorScore) {
+        var msg = document.getElementById('rateProcessorMsg');
+        msg.textContent = 'Please select a star rating.';
+        msg.style.display = 'block';
+        return;
+    }
+    try {
+        var token = localStorage.getItem('circul_token');
+        var r = await fetch('/api/ratings/operator', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor' })
+        });
+        var data = await r.json();
+        if (data.success) {
+            closeRateProcessorModal();
+            showToast('Rating submitted!');
+        } else {
+            var msg = document.getElementById('rateProcessorMsg');
+            msg.textContent = data.message || 'Could not submit rating.';
+            msg.style.display = 'block';
+        }
+    } catch (e) {
+        var msg = document.getElementById('rateProcessorMsg');
+        msg.textContent = 'Network error. Please try again.';
+        msg.style.display = 'block';
+    }
 }
 
 function renderPriceCards(prices) {
@@ -961,5 +1008,25 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s || ''
 
 checkAuth();
 </script>
+
+<!-- Rate Processor Modal -->
+<div id="rateProcessorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:2rem;max-width:380px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 0.5rem;font-size:1.1rem;">Rate Your Processor</h3>
+    <p id="rateProcessorName" style="margin:0 0 1.25rem;color:#555;font-size:0.9rem;"></p>
+    <div style="display:flex;gap:0.5rem;justify-content:center;margin-bottom:1.5rem;" id="rateProcessorStars">
+      <button class="star-btn" data-val="1" onclick="selectProcessorStar(1)" style="font-size:2rem;background:none;border:none;cursor:pointer;color:#ccc;">★</button>
+      <button class="star-btn" data-val="2" onclick="selectProcessorStar(2)" style="font-size:2rem;background:none;border:none;cursor:pointer;color:#ccc;">★</button>
+      <button class="star-btn" data-val="3" onclick="selectProcessorStar(3)" style="font-size:2rem;background:none;border:none;cursor:pointer;color:#ccc;">★</button>
+      <button class="star-btn" data-val="4" onclick="selectProcessorStar(4)" style="font-size:2rem;background:none;border:none;cursor:pointer;color:#ccc;">★</button>
+      <button class="star-btn" data-val="5" onclick="selectProcessorStar(5)" style="font-size:2rem;background:none;border:none;cursor:pointer;color:#ccc;">★</button>
+    </div>
+    <div style="display:flex;gap:0.75rem;">
+      <button onclick="submitProcessorRating()" style="flex:1;padding:0.65rem;background:#1a3c34;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Submit Rating</button>
+      <button onclick="closeRateProcessorModal()" style="padding:0.65rem 1rem;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
+    </div>
+    <p id="rateProcessorMsg" style="margin:0.75rem 0 0;font-size:0.85rem;color:#e44;display:none;"></p>
+  </div>
+</div>
 </body>
 </html>

@@ -281,11 +281,28 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
 app.get('/api/processors', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, company, email, phone, city, region, country, is_active, created_at FROM processors WHERE is_active=true ORDER BY company, name`
+      `SELECT id, name, company, email, phone, city, region, country, is_active, created_at FROM processors WHERE is_active=true AND LOWER(COALESCE(company,name,'')) NOT LIKE '%miniplast%' ORDER BY company, name`
     );
     res.json({ success: true, processors: result.rows });
   } catch (err) {
     console.error('Error listing processors:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/processors/:id — fetch single processor record
+app.get('/api/processors/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT id, name, company, email, city, region, country
+       FROM buyers WHERE id = $1 AND role = 'processor'`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Processor not found' });
+    res.json({ success: true, processor: result.rows[0] });
+  } catch (err) {
+    console.error('GET /api/processors/:id error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -321,7 +338,7 @@ app.get('/api/processors/:id/stats', async (req, res) => {
 app.get('/api/converters', async (req, res) => {
   try {
     const { country } = req.query;
-    const params = []; let where = 'WHERE is_active=true';
+    const params = []; let where = `WHERE is_active=true AND LOWER(COALESCE(company,name,'')) NOT LIKE '%miniplast%'`;
     if (country) { params.push(country); where += ` AND country=$${params.length}`; }
     const result = await pool.query(
       `SELECT id, name, company, email, phone, city, region, country, is_active, created_at FROM converters ${where} ORDER BY company, name`,
@@ -330,6 +347,23 @@ app.get('/api/converters', async (req, res) => {
     res.json({ success: true, converters: result.rows });
   } catch (err) {
     console.error('Error listing converters:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/converters/:id — fetch single converter record
+app.get('/api/converters/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT id, name, company, email, city, region, country
+       FROM buyers WHERE id = $1 AND role = 'converter'`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Converter not found' });
+    res.json({ success: true, converter: result.rows[0] });
+  } catch (err) {
+    console.error('GET /api/converters/:id error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -390,7 +424,7 @@ app.post('/api/transactions', async (req, res) => {
 
 app.get('/api/transactions', async (req, res) => {
   try {
-    const { collector_id, aggregator_id, material_type, start_date, end_date, limit = 100, offset = 0 } = req.query;
+    const { collector_id, aggregator_id, material_type, start_date, end_date, payment_status, limit = 100, offset = 0 } = req.query;
     let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM transactions t JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
     const params = [];
     if (collector_id) { params.push(collector_id); query += ` AND t.collector_id=$${params.length}`; }
@@ -398,6 +432,7 @@ app.get('/api/transactions', async (req, res) => {
     if (material_type) { params.push(material_type.toUpperCase()); query += ` AND t.material_type=$${params.length}`; }
     if (start_date) { params.push(start_date); query += ` AND t.transaction_date>=$${params.length}::timestamptz`; }
     if (end_date) { params.push(end_date); query += ` AND t.transaction_date<=$${params.length}::timestamptz`; }
+    if (payment_status) { const statuses = payment_status.split(',').map(s => s.trim()).filter(Boolean); if (statuses.length) { params.push(statuses); query += ` AND t.payment_status=ANY($${params.length})`; } }
     const countResult = await pool.query(query.replace(/SELECT t\.\*.*?FROM/s, 'SELECT COUNT(*) as total FROM'), params);
     params.push(parseInt(limit)); query += ` ORDER BY t.transaction_date DESC LIMIT $${params.length}`;
     params.push(parseInt(offset)); query += ` OFFSET $${params.length}`;
@@ -442,6 +477,7 @@ app.post('/api/ratings/operator', async (req, res) => {
     const finalRaterId   = rater_id   || rater_operator_id || rater_collector_id;
     const finalRatedType = rated_type || (rated_operator_id ? 'aggregator' : 'collector');
     const finalRatedId   = rated_id   || rated_operator_id || rated_collector_id;
+    if (!finalRaterId) return res.status(400).json({ success: false, message: 'rater_id is required' });
     if (!finalRaterId || !finalRatedId || !rating) return res.status(400).json({ success: false, message: 'rater, rated, and rating are required' });
     if (rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1-5' });
     const windowExpires = new Date(); windowExpires.setDate(windowExpires.getDate() + 30);
@@ -606,8 +642,14 @@ app.post('/api/pending-transactions', async (req, res) => {
     if (!collectorCheck.rows.length) return res.status(400).json({ success: false, message: 'Collector not found' });
     const aggCheck = await pool.query(`SELECT id FROM aggregators WHERE id=$1 AND is_active=true`, [aggregator_id]);
     if (!aggCheck.rows.length) return res.status(400).json({ success: false, message: 'Aggregator not found' });
-    const pricePer = price_per_kg ? parseFloat(price_per_kg) : 0;
-    const totalPrice = parseFloat((kg * pricePer).toFixed(2));
+    let pricePer;
+    if (price_per_kg !== undefined && price_per_kg !== null && price_per_kg !== '') {
+      pricePer = parseFloat(price_per_kg);
+    } else {
+      const postedResult = await pool.query(`SELECT price_per_kg_ghs FROM posted_prices WHERE poster_type='aggregator' AND poster_id=$1 AND material_type=$2 AND is_active=true ORDER BY posted_at DESC LIMIT 1`, [aggregator_id, material_type.toUpperCase()]);
+      pricePer = postedResult.rows.length ? parseFloat(postedResult.rows[0].price_per_kg_ghs) : null;
+    }
+    const totalPrice = pricePer !== null ? parseFloat((kg * pricePer).toFixed(2)) : null;
     const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, collector_id, aggregator_id, material_type, gross_weight_kg, price_per_kg, total_price, status) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING *`, [transaction_type, collector_id, aggregator_id, material_type.toUpperCase(), kg, pricePer, totalPrice]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { console.error('Create pending transaction error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
@@ -663,6 +705,15 @@ app.patch('/api/pending-transactions/:id/review', async (req, res) => {
     if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
     const pt = ptResult.rows[0];
     if (pt.status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction is no longer pending' });
+    if (pt.transaction_type === 'aggregator_purchase') {
+      if (action === 'reject') {
+        if (!rejection_reason) return res.status(400).json({ success: false, message: 'rejection_reason is required' });
+        const updated = await pool.query(`UPDATE pending_transactions SET status='rejected', rejection_reason=$1, updated_at=NOW() WHERE id=$2 RETURNING *`, [rejection_reason, id]);
+        return res.json({ success: true, pending_transaction: updated.rows[0] });
+      }
+      const updated = await pool.query(`UPDATE pending_transactions SET status='accepted', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
+      return res.json({ success: true, pending_transaction: updated.rows[0] });
+    }
     if (pt.transaction_type !== 'collector_sale') return res.status(400).json({ success: false, message: 'Only collector_sale transactions can be reviewed this way' });
     if (action === 'reject') {
       if (!rejection_reason) return res.status(400).json({ success: false, message: 'rejection_reason is required' });
@@ -961,11 +1012,12 @@ app.post('/api/orders', requireAuth, async (req, res) => {
 
 app.get('/api/orders/my', requireAuth, async (req, res) => {
   try {
-    if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
-    const converterId = req.user.converter_id || req.user.id;
+    const buyerId = req.user?.buyerId ?? req.user?.id;
+    if (!buyerId) return res.json({ success: true, orders: [] });
+    const converterId = req.user.converter_id || buyerId;
     const result = await pool.query(`SELECT * FROM orders WHERE converter_id=$1 ORDER BY created_at DESC LIMIT 20`, [converterId]);
     res.json({ success: true, orders: result.rows });
-  } catch (err) { console.error('Get my orders error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('GET /api/orders/my error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 // ============================================
@@ -1263,9 +1315,9 @@ app.get('/api/prices', async (req, res) => {
     let nearPrices = { rows: [] };
     if (city) {
       const nearParams = [...params, city];
-      nearPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true AND pp.city=$${nearParams.length}${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, nearParams);
+      nearPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true AND pp.city=$${nearParams.length}${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, nearParams);
     }
-    const allPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, params);
+    const allPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, params);
     const nationalAvg = await pool.query(`SELECT material_type, AVG(price_per_kg_ghs) as avg_usd, COUNT(DISTINCT poster_id) as buyer_count FROM posted_prices WHERE poster_type=ANY($1) AND is_active=true${whereExtra.replace(/pp\./g,'')} GROUP BY material_type ORDER BY material_type`, params);
     let nearRows = nearPrices.rows;
     if (nearRows.length === 0 && allPrices.rows.length > 0) {

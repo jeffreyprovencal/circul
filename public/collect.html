@@ -575,6 +575,11 @@
               if (a.city) label += ' — ' + a.city;
               return '<option value="' + a.id + '">' + label + '</option>';
             }).join('');
+          var preselect = sessionStorage.getItem('preselectAggregatorId');
+          if (preselect) {
+            sel.value = preselect;
+            sessionStorage.removeItem('preselectAggregatorId');
+          }
         })
         .catch(function () {
           document.getElementById('aggregatorSelect').innerHTML =
