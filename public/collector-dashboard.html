@@ -302,39 +302,79 @@
     }
     .btn-passport:hover { background: var(--forest); color: var(--white); }
 
-    /* ── PRICES GRID ─────────────────────────────── */
+    /* ── PRICES GRID / BUYER CARDS ───────────────── */
     .prices-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 16px;
     }
 
-    .price-cell {
-      padding: 20px;
-      border-right: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
+    .buyer-card {
+      flex: 1 1 200px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
-    .price-cell:nth-child(2n)        { border-right: none; }
-    .price-cell:nth-last-child(-n+2) { border-bottom: none; }
-
-    .price-mat {
-      font-size: 0.7rem;
+    .buyer-card-name {
+      font-size: 0.9rem;
       font-weight: 700;
-      letter-spacing: 1.6px;
-      text-transform: uppercase;
+      color: var(--ink);
+    }
+
+    .buyer-card-city {
+      font-size: 0.75rem;
       color: var(--muted);
-      margin-bottom: 8px;
+      margin-top: -4px;
     }
 
-    .price-val {
-      font-size: 1.45rem;
-      font-weight: 800;
+    .buyer-mat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 4px 0;
+    }
+
+    .buyer-mat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+    }
+
+    .buyer-mat-name {
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+    }
+
+    .buyer-mat-price {
+      font-weight: 700;
       color: var(--forest);
-      letter-spacing: -0.5px;
-      margin-bottom: 3px;
+      font-size: 0.88rem;
     }
 
-    .price-per { font-size: 0.71rem; color: var(--muted); }
+    .btn-sell-to {
+      margin-top: 6px;
+      background: var(--forest);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: 'Space Grotesk', sans-serif;
+      cursor: pointer;
+    }
+
+    .btn-sell-to:hover { opacity: 0.88; }
 
     .prices-empty {
       padding: 28px 20px;
@@ -610,7 +650,7 @@
     <div class="card-panel">
       <div class="card-panel-head">
         <div>
-          <div class="card-panel-title">Buy prices near you</div>
+          <div class="card-panel-title">Who's buying near you</div>
           <div class="card-panel-sub">Aggregator posted prices · GH₵ per kg</div>
         </div>
       </div>
@@ -935,31 +975,53 @@
     function populatePrices(prices) {
       var grid = document.getElementById('pricesGrid');
 
-      if (!prices.length) {
+      // Filter to aggregator prices only (collectors sell to aggregators)
+      var aggPrices = prices.filter(function(p) { return p.operator_role === 'aggregator'; });
+
+      if (!aggPrices.length) {
         grid.innerHTML = '<div class="prices-empty" style="grid-column:1/-1">No prices posted yet</div>';
         return;
       }
 
-      // Sort by material name for consistent order
-      var order = ['PET', 'HDPE', 'PP', 'LDPE'];
-      prices.sort(function (a, b) {
-        var ai = order.indexOf((a.material_type || '').toUpperCase());
-        var bi = order.indexOf((b.material_type || '').toUpperCase());
-        if (ai === -1) ai = 99;
-        if (bi === -1) bi = 99;
-        return ai - bi;
+      // Group by aggregator_id
+      var byAgg = {};
+      var aggOrder = [];
+      aggPrices.forEach(function(p) {
+        var key = p.aggregator_id || p.operator_name || 'unknown';
+        if (!byAgg[key]) {
+          byAgg[key] = { name: p.operator_name || 'Unknown', city: p.city || '', aggregator_id: p.aggregator_id, items: [] };
+          aggOrder.push(key);
+        }
+        byAgg[key].items.push(p);
       });
 
-      grid.innerHTML = prices.map(function (p) {
-        var ghs = p.price_per_kg_ghs
-          ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2)
-          : '—';
-        return '<div class="price-cell">' +
-          '<div class="price-mat">' + esc((p.material_type || '').toUpperCase()) + '</div>' +
-          '<div class="price-val">' + ghs + '</div>' +
-          '<div class="price-per">per kg</div>' +
+      var matOrder = ['PET', 'HDPE', 'PP', 'LDPE'];
+      grid.innerHTML = aggOrder.map(function(key) {
+        var agg = byAgg[key];
+        agg.items.sort(function(a, b) {
+          var ai = matOrder.indexOf((a.material_type || '').toUpperCase()); if (ai === -1) ai = 99;
+          var bi = matOrder.indexOf((b.material_type || '').toUpperCase()); if (bi === -1) bi = 99;
+          return ai - bi;
+        });
+        var matList = agg.items.map(function(p) {
+          var ghs = p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—';
+          return '<div class="buyer-mat-row"><span class="buyer-mat-name">' + esc((p.material_type || '').toUpperCase()) + '</span><span class="buyer-mat-price">' + ghs + '/kg</span></div>';
+        }).join('');
+        var sellBtn = agg.aggregator_id
+          ? '<button class="btn-sell-to" onclick="preselectAndSell(' + agg.aggregator_id + ')">Sell to ' + esc(agg.name) + '</button>'
+          : '';
+        return '<div class="buyer-card">' +
+          '<div class="buyer-card-name">' + esc(agg.name) + '</div>' +
+          (agg.city ? '<div class="buyer-card-city">' + esc(agg.city) + '</div>' : '') +
+          '<div class="buyer-mat-list">' + matList + '</div>' +
+          sellBtn +
           '</div>';
       }).join('');
+    }
+
+    function preselectAndSell(aggregatorId) {
+      sessionStorage.setItem('preselectAggregatorId', aggregatorId);
+      window.location.href = '/collect.html';
     }
 
     /* ── SIGN OUT ────────────────────────────────── */
