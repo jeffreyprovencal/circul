@@ -8,7 +8,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 if (!process.env.DATABASE_URL) {
-  console.error('ERROR: DATABASE_URL environment variable is required');
+  console.error('ERROR: DATABASE_URL environment variable is equired');
   process.exit(1);
 }
 
@@ -296,7 +296,7 @@ app.get('/api/processors/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
     const result = await pool.query(
       `SELECT id, name, company, email, city, region, country
-       FROM buyers WHERE id = $1 AND role = 'processor'`,
+       FROM processors WHERE id = $1`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Processor not found' });
@@ -357,7 +357,7 @@ app.get('/api/converters/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
     const result = await pool.query(
       `SELECT id, name, company, email, city, region, country
-       FROM buyers WHERE id = $1 AND role = 'converter'`,
+       FROM converters WHERE id = $1`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Converter not found' });
