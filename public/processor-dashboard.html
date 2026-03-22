@@ -458,7 +458,7 @@ function loadAggregators() {
             // Unique aggregators from transactions
             var seen = {};
             data.transactions.forEach(function(t) {
-                if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_display_name || t.aggregator_name;
+                if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name || t.aggregator_display_name;
             });
             var aggs = Object.keys(seen);
             if (!aggs.length) { el.innerHTML = '<div class="empty">No aggregators to rate yet</div>'; return; }
@@ -623,7 +623,7 @@ function buildPendingCard(pt) {
     var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
     var hasPhotos = photos.length > 0;
     var bigBatch  = parseFloat(pt.gross_weight_kg) > 500;
-    var aggName   = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
+    var aggName   = esc(pt.aggregator_name || pt.aggregator_company || '—');
     var photoHtml = hasPhotos
         ? '<span class="badge badge-green">✓ ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
         : '<span class="badge badge-amber">⚠ No photos</span>';

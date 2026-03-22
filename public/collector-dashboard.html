@@ -581,7 +581,7 @@
       </div>
       <div class="passport-body">
         <div class="passport-id-row">
-          <span class="passport-id" id="passportId">CIR-—</span>
+          <span class="passport-id" id="passportId">C-—</span>
           <span class="passport-status" id="passportStatus">Active</span>
         </div>
         <div class="passport-meta">
@@ -764,7 +764,7 @@
           var collectorId = collectorRow.id;
 
           // Now set the correct passport ID and link using collectors.id
-          document.getElementById('passportId').textContent = 'CIR-' + String(collectorId).padStart(5, '0');
+          document.getElementById('passportId').textContent = 'C-' + String(collectorId).padStart(4, '0');
           document.getElementById('passportLink').href = '/report.html?id=' + collectorId;
 
           // Populate profile from the collector row (has name, phone, region, rating, etc.)
@@ -1024,7 +1024,7 @@
           if (!rows.length) { card.style.display = 'none'; return; }
           card.style.display = '';
           list.innerHTML = rows.map(function(pt) {
-            var aggName = esc(pt.aggregator_display_name || pt.aggregator_name || '—');
+            var aggName = esc(pt.aggregator_name || pt.aggregator_display_name || '—');
             var kg = parseFloat(pt.gross_weight_kg).toFixed(1);
             var price = pt.price_per_kg ? 'GH₵ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg' : 'Price TBD';
             var date = fmtDate(pt.created_at);
@@ -1053,7 +1053,7 @@
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (d.success) {
-          var collectorId = document.getElementById('passportId').textContent.replace('CIR-','').replace(/^0+/,'');
+          var collectorId = document.getElementById('passportId').textContent.replace('C-','').replace(/^0+/,'');
           if (collectorId) loadPendingFromAgg(collectorId);
         } else { alert(d.message || 'Error processing request.'); }
       })

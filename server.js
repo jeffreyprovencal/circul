@@ -140,7 +140,7 @@ app.get('/api/collectors', async (req, res) => {
     const result = await pool.query(
       `SELECT c.id, c.first_name, c.last_name, c.phone, c.city, c.region, c.average_rating,
               c.is_active, c.id_verified, c.created_at${pinField},
-              'CIR-' || LPAD(c.id::text, 5, '0') AS display_name,
+              'C-' || LPAD(c.id::text, 4, '0') AS display_name,
               COALESCE(SUM(t.net_weight_kg),0) as total_weight_kg,
               COUNT(t.id) as transaction_count
        FROM collectors c
@@ -163,7 +163,7 @@ app.get('/api/collectors/:id', async (req, res) => {
     const result = await pool.query(
       `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.city, c.average_rating,
               c.is_active, c.id_verified, c.created_at,
-              'CIR-' || LPAD(c.id::text, 5, '0') AS display_name,
+              'C-' || LPAD(c.id::text, 4, '0') AS display_name,
               COALESCE(SUM(t.net_weight_kg),0) as total_weight_kg,
               COUNT(t.id) as transaction_count
        FROM collectors c
@@ -218,7 +218,7 @@ app.get('/api/aggregators', async (req, res) => {
     const params = []; let where = 'WHERE is_active=true';
     if (phone) { params.push(phone.trim()); where += ` AND phone=$${params.length}`; }
     const result = await pool.query(
-      `SELECT id, name, company, phone, city, region, country, is_active, id_verified, created_at, 'AGG-' || LPAD(id::text, 5, '0') AS display_name FROM aggregators ${where} ORDER BY name ASC`,
+      `SELECT id, name, company, phone, city, region, country, is_active, id_verified, created_at, 'A-' || LPAD(id::text, 4, '0') AS display_name FROM aggregators ${where} ORDER BY name ASC`,
       params
     );
     res.json({ success: true, aggregators: result.rows });
@@ -231,7 +231,7 @@ app.get('/api/aggregators', async (req, res) => {
 app.get('/api/aggregators/:id', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, company, phone, city, region, country, is_active, id_verified, created_at, 'AGG-' || LPAD(id::text, 5, '0') AS display_name FROM aggregators WHERE id=$1`,
+      `SELECT id, name, company, phone, city, region, country, is_active, id_verified, created_at, 'A-' || LPAD(id::text, 4, '0') AS display_name FROM aggregators WHERE id=$1`,
       [req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Aggregator not found' });
@@ -253,7 +253,7 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM transactions WHERE aggregator_id=$1 AND payment_status='unpaid' AND total_price>0`, [id]),
       pool.query(`SELECT COUNT(DISTINCT collector_id) as count FROM transactions WHERE aggregator_id=$1`, [id]),
       pool.query(`SELECT material_type, SUM(net_weight_kg) as kg, COUNT(*) as txns FROM transactions WHERE aggregator_id=$1 GROUP BY material_type ORDER BY kg DESC`, [id]),
-      pool.query(`SELECT c.id, c.first_name, c.last_name, c.phone, c.average_rating, c.city, 'CIR-' || LPAD(c.id::text, 5, '0') AS display_name, SUM(t.net_weight_kg) as total_kg, COUNT(t.id) as txns FROM collectors c JOIN transactions t ON t.collector_id=c.id WHERE t.aggregator_id=$1 GROUP BY c.id ORDER BY total_kg DESC LIMIT 20`, [id]),
+      pool.query(`SELECT c.id, c.first_name, c.last_name, c.phone, c.average_rating, c.city, 'C-' || LPAD(c.id::text, 4, '0') AS display_name, SUM(t.net_weight_kg) as total_kg, COUNT(t.id) as txns FROM collectors c JOIN transactions t ON t.collector_id=c.id WHERE t.aggregator_id=$1 GROUP BY c.id ORDER BY total_kg DESC LIMIT 20`, [id]),
       pool.query(`SELECT * FROM posted_prices WHERE poster_type='aggregator' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
       pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_type='aggregator' AND rated_id=$1`, [id]).catch(() => ({ rows: [{ avg_rating: null, count: 0 }] }))
     ]);
@@ -391,7 +391,7 @@ app.post('/api/transactions', async (req, res) => {
 app.get('/api/transactions', async (req, res) => {
   try {
     const { collector_id, aggregator_id, material_type, start_date, end_date, limit = 100, offset = 0 } = req.query;
-    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'CIR-' || LPAD(c.id::text, 5, '0') AS collector_display_name, a.name as aggregator_name, 'AGG-' || LPAD(a.id::text, 5, '0') AS aggregator_display_name FROM transactions t JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
+    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM transactions t JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
     const params = [];
     if (collector_id) { params.push(collector_id); query += ` AND t.collector_id=$${params.length}`; }
     if (aggregator_id) { params.push(aggregator_id); query += ` AND t.aggregator_id=$${params.length}`; }
@@ -619,16 +619,16 @@ app.get('/api/pending-transactions', async (req, res) => {
     if (!collector_id && !aggregator_id && !processor_id) return res.status(400).json({ success: false, message: 'collector_id, aggregator_id, or processor_id required' });
     let query, params;
     if (collector_id) {
-      query = `SELECT pt.*, a.name AS aggregator_name, 'AGG-' || LPAD(a.id::text, 5, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.collector_id=$1 AND pt.status='pending' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.collector_id=$1 AND pt.status='pending' ORDER BY pt.created_at DESC`;
       params = [collector_id];
     } else if (processor_id) {
-      query = `SELECT pt.*, a.name AS aggregator_name, 'AGG-' || LPAD(a.id::text, 5, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [processor_id];
     } else if (type === 'aggregator_sale') {
       query = `SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     } else {
-      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'CIR-' || LPAD(c.id::text, 5, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     }
     const result = await pool.query(query, params);
@@ -726,7 +726,7 @@ app.post('/api/pending-transactions/aggregator-sale', async (req, res) => {
 app.get('/api/pending-transactions/processor-queue', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, 'AGG-' || LPAD(a.id::text, 5, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Processor queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1322,7 +1322,7 @@ app.get('/api/reports/compliance/:aggregator_id', async (req, res) => {
     let dateFilter = ''; const params = [aggregator_id];
     if (start_date) { params.push(start_date); dateFilter += ` AND t.transaction_date>=$${params.length}::timestamptz`; }
     if (end_date) { params.push(end_date); dateFilter += ` AND t.transaction_date<=$${params.length}::timestamptz`; }
-    const transactions = await pool.query(`SELECT t.id, t.transaction_date, t.material_type, t.gross_weight_kg, t.net_weight_kg, t.contamination_deduction_percent, t.price_per_kg, t.total_price, t.payment_status, t.lat, t.lng, c.first_name||' '||c.last_name as collector_name, c.phone as collector_phone, c.city as collector_city, c.region as collector_region FROM transactions t JOIN collectors c ON c.id=t.collector_id WHERE t.aggregator_id=$1 ${dateFilter} ORDER BY t.transaction_date ASC`, params);
+    const transactions = await pool.query(`SELECT t.id, t.transaction_date, t.material_type, t.gross_weight_kg, t.net_weight_kg, t.contamination_deduction_percent, t.price_per_kg, t.total_price, t.payment_status, t.lat, t.lng, 'C-' || LPAD(c.id::text, 4, '0') AS collector_name, c.city as collector_city, c.region as collector_region FROM transactions t JOIN collectors c ON c.id=t.collector_id WHERE t.aggregator_id=$1 ${dateFilter} ORDER BY t.transaction_date ASC`, params);
     const summary = await pool.query(`SELECT material_type, COUNT(*) as transaction_count, SUM(net_weight_kg) as total_kg_net, SUM(gross_weight_kg) as total_kg_gross, SUM(total_price) as total_paid_ghs, COUNT(DISTINCT t.collector_id) as unique_collectors FROM transactions t WHERE t.aggregator_id=$1 ${dateFilter} GROUP BY material_type ORDER BY material_type`, params);
     const report = { report_type: 'EPR_CSRD_COMPLIANCE', generated_at: new Date().toISOString(), aggregator: agg.rows[0], period: { start: start_date||'all-time', end: end_date||new Date().toISOString() }, summary_by_material: summary.rows, total_transactions: transactions.rows.length, transactions: transactions.rows, '@context': 'https://schema.org', '@type': 'DigitalProductPassport' };
     if (format === 'json') res.setHeader('Content-Disposition', `attachment; filename="compliance-report-${aggregator_id}-${Date.now()}.json"`);
@@ -1333,10 +1333,10 @@ app.get('/api/reports/compliance/:aggregator_id', async (req, res) => {
 app.get('/api/reports/product-journey/:transaction_id', async (req, res) => {
   try {
     const { transaction_id } = req.params;
-    const result = await pool.query(`SELECT t.*, c.first_name, c.last_name, c.city as collector_city, c.region as collector_region, a.name as aggregator_name, a.company as aggregator_company, a.city as aggregator_city FROM transactions t JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE t.id=$1`, [transaction_id]);
+    const result = await pool.query(`SELECT t.*, 'C-' || LPAD(c.id::text, 4, '0') AS collector_identifier, c.city as collector_city, c.region as collector_region, a.name as aggregator_name, a.company as aggregator_company, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_identifier, a.city as aggregator_city FROM transactions t JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE t.id=$1`, [transaction_id]);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
     const t = result.rows[0];
-    res.json({ success: true, journey: { collector: { name: t.first_name+' '+t.last_name, city: t.collector_city, region: t.collector_region }, material: t.material_type, weight_kg: t.net_weight_kg, collected_at: t.transaction_date, location: t.lat ? { lat: t.lat, lng: t.lng } : { city: t.collector_city }, aggregator: t.aggregator_name ? { name: t.aggregator_name, company: t.aggregator_company, city: t.aggregator_city } : null, verified: t.payment_status === 'paid' } });
+    res.json({ success: true, journey: { collector: { id: t.collector_identifier, city: t.collector_city, region: t.collector_region }, material: t.material_type, weight_kg: t.net_weight_kg, collected_at: t.transaction_date, location: t.lat ? { lat: t.lat, lng: t.lng } : { city: t.collector_city }, aggregator: t.aggregator_name ? { id: t.aggregator_identifier, name: t.aggregator_name, company: t.aggregator_company, city: t.aggregator_city } : null, verified: t.payment_status === 'paid' } });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
