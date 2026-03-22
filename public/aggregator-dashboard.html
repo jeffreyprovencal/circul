@@ -537,7 +537,7 @@ function checkAuth() {
 }
 
 function fmtAggId(id) {
-    return 'AGG-' + String(id).padStart(5, '0');
+    return 'A-' + String(id).padStart(4, '0');
 }
 
 function showDashboard() {
@@ -659,7 +659,7 @@ function renderCollectors(collectors) {
     var tbody = document.getElementById('collectorsBody');
     if (!collectors || !collectors.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No collectors yet</td></tr>'; return; }
     tbody.innerHTML = collectors.map(function(c) {
-        var name = c.display_name || (c.first_name + ' ' + c.last_name);
+        var name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.display_name;
         var rating = c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—';
         return '<tr>' +
             '<td>' + esc(name) + '</td>' +
@@ -687,7 +687,7 @@ function loadPendingTxns() {
             var tbody = document.getElementById('pendingBody');
             if (!txns.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pending payments</td></tr>'; return; }
             tbody.innerHTML = txns.map(function(t) {
-                var name = t.collector_display_name || ((t.collector_first_name || '') + ' ' + (t.collector_last_name || '')).trim();
+                var name = ((t.collector_first_name || '') + ' ' + (t.collector_last_name || '')).trim() || t.collector_display_name;
                 var action = '';
                 if (t.payment_status === 'unpaid') {
                     action = '<button class="btn-pay" onclick="openPaymentForm(\'txn\',' + t.id + ',this)">Record Payment</button>' +
@@ -854,7 +854,7 @@ function loadIncomingCollections() {
                 return;
             }
             list.innerHTML = rows.map(function(pt) {
-                var name = pt.collector_display_name || ((pt.collector_first_name || '') + ' ' + (pt.collector_last_name || '')).trim() || '—';
+                var name = ((pt.collector_first_name || '') + ' ' + (pt.collector_last_name || '')).trim() || pt.collector_display_name || '—';
                 var kg   = parseFloat(pt.gross_weight_kg).toFixed(1);
                 var date = fmtDate(pt.created_at);
                 return '<div class="incoming-item" id="pt-item-' + pt.id + '">' +
@@ -1038,7 +1038,7 @@ function populateRegisterCollectors() {
     var collectors = state.topCollectors || [];
     sel.innerHTML = collectors.length
         ? '<option value="">Select collector…</option>' + collectors.map(function(c) {
-            return '<option value="' + c.id + '">' + esc(c.display_name || (c.first_name + ' ' + c.last_name)) + '</option>';
+            return '<option value="' + c.id + '">' + esc(((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.display_name) + '</option>';
           }).join('')
         : '<option value="">No collectors found yet</option>';
 }
