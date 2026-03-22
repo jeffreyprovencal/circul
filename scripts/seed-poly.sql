@@ -6,8 +6,8 @@ INSERT INTO pending_transactions (
   created_at, updated_at
 ) VALUES
   ('processor_sale', 1, 2, 'PET', 500, 6.50, 3250.00, 'completed',
-   false, false, true, '[]'::jsonb,
+   false, false, true, '{}',
    NOW() - INTERVAL '10 days', NOW() - INTERVAL '8 days'),
   ('processor_sale', 1, 2, 'PET', 320, 6.20, 1984.00, 'completed',
-   false, false, true, '[]'::jsonb,
+   false, false, true, '{}',
    NOW() - INTERVAL '11 days', NOW() - INTERVAL '9 days');

@@ -356,7 +356,7 @@
                 <div class="sell-grid">
                     <div>
                         <label class="sell-label">Material</label>
-                        <select class="sell-select" id="sellMaterial" onchange="updatePhotoWarning()">
+                        <select class="sell-select" id="sellMaterial" onchange="updatePhotoWarning();prefillPriceFromBuyer()">
                             <option value="">Select material…</option>
                             <option value="PET">PET</option>
                             <option value="HDPE">HDPE</option>
@@ -365,7 +365,7 @@
                     </div>
                     <div>
                         <label class="sell-label">Processor</label>
-                        <select class="sell-select" id="sellProcessor">
+                        <select class="sell-select" id="sellProcessor" onchange="prefillPriceFromBuyer()">
                             <option value="">Loading…</option>
                         </select>
                     </div>
@@ -1098,7 +1098,8 @@ function submitAggregatorPurchase() {
 function loadProcessors() {
     Promise.all([
         fetch('/api/processors').then(function(r) { return r.json(); }),
-        fetch('/api/converters?country=Ghana').then(function(r) { return r.json(); })
+        fetch('/api/converters?country=Ghana').then(function(r) { return r.json(); }),
+        fetch('/api/prices?role=aggregator').then(function(r) { return r.json(); }).catch(function() { return {}; })
     ])
     .then(function(results) {
         var sel = document.getElementById('sellProcessor');
@@ -1117,10 +1118,30 @@ function loadProcessors() {
                 return '<option value="' + b.id + '" data-type="' + b.type + '">' + b.label + '</option>';
               }).join('')
             : '<option value="">No buyers found</option>';
+        // Store buyer posted prices for autofill (poster_id returned as aggregator_id field from pr8)
+        var allPrices = (results[2].all_prices || results[2].near_prices || []);
+        window._processorPrices = allPrices
+            .filter(function(p) { return p.operator_role === 'processor' || p.operator_role === 'converter'; })
+            .map(function(p) { return { operator_id: p.aggregator_id, material_type: p.material_type, price_per_kg_ghs: p.price_per_kg_ghs }; });
     })
     .catch(function() {
         document.getElementById('sellProcessor').innerHTML = '<option value="">Could not load buyers</option>';
     });
+}
+
+function prefillPriceFromBuyer() {
+    var processorSel = document.getElementById('sellProcessor');
+    var materialSel  = document.getElementById('sellMaterial');
+    var priceInput   = document.getElementById('sellPrice');
+    if (!processorSel || !materialSel || !priceInput) return;
+    var selectedOpt = processorSel.options[processorSel.selectedIndex];
+    var buyerId  = selectedOpt ? selectedOpt.value : null;
+    var material = materialSel.value;
+    if (!buyerId || !material || !window._processorPrices) { priceInput.value = ''; return; }
+    var match = window._processorPrices.find(function(p) {
+        return String(p.operator_id) === String(buyerId) && p.material_type === material;
+    });
+    priceInput.value = match ? parseFloat(match.price_per_kg_ghs).toFixed(2) : '';
 }
 
 function updatePhotoWarning() {

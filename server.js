@@ -485,12 +485,12 @@ app.post('/api/ratings/operator', async (req, res) => {
     try {
       result = await pool.query(
         `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction, window_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, JSON.stringify(tags||[]), notes||null, rating_direction||null, windowExpires.toISOString()]
+        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, tags||[], notes||null, rating_direction||null, windowExpires.toISOString()]
       );
     } catch (insertErr) {
       result = await pool.query(
         `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, JSON.stringify(tags||[]), notes||null, rating_direction||null]
+        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, tags||[], notes||null, rating_direction||null]
       );
     }
     res.status(201).json({ success: true, rating: result.rows[0] });
@@ -711,7 +711,7 @@ app.patch('/api/pending-transactions/:id/review', async (req, res) => {
         const updated = await pool.query(`UPDATE pending_transactions SET status='rejected', rejection_reason=$1, updated_at=NOW() WHERE id=$2 RETURNING *`, [rejection_reason, id]);
         return res.json({ success: true, pending_transaction: updated.rows[0] });
       }
-      const updated = await pool.query(`UPDATE pending_transactions SET status='accepted', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
+      const updated = await pool.query(`UPDATE pending_transactions SET status='confirmed', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
       return res.json({ success: true, pending_transaction: updated.rows[0] });
     }
     if (pt.transaction_type !== 'collector_sale') return res.status(400).json({ success: false, message: 'Only collector_sale transactions can be reviewed this way' });
@@ -769,7 +769,7 @@ app.post('/api/pending-transactions/aggregator-sale', async (req, res) => {
     const totalPrice = parseFloat((kg * price).toFixed(2));
     const photosRequired = kg > 500;
     const dispatchApproved = photosRequired ? false : true;
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_id, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,'pending',$8,false,$9,$10,$11) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, JSON.stringify(photo_urls||[]), notes||null]);
+    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_id, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,'pending',$8,false,$9,$10,$11) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, photo_urls||[], notes||null]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0], photos_required: photosRequired });
   } catch (err) { console.error('Aggregator sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
