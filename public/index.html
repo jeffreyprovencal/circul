@@ -36,7 +36,7 @@
     /* NAV */
     .nav{display:flex;align-items:center;justify-content:space-between;padding:20px 60px;position:sticky;top:0;background:var(--nav-bg);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-nav);z-index:100;}
     .nav-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;color:var(--text-primary);}
-    .nav-logo-icon{width:28px;height:28px;background:var(--green-bright);border-radius:50%;display:flex;align-items:center;justify-content:center;}
+    .nav-logo-icon{width:32px;height:32px;background:var(--green-bright);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;color:#000;font-weight:900;}
     .nav-links{display:flex;align-items:center;gap:32px;}
     .nav-links a{color:var(--text-secondary);font-size:15px;font-weight:500;transition:color 0.2s;}
     .nav-links a:hover{color:var(--text-primary);}
@@ -58,7 +58,7 @@
     .hero h1{font-size:52px;font-weight:800;line-height:1.1;color:var(--text-primary);margin-bottom:20px;}
     .hero-sub{font-size:17px;line-height:1.65;color:var(--text-secondary);max-width:520px;margin-bottom:36px;}
     .hero-cta{margin-bottom:48px;}
-    .chain-stats{display:flex;align-items:center;gap:0;border:1px solid var(--border-subtle);border-radius:var(--radius-card);overflow:hidden;max-width:480px;}
+    .chain-stats{display:flex;align-items:stretch;border:1px solid var(--border-subtle);border-radius:var(--radius-card);overflow:hidden;max-width:480px;}
     .stat-item{flex:1;padding:16px 20px;text-align:center;}
     .stat-item:not(:last-child){border-right:1px solid var(--border-subtle);}
     .stat-value{display:block;font-size:22px;font-weight:700;color:var(--green-bright);}
@@ -95,16 +95,16 @@
     .how-section{padding:100px 0;background:#0a1a0f;}
     .how-section h2{font-size:40px;font-weight:800;line-height:1.15;color:var(--text-primary);margin-top:8px;}
     .how-grid{display:grid;grid-template-columns:1fr 40px 1fr 40px 1fr 40px 1fr;gap:0;margin-top:48px;align-items:start;}
-    .how-card{background:#0a1a0f;border:1px solid var(--border-subtle);border-radius:var(--radius-card);padding:28px;}
+    .how-card{background:#0a1a0f;border:1px solid var(--border-subtle);border-radius:var(--radius-card);padding:28px;display:flex;flex-direction:column;}
     .how-chain-col{display:flex;justify-content:center;padding-top:60px;}
     .how-chain-line{width:1px;height:60px;background:var(--border-subtle);}
-    .role-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:4px 12px;border-radius:var(--radius-pill);margin-bottom:14px;}
+    .role-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:4px 12px;border-radius:var(--radius-pill);margin-bottom:14px;width:fit-content;}
     .collector-tag{background:#0f2a14;color:#4caf50;}
     .aggregator-tag{background:#0a2a28;color:#26a69a;}
     .processor-tag{background:#0a1e2a;color:#42a5f5;}
     .converter-tag{background:#1a0a2a;color:#ab47bc;}
     .how-card h3{font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:10px;}
-    .how-card p{font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;}
+    .how-card p{font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;flex:1;}
     .how-detail{font-size:12px;color:var(--text-muted);padding-top:16px;border-top:1px solid var(--border-subtle);}
 
     /* FOR PROCESSORS */
@@ -149,8 +149,8 @@
     /* RESPONSIVE */
     @media(max-width:1100px){
       .hero-inner{grid-template-columns:1fr;gap:60px;}
-      .how-grid{grid-template-columns:1fr 30px 1fr;gap:0;}
-      .how-card:nth-child(5),.how-card:nth-child(7),.how-chain-col:nth-child(6){display:none;}
+      .how-grid{grid-template-columns:1fr 1fr;gap:24px;}
+      .how-chain-col{display:none;}
       .pricing-grid{grid-template-columns:repeat(2,1fr);}
       .processors-grid{grid-template-columns:1fr;}
     }
@@ -167,8 +167,9 @@
       .problem-section,.how-section,.processors-section,.pricing-section,.mission-section{padding:72px 0;}
       .problem-section h2,.how-section h2,.processors-section h2,.pricing-section h2{font-size:28px;}
       .problem-grid{grid-template-columns:1fr;}
-      .how-grid{grid-template-columns:1fr;}
+      .how-grid{grid-template-columns:1fr;gap:16px;}
       .how-chain-col{display:none;}
+      .how-card{min-height:unset;}
       .processors-grid{grid-template-columns:1fr;}
       .pricing-grid{grid-template-columns:1fr;}
       .mission-quote{font-size:20px;}
@@ -182,7 +183,7 @@
 <!-- NAV -->
 <nav class="nav">
   <div class="nav-logo">
-    <div class="nav-logo-icon"></div>
+    <div class="nav-logo-icon">◎</div>
     Circul
   </div>
   <div class="nav-links">
@@ -190,7 +191,7 @@
     <a href="#processors">For processors</a>
     <a href="#pricing">Pricing</a>
   </div>
-  <a href="#demo" class="btn btn-primary">Request a demo</a>
+  <a href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo.%20My%20name%20is%20%5Bname%5D%20and%20I%20work%20at%20%5Borganisation%5D." class="btn btn-primary">Request a demo</a>
 </nav>
 
 <!-- HERO -->
@@ -200,7 +201,7 @@
       <h1>Every gram tracked.<br>Every tonne traceable.</h1>
       <p class="hero-sub">Africa's recycling supply chain runs on paper and phone calls. Circul replaces it with a four-tier digital platform — free for the collectors doing the work, powerful for the processors who need the data.</p>
       <div class="hero-cta">
-        <a href="#demo" class="btn btn-primary btn-lg">Request a demo</a>
+        <a href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo.%20My%20name%20is%20%5Bname%5D%20and%20I%20work%20at%20%5Borganisation%5D." class="btn btn-primary btn-lg">Request a demo</a>
       </div>
       <div class="chain-stats">
         <div class="stat-item">
@@ -438,14 +439,13 @@
 <!-- FOOTER -->
 <footer class="footer">
   <div class="footer-logo">
-    <div class="nav-logo-icon"></div>
+    <div class="nav-logo-icon">◎</div>
     Circul
   </div>
   <div class="footer-links">
     <a href="#how">How it works</a>
     <a href="#processors">For processors</a>
     <a href="#pricing">Pricing</a>
-    <a href="demo-access.html">Platform demo</a>
   </div>
   <div class="footer-ussd">USSD coming soon</div>
   <div class="footer-copy">© 2025 Circul. Built to close the loop.</div>
