@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account — Circul</title>
+  <meta name="description" content="Create your free Circul account.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{font-size:16px;scroll-behavior:smooth;}
+    body{
+      font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:#0a1a0f;color:#e8f5e9;min-height:100vh;
+      display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;
+    }
+    *{font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+    a{text-decoration:none;}
+
+    /* NAV */
+    .nav{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 60px;height:64px;
+      background:rgba(10,26,15,0.95);backdrop-filter:blur(12px);
+      border-bottom:1px solid #1a2e1a;position:sticky;top:0;z-index:100;
+    }
+    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:#e8f5e9;}
+    .nav-logo-icon{width:30px;height:30px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#000;font-weight:900;}
+    .nav-right{display:flex;align-items:center;gap:16px;}
+    .nav-signin{color:#9ab8a0;font-size:15px;font-weight:500;transition:color .2s;}
+    .nav-signin:hover{color:#e8f5e9;}
+    .nav-demo{
+      display:inline-flex;align-items:center;background:#00e676;color:#0a1a0f;
+      padding:9px 20px;border-radius:20px;font-size:14px;font-weight:700;
+      transition:background .2s,transform .15s;
+    }
+    .nav-demo:hover{background:#33eb8e;transform:translateY(-1px);}
+
+    /* MAIN */
+    .main{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:48px 20px 80px;}
+    .wrap{width:100%;max-width:480px;}
+
+    /* HEADING */
+    .page-heading{font-size:28px;font-weight:800;color:#e8f5e9;margin-bottom:8px;letter-spacing:-0.5px;}
+    .page-sub{font-size:15px;color:#9ab8a0;margin-bottom:32px;line-height:1.5;}
+
+    /* ROLE GRID */
+    .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:32px;}
+    .role-tile{
+      background:#0c1e0e;border:2px solid #1a3a1a;border-radius:12px;
+      padding:18px 16px;cursor:pointer;transition:border-color .2s,background .2s;
+      position:relative;
+    }
+    .role-tile:hover{border-color:#4a8a4a;}
+    .role-tile.selected{border-color:#00e676;background:#0f2a14;}
+    .role-name{font-size:15px;font-weight:700;color:#e8f5e9;margin-bottom:6px;}
+    .role-badge{
+      display:inline-block;background:#00e676;color:#0a1a0f;
+      font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+      padding:3px 8px;border-radius:4px;
+    }
+
+    /* FORMS */
+    #form-free,#form-request{display:none;}
+    #form-free.visible,#form-request.visible{display:block;}
+
+    .form-group{margin-bottom:18px;}
+    label{display:block;font-size:13px;font-weight:600;color:#9ab8a0;margin-bottom:6px;letter-spacing:.02em;}
+    .input{
+      display:block;width:100%;padding:12px 14px;
+      background:#0c1e0e;border:1.5px solid #1a3a1a;border-radius:10px;
+      font-size:15px;color:#e8f5e9;outline:none;
+      transition:border-color .15s,box-shadow .15s;
+      appearance:none;
+    }
+    .input::placeholder{color:#4a6a4a;}
+    .input:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
+
+    /* Phone field with prefix */
+    .phone-wrap{display:flex;align-items:center;gap:0;}
+    .phone-prefix{
+      padding:12px 14px;background:#0f2a14;border:1.5px solid #1a3a1a;
+      border-right:none;border-radius:10px 0 0 10px;
+      font-size:15px;font-weight:600;color:#9ab8a0;white-space:nowrap;flex-shrink:0;
+    }
+    .phone-wrap .input{border-radius:0 10px 10px 0;}
+    .field-hint{font-size:12px;color:#4a6a4a;margin-top:5px;}
+
+    /* PIN boxes */
+    .pin-row{display:flex;gap:10px;}
+    .pin-digit{
+      flex:1;max-width:72px;text-align:center;
+      padding:14px 8px;font-size:22px;font-weight:700;
+      background:#0c1e0e;border:1.5px solid #1a3a1a;border-radius:10px;
+      color:#e8f5e9;outline:none;
+      -webkit-text-security:disc;
+      transition:border-color .15s,box-shadow .15s;
+      appearance:none;
+    }
+    .pin-digit:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
+
+    /* Info box */
+    .info-box{
+      background:#0f2a14;border:1px solid #1a3a1a;border-radius:10px;
+      padding:14px 16px;margin-bottom:18px;
+      font-size:13px;color:#9ab8a0;line-height:1.6;
+    }
+
+    /* Error */
+    .error-msg{
+      display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);
+      border-radius:8px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:16px;
+    }
+    .error-msg.visible{display:block;}
+
+    /* Submit button */
+    .btn-submit{
+      display:block;width:100%;padding:14px 20px;
+      background:#00e676;color:#0a1a0f;border:none;border-radius:10px;
+      font-size:15px;font-weight:700;cursor:pointer;
+      transition:background .15s,transform .1s;margin-top:8px;
+    }
+    .btn-submit:hover{background:#33eb8e;}
+    .btn-submit:active{transform:scale(.99);}
+    .btn-submit.loading{pointer-events:none;opacity:.7;}
+
+    /* Success state */
+    .success-msg{
+      display:none;background:#0f2a14;border:1px solid #1a3a1a;border-radius:12px;
+      padding:24px;text-align:center;
+    }
+    .success-msg.visible{display:block;}
+    .success-msg h3{font-size:18px;font-weight:700;color:#00e676;margin-bottom:8px;}
+    .success-msg p{font-size:14px;color:#9ab8a0;line-height:1.5;}
+
+    /* FOOTER */
+    .page-footer{
+      padding:24px 60px;border-top:1px solid #1a3a1a;
+      display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+    }
+    .footer-logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;color:#e8f5e9;}
+    .footer-logo-icon{width:24px;height:24px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#000;font-weight:900;}
+    .footer-tagline{font-size:13px;color:#4a6a4a;}
+
+    @media(max-width:600px){
+      .nav{padding:0 20px;}
+      .main{padding:32px 16px 60px;}
+      .page-footer{padding:20px;}
+      .footer-tagline{display:none;}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-icon">◎</div>
+      Circul
+    </a>
+    <div class="nav-right">
+      <a href="/login.html" class="nav-signin">Sign in</a>
+      <a href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&amp;body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo." class="nav-demo">Request a demo</a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="wrap">
+      <h1 class="page-heading">Create your account</h1>
+      <p class="page-sub">Free for collectors and aggregators. Processors and converters can request access.</p>
+
+      <!-- Role selector -->
+      <div class="role-grid" id="roleGrid">
+        <div class="role-tile selected" data-role="collector" onclick="selectRole('collector')">
+          <div class="role-name">Collector</div>
+          <span class="role-badge">Free forever</span>
+        </div>
+        <div class="role-tile" data-role="aggregator" onclick="selectRole('aggregator')">
+          <div class="role-name">Aggregator</div>
+          <span class="role-badge">Free forever</span>
+        </div>
+        <div class="role-tile" data-role="processor" onclick="selectRole('processor')">
+          <div class="role-name">Processor</div>
+          <span class="role-badge">Request access</span>
+        </div>
+        <div class="role-tile" data-role="converter" onclick="selectRole('converter')">
+          <div class="role-name">Converter</div>
+          <span class="role-badge">Request access</span>
+        </div>
+      </div>
+
+      <!-- FREE FORM (collector / aggregator) -->
+      <div id="form-free" class="visible">
+        <div class="error-msg" id="error-free"></div>
+
+        <div class="form-group">
+          <label for="free-name">Full name</label>
+          <input class="input" type="text" id="free-name" placeholder="e.g. Ama Owusu" autocomplete="off" required>
+        </div>
+
+        <div class="form-group">
+          <label for="free-phone">Phone number <span style="color:#4a6a4a;font-weight:400;">(your login ID)</span></label>
+          <div class="phone-wrap">
+            <div class="phone-prefix">+233</div>
+            <input class="input" type="tel" id="free-phone" placeholder="24 000 0000" autocomplete="off" inputmode="tel">
+          </div>
+          <p class="field-hint">This is your login ID</p>
+        </div>
+
+        <div class="form-group">
+          <label>Set a 4-digit PIN</label>
+          <div class="pin-row" id="pin-set-row">
+            <input class="pin-digit" type="number" id="ps1" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 1">
+            <input class="pin-digit" type="number" id="ps2" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 2">
+            <input class="pin-digit" type="number" id="ps3" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 3">
+            <input class="pin-digit" type="number" id="ps4" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 4">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Confirm PIN</label>
+          <div class="pin-row" id="pin-confirm-row">
+            <input class="pin-digit" type="number" id="pc1" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 1">
+            <input class="pin-digit" type="number" id="pc2" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 2">
+            <input class="pin-digit" type="number" id="pc3" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 3">
+            <input class="pin-digit" type="number" id="pc4" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 4">
+          </div>
+        </div>
+
+        <button type="button" class="btn-submit" id="btn-free" onclick="submitFree()">Create account →</button>
+      </div>
+
+      <!-- REQUEST FORM (processor / converter) -->
+      <div id="form-request">
+        <div class="info-box">
+          Your account will be reviewed before activation. We'll be in touch within 1 business day.
+        </div>
+        <div class="error-msg" id="error-request"></div>
+
+        <div class="success-msg" id="success-request">
+          <h3>Request received!</h3>
+          <p>Thanks! We'll be in touch within 1 business day.</p>
+        </div>
+
+        <div id="request-fields">
+          <div class="form-group">
+            <label for="req-name">Full name</label>
+            <input class="input" type="text" id="req-name" placeholder="e.g. Kofi Mensah" autocomplete="off" required>
+          </div>
+
+          <div class="form-group">
+            <label for="req-company">Company</label>
+            <input class="input" type="text" id="req-company" placeholder="Your company name" autocomplete="off" required>
+          </div>
+
+          <div class="form-group">
+            <label for="req-email">Work email</label>
+            <input class="input" type="email" id="req-email" placeholder="you@company.com" autocomplete="off" required>
+          </div>
+
+          <div class="form-group">
+            <label for="req-phone">Phone <span style="color:#4a6a4a;font-weight:400;">(optional)</span></label>
+            <div class="phone-wrap">
+              <div class="phone-prefix">+233</div>
+              <input class="input" type="tel" id="req-phone" placeholder="24 000 0000" autocomplete="off" inputmode="tel">
+            </div>
+          </div>
+
+          <button type="button" class="btn-submit" id="btn-request" onclick="submitRequest()">Request access →</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="page-footer">
+    <div class="footer-logo">
+      <div class="footer-logo-icon">◎</div>
+      circul
+    </div>
+    <span class="footer-tagline">Every gram tracked. Every tonne traceable.</span>
+  </footer>
+
+  <script>
+    var currentRole = 'collector';
+
+    function selectRole(role) {
+      currentRole = role;
+      document.querySelectorAll('.role-tile').forEach(function(t) {
+        t.classList.toggle('selected', t.dataset.role === role);
+      });
+      var isFree = (role === 'collector' || role === 'aggregator');
+      document.getElementById('form-free').classList.toggle('visible', isFree);
+      document.getElementById('form-request').classList.toggle('visible', !isFree);
+      clearErrors();
+    }
+
+    function clearErrors() {
+      ['error-free','error-request'].forEach(function(id) {
+        var el = document.getElementById(id);
+        el.textContent = '';
+        el.classList.remove('visible');
+      });
+    }
+
+    function showError(id, msg) {
+      var el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    /* ── PIN box helpers ─────────────────────── */
+    function setupPinRow(ids) {
+      ids.forEach(function(id, i) {
+        var el = document.getElementById(id);
+        el.addEventListener('input', function() {
+          var val = this.value.replace(/[^0-9]/g,'');
+          this.value = val ? val[val.length-1] : '';
+          if (this.value && i < ids.length - 1) document.getElementById(ids[i+1]).focus();
+        });
+        el.addEventListener('keydown', function(e) {
+          if (e.key === 'Backspace' && !this.value && i > 0) document.getElementById(ids[i-1]).focus();
+        });
+      });
+    }
+
+    function getPinValue(ids) {
+      return ids.map(function(id) { return document.getElementById(id).value; }).join('');
+    }
+
+    setupPinRow(['ps1','ps2','ps3','ps4']);
+    setupPinRow(['pc1','pc2','pc3','pc4']);
+
+    /* ── Register (collector / aggregator) ──── */
+    function submitFree() {
+      clearErrors();
+      var name = document.getElementById('free-name').value.trim();
+      var phoneRaw = document.getElementById('free-phone').value.trim();
+      var pin = getPinValue(['ps1','ps2','ps3','ps4']);
+      var pinConfirm = getPinValue(['pc1','pc2','pc3','pc4']);
+
+      if (!name) { showError('error-free', 'Please enter your full name.'); return; }
+      if (!phoneRaw) { showError('error-free', 'Please enter your phone number.'); return; }
+      if (pin.length < 4) { showError('error-free', 'Please set a 4-digit PIN.'); return; }
+      if (pin !== pinConfirm) { showError('error-free', 'PINs do not match. Please try again.'); return; }
+
+      // Normalise phone: strip leading 0 or +233, then prepend 0
+      var clean = phoneRaw.replace(/\s/g,'').replace(/^\+233/,'').replace(/^0/,'');
+      var phone = '0' + clean;
+
+      var btn = document.getElementById('btn-free');
+      btn.classList.add('loading');
+      btn.textContent = 'Creating account…';
+
+      fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: currentRole, name: name, phone: phone, pin: pin })
+      })
+        .then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
+        .then(function(res) {
+          btn.classList.remove('loading');
+          btn.textContent = 'Create account →';
+          if (res.status === 201) {
+            window.location.href = '/login.html';
+          } else if (res.status === 409) {
+            showError('error-free', 'This phone number is already registered.');
+          } else {
+            showError('error-free', 'Something went wrong. Please try again.');
+          }
+        })
+        .catch(function() {
+          btn.classList.remove('loading');
+          btn.textContent = 'Create account →';
+          showError('error-free', 'Something went wrong. Please try again.');
+        });
+    }
+
+    /* ── Request access (processor / converter) */
+    function submitRequest() {
+      clearErrors();
+      var name = document.getElementById('req-name').value.trim();
+      var company = document.getElementById('req-company').value.trim();
+      var email = document.getElementById('req-email').value.trim();
+      var phoneRaw = document.getElementById('req-phone').value.trim();
+
+      if (!name) { showError('error-request', 'Please enter your full name.'); return; }
+      if (!company) { showError('error-request', 'Please enter your company name.'); return; }
+      if (!email || email.indexOf('@') === -1) { showError('error-request', 'Please enter a valid email address.'); return; }
+
+      var phone = phoneRaw ? '0' + phoneRaw.replace(/\s/g,'').replace(/^\+233/,'').replace(/^0/,'') : '';
+
+      var btn = document.getElementById('btn-request');
+      btn.classList.add('loading');
+      btn.textContent = 'Sending request…';
+
+      fetch('/api/auth/request-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: currentRole, name: name, company: company, email: email, phone: phone })
+      })
+        .then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
+        .then(function(res) {
+          btn.classList.remove('loading');
+          btn.textContent = 'Request access →';
+          if (res.status === 201) {
+            document.getElementById('request-fields').style.display = 'none';
+            document.getElementById('success-request').classList.add('visible');
+          } else if (res.status === 409) {
+            showError('error-request', 'This email is already registered.');
+          } else {
+            showError('error-request', 'Something went wrong. Please try again.');
+          }
+        })
+        .catch(function() {
+          btn.classList.remove('loading');
+          btn.textContent = 'Request access →';
+          showError('error-request', 'Something went wrong. Please try again.');
+        });
+    }
+  </script>
+
+</body>
+</html>

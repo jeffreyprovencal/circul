@@ -3,752 +3,254 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Circul Admin</title>
+  <title>Admin — Circul</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    :root{
-      --green:#2d6a4f;--green-dark:#0a2e1a;--green-light:#bbf7d0;--green-wash:#f0fdf4;
-      --red:#ef4444;--amber:#f59e0b;--slate:#334155;--slate-light:#94a3b8;
-      --border:#e2e8f0;--bg:#f8fafc;--white:#fff;
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{font-size:16px;}
+    body{
+      font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:#0a1a0f;color:#e8f5e9;min-height:100vh;
+      display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;
     }
-    body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--slate);min-height:100vh}
-    h1,h2,h3,h4{font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+    *{font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+    a{text-decoration:none;}
 
-    /* LOGIN */
-    #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--green-dark)}
-    .login-card{background:var(--white);border-radius:16px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
-    .login-card .logo{text-align:center;margin-bottom:32px}
-    .login-card .logo h1{font-size:1.8rem;color:var(--green-dark)}
-    .login-card .logo p{color:var(--slate-light);font-size:0.9rem;margin-top:4px}
-    .form-group{margin-bottom:16px}
-    .form-group label{display:block;font-size:0.85rem;font-weight:600;margin-bottom:6px;color:var(--slate)}
-    .form-group input,.form-group select{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none;transition:border-color .2s}
-    .form-group input:focus,.form-group select:focus{border-color:var(--green)}
-    .btn{width:100%;padding:12px;background:var(--green);color:white;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:inherit;transition:background .2s}
-    .btn:hover{background:#15803d}
-    .btn-sm{width:auto;padding:7px 14px;font-size:0.85rem}
-    .btn-outline{background:transparent;color:var(--green);border:1.5px solid var(--green)}
-    .btn-outline:hover{background:var(--green-wash)}
-    .btn-danger{background:var(--red)}
-    .btn-danger:hover{background:#dc2626}
-    .error-msg{color:var(--red);font-size:0.85rem;margin-top:8px;text-align:center}
+    /* NAV */
+    .nav{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 60px;height:64px;
+      background:rgba(10,26,15,0.95);backdrop-filter:blur(12px);
+      border-bottom:1px solid #1a2e1a;position:sticky;top:0;z-index:100;
+    }
+    .nav-left{display:flex;align-items:center;gap:16px;}
+    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:#e8f5e9;}
+    .nav-logo-icon{width:30px;height:30px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#000;font-weight:900;}
+    .nav-admin-badge{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#4a6a4a;border:1px solid #1a3a1a;padding:3px 10px;border-radius:4px;}
+    .nav-hint{font-size:12px;color:#2a4a2a;}
 
-    /* MAIN LAYOUT */
-    #main-screen{display:none;min-height:100vh;flex-direction:column}
-    .topbar{background:var(--green-dark);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px}
-    .topbar .brand{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:1.2rem;color:white;font-weight:700}
-    .topbar .brand span{color:var(--green-light)}
-    .topbar .user-info{display:flex;align-items:center;gap:12px;color:var(--green-light);font-size:0.9rem}
-    .topbar button{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.85rem}
-    .topbar button:hover{background:rgba(255,255,255,0.2)}
+    /* CONTENT */
+    .content{flex:1;max-width:1000px;margin:0 auto;width:100%;padding:40px 24px 80px;}
 
-    .content{flex:1;padding:24px 32px;max-width:1200px;margin:0 auto;width:100%}
+    /* HEADING */
+    .page-heading{font-size:22px;font-weight:800;color:#e8f5e9;margin-bottom:6px;}
+    .page-sub{font-size:14px;color:#4a6a4a;margin-bottom:32px;}
 
-    /* TABS */
-    .tabs{display:flex;gap:4px;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:24px;width:fit-content}
-    .tab{padding:8px 18px;border-radius:7px;cursor:pointer;font-size:0.9rem;font-weight:500;color:var(--slate-light);border:none;background:none;font-family:inherit;transition:all .15s}
-    .tab.active{background:var(--green);color:white;font-weight:600}
-    .tab:hover:not(.active){background:var(--green-wash);color:var(--green)}
+    /* TABLE WRAPPER */
+    .table-wrap{border:1px solid #1a3a1a;border-radius:12px;overflow:hidden;margin-bottom:32px;}
+    table{width:100%;border-collapse:collapse;}
+    th{
+      padding:12px 16px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+      color:#4a6a4a;background:#0c1e0e;text-align:left;border-bottom:1px solid #1a3a1a;
+    }
+    td{padding:14px 16px;font-size:14px;color:#e8f5e9;border-bottom:1px solid #0f2814;vertical-align:middle;}
+    tr:last-child td{border-bottom:none;}
+    tr.rejected{opacity:.3;transition:opacity .4s;}
 
-    /* STAT CARDS */
-    .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:28px}
-    .stat-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px}
-    .stat-card .num{font-size:2rem;font-weight:700;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--green-dark)}
-    .stat-card .label{font-size:0.85rem;color:var(--slate-light);margin-top:4px}
+    /* Role chips */
+    .chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:4px;}
+    .chip-processor{background:rgba(0,230,118,.12);color:#00e676;}
+    .chip-converter{background:rgba(168,85,247,.12);color:#a855f7;}
 
-    /* MATERIAL BADGES */
-    .mat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
-    .mat-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
-    .mat-card .mat-name{font-weight:700;font-size:1rem;color:var(--green-dark)}
-    .mat-card .mat-kg{font-size:1.5rem;font-weight:700;color:var(--green)}
-    .mat-card .mat-txns{font-size:0.8rem;color:var(--slate-light)}
+    /* Actions */
+    .actions{display:flex;gap:8px;align-items:center;}
+    .btn-approve{
+      padding:6px 14px;background:#00e676;color:#0a1a0f;
+      border:none;border-radius:6px;font-size:12px;font-weight:700;
+      cursor:pointer;transition:background .15s;white-space:nowrap;
+    }
+    .btn-approve:hover{background:#33eb8e;}
+    .btn-approve.done{background:#0f2a14;color:#00e676;cursor:default;pointer-events:none;}
+    .btn-reject{
+      padding:6px 10px;background:transparent;color:#4a6a4a;
+      border:1px solid #1a3a1a;border-radius:6px;font-size:12px;font-weight:700;
+      cursor:pointer;transition:all .15s;
+    }
+    .btn-reject:hover{border-color:#ef4444;color:#f87171;}
+    .btn-reject.hidden{display:none;}
 
-    /* TABLE */
-    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-    .section-header h3{font-size:1.1rem;font-weight:600}
-    table{width:100%;border-collapse:collapse;background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:visible;font-size:0.9rem}
-    th{background:var(--bg);padding:10px 14px;text-align:left;font-weight:600;font-size:0.82rem;text-transform:uppercase;letter-spacing:.5px;color:var(--slate-light);border-bottom:1px solid var(--border)}
-    td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
-    tr:last-child td{border-bottom:none}
-    tr:hover td{background:#fafafa}
+    /* Name+company cell */
+    .cell-name{font-weight:600;color:#e8f5e9;}
+    .cell-company{font-size:12px;color:#4a6a4a;margin-top:2px;}
 
-    /* BADGES */
-    .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:0.75rem;font-weight:600}
-    .badge-green{background:var(--green-light);color:#166534}
-    .badge-amber{background:#fef3c7;color:#92400e}
-    .badge-blue{background:#dbeafe;color:#1e40af}
-    .badge-gray{background:#f1f5f9;color:#475569}
-    .badge-red{background:#fee2e2;color:#991b1b}
+    /* Empty state */
+    .empty-state{
+      text-align:center;padding:60px 20px;
+    }
+    .empty-state-icon{font-size:32px;margin-bottom:12px;opacity:.3;}
+    .empty-state p{font-size:14px;color:#4a6a4a;}
 
-    /* MODAL */
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:1000;display:none}
-    .modal-overlay.open{display:flex}
-    .modal{background:white;border-radius:14px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
-    .modal h3{margin-bottom:20px;font-size:1.1rem}
-    .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
-    .modal-footer .btn{width:auto}
+    /* STATS STRIP */
+    .stats-strip{display:flex;gap:12px;flex-wrap:wrap;}
+    .stat-card{
+      background:#0c1e0e;border:1px solid #1a3a1a;border-radius:10px;
+      padding:16px 20px;flex:1;min-width:120px;
+    }
+    .stat-value{font-size:26px;font-weight:800;margin-bottom:4px;}
+    .stat-label{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
+    .stat-green{color:#00e676;}
+    .stat-purple{color:#a855f7;}
+    .stat-amber{color:#f59e0b;}
 
-    /* LOADING */
-    .loading{text-align:center;padding:40px;color:var(--slate-light)}
-    .empty{text-align:center;padding:40px;color:var(--slate-light);font-size:0.9rem}
-
-    /* PANEL */
-    .panel{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+    /* Loading skeleton */
+    .skeleton{background:#1a3a1a;border-radius:4px;animation:pulse 1.4s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
 
     @media(max-width:700px){
-      .content{padding:16px}
-      .stat-grid{grid-template-columns:repeat(2,1fr)}
-      .mat-grid{grid-template-columns:repeat(2,1fr)}
-      .tabs{overflow-x:auto}
+      .nav{padding:0 16px;}
+      .content{padding:24px 16px 60px;}
+      .table-wrap{border-radius:8px;}
+      th,td{padding:10px 12px;}
     }
   </style>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
-<div id="login-screen">
-  <div class="login-card">
-    <div class="logo">
-      <h1>Circul</h1>
-      <p>Admin Dashboard</p>
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-left">
+      <a href="/" class="nav-logo">
+        <div class="nav-logo-icon">◎</div>
+        circul
+      </a>
+      <span class="nav-admin-badge">Admin</span>
     </div>
-    <div class="form-group">
-      <label>Email</label>
-      <input type="email" id="login-email" placeholder="admin@circul.app" autocomplete="email">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
-    </div>
-    <button class="btn" onclick="adminLogin()">Sign In</button>
-    <div id="login-error" class="error-msg"></div>
-  </div>
-</div>
+    <span class="nav-hint">Hidden · /admin</span>
+  </nav>
 
-<!-- MAIN SCREEN -->
-<div id="main-screen">
-  <div class="topbar">
-    <div class="brand">Circul <span>Admin</span></div>
-    <div class="user-info">
-      <span id="admin-email-display"></span>
-      <button onclick="logout()">Logout</button>
-    </div>
-  </div>
+  <!-- CONTENT -->
   <div class="content">
-    <div class="tabs">
-      <button class="tab active" onclick="showTab('overview', this)">Overview</button>
-      <button class="tab" onclick="showTab('collectors', this)">Collectors</button>
-      <button class="tab" onclick="showTab('transactions', this)">Transactions</button>
-      <button class="tab" onclick="showTab('operators', this)">Operators</button>
-      <button class="tab" onclick="showTab('buyers', this)">Processors / Converters</button>
-      <button class="tab" onclick="showTab('reputation', this)">Reputation</button>
+    <h1 class="page-heading">Pending Access Requests</h1>
+    <p class="page-sub">Approve or reject processor and converter access requests.</p>
+
+    <!-- TABLE -->
+    <div class="table-wrap">
+      <table id="pending-table">
+        <thead>
+          <tr>
+            <th>Name &amp; Company</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Requested</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="pending-body">
+          <tr><td colspan="5"><div style="height:20px;margin:8px 0;" class="skeleton"></div></td></tr>
+        </tbody>
+      </table>
     </div>
 
-    <!-- OVERVIEW -->
-    <div id="tab-overview">
-      <div class="stat-grid" id="stat-grid"><div class="loading">Loading stats…</div></div>
-      <div class="mat-grid" id="mat-grid"></div>
-      <div class="panel" id="system-health-panel">
-        <h3 style="margin-bottom:16px;font-size:1rem">System Health</h3>
-        <div id="system-health-content" class="loading">Loading…</div>
-      </div>
-    </div>
-
-    <!-- COLLECTORS -->
-    <div id="tab-collectors" style="display:none">
-      <div class="section-header"><h3>All Collectors</h3></div>
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Region</th><th>Rating</th><th>Total kg</th><th>Transactions</th><th>Joined</th><th>ID</th></tr></thead>
-        <tbody id="collectors-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
-      </table></div>
-    </div>
-
-    <!-- TRANSACTIONS -->
-    <div id="tab-transactions" style="display:none">
-      <div class="section-header"><h3>All Transactions</h3></div>
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Date</th><th>Collector</th><th>Material</th><th>Gross kg</th><th>Net kg</th><th>Price/kg</th><th>Total</th><th>Payment</th><th>Operator</th></tr></thead>
-        <tbody id="transactions-tbody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
-      </table></div>
-    </div>
-
-    <!-- OPERATORS -->
-    <div id="tab-operators" style="display:none">
-      <div class="section-header">
-        <h3>Operators</h3>
-        <div style="display:flex;gap:8px;align-items:center">
-          <select id="role-filter" onchange="loadOperators()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-family:inherit;font-size:0.85rem">
-            <option value="">All Roles</option>
-            <option value="aggregator">Aggregator</option>
-            <option value="collector">Collector</option>
-          </select>
-          <button class="btn btn-sm" onclick="openModal('operator')">+ Add Operator</button>
-        </div>
-      </div>
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>PIN</th><th>Role</th><th>City</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="operators-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
-      </table></div>
-    </div>
-
-    <!-- BUYERS (processors + converters) -->
-    <div id="tab-buyers" style="display:none">
-      <div class="section-header">
-        <h3>Processors &amp; Converters</h3>
-        <button class="btn btn-sm" onclick="openModal('buyer')">+ Add</button>
-      </div>
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Role</th><th>Prices Set</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="buyers-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
-      </table></div>
-    </div>
-
-    <!-- REPUTATION -->
-    <div id="tab-reputation" style="display:none">
-      <div class="section-header"><h3>Operator Reputation</h3></div>
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Name</th><th>Role</th><th>City</th><th>Avg Rating</th><th>Rating Count</th><th>Actions</th></tr></thead>
-        <tbody id="reputation-tbody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
-      </table></div>
+    <!-- STATS STRIP -->
+    <div class="stats-strip" id="stats-strip">
+      <div class="stat-card"><div class="stat-value stat-green skeleton" style="width:40px;height:32px;"></div><div class="stat-label" style="margin-top:4px;">Loading…</div></div>
     </div>
   </div>
-</div>
 
-<!-- ADD OPERATOR MODAL -->
-<div class="modal-overlay" id="modal-operator">
-  <div class="modal">
-    <h3 id="op-modal-title">Add Operator</h3>
-    <input type="hidden" id="op-edit-id">
-    <div class="form-group" id="op-group-firstname"><label>First Name</label><input type="text" id="op-firstname" placeholder="First name"></div>
-    <div class="form-group" id="op-group-lastname"><label>Last Name</label><input type="text" id="op-lastname" placeholder="Last name"></div>
-    <div class="form-group" id="op-group-company"><label>Company Name</label><input type="text" id="op-company" placeholder="Company name"></div>
-    <div class="form-group" id="op-group-phone"><label>Phone</label><input type="tel" id="op-phone" placeholder="0200000000"></div>
-    <div class="form-group" id="op-group-pin"><label>PIN (4–6 digits)</label><input type="text" id="op-pin" placeholder="1234" maxlength="6"></div>
-    <div class="form-group" id="op-group-email"><label>Email</label><input type="email" id="op-email" placeholder="name@company.com"></div>
-    <div class="form-group" id="op-group-password"><label>Password</label><input type="password" id="op-password" placeholder="Password"></div>
-    <div class="form-group"><label>Role</label>
-      <select id="op-role" onchange="updateOpFormByRole()">
-        <option value="operator">Operator</option>
-        <option value="admin">Admin</option>
-        <option value="collector">Collector</option>
-        <option value="aggregator">Aggregator</option>
-        <option value="processor">Processor</option>
-        <option value="converter">Converter</option>
-      </select>
-    </div>
-    <div id="op-error" class="error-msg"></div>
-    <div class="modal-footer">
-      <button class="btn btn-outline btn-sm" onclick="closeModal('operator')">Cancel</button>
-      <button class="btn btn-sm" onclick="saveOperator()">Save</button>
-    </div>
-  </div>
-</div>
+  <script>
+    /* ── Relative time ─────────────────── */
+    function relTime(dateStr) {
+      var diff = (Date.now() - new Date(dateStr)) / 1000;
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+      return Math.floor(diff/86400) + 'd ago';
+    }
 
-<!-- ADD BUYER MODAL -->
-<div class="modal-overlay" id="modal-buyer">
-  <div class="modal">
-    <h3 id="buyer-modal-title">Add Buyer</h3>
-    <input type="hidden" id="buyer-edit-id">
-    <div class="form-group"><label>Name</label><input type="text" id="buyer-name" placeholder="Buyer name"></div>
-    <div class="form-group"><label>Company</label><input type="text" id="buyer-company" placeholder="Company (optional)"></div>
-    <div class="form-group"><label>Email</label><input type="email" id="buyer-email" placeholder="buyer@company.com"></div>
-    <div class="form-group"><label>Password</label><input type="text" id="buyer-password" placeholder="Set login password"></div>
-    <div class="form-group"><label>Role</label>
-      <select id="buyer-role"><option value="processor">Processor</option><option value="converter">Converter</option></select>
-    </div>
-    <div id="buyer-error" class="error-msg"></div>
-    <div class="modal-footer">
-      <button class="btn btn-outline btn-sm" onclick="closeModal('buyer')">Cancel</button>
-      <button class="btn btn-sm" onclick="saveBuyer()">Save</button>
-    </div>
-  </div>
-</div>
+    /* ── Render pending table ──────────── */
+    function renderPending(rows) {
+      var tbody = document.getElementById('pending-body');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">✓</div><p>No pending requests.</p></div></td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(function(row) {
+        var tr = document.createElement('tr');
+        tr.id = 'row-' + row.role + '-' + row.id;
+        var roleChip = row.role === 'processor'
+          ? '<span class="chip chip-processor">Processor</span>'
+          : '<span class="chip chip-converter">Converter</span>';
+        tr.innerHTML = [
+          '<td><div class="cell-name">' + esc(row.name) + '</div><div class="cell-company">' + esc(row.company||'') + '</div></td>',
+          '<td>' + esc(row.email||'') + '</td>',
+          '<td>' + roleChip + '</td>',
+          '<td>' + relTime(row.created_at) + '</td>',
+          '<td class="actions">',
+            '<button class="btn-approve" id="approve-' + row.role + '-' + row.id + '" onclick="approve(' + row.id + ',\'' + row.role + '\')">Approve</button>',
+            '<button class="btn-reject" id="reject-' + row.role + '-' + row.id + '" onclick="reject(' + row.id + ',\'' + row.role + '\')">✕</button>',
+          '</td>'
+        ].join('');
+        tbody.appendChild(tr);
+      });
+    }
 
-<script>
-let adminToken = localStorage.getItem('circul_admin_token');
-let adminData = null;
-let currentTab = 'overview';
+    function esc(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
 
-// Auto-login if token exists
-window.onload = () => {
-  if (adminToken) {
-    showMain();
-    loadCurrentTab();
-  }
-};
+    /* ── Approve ───────────────────────── */
+    function approve(id, role) {
+      fetch('/api/admin/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, role: role })
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.ok) {
+            var approveBtn = document.getElementById('approve-' + role + '-' + id);
+            var rejectBtn = document.getElementById('reject-' + role + '-' + id);
+            if (approveBtn) { approveBtn.textContent = '✓ Approved'; approveBtn.classList.add('done'); }
+            if (rejectBtn) { rejectBtn.classList.add('hidden'); }
+          }
+        })
+        .catch(function(){ alert('Failed to approve. Please try again.'); });
+    }
 
-// Enter key on login
-document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+    /* ── Reject ────────────────────────── */
+    function reject(id, role) {
+      if (!confirm('Remove this access request?')) return;
+      fetch('/api/admin/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, role: role })
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.ok) {
+            var tr = document.getElementById('row-' + role + '-' + id);
+            if (tr) tr.classList.add('rejected');
+          }
+        })
+        .catch(function(){ alert('Failed to reject. Please try again.'); });
+    }
 
-async function adminLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errEl = document.getElementById('login-error');
-  errEl.textContent = '';
-  if (!email || !password) { errEl.textContent = 'Email and password required'; return; }
-  try {
-    const res = await fetch('/api/admin/login', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!data.success) { errEl.textContent = data.message || 'Login failed'; return; }
-    adminToken = data.token;
-    adminData = data.admin;
-    localStorage.setItem('circul_admin_token', adminToken);
-    showMain();
-    loadCurrentTab();
-  } catch (e) {
-    errEl.textContent = 'Network error. Try again.';
-  }
-}
+    /* ── Render stats ──────────────────── */
+    function renderStats(stats) {
+      var strip = document.getElementById('stats-strip');
+      strip.innerHTML = [
+        '<div class="stat-card"><div class="stat-value stat-green">' + (stats.collectors||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Collectors</div></div>',
+        '<div class="stat-card"><div class="stat-value stat-green">' + (stats.aggregators||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Aggregators</div></div>',
+        '<div class="stat-card"><div class="stat-value stat-green">' + (stats.processors||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Processors</div></div>',
+        '<div class="stat-card"><div class="stat-value stat-purple">' + (stats.converters||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Converters</div></div>',
+        '<div class="stat-card"><div class="stat-value stat-amber">' + (stats.pending||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Pending</div></div>'
+      ].join('');
+    }
 
-function showMain() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('main-screen').style.display = 'flex';
-  const stored = localStorage.getItem('circul_admin_token');
-  if (stored && !adminData) {
-    // try to decode email from token
-    try {
-      const b64 = stored.split('.')[0];
-      adminData = JSON.parse(atob(b64.replace(/-/g,'+').replace(/_/g,'/')));
-    } catch {}
-  }
-  if (adminData) document.getElementById('admin-email-display').textContent = adminData.email || 'Admin';
-}
+    /* ── Load data ─────────────────────── */
+    fetch('/api/admin/pending')
+      .then(function(r){ return r.json(); })
+      .then(function(rows){ renderPending(rows); })
+      .catch(function(){ document.getElementById('pending-body').innerHTML = '<tr><td colspan="5" style="color:#f87171;padding:20px;">Failed to load pending requests.</td></tr>'; });
 
-function logout() {
-  localStorage.removeItem('circul_admin_token');
-  adminToken = null;
-  document.getElementById('main-screen').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
-}
+    fetch('/api/admin/stats')
+      .then(function(r){ return r.json(); })
+      .then(function(data){ renderStats(data); })
+      .catch(function(){ document.getElementById('stats-strip').innerHTML = '<p style="color:#4a6a4a;font-size:13px;">Stats unavailable.</p>'; });
+  </script>
 
-function authHeaders() {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken };
-}
-
-async function apiFetch(url, opts = {}) {
-  const res = await fetch(url, { headers: authHeaders(), ...opts });
-  if (res.status === 401) { logout(); return null; }
-  return res.json();
-}
-
-function showTab(tab, el) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('[id^=tab-]').forEach(t => t.style.display = 'none');
-  document.getElementById('tab-' + tab).style.display = '';
-  currentTab = tab;
-  loadTab(tab);
-}
-
-function loadCurrentTab() { loadTab(currentTab); }
-
-function loadTab(tab) {
-  if (tab === 'overview') loadOverview();
-  else if (tab === 'collectors') loadCollectors();
-  else if (tab === 'transactions') loadTransactions();
-  else if (tab === 'operators') loadOperators();
-  else if (tab === 'buyers') loadBuyers();
-  else if (tab === 'reputation') loadReputation();
-}
-
-async function loadOverview() {
-  const data = await apiFetch('/api/admin/stats');
-  if (!data || !data.success) return;
-  const s = data.stats;
-
-  // Role breakdown from tier tables
-  const [aggsData, procsData, convsData] = await Promise.all([
-    apiFetch('/api/admin/aggregators'),
-    apiFetch('/api/admin/processors'),
-    apiFetch('/api/admin/converters')
-  ]);
-  const aggCount  = aggsData  && aggsData.aggregators  ? aggsData.aggregators.length  : 0;
-  const procCount = procsData && procsData.processors  ? procsData.processors.length  : 0;
-  const convCount = convsData && convsData.converters  ? convsData.converters.length  : 0;
-
-  document.getElementById('stat-grid').innerHTML = `
-    <div class="stat-card"><div class="num">${s.collectors}</div><div class="label">Collectors</div></div>
-    <div class="stat-card"><div class="num">${aggCount}</div><div class="label">Aggregators</div></div>
-    <div class="stat-card"><div class="num">${procCount}</div><div class="label">Processors</div></div>
-    <div class="stat-card"><div class="num">${convCount}</div><div class="label">Converters</div></div>
-    <div class="stat-card"><div class="num">${s.transactions}</div><div class="label">Transactions</div></div>
-    <div class="stat-card"><div class="num">${parseFloat(s.total_volume_kg).toFixed(1)}</div><div class="label">Total kg collected</div></div>
-  `;
-  const materials = ['PET','HDPE','LDPE','PP'];
-  const matMap = {};
-  (s.by_material || []).forEach(m => matMap[m.material_type] = m);
-  document.getElementById('mat-grid').innerHTML = materials.map(m => {
-    const d = matMap[m] || {};
-    return `<div class="mat-card">
-      <div class="mat-name">${m}</div>
-      <div class="mat-kg">${parseFloat(d.total_kg || 0).toFixed(1)} kg</div>
-      <div class="mat-txns">${d.count || 0} transactions</div>
-    </div>`;
-  }).join('');
-
-  // System health
-  const txnData = await apiFetch('/api/admin/transactions?limit=1');
-  const paySuccess = s.transactions > 0 ? 'N/A' : '—';
-  document.getElementById('system-health-content').innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
-      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.transactions}</div><div style="font-size:0.82rem;color:var(--slate-light)">Total DB transactions</div></div>
-      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${aggCount + procCount + convCount}</div><div style="font-size:0.82rem;color:var(--slate-light)">Business accounts</div></div>
-      <div><div style="font-size:1.5rem;font-weight:700;color:var(--green-dark)">${s.collectors}</div><div style="font-size:0.82rem;color:var(--slate-light)">Collector accounts</div></div>
-    </div>
-  `;
-}
-
-async function loadCollectors() {
-  const data = await apiFetch('/api/admin/collectors');
-  if (!data || !data.success) return;
-  const tbody = document.getElementById('collectors-tbody');
-  if (!data.collectors.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No collectors yet.</td></tr>'; return; }
-  tbody.innerHTML = data.collectors.map(c => {
-    const verifiedBadge = c.id_verified
-      ? '<span style="color:#2563eb;font-weight:700;font-size:0.85rem;margin-left:6px" title="ID Verified">✓</span>'
-      : '';
-    const verifyBtn = c.id_verified
-      ? ''
-      : `<button id="verify-btn-collector-${c.id}" class="btn btn-outline btn-sm" style="color:#2563eb;border-color:#2563eb" onclick="verifyId('collector',${c.id})">Verify ID</button>`;
-    return `<tr>
-      <td>${escHtml(c.first_name + ' ' + c.last_name)}${verifiedBadge}</td>
-      <td>${escHtml(c.phone || '—')}</td>
-      <td>${escHtml(c.region || '—')}</td>
-      <td>${c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—'}</td>
-      <td>${parseFloat(c.total_weight_kg).toFixed(2)} kg</td>
-      <td>${c.transaction_count}</td>
-      <td>${fmtDate(c.created_at)}</td>
-      <td>${verifyBtn}</td>
-    </tr>`;
-  }).join('');
-}
-
-async function loadTransactions() {
-  const data = await apiFetch('/api/admin/transactions?limit=200');
-  if (!data || !data.success) return;
-  const tbody = document.getElementById('transactions-tbody');
-  if (!data.transactions.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No transactions yet.</td></tr>'; return; }
-  tbody.innerHTML = data.transactions.map(t => `
-    <tr>
-      <td>${fmtDate(t.transaction_date)}</td>
-      <td>${escHtml(t.collector_name || '—')}</td>
-      <td><span class="badge badge-green">${t.material_type}</span></td>
-      <td>${parseFloat(t.gross_weight_kg).toFixed(2)}</td>
-      <td>${parseFloat(t.net_weight_kg).toFixed(2)}</td>
-      <td>${t.price_per_kg ? 'GHS ' + parseFloat(t.price_per_kg).toFixed(2) : '—'}</td>
-      <td>${t.total_price ? 'GHS ' + parseFloat(t.total_price).toFixed(2) : '—'}</td>
-      <td><span class="badge ${t.payment_status === 'paid' ? 'badge-green' : t.payment_status === 'pending' ? 'badge-amber' : 'badge-gray'}">${t.payment_status || 'unpaid'}</span></td>
-      <td>${escHtml(t.aggregator_name || '—')}</td>
-    </tr>`).join('');
-}
-
-const ROLE_BADGE_CLASS = { admin:'badge-blue', aggregator:'badge-green', processor:'badge-blue', converter:'badge-amber', collector:'badge-gray', operator:'badge-gray' };
-
-async function loadOperators() {
-  const roleFilter = document.getElementById('role-filter') ? document.getElementById('role-filter').value : '';
-  const [aggData, colData] = await Promise.all([
-    apiFetch('/api/admin/aggregators'),
-    apiFetch('/api/admin/collectors')
-  ]);
-  const tbody = document.getElementById('operators-tbody');
-  const aggregators = ((aggData && aggData.aggregators) || []).map(a => Object.assign({}, a, { _type: 'aggregator', role: 'aggregator' }));
-  const collectors  = ((colData && colData.collectors)  || []).map(c => Object.assign({}, c, {
-    _type: 'collector', role: 'collector',
-    name: ((c.first_name || '') + ' ' + (c.last_name || '')).trim()
-  }));
-  let ops = [...aggregators, ...collectors];
-  if (roleFilter === 'aggregator') ops = aggregators;
-  else if (roleFilter === 'collector') ops = collectors;
-  if (!ops.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No operators found.</td></tr>'; return; }
-  tbody.innerHTML = ops.map(op => {
-    const verifiedBadge = op.id_verified
-      ? '<span style="color:#2563eb;font-weight:700;font-size:0.85rem;margin-left:6px" title="ID Verified">✓</span>'
-      : '';
-    const verifyBtn = (op.id_verified || op._type === 'collector') ? ''
-      : `<button id="verify-btn-${op._type}-${op.id}" class="btn btn-outline btn-sm" style="margin-left:6px;color:#2563eb;border-color:#2563eb" onclick="verifyId('${op._type}',${op.id})">Verify ID</button>`;
-    return `<tr>
-      <td>${escHtml(op.name)}${verifiedBadge}</td>
-      <td>${escHtml(op.company || '—')}</td>
-      <td>${escHtml(op.phone || '—')}</td>
-      <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">${op.pin || '—'}</code></td>
-      <td><span class="badge ${ROLE_BADGE_CLASS[op.role] || 'badge-gray'}">${op.role}</span></td>
-      <td>${escHtml(op.city || '—')}</td>
-      <td><span class="badge ${op.is_active ? 'badge-green' : 'badge-red'}">${op.is_active ? 'Active' : 'Inactive'}</span></td>
-      <td>
-        <button class="btn btn-outline btn-sm" onclick="editOperator(${JSON.stringify(op).replace(/"/g,'&quot;')})">Edit</button>
-        ${op.is_active
-          ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},'${op._type}',false)">Disable</button>`
-          : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleOperator(${op.id},'${op._type}',true)">Enable</button>`}
-        ${verifyBtn}
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-async function loadReputation() {
-  const [aggData, procData, convData] = await Promise.all([
-    apiFetch('/api/admin/aggregators'),
-    apiFetch('/api/admin/processors'),
-    apiFetch('/api/admin/converters')
-  ]);
-  const tbody = document.getElementById('reputation-tbody');
-  const aggs  = ((aggData  && aggData.aggregators)  || []).map(a => Object.assign({}, a, { role: 'aggregator', _type: 'aggregator' }));
-  const procs = ((procData && procData.processors)  || []).map(p => Object.assign({}, p, { role: 'processor',  _type: 'processor'  }));
-  const convs = ((convData && convData.converters)   || []).map(c => Object.assign({}, c, { role: 'converter',  _type: 'converter'  }));
-  const ops = [...aggs, ...procs, ...convs];
-  if (!ops.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No operators with reputation data.</td></tr>'; return; }
-
-  // Fetch ratings for each operator in parallel (cap at 20)
-  const slice = ops.slice(0, 20);
-  const ratingsData = await Promise.all(slice.map(op =>
-    fetch(`/api/ratings/operator/${op.id}`, { headers: authHeaders() }).then(r => r.json()).catch(() => ({ success: false }))
-  ));
-
-  tbody.innerHTML = slice.map((op, i) => {
-    const rd = ratingsData[i];
-    const avg = rd && rd.summary ? rd.summary.avg_rating || '—' : '—';
-    const cnt = rd && rd.summary ? rd.summary.count || 0 : 0;
-    return `<tr>
-      <td>${escHtml(op.name)}</td>
-      <td><span class="badge ${ROLE_BADGE_CLASS[op.role] || 'badge-gray'}">${op.role}</span></td>
-      <td>${escHtml(op.city || '—')}</td>
-      <td>${avg !== '—' ? '⭐ ' + avg : '—'}</td>
-      <td>${cnt}</td>
-      <td>
-        <button class="btn btn-danger btn-sm" onclick="flagOperator(${op.id},'${op._type}')" title="Flag for review">Flag</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-async function verifyId(type, id) {
-  if (!confirm(`Mark this ${type} as ID-verified?`)) return;
-  const base = type === 'collector' ? '/api/admin/collectors' : '/api/admin/aggregators';
-  const data = await apiFetch(`${base}/${id}/verify`, { method: 'PUT' });
-  if (!data || !data.success) { alert('Verification failed — try again.'); return; }
-  // Update in-place: swap button for blue check, no page reload needed
-  const btn = document.getElementById(`verify-btn-${type}-${id}`);
-  if (btn) {
-    const span = document.createElement('span');
-    span.style.cssText = 'color:#2563eb;font-weight:700;font-size:0.85rem;margin-left:6px';
-    span.title = 'ID Verified';
-    span.textContent = '✓';
-    // Append check to name cell (first td in the row)
-    const row = btn.closest('tr');
-    if (row) row.cells[0].appendChild(span);
-    btn.remove();
-  }
-}
-
-async function flagOperator(id, type) {
-  if (!confirm('Flag this operator for review? This will mark them as flagged but keep them active.')) return;
-  const base = type === 'aggregator' ? '/api/admin/aggregators'
-             : type === 'converter'  ? '/api/admin/converters'
-             : type === 'collector'  ? '/api/admin/collectors'
-             : '/api/admin/processors';
-  await apiFetch(`${base}/${id}`, { method: 'PUT', body: JSON.stringify({ is_flagged: true }) });
-  loadReputation();
-}
-
-async function loadBuyers() {
-  const [procData, convData] = await Promise.all([
-    apiFetch('/api/admin/processors'),
-    apiFetch('/api/admin/converters')
-  ]);
-  const tbody = document.getElementById('buyers-tbody');
-  const processors = (procData && procData.processors) || [];
-  const converters  = (convData && convData.converters)  || [];
-  const all = [
-    ...processors.map(p => Object.assign({}, p, { _type: 'processor', role: 'processor' })),
-    ...converters.map(c => Object.assign({}, c, { _type: 'converter', role: 'converter' }))
-  ];
-  if (!all.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No processors or converters yet.</td></tr>'; return; }
-  tbody.innerHTML = all.map(b => {
-    const priceCount = (b.prices || []).length;
-    const priceDisplay = priceCount ? `${priceCount}/4 materials` : '—';
-    const bJson = JSON.stringify(b).replace(/"/g,'&quot;');
-    return `
-    <tr>
-      <td>${escHtml(b.name)}</td>
-      <td>${escHtml(b.company || '—')}</td>
-      <td>${escHtml(b.email || '—')}</td>
-      <td><span class="badge ${b.role === 'converter' ? 'badge-amber' : 'badge-blue'}">${b.role}</span></td>
-      <td>${priceDisplay}</td>
-      <td><span class="badge ${b.is_active ? 'badge-green' : 'badge-red'}">${b.is_active ? 'Active' : 'Inactive'}</span></td>
-      <td>
-        <button class="btn btn-outline btn-sm" onclick="editBuyer(${bJson})">Edit</button>
-        ${b.is_active
-          ? `<button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},'${b._type}',false)">Disable</button>`
-          : `<button class="btn btn-sm" style="margin-left:6px" onclick="toggleBuyer(${b.id},'${b._type}',true)">Enable</button>`}
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-// OPERATOR MODAL
-function openModal(type) {
-  if (type === 'operator') {
-    document.getElementById('op-modal-title').textContent = 'Add Operator';
-    document.getElementById('op-edit-id').value = '';
-    ['op-firstname','op-lastname','op-company','op-phone','op-pin','op-email','op-password'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('op-role').value = 'operator';
-    document.getElementById('op-error').textContent = '';
-    updateOpFormByRole();
-  } else {
-    document.getElementById('buyer-modal-title').textContent = 'Add Buyer';
-    document.getElementById('buyer-edit-id').value = '';
-    ['buyer-name','buyer-company','buyer-email','buyer-password'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('buyer-role').value = 'processor';
-    document.getElementById('buyer-error').textContent = '';
-  }
-  document.getElementById('modal-' + type).classList.add('open');
-}
-function closeModal(type) { document.getElementById('modal-' + type).classList.remove('open'); }
-
-function updateOpFormByRole() {
-  const role = document.getElementById('op-role').value;
-  const isStreet = role === 'collector' || role === 'aggregator';
-  const isBiz = role === 'processor' || role === 'converter';
-  document.getElementById('op-group-firstname').style.display = isStreet ? '' : 'none';
-  document.getElementById('op-group-lastname').style.display = isStreet ? '' : 'none';
-  document.getElementById('op-group-company').style.display = isBiz ? '' : 'none';
-  document.getElementById('op-group-phone').style.display = isStreet ? '' : 'none';
-  document.getElementById('op-group-pin').style.display = isStreet ? '' : 'none';
-  document.getElementById('op-group-email').style.display = isBiz ? '' : 'none';
-  document.getElementById('op-group-password').style.display = isBiz ? '' : 'none';
-}
-
-function editOperator(op) {
-  document.getElementById('op-modal-title').textContent = 'Edit Operator';
-  document.getElementById('op-edit-id').value = op.id;
-  ['op-firstname','op-lastname','op-company','op-phone','op-pin','op-email','op-password'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('op-role').value = op.role || 'operator';
-  updateOpFormByRole();
-  const role = op.role || '';
-  const isStreet = role === 'collector' || role === 'aggregator';
-  const isBiz = role === 'processor' || role === 'converter';
-  if (isStreet) {
-    const parts = (op.name || '').split(' ');
-    document.getElementById('op-firstname').value = parts[0] || '';
-    document.getElementById('op-lastname').value = parts.slice(1).join(' ') || '';
-    document.getElementById('op-phone').value = op.phone || '';
-    document.getElementById('op-pin').value = op.pin || '';
-  } else if (isBiz) {
-    document.getElementById('op-company').value = op.name || op.company || '';
-    document.getElementById('op-email').value = op.email || '';
-  } else {
-    const parts = (op.name || '').split(' ');
-    document.getElementById('op-firstname').value = parts[0] || '';
-    document.getElementById('op-lastname').value = parts.slice(1).join(' ') || '';
-    document.getElementById('op-company').value = op.company || '';
-    document.getElementById('op-phone').value = op.phone || '';
-    document.getElementById('op-pin').value = op.pin || '';
-  }
-  document.getElementById('op-error').textContent = '';
-  document.getElementById('modal-operator').classList.add('open');
-}
-
-function editBuyer(b) {
-  document.getElementById('buyer-modal-title').textContent = 'Edit Buyer';
-  document.getElementById('buyer-edit-id').value = b.id;
-  document.getElementById('buyer-name').value = b.name || '';
-  document.getElementById('buyer-company').value = b.company || '';
-  document.getElementById('buyer-email').value = b.email || '';
-  document.getElementById('buyer-password').value = '';
-  document.getElementById('buyer-role').value = b.role || 'processor';
-  document.getElementById('buyer-error').textContent = '';
-  document.getElementById('modal-buyer').classList.add('open');
-}
-
-async function saveOperator() {
-  const id = document.getElementById('op-edit-id').value;
-  const role = document.getElementById('op-role').value;
-  const isStreet = role === 'collector' || role === 'aggregator';
-  const isBiz = role === 'processor' || role === 'converter';
-  const body = { role };
-  if (isStreet) {
-    const firstName = document.getElementById('op-firstname').value.trim();
-    const lastName = document.getElementById('op-lastname').value.trim();
-    body.name = (firstName + ' ' + lastName).trim();
-    body.phone = document.getElementById('op-phone').value.trim();
-    body.pin = document.getElementById('op-pin').value.trim();
-  } else if (isBiz) {
-    body.name = document.getElementById('op-company').value.trim();
-    body.email = document.getElementById('op-email').value.trim();
-    const pw = document.getElementById('op-password').value;
-    if (pw) body.password = pw;
-  } else {
-    const firstName = document.getElementById('op-firstname').value.trim();
-    const lastName = document.getElementById('op-lastname').value.trim();
-    body.name = (firstName + ' ' + lastName).trim();
-    body.phone = document.getElementById('op-phone').value.trim();
-    body.pin = document.getElementById('op-pin').value.trim();
-  }
-  const errEl = document.getElementById('op-error');
-  errEl.textContent = '';
-  const base = role === 'collector'  ? '/api/admin/collectors'
-             : role === 'aggregator' ? '/api/admin/aggregators'
-             : role === 'converter'  ? '/api/admin/converters'
-             : '/api/admin/processors';
-  const url = id ? `${base}/${id}` : base;
-  const method = id ? 'PUT' : 'POST';
-  const data = await apiFetch(url, { method, body: JSON.stringify(body) });
-  if (!data) return;
-  if (!data.success) { errEl.textContent = data.message || 'Error saving'; return; }
-  closeModal('operator');
-  loadOperators();
-}
-
-async function saveBuyer() {
-  const id   = document.getElementById('buyer-edit-id').value;
-  const role = document.getElementById('buyer-role').value; // 'processor' | 'converter'
-  const body = {
-    name:     document.getElementById('buyer-name').value.trim(),
-    company:  document.getElementById('buyer-company').value.trim(),
-    email:    document.getElementById('buyer-email').value.trim(),
-    password: document.getElementById('buyer-password').value
-  };
-  if (!id && !body.password) { document.getElementById('buyer-error').textContent = 'Password required for new accounts'; return; }
-  if (!body.password) delete body.password;
-  const errEl = document.getElementById('buyer-error');
-  errEl.textContent = '';
-  const base   = role === 'converter' ? '/api/admin/converters' : '/api/admin/processors';
-  const url    = id ? `${base}/${id}` : base;
-  const method = id ? 'PUT' : 'POST';
-  const data   = await apiFetch(url, { method, body: JSON.stringify(body) });
-  if (!data) return;
-  if (!data.success) { errEl.textContent = data.message || 'Error saving'; return; }
-  closeModal('buyer');
-  loadBuyers();
-}
-
-async function toggleOperator(id, type, active) {
-  const base = type === 'collector' ? '/api/admin/collectors' : '/api/admin/aggregators';
-  await apiFetch(`${base}/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
-  loadOperators();
-}
-
-async function toggleBuyer(id, type, active) {
-  const base = type === 'converter' ? '/api/admin/converters' : '/api/admin/processors';
-  await apiFetch(`${base}/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: active }) });
-  loadBuyers();
-}
-
-// Close modals on overlay click
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
-});
-
-// Helpers
-function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function fmtDate(d) {
-  if (!d) return '—';
-  const dt = new Date(d);
-  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
-}
-</script>
 </body>
 </html>

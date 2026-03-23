@@ -7,475 +7,190 @@
   <meta name="description" content="Sign in to your Circul account.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-    :root {
-      --deep:       #1a2e1a;
-      --forest:     #2d6a4f;
-      --mint:       #a7f3d0;
-      --light-mint: #f0fdf4;
-      --white:      #ffffff;
-      --text:       #1a2e1a;
-      --muted:      #6b7280;
-      --border:     #e5e7eb;
-      --error:      #ef4444;
-      --error-bg:   #fef2f2;
-      --radius:     16px;
-      --radius-btn: 10px;
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{font-size:16px;}
+    body{
+      font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:#0a1a0f;color:#e8f5e9;min-height:100vh;
+      display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;
     }
+    *{font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+    a{text-decoration:none;}
 
-    body {
-      font-family: 'Inter', sans-serif;
-      color: var(--text);
-      background: var(--light-mint);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      -webkit-font-smoothing: antialiased;
+    /* NAV */
+    .nav{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 60px;height:64px;
+      background:rgba(10,26,15,0.95);backdrop-filter:blur(12px);
+      border-bottom:1px solid #1a2e1a;position:sticky;top:0;z-index:100;
     }
-    h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:#e8f5e9;}
+    .nav-logo-icon{width:30px;height:30px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#000;font-weight:900;}
+    .nav-right{display:flex;align-items:center;gap:16px;}
+    .nav-ghost{
+      color:#9ab8a0;font-size:14px;font-weight:600;
+      padding:8px 16px;border:1.5px solid #1a3a1a;border-radius:20px;
+      transition:border-color .2s,color .2s;
+    }
+    .nav-ghost:hover{border-color:#4a8a4a;color:#e8f5e9;}
+    .nav-demo{
+      display:inline-flex;align-items:center;background:#00e676;color:#0a1a0f;
+      padding:9px 20px;border-radius:20px;font-size:14px;font-weight:700;
+      transition:background .2s,transform .15s;
+    }
+    .nav-demo:hover{background:#33eb8e;transform:translateY(-1px);}
 
-    /* ─── MINI NAV ──────────────────────────────── */
-    .nav {
-      background: var(--white);
-      border-bottom: 1px solid var(--border);
-      height: 56px;
-      padding: 0 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
+    /* MAIN */
+    .main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 20px;}
 
-    .nav-brand {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      text-decoration: none;
-      font-size: 1.05rem;
-      font-weight: 800;
-      color: var(--deep);
-      letter-spacing: -0.3px;
-    }
-
-    .nav-back {
-      font-size: 0.84rem;
-      color: var(--muted);
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      transition: color 0.15s;
-    }
-    .nav-back:hover { color: var(--deep); }
-
-    /* ─── MAIN ──────────────────────────────────── */
-    .main {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 20px;
-    }
-
-    .card-wrap {
-      width: 100%;
-      max-width: 420px;
-      padding: 0 16px;
-      box-sizing: border-box;
-    }
+    .card-wrap{width:100%;max-width:420px;}
 
     /* Demo banner */
-    .demo-banner {
-      display: none;
-      background: var(--deep);
-      border-radius: var(--radius) var(--radius) 0 0;
-      padding: 16px 24px;
-      text-align: center;
+    .demo-banner{
+      display:none;background:#0f2a14;border:1px solid #1a3a1a;border-radius:12px 12px 0 0;
+      padding:16px 20px;text-align:center;
     }
+    .demo-banner.visible{display:block;}
+    .demo-banner-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ab8a0;margin-bottom:10px;}
+    .demo-buttons{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+    .demo-btn{
+      padding:6px 14px;background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.2);
+      border-radius:8px;font-size:13px;font-weight:600;color:#9ab8a0;cursor:pointer;
+      transition:background .15s,border-color .15s;
+    }
+    .demo-btn:hover{background:rgba(0,230,118,.15);border-color:rgba(0,230,118,.4);color:#e8f5e9;}
 
-    .demo-banner.visible { display: block; }
+    /* Card */
+    .card{
+      background:#0c1e0e;border:1px solid #1a3a1a;border-radius:12px;
+      padding:40px 36px 36px;
+    }
+    .demo-banner.visible + .card{border-radius:0 0 12px 12px;}
 
-    .demo-banner-label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--mint);
-      margin-bottom: 10px;
-    }
+    .card-heading{font-size:22px;font-weight:800;color:#e8f5e9;margin-bottom:28px;letter-spacing:-.3px;}
 
-    .demo-buttons {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      flex-wrap: wrap;
+    /* Tabs */
+    .tabs{display:flex;background:#0a1a0f;border:1px solid #1a3a1a;border-radius:8px;padding:3px;margin-bottom:28px;}
+    .tab{
+      flex:1;padding:9px;text-align:center;border-radius:6px;cursor:pointer;
+      font-size:13px;font-weight:600;color:#9ab8a0;border:none;background:none;
+      transition:background .15s,color .15s;
     }
+    .tab.active{background:#1a3a1a;color:#e8f5e9;}
+    .tab:hover:not(.active){color:#e8f5e9;}
 
-    .demo-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 7px 14px;
-      background: rgba(167,243,208,0.12);
-      border: 1px solid rgba(167,243,208,0.3);
-      border-radius: 8px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: rgba(255,255,255,0.85);
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .demo-btn:hover {
-      background: rgba(167,243,208,0.22);
-      border-color: rgba(167,243,208,0.5);
-    }
-
-    /* Login card */
-    .card {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 40px 36px 36px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.06);
-    }
-
-    .demo-banner.visible + .card {
-      border-radius: 0 0 var(--radius) var(--radius);
-    }
-
-    .card-icon {
-      width: 44px;
-      height: 44px;
-      background: var(--light-mint);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.4rem;
-      margin-bottom: 20px;
-    }
-
-    .card-heading {
-      font-size: 1.45rem;
-      font-weight: 800;
-      color: var(--deep);
-      margin-bottom: 6px;
-      letter-spacing: -0.4px;
-    }
-
-    .card-subheading {
-      font-size: 0.88rem;
-      color: var(--muted);
-      margin-bottom: 32px;
-      line-height: 1.5;
-    }
+    /* Tab panels */
+    .tab-panel{display:none;}
+    .tab-panel.active{display:block;}
 
     /* Form */
-    .form-group {
-      margin-bottom: 16px;
+    .form-group{margin-bottom:18px;}
+    label{display:block;font-size:13px;font-weight:600;color:#9ab8a0;margin-bottom:6px;}
+    .input{
+      display:block;width:100%;padding:12px 14px;
+      background:#0a1a0f;border:1.5px solid #1a3a1a;border-radius:10px;
+      font-size:15px;color:#e8f5e9;outline:none;
+      transition:border-color .15s,box-shadow .15s;appearance:none;
     }
+    .input::placeholder{color:#4a6a4a;}
+    .input:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
 
-    label {
-      display: block;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 6px;
+    /* PIN boxes */
+    .pin-row{display:flex;gap:10px;}
+    .pin-digit{
+      flex:1;max-width:72px;text-align:center;
+      padding:14px 8px;font-size:22px;font-weight:700;
+      background:#0a1a0f;border:1.5px solid #1a3a1a;border-radius:10px;
+      color:#e8f5e9;outline:none;
+      -webkit-text-security:disc;
+      transition:border-color .15s,box-shadow .15s;appearance:none;
     }
+    .pin-digit:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
 
-    .input {
-      display: block;
-      width: 100%;
-      padding: 12px 14px;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-btn);
-      font-size: 0.95rem;
-      font-family: inherit;
-      color: var(--text);
-      background: var(--white);
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
-      appearance: none;
-    }
-
-    .input:focus {
-      border-color: var(--forest);
-      box-shadow: 0 0 0 3px rgba(45,106,79,0.12);
-    }
-
-    .input::placeholder { color: #9ca3af; }
-
-    /* PIN input — 4 large digit boxes */
-    .pin-row {
-      display: flex;
-      gap: 10px;
-    }
-
-    .pin-digit {
-      flex: 1;
-      text-align: center;
-      font-size: 1.5rem;
-      font-weight: 700;
-      letter-spacing: 0;
-      padding: 14px 8px;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-btn);
-      color: var(--text);
-      background: var(--white);
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
-      -webkit-text-security: disc;
-      appearance: none;
-      max-width: 72px;
-    }
-
-    .pin-digit:focus {
-      border-color: var(--forest);
-      box-shadow: 0 0 0 3px rgba(45,106,79,0.12);
-    }
-
-    /* Slide-in secondary field */
-    .secondary-field {
-      display: none;
-      overflow: hidden;
-      animation: slideDown 0.18s ease;
-    }
-
-    .secondary-field.visible { display: block; }
-
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .auth-hint {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 6px;
-    }
+    .forgot-link{display:inline-block;font-size:12px;color:#4a6a4a;margin-top:6px;transition:color .15s;}
+    .forgot-link:hover{color:#9ab8a0;}
 
     /* Error */
-    .error-msg {
-      display: none;
-      background: var(--error-bg);
-      border: 1px solid rgba(239,68,68,0.2);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 0.84rem;
-      color: var(--error);
-      margin-bottom: 16px;
+    .error-msg{
+      display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);
+      border-radius:8px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:16px;
     }
-
-    .error-msg.visible { display: block; }
+    .error-msg.visible{display:block;}
 
     /* Submit button */
-    .btn-submit {
-      display: block;
-      width: 100%;
-      padding: 13px 20px;
-      background: var(--deep);
-      color: var(--white);
-      border: none;
-      border-radius: var(--radius-btn);
-      font-size: 0.97rem;
-      font-weight: 700;
-      font-family: inherit;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-      margin-top: 24px;
-      position: relative;
+    .btn-submit{
+      display:block;width:100%;padding:13px 20px;
+      background:#00e676;color:#0a1a0f;border:none;border-radius:10px;
+      font-size:15px;font-weight:700;cursor:pointer;
+      transition:background .15s,transform .1s;margin-top:24px;
     }
+    .btn-submit:hover{background:#33eb8e;}
+    .btn-submit:active{transform:scale(.99);}
+    .btn-submit.loading{pointer-events:none;opacity:.7;}
 
-    .btn-submit:hover { background: #243d24; }
-    .btn-submit:active { transform: scale(0.99); }
+    /* Divider + no-account */
+    .or-divider{display:flex;align-items:center;gap:12px;margin:20px 0 16px;color:#2a4a2a;font-size:12px;}
+    .or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:#1a3a1a;}
+    .no-account-link{display:block;text-align:center;font-size:13px;color:#9ab8a0;}
+    .no-account-link strong{color:#00e676;font-weight:700;}
+    .no-account-link:hover strong{text-decoration:underline;}
 
-    .btn-submit.loading {
-      pointer-events: none;
-      opacity: 0.75;
+    /* Role selector */
+    .role-selector{
+      display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+      backdrop-filter:blur(4px);z-index:200;
+      align-items:center;justify-content:center;padding:24px;
     }
+    .role-selector.visible{display:flex;}
+    .role-selector-card{
+      background:#0c1e0e;border:1px solid #1a3a1a;border-radius:16px;
+      padding:40px 32px 32px;width:100%;max-width:360px;text-align:center;
+      box-shadow:0 20px 60px rgba(0,0,0,.5);
+    }
+    .role-selector-heading{font-size:20px;font-weight:700;color:#e8f5e9;margin-bottom:8px;}
+    .role-selector-sub{font-size:14px;color:#9ab8a0;margin-bottom:28px;}
+    .role-selector-btns{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+    .role-btn{
+      display:block;width:100%;padding:14px 20px;
+      border:1.5px solid #1a3a1a;border-radius:10px;
+      background:#0a1a0f;color:#e8f5e9;font-size:15px;font-weight:600;
+      cursor:pointer;text-align:left;
+      transition:border-color .15s,background .15s;
+    }
+    .role-btn:hover{border-color:#00e676;background:#0f2a14;}
+    .role-btn-sub{display:block;font-size:12px;font-weight:400;color:#9ab8a0;margin-top:2px;}
+    .role-selector-cancel{
+      background:none;border:none;color:#4a6a4a;font-size:13px;cursor:pointer;
+      text-decoration:underline;padding:4px;
+    }
+    .role-selector-cancel:hover{color:#9ab8a0;}
 
-    .btn-spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      margin-right: 8px;
-      vertical-align: middle;
-    }
+    /* FOOTER */
+    .page-footer{padding:24px;text-align:center;flex-shrink:0;}
+    .page-footer p{font-size:12px;color:#2a4a2a;}
 
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* USSD hint */
-    .ussd-hint {
-      margin-top: 20px;
-      padding: 12px 16px;
-      background: var(--light-mint);
-      border-radius: 10px;
-      font-size: 0.82rem;
-      color: var(--muted);
-      line-height: 1.5;
-      text-align: center;
+    @media(max-width:480px){
+      .nav{padding:0 16px;}
+      .card{padding:32px 20px 28px;}
+      .card-wrap{padding:0;}
+      .main{padding:32px 16px;}
     }
-
-    .ussd-hint strong {
-      color: var(--forest);
-      font-weight: 700;
-    }
-
-    /* Footer links */
-    .card-footer {
-      margin-top: 24px;
-      text-align: center;
-    }
-
-    .card-footer-link {
-      font-size: 0.84rem;
-      color: var(--muted);
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-
-    .card-footer-link:hover { color: var(--forest); }
-
-    .card-footer-link strong {
-      color: var(--forest);
-    }
-
-    /* Processor request note */
-    .processor-note {
-      margin-top: 28px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .processor-note p {
-      font-size: 0.82rem;
-      color: var(--muted);
-    }
-
-    .processor-note a {
-      color: var(--forest);
-      font-weight: 600;
-      text-decoration: none;
-    }
-    .processor-note a:hover { text-decoration: underline; }
-
-    /* ─── PAGE FOOTER ───────────────────────────── */
-    .page-footer {
-      padding: 24px 20px;
-      text-align: center;
-      flex-shrink: 0;
-    }
-
-    .page-footer p {
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-
-    /* ─── RESPONSIVE ────────────────────────────── */
-    @media (max-width: 480px) {
-      .nav { padding: 0 16px; }
-      .card { padding: 32px 20px 28px; }
-      .demo-banner { padding: 14px 20px; }
-      .card-wrap { padding: 0 12px; }
-      .main { padding: 32px 0; }
-    }
-
-    /* ─── ROLE SELECTOR OVERLAY ─────────────────── */
-    .role-selector {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(26,46,26,0.55);
-      backdrop-filter: blur(2px);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .role-selector.visible {
-      display: flex;
-    }
-    .role-selector-card {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 40px 32px 32px;
-      width: 100%;
-      max-width: 380px;
-      text-align: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.18);
-    }
-    .role-selector-heading {
-      font-size: 1.45rem;
-      font-weight: 700;
-      color: var(--deep);
-      margin: 12px 0 6px;
-    }
-    .role-selector-sub {
-      font-size: 0.88rem;
-      color: var(--muted);
-      margin-bottom: 28px;
-    }
-    .role-selector-btns {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-    .role-btn {
-      display: block;
-      width: 100%;
-      padding: 16px 20px;
-      border: 2px solid var(--border);
-      border-radius: var(--radius-btn);
-      background: var(--white);
-      color: var(--deep);
-      font-size: 1rem;
-      font-weight: 600;
-      font-family: 'Space Grotesk', sans-serif;
-      cursor: pointer;
-      text-align: left;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .role-btn:hover {
-      border-color: var(--forest);
-      background: var(--light-mint);
-    }
-    .role-btn-sub {
-      display: block;
-      font-size: 0.78rem;
-      font-weight: 400;
-      color: var(--muted);
-      margin-top: 2px;
-      font-family: 'Inter', sans-serif;
-    }
-    .role-selector-cancel {
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-size: 0.85rem;
-      cursor: pointer;
-      text-decoration: underline;
-      padding: 4px;
-    }
-    .role-selector-cancel:hover { color: var(--deep); }
   </style>
 </head>
 <body>
 
   <!-- NAV -->
   <nav class="nav">
-    <a href="/" class="nav-brand">
-      <span aria-hidden="true">♻</span>
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-icon">◎</div>
       Circul
     </a>
-    <a href="/" class="nav-back">← Back to home</a>
+    <div class="nav-right">
+      <a href="/register.html" class="nav-signin">Create account</a>
+      <a href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&amp;body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo." class="nav-demo">Request a demo</a>
+    </div>
   </nav>
 
   <!-- MAIN -->
@@ -483,8 +198,8 @@
     <div class="card-wrap">
 
       <!-- Demo banner (shown when ?demo=1) -->
-      <div class="demo-banner" id="demoBanner" aria-label="Demo accounts">
-        <div class="demo-banner-label">&#9679; Try a demo account</div>
+      <div class="demo-banner" id="demoBanner">
+        <div class="demo-banner-label">◉ Try a demo account</div>
         <div class="demo-buttons">
           <button class="demo-btn" onclick="fillDemo('0300000001','1111')">Collector</button>
           <button class="demo-btn" onclick="fillDemo('0300000002','2222')">Aggregator</button>
@@ -493,85 +208,68 @@
         </div>
       </div>
 
-      <!-- Login card -->
+      <!-- Card -->
       <div class="card">
-        <div class="card-icon" aria-hidden="true">♻</div>
         <h1 class="card-heading">Sign in to Circul</h1>
-        <p class="card-subheading">Enter your phone number or email to continue.</p>
 
-        <form id="loginForm" novalidate>
-          <div class="error-msg" id="errorMsg" role="alert" aria-live="polite"></div>
+        <!-- Tabs -->
+        <div class="tabs" role="tablist">
+          <button class="tab active" id="tab-phone" role="tab" aria-selected="true" onclick="switchTab('phone')">Phone + PIN</button>
+          <button class="tab" id="tab-email" role="tab" aria-selected="false" onclick="switchTab('email')">Email + Password</button>
+        </div>
 
-          <!-- Identifier (always visible) -->
+        <!-- Phone + PIN panel -->
+        <div class="tab-panel active" id="panel-phone" role="tabpanel">
+          <div class="error-msg" id="error-phone" role="alert" aria-live="polite"></div>
           <div class="form-group">
-            <label for="identifier">Phone number or email</label>
-            <input
-              class="input"
-              type="text"
-              id="identifier"
-              name="identifier"
-              placeholder="0244 000 000 or name@example.com"
-              autocomplete="username"
-              inputmode="tel"
-              required
-            />
-            <p class="auth-hint" id="authHint" aria-live="polite"></p>
+            <label for="phone-input">Phone number</label>
+            <input class="input" type="tel" id="phone-input" placeholder="0244 000 000" autocomplete="off" inputmode="tel">
           </div>
-
-          <!-- Password field (email auth) -->
-          <div class="secondary-field" id="passwordField">
-            <div class="form-group" style="margin-bottom:0">
-              <label for="password">Password</label>
-              <input
-                class="input"
-                type="password"
-                id="password"
-                name="password"
-                placeholder="Your password"
-                autocomplete="current-password"
-              />
+          <div class="form-group" style="margin-bottom:4px;">
+            <label>4-digit PIN</label>
+            <div class="pin-row">
+              <input class="pin-digit" type="text" id="pin1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 1">
+              <input class="pin-digit" type="text" id="pin2" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 2">
+              <input class="pin-digit" type="text" id="pin3" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 3">
+              <input class="pin-digit" type="text" id="pin4" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 4">
             </div>
           </div>
+          <a href="mailto:jeffrey@thebolderstudio.com?subject=Forgot%20PIN%20%E2%80%94%20Circul" class="forgot-link">Forgot your PIN?</a>
+          <button type="button" class="btn-submit" id="btn-phone" onclick="submitPhone()">Sign in</button>
+          <div class="or-divider">or</div>
+          <a href="/register.html" class="no-account-link">No account yet? <strong>Create one free →</strong></a>
+        </div>
 
-          <!-- PIN field (phone auth) -->
-          <div class="secondary-field" id="pinField">
-            <div class="form-group" style="margin-bottom:0">
-              <label>4-digit PIN</label>
-              <div class="pin-row" role="group" aria-label="Enter your 4-digit PIN">
-                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="one-time-code" id="pin1" aria-label="PIN digit 1" />
-                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" id="pin2" aria-label="PIN digit 2" />
-                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" id="pin3" aria-label="PIN digit 3" />
-                <input class="pin-digit" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" id="pin4" aria-label="PIN digit 4" />
-              </div>
-            </div>
+        <!-- Email + Password panel -->
+        <div class="tab-panel" id="panel-email" role="tabpanel">
+          <div class="error-msg" id="error-email" role="alert" aria-live="polite"></div>
+          <div class="form-group">
+            <label for="email-input">Email</label>
+            <input class="input" type="email" id="email-input" placeholder="you@company.com" autocomplete="off">
           </div>
-
-          <button type="submit" class="btn-submit" id="submitBtn">Continue</button>
-        </form>
-
-        <!-- USSD hint -->
-        <div class="ussd-hint">
-          USSD access via <strong>*737#</strong> — coming soon.
+          <div class="form-group" style="margin-bottom:4px;">
+            <label for="password-input">Password</label>
+            <input class="input" type="password" id="password-input" placeholder="Your password" autocomplete="off">
+          </div>
+          <a href="mailto:jeffrey@thebolderstudio.com?subject=Forgot%20password%20%E2%80%94%20Circul" class="forgot-link">Forgot your password?</a>
+          <button type="button" class="btn-submit" id="btn-email" onclick="submitEmail()">Sign in</button>
+          <div class="or-divider">or</div>
+          <a href="/register.html" class="no-account-link">No account yet? <strong>Create one free →</strong></a>
         </div>
 
       </div>
-
-      <div class="card-footer">
-        <a href="/" class="card-footer-link">← Back to <strong>circul.app</strong></a>
-      </div>
-
-      <!-- Role selector (shown when account has multiple roles) -->
-      <div class="role-selector" id="roleSelector" aria-hidden="true">
-        <div class="role-selector-card">
-          <div class="card-icon" aria-hidden="true">♻</div>
-          <h2 class="role-selector-heading">Continue as…</h2>
-          <p class="role-selector-sub">This account has access to multiple dashboards.</p>
-          <div class="role-selector-btns" id="roleSelectorBtns"></div>
-          <button class="role-selector-cancel" onclick="cancelRoleSelector()">← Back</button>
-        </div>
-      </div>
-
     </div>
+
+    <!-- Role selector (shown when account has multiple roles) -->
+    <div class="role-selector" id="roleSelector" aria-hidden="true">
+      <div class="role-selector-card">
+        <h2 class="role-selector-heading">Continue as…</h2>
+        <p class="role-selector-sub">This account has access to multiple dashboards.</p>
+        <div class="role-selector-btns" id="roleSelectorBtns"></div>
+        <button class="role-selector-cancel" onclick="cancelRoleSelector()">← Back</button>
+      </div>
+    </div>
+
   </main>
 
   <!-- FOOTER -->
@@ -594,165 +292,141 @@
       converter: { title: 'Converter Dashboard', sub: 'Full supply chain view + conversion outputs.' }
     };
 
-    /* ── Detect auth mode ─────────────────────── */
-    var identifier    = document.getElementById('identifier');
-    var passwordField = document.getElementById('passwordField');
-    var pinField      = document.getElementById('pinField');
-    var authHint      = document.getElementById('authHint');
-    var mode          = null; // 'email' | 'phone' | null
-
-    identifier.addEventListener('input', function () {
-      var val = this.value.trim();
-      if (!val) { setMode(null); return; }
-      setMode(val.indexOf('@') !== -1 ? 'email' : 'phone');
-    });
-
-    function setMode(m) {
-      if (m === mode) return;
-      mode = m;
-      clearError();
-      if (m === 'email') {
-        passwordField.classList.add('visible');
-        pinField.classList.remove('visible');
-        identifier.setAttribute('inputmode', 'email');
-        authHint.textContent = 'Sign in with email and password.';
-      } else if (m === 'phone') {
-        pinField.classList.add('visible');
-        passwordField.classList.remove('visible');
-        identifier.setAttribute('inputmode', 'tel');
-        authHint.textContent = 'Sign in with your 4-digit PIN.';
-      } else {
-        passwordField.classList.remove('visible');
-        pinField.classList.remove('visible');
-        identifier.setAttribute('inputmode', 'tel');
-        authHint.textContent = '';
-      }
+    /* ── Tabs ──────────────────────────────── */
+    function switchTab(tab) {
+      document.getElementById('tab-phone').classList.toggle('active', tab === 'phone');
+      document.getElementById('tab-email').classList.toggle('active', tab === 'email');
+      document.getElementById('panel-phone').classList.toggle('active', tab === 'phone');
+      document.getElementById('panel-email').classList.toggle('active', tab === 'email');
+      clearErrors();
     }
 
-    /* ── PIN box auto-advance ─────────────────── */
-    var pinBoxes = [
-      document.getElementById('pin1'),
-      document.getElementById('pin2'),
-      document.getElementById('pin3'),
-      document.getElementById('pin4')
-    ];
-
-    pinBoxes.forEach(function (box, i) {
-      box.addEventListener('input', function () {
-        this.value = this.value.replace(/[^0-9]/g, '');
-        if (this.value && i < 3) pinBoxes[i + 1].focus();
+    function clearErrors() {
+      ['error-phone','error-email'].forEach(function(id) {
+        var el = document.getElementById(id);
+        el.textContent = '';
+        el.classList.remove('visible');
       });
-      box.addEventListener('keydown', function (e) {
-        if (e.key === 'Backspace' && !this.value && i > 0) pinBoxes[i - 1].focus();
+    }
+
+    function showError(id, msg) {
+      var el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    /* ── PIN boxes ────────────────────────── */
+    var pinBoxes = ['pin1','pin2','pin3','pin4'].map(function(id) { return document.getElementById(id); });
+
+    pinBoxes.forEach(function(box, i) {
+      box.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g,'');
+        if (this.value && i < 3) pinBoxes[i+1].focus();
+      });
+      box.addEventListener('keydown', function(e) {
+        if (e.key === 'Backspace' && !this.value && i > 0) pinBoxes[i-1].focus();
       });
     });
 
-    function getPinValue() {
-      return pinBoxes.map(function (b) { return b.value; }).join('');
-    }
+    function getPinValue() { return pinBoxes.map(function(b){ return b.value; }).join(''); }
+    function setPinValue(str) { var d=String(str).split(''); pinBoxes.forEach(function(b,i){ b.value=d[i]||''; }); }
 
-    function setPinValue(str) {
-      var digits = String(str).split('');
-      pinBoxes.forEach(function (b, i) { b.value = digits[i] || ''; });
-    }
+    /* ── Submit phone+PIN ─────────────────── */
+    function submitPhone() {
+      clearErrors();
+      var phone = document.getElementById('phone-input').value.trim();
+      var pin = getPinValue();
+      if (!phone) { showError('error-phone','Please enter your phone number.'); return; }
+      if (pin.length < 4) { showError('error-phone','Please enter your 4-digit PIN.'); pinBoxes[pin.length].focus(); return; }
 
-    /* ── Demo fill ────────────────────────────── */
-    // Bypass setMode()'s early-return guard by directly setting state + classes.
-    function fillDemo(phone, pin) {
-      clearError();
-      identifier.value = phone;
-      mode = 'phone';
-      pinField.classList.add('visible');
-      passwordField.classList.remove('visible');
-      identifier.setAttribute('inputmode', 'tel');
-      authHint.textContent = 'Sign in with your 4-digit PIN.';
-      setPinValue(pin);
-    }
-
-    function fillDemoEmail(email, pw) {
-      clearError();
-      identifier.value = email;
-      mode = 'email';
-      passwordField.classList.add('visible');
-      pinField.classList.remove('visible');
-      identifier.setAttribute('inputmode', 'email');
-      authHint.textContent = 'Sign in with email and password.';
-      document.getElementById('password').value = pw;
-    }
-
-    /* ── Demo banner ──────────────────────────── */
-    document.getElementById('demoBanner').classList.add('visible');
-
-    /* ── Form submit ──────────────────────────── */
-    document.getElementById('loginForm').addEventListener('submit', function (e) {
-      e.preventDefault();
-      clearError();
-
-      var id = identifier.value.trim();
-      if (!id) { showError('Please enter your phone number or email.'); return; }
-
-      var body;
-      if (mode === 'email') {
-        var pw = document.getElementById('password').value;
-        if (!pw) { showError('Please enter your password.'); return; }
-        body = { email: id, password: pw, type: 'email' };
-      } else {
-        var pin = getPinValue();
-        if (pin.length < 4) { showError('Please enter your 4-digit PIN.'); pinBoxes[pin.length].focus(); return; }
-        body = { phone: id, pin: pin, type: 'phone' };
-      }
-
-      setLoading(true);
-
+      setLoading('btn-phone', true);
       fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ type: 'phone', phone: phone, pin: pin })
       })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          setLoading(false);
-          if (!data.success || data.error) {
-            if (data.error === 'collector_email_login') {
-              showError('Collector and aggregator accounts use phone + PIN. Please enter your phone number.');
-            } else {
-              showError(data.message || 'Incorrect credentials. Please try again.');
-            }
-            return;
-          }
-
-          // Store session
-          if (data.token) localStorage.setItem('circul_token', data.token);
-          var userObj = data.user || data.operator || null;
-          if (userObj) localStorage.setItem('circul_user', JSON.stringify(userObj));
-
-          // Multi-role: show role selector
-          var roles = data.roles;
-          if (Array.isArray(roles) && roles.length > 1) {
-            showRoleSelector(data.token, userObj, roles);
-            return;
-          }
-
-          // Single role: redirect immediately
-          var role = (data.role || '').toLowerCase();
-          window.location.href = ROLE_ROUTES[role] || '/';
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          setLoading('btn-phone', false);
+          handleLoginResponse(data, 'error-phone');
         })
-        .catch(function () {
-          setLoading(false);
-          showError('Unable to connect. Please check your internet connection and try again.');
+        .catch(function(){
+          setLoading('btn-phone', false);
+          showError('error-phone','Unable to connect. Please check your internet connection.');
         });
-    });
+    }
 
-    /* ── Role selector ────────────────────────── */
+    /* ── Submit email+password ──────────────*/
+    function submitEmail() {
+      clearErrors();
+      var email = document.getElementById('email-input').value.trim();
+      var password = document.getElementById('password-input').value;
+      if (!email) { showError('error-email','Please enter your email.'); return; }
+      if (!password) { showError('error-email','Please enter your password.'); return; }
+
+      setLoading('btn-email', true);
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'email', email: email, password: password })
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          setLoading('btn-email', false);
+          handleLoginResponse(data, 'error-email');
+        })
+        .catch(function(){
+          setLoading('btn-email', false);
+          showError('error-email','Unable to connect. Please check your internet connection.');
+        });
+    }
+
+    /* ── Shared response handler ─────────── */
+    function handleLoginResponse(data, errorId) {
+      if (!data.success || data.error) {
+        if (data.error === 'collector_email_login') {
+          showError(errorId, 'Collector and aggregator accounts use phone + PIN.');
+        } else {
+          showError(errorId, data.message || 'Incorrect credentials. Please try again.');
+        }
+        return;
+      }
+      if (data.token) localStorage.setItem('circul_token', data.token);
+      var userObj = data.user || data.operator || null;
+      if (userObj) localStorage.setItem('circul_user', JSON.stringify(userObj));
+      var roles = data.roles;
+      if (Array.isArray(roles) && roles.length > 1) { showRoleSelector(data.token, userObj, roles); return; }
+      var role = (data.role || '').toLowerCase();
+      window.location.href = ROLE_ROUTES[role] || '/';
+    }
+
+    /* ── Demo fill ────────────────────────── */
+    function fillDemo(phone, pin) {
+      switchTab('phone');
+      document.getElementById('phone-input').value = phone;
+      setPinValue(pin);
+    }
+    function fillDemoEmail(email, pw) {
+      switchTab('email');
+      document.getElementById('email-input').value = email;
+      document.getElementById('password-input').value = pw;
+    }
+
+    /* ── Demo banner ──────────────────────── */
+    if (new URLSearchParams(window.location.search).get('demo') === '1') {
+      document.getElementById('demoBanner').classList.add('visible');
+    }
+
+    /* ── Role selector ─────────────────── */
     function showRoleSelector(token, user, roles) {
       var btnsEl = document.getElementById('roleSelectorBtns');
       btnsEl.innerHTML = '';
-      roles.forEach(function (role) {
-        var info  = ROLE_LABELS[role] || { title: role, sub: '' };
-        var btn   = document.createElement('button');
-        btn.className   = 'role-btn';
-        btn.innerHTML   = info.title + (info.sub ? '<span class="role-btn-sub">' + info.sub + '</span>' : '');
-        btn.onclick = function () { selectRole(role); };
+      roles.forEach(function(role) {
+        var info = ROLE_LABELS[role] || { title: role, sub: '' };
+        var btn = document.createElement('button');
+        btn.className = 'role-btn';
+        btn.innerHTML = info.title + (info.sub ? '<span class="role-btn-sub">'+info.sub+'</span>' : '');
+        btn.onclick = function() { selectRole(role); };
         btnsEl.appendChild(btn);
       });
       document.getElementById('roleSelector').classList.add('visible');
@@ -766,31 +440,14 @@
 
     function cancelRoleSelector() {
       document.getElementById('roleSelector').classList.remove('visible');
-      document.getElementById('roleSelector').setAttribute('aria-hidden', 'true');
+      document.getElementById('roleSelector').setAttribute('aria-hidden','true');
     }
 
-    /* ── Helpers ──────────────────────────────── */
-    function showError(msg) {
-      var el = document.getElementById('errorMsg');
-      el.textContent = msg;
-      el.classList.add('visible');
-    }
-
-    function clearError() {
-      var el = document.getElementById('errorMsg');
-      el.textContent = '';
-      el.classList.remove('visible');
-    }
-
-    function setLoading(on) {
-      var btn = document.getElementById('submitBtn');
-      if (on) {
-        btn.classList.add('loading');
-        btn.innerHTML = '<span class="btn-spinner"></span>Signing in…';
-      } else {
-        btn.classList.remove('loading');
-        btn.textContent = 'Continue';
-      }
+    /* ── Helpers ──────────────────────── */
+    function setLoading(btnId, on) {
+      var btn = document.getElementById(btnId);
+      if (on) { btn.classList.add('loading'); btn.textContent = 'Signing in…'; }
+      else { btn.classList.remove('loading'); btn.textContent = 'Sign in'; }
     }
   </script>
 
