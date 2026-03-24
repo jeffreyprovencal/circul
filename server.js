@@ -1433,4 +1433,105 @@ app.get('/passport',             (req, res) => res.sendFile(path.join(__dirname,
 app.get('/login',                (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/prices',               (req, res) => res.redirect('/'));
 
+// ============================================
+// AUTH — REGISTER (collectors + aggregators)
+// ============================================
+
+app.post('/api/auth/register', async (req, res) => {
+  const { role, phone, pin } = req.body;
+  try {
+    if (role === 'collector') {
+      const { first_name, last_name } = req.body;
+      await pool.query(
+        `INSERT INTO collectors (first_name, last_name, phone, pin, is_active) VALUES ($1, $2, $3, $4, true)`,
+        [first_name, last_name, phone, pin]
+      );
+    } else if (role === 'aggregator') {
+      const { name, company } = req.body;
+      await pool.query(
+        `INSERT INTO aggregators (name, company, phone, pin, is_active) VALUES ($1, $2, $3, $4, true)`,
+        [name, company, phone, pin]
+      );
+    } else {
+      return res.status(400).json({ error: 'Invalid role for self-registration' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// ============================================
+// AUTH — REQUEST ACCESS (processors + converters)
+// ============================================
+
+app.post('/api/auth/request-access', async (req, res) => {
+  const { role, name, company, email, phone } = req.body;
+  try {
+    if (role === 'processor') {
+      await pool.query(
+        `INSERT INTO processors (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
+        [name, company, email, phone || null]
+      );
+    } else if (role === 'converter') {
+      await pool.query(
+        `INSERT INTO converters (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
+        [name, company, email, phone || null]
+      );
+    } else {
+      return res.status(400).json({ error: 'Invalid role for access request' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Request access error:', err);
+    res.status(500).json({ error: 'Request failed' });
+  }
+});
+
+// ============================================
+// ADMIN — PENDING / APPROVE / REJECT
+// ============================================
+
+app.get('/api/admin/pending', async (req, res) => {
+  try {
+    const [processors, converters] = await Promise.all([
+      pool.query(`SELECT id, name, company, email, phone, created_at FROM processors WHERE is_active=false ORDER BY created_at DESC`),
+      pool.query(`SELECT id, name, company, email, phone, created_at FROM converters WHERE is_active=false ORDER BY created_at DESC`)
+    ]);
+    const result = [
+      ...processors.rows.map(r => ({ ...r, role: 'processor' })),
+      ...converters.rows.map(r => ({ ...r, role: 'converter' }))
+    ];
+    res.json(result);
+  } catch (err) {
+    console.error('Pending error:', err);
+    res.status(500).json({ error: 'Failed to fetch pending requests' });
+  }
+});
+
+app.post('/api/admin/approve', async (req, res) => {
+  const { id, role } = req.body;
+  try {
+    const table = role === 'processor' ? 'processors' : 'converters';
+    await pool.query(`UPDATE ${table} SET is_active=true WHERE id=$1`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Approve error:', err);
+    res.status(500).json({ error: 'Approval failed' });
+  }
+});
+
+app.post('/api/admin/reject', async (req, res) => {
+  const { id, role } = req.body;
+  try {
+    const table = role === 'processor' ? 'processors' : 'converters';
+    await pool.query(`DELETE FROM ${table} WHERE id=$1`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Reject error:', err);
+    res.status(500).json({ error: 'Rejection failed' });
+  }
+});
+
 app.listen(port, () => console.log(`Circul server running on port ${port}`));
