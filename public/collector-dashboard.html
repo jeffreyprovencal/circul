@@ -6,566 +6,511 @@
   <title>Collector Dashboard — Circul</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --deep:       #1a2e1a;
-      --forest:     #2d6a4f;
-      --mint:       #a7f3d0;
-      --light-mint: #f0fdf4;
-      --white:      #ffffff;
-      --bg:         #f3f6f3;
-      --text:       #1a2e1a;
-      --muted:      #6b7280;
-      --border:     #e5e7eb;
-      --radius:     16px;
-      --radius-sm:  10px;
+      --bg:           #0a1a0f;
+      --surface:      #0d2818;
+      --surface2:     #0a1a0f;
+      --border:       #1a3a20;
+      --border2:      #2a4a2f;
+      --text:         #ffffff;
+      --text-muted:   #888888;
+      --text-dim:     #aaaaaa;
+      --accent:       #00e676;
+      --accent-dark:  #0a1a0f;
+      --amber:        #ffc107;
+      --amber-bg:     #332200;
+      --green-bg:     #0a2a15;
+      --radius:       12px;
+      --radius-sm:    8px;
     }
 
     body {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Space Grotesk', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
     }
-    h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
 
-    /* ── HEADER ──────────────────────────────────── */
-    .header { background: var(--deep); }
-
+    /* ── NAV ── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
     .header-inner {
-      max-width: 960px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 20px 24px 32px;
+      padding: 0 24px;
     }
-
     .header-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 30px;
+      padding: 14px 0;
     }
-
     .brand {
-      font-size: 1rem;
-      font-weight: 800;
-      color: var(--white);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
       text-decoration: none;
-      letter-spacing: -0.3px;
     }
-
     .header-right {
       display: flex;
       align-items: center;
       gap: 12px;
     }
-
     .header-role-pill {
-      font-size: 0.68rem;
+      background: #1a3a20;
+      color: var(--accent);
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 1.4px;
-      text-transform: uppercase;
-      color: var(--mint);
-      padding: 3px 10px;
-      border: 1px solid rgba(167,243,208,0.3);
+      padding: 4px 10px;
       border-radius: 20px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
     }
-
     .btn-signout {
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.18);
-      color: rgba(255,255,255,0.55);
-      font-family: inherit;
-      font-size: 0.78rem;
-      padding: 6px 14px;
-      border-radius: 6px;
+      background: var(--accent);
+      color: var(--accent-dark);
+      border: none;
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
       cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
+      font-family: inherit;
+      font-size: 13px;
     }
-    .btn-signout:hover { border-color: rgba(255,255,255,0.45); color: var(--white); }
+    .btn-signout:hover { opacity: 0.9; }
 
+    /* ── IDENTITY ── */
     .identity-name {
-      font-size: clamp(1.7rem, 5vw, 2.4rem);
-      font-weight: 800;
-      color: var(--white);
-      letter-spacing: -1px;
-      line-height: 1.1;
-      margin-bottom: 12px;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      padding: 20px 0 6px;
     }
-
     .identity-meta {
       display: flex;
       align-items: center;
-      gap: 10px;
       flex-wrap: wrap;
+      gap: 6px;
+      padding-bottom: 20px;
+      font-size: 13px;
+      color: var(--text-muted);
     }
-
-    .identity-meta-item {
-      font-size: 0.86rem;
-      color: rgba(255,255,255,0.55);
-    }
-
-    .identity-meta-sep {
-      color: rgba(255,255,255,0.2);
-      font-size: 0.9rem;
-      flex-shrink: 0;
-    }
-
-    .identity-rating {
-      font-size: 0.86rem;
-      font-weight: 600;
-      color: var(--mint);
-    }
-
+    .identity-meta-item { color: var(--text-muted); }
+    .identity-meta-sep { color: var(--border2); }
+    .identity-rating { color: var(--text); }
+    .identity-rating span { font-weight: 600; }
     .identity-status {
-      font-size: 0.72rem;
+      background: #1a3a20;
+      color: var(--accent);
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
-      padding: 2px 9px;
-      border-radius: 20px;
-      background: rgba(167,243,208,0.18);
-      color: var(--mint);
-    }
-    .identity-status.inactive {
-      background: rgba(255,255,255,0.1);
-      color: rgba(255,255,255,0.4);
-    }
-
-    /* ── MAIN ────────────────────────────────────── */
-    .main {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 28px 24px 64px;
-    }
-
-    /* ── LOG COLLECTION CTA ──────────────────────── */
-    .action-bar { margin-bottom: 20px; }
-
-    .btn-log {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 15px 28px;
-      background: var(--mint);
-      color: var(--deep);
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: -0.2px;
-      transition: background 0.15s, transform 0.15s;
-    }
-    .btn-log:hover { background: #86efcc; transform: translateY(-1px); }
-
-    /* ── STAT GRID (2×2 mobile → 4-col desktop) ─── */
-    .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-
-    .stat-card {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 20px 18px 18px;
-      border: 1px solid var(--border);
-    }
-
-    .stat-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.9px;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    .stat-value {
-      font-size: 1.7rem;
-      font-weight: 800;
-      color: var(--deep);
-      line-height: 1;
-      letter-spacing: -0.8px;
-      margin-bottom: 5px;
-    }
-
-    .stat-unit {
-      font-size: 0.73rem;
-      color: var(--muted);
-    }
-
-    /* ── CARD PANEL ──────────────────────────────── */
-    .card-panel {
-      background: var(--white);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      overflow: visible;
-      margin-bottom: 20px;
-    }
-
-    .card-panel-head {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      background: var(--light-mint);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .card-panel-title {
-      font-size: 0.93rem;
-      font-weight: 700;
-      color: var(--deep);
-      margin-bottom: 2px;
-    }
-
-    .card-panel-sub {
-      font-size: 0.76rem;
-      color: var(--muted);
-    }
-
-    /* ── COLLECTOR PASSPORT ──────────────────────── */
-    .passport-body { padding: 20px; }
-
-    .passport-id-row {
-      display: flex;
-      align-items: baseline;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .passport-id {
-      font-size: 1.8rem;
-      font-weight: 800;
-      color: var(--deep);
-      letter-spacing: -1px;
-    }
-
-    .passport-status {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
       padding: 3px 10px;
       border-radius: 20px;
-      background: #dcfce7;
-      color: #14532d;
-    }
-    .passport-status.inactive {
-      background: #f1f5f9;
-      color: #475569;
+      letter-spacing: 1px;
     }
 
-    .passport-meta {
+    /* ── VOLUME STRIP ── */
+    .vol-strip {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px 20px;
-      margin-bottom: 18px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 24px;
     }
-
-    .passport-meta-item { }
-    .passport-meta-label {
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.8px;
+    .vol-cell {
+      background: var(--surface);
+      padding: 18px 22px;
+    }
+    .vol-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
       text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 3px;
+      margin-bottom: 6px;
     }
-    .passport-meta-value {
-      font-size: 0.9rem;
-      font-weight: 600;
+    .vol-value {
+      font-size: 24px;
+      font-weight: 700;
       color: var(--text);
     }
+    .vol-value span { font-size: 14px; font-weight: 400; color: var(--text-dim); }
+    .vol-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
-    .btn-passport {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 10px 20px;
-      background: transparent;
-      border: 1.5px solid var(--forest);
-      color: var(--forest);
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      font-size: 0.88rem;
-      font-weight: 700;
-      letter-spacing: -0.1px;
-      transition: background 0.15s, color 0.15s;
-    }
-    .btn-passport:hover { background: var(--forest); color: var(--white); }
-
-    /* ── PRICES GRID / BUYER CARDS ───────────────── */
-    .prices-grid {
+    /* ── MAIN ── */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
       display: flex;
-      flex-wrap: wrap;
-      gap: 14px;
-      padding: 16px;
+      flex-direction: column;
+      gap: 20px;
     }
 
-    .buyer-card {
-      flex: 1 1 200px;
+    /* ── ACTION BAR ── */
+    .action-bar {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-log {
+      background: var(--accent);
+      color: var(--accent-dark);
+      border: none;
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-log:hover { opacity: 0.9; }
+
+    /* ── STAT GRID ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .stat-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      border-radius: var(--radius);
+      padding: 18px 20px;
     }
+    .stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+    .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
+    .stat-unit { font-size: 13px; color: var(--text-dim); font-weight: 400; }
 
-    .buyer-card-name {
-      font-size: 0.9rem;
-      font-weight: 700;
-      color: var(--ink);
+    /* ── TOP BUYERS ── */
+    .top-partners {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
     }
-
-    .buyer-card-city {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: -4px;
-    }
-
-    .buyer-mat-list {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin: 4px 0;
-    }
-
-    .buyer-mat-row {
+    .section-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.82rem;
+      margin-bottom: 16px;
     }
-
-    .buyer-mat-name {
-      font-weight: 700;
-      letter-spacing: 0.8px;
-      color: var(--muted);
-      font-size: 0.72rem;
-      text-transform: uppercase;
-    }
-
-    .buyer-mat-price {
-      font-weight: 700;
-      color: var(--forest);
-      font-size: 0.88rem;
-    }
-
-    .btn-sell-to {
-      margin-top: 6px;
-      background: var(--forest);
-      color: #fff;
-      border: none;
-      border-radius: 7px;
-      padding: 8px 12px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      font-family: 'Space Grotesk', sans-serif;
+    .section-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .section-sub { font-size: 12px; color: var(--text-muted); }
+    .toggle-group { display: flex; gap: 6px; align-items: center; }
+    .toggle-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
       cursor: pointer;
+      font-family: inherit;
     }
-
-    .btn-sell-to:hover { opacity: 0.88; }
-
-    .prices-empty {
-      padding: 28px 20px;
-      font-size: 0.85rem;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    /* ── TRANSACTIONS TABLE ───────────────────────── */
-    .txn-wrap { overflow-x: auto; }
-
-    .txn-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.875rem;
-    }
-
-    .txn-table th {
-      padding: 10px 18px;
-      text-align: left;
-      font-size: 0.68rem;
+    .toggle-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-dark);
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--muted);
-      background: #fafafa;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
     }
+    .toggle-sep { color: var(--border2); margin: 0 4px; }
+    .view-all-link { color: var(--accent); font-size: 12px; text-decoration: none; cursor: pointer; }
 
-    .txn-table td {
-      padding: 13px 18px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text);
-      white-space: nowrap;
-    }
-
-    .txn-table tr:last-child td { border-bottom: none; }
-    .txn-table tbody tr:hover td { background: #fafdf9; }
-
-    .txn-empty {
-      text-align: center;
-      padding: 32px;
-      color: var(--muted);
-      font-size: 0.85rem;
-    }
-
-    .mat-tag {
-      display: inline-block;
-      padding: 2px 9px;
-      border-radius: 20px;
-      font-size: 0.71rem;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-    }
-    .mat-tag.pet  { background: #dcfce7; color: #14532d; }
-    .mat-tag.hdpe { background: #dbeafe; color: #1e3a8a; }
-    .mat-tag.pp   { background: #fef9c3; color: #713f12; }
-    .mat-tag.ldpe { background: #ede9fe; color: #4c1d95; }
-    .mat-tag.other { background: #f1f5f9; color: #475569; }
-
-    .status-tag {
-      display: inline-block;
-      padding: 2px 9px;
-      border-radius: 20px;
-      font-size: 0.71rem;
-      font-weight: 600;
-    }
-    .status-tag.paid    { background: #dcfce7; color: #14532d; }
-    .status-tag.pending { background: #fef9c3; color: #713f12; }
-    .status-tag.unpaid  { background: #fef9c3; color: #713f12; }
-
-    /* ── RESPONSIVE ──────────────────────────────── */
-    @media (min-width: 600px) {
-      .stat-grid { grid-template-columns: repeat(4, 1fr); }
-
-      .prices-grid { grid-template-columns: repeat(4, 1fr); }
-
-      .price-cell                      { border-bottom: none; border-right: 1px solid var(--border); }
-      .price-cell:nth-child(2n)        { border-right: 1px solid var(--border); }
-      .price-cell:nth-last-child(-n+2) { border-bottom: none; }
-      .price-cell:last-child           { border-right: none; }
-
-      .passport-meta { grid-template-columns: repeat(4, 1fr); }
-    }
-
-    @media (max-width: 480px) {
-      .header-inner { padding: 18px 16px 28px; }
-      .main         { padding: 20px 16px 52px; }
-    }
-
-    /* ── RATING MODAL ─────────────────────────── */
-    .rating-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(26,46,26,0.5);
-      z-index: 200;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .rating-overlay.visible { display: flex; }
-    .rating-modal {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 32px 28px 28px;
-      width: 100%;
-      max-width: 340px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.18);
-      text-align: center;
-    }
-    .rating-modal-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--deep);
-      margin-bottom: 6px;
-    }
-    .rating-modal-sub { font-size: 0.83rem; color: var(--muted); margin-bottom: 20px; }
-    .star-row { display: flex; gap: 6px; justify-content: center; margin-bottom: 20px; }
-    .star-btn {
-      background: none; border: none; font-size: 1.8rem; cursor: pointer;
-      color: #d1d5db; transition: color 0.1s; line-height: 1;
-    }
-    .star-btn.active { color: #f59e0b; }
-    .rating-actions { display: flex; gap: 10px; justify-content: center; }
-    .btn-rate-submit {
-      padding: 9px 22px; background: var(--deep); color: var(--white);
-      border: none; border-radius: var(--radius-sm); font-family: inherit;
-      font-size: 0.9rem; font-weight: 700; cursor: pointer;
-    }
-    .btn-rate-cancel {
-      padding: 9px 16px; background: transparent; color: var(--muted);
-      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-      font-family: inherit; font-size: 0.9rem; cursor: pointer;
-    }
-
-    /* ── PENDING FROM AGG CARD ────────────────── */
-    .pend-card {
-      background: var(--white);
-      border-radius: var(--radius);
+    /* ── CARD PANEL ── */
+    .card-panel {
+      background: var(--surface);
       border: 1px solid var(--border);
-      margin-bottom: 20px;
-      overflow: visible;
+      border-radius: var(--radius);
+      padding: 22px;
     }
-    .pend-card-head {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      background: var(--light-mint);
-      display: flex; align-items: center; justify-content: space-between;
+    .card-panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
     }
-    .pend-card-title { font-size: 0.93rem; font-weight: 700; color: var(--deep); }
-    .pend-card-sub   { font-size: 0.76rem; color: var(--muted); }
-    .pend-row {
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-      padding: 13px 20px; border-bottom: 1px solid var(--border);
-      font-size: 0.85rem;
+    .card-panel-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .card-panel-sub { font-size: 12px; color: var(--text-muted); }
+
+    /* ── PASSPORT ── */
+    .passport-body { display: flex; flex-direction: column; gap: 10px; }
+    .passport-id-row { display: flex; align-items: center; gap: 10px; }
+    .passport-id { font-size: 13px; color: var(--text-dim); font-family: monospace; }
+    .passport-status {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: #1a3a20;
+      color: var(--accent);
+      letter-spacing: 1px;
     }
-    .pend-row:last-child { border-bottom: none; }
-    .pend-mat { font-weight: 700; color: var(--forest); }
-    .pend-meta { color: var(--muted); font-size: 0.8rem; }
-    .pend-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
-    .btn-approve {
-      padding: 5px 12px; background: var(--forest); color: white;
-      border: none; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
-      cursor: pointer; font-family: inherit; white-space: nowrap;
+    .passport-meta { display: flex; flex-wrap: wrap; gap: 16px; }
+    .passport-meta-item { display: flex; flex-direction: column; gap: 3px; }
+    .passport-meta-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+    .passport-meta-value { font-size: 13px; color: var(--text); font-weight: 500; }
+    .btn-passport {
+      display: inline-block;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    /* ── PRICES GRID ── */
+    .prices-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .prices-empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; }
+    .price-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      min-width: 0;
+    }
+    .price-card-mat { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    .price-card-val { font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+    .price-card-buyer { font-size: 12px; color: var(--text-dim); margin-bottom: 2px; }
+    .price-card-rating { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
+    .btn-sell {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-sell:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── PENDING CARD ── */
+    .pend-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+    .pend-card-head { margin-bottom: 16px; }
+    .pend-card-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .pend-card-sub { font-size: 12px; color: var(--text-muted); }
+    .pend-list { display: flex; flex-direction: column; gap: 12px; }
+    .pend-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+    }
+    .pend-item-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .pend-item-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .pend-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .pend-item-badge {
+      font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+      background: var(--amber-bg); color: var(--amber);
+    }
+    .pend-actions { display: flex; gap: 8px; }
+    .btn-accept {
+      background: var(--accent); color: var(--accent-dark); border: none;
+      padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px;
     }
     .btn-decline {
-      padding: 5px 12px; background: transparent; color: #dc2626;
-      border: 1px solid #dc2626; border-radius: 6px; font-size: 0.78rem;
-      font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
+      background: transparent; border: 1px solid var(--border2); color: var(--text-muted);
+      padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 13px;
     }
-    .pend-empty { padding: 24px 20px; text-align: center; font-size: 0.85rem; color: var(--muted); }
+    .pend-empty { color: var(--text-muted); font-size: 13px; padding: 16px 0; }
+
+    /* ── EARNINGS P&L ── */
+    .earnings-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+    .pl-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 16px;
+    }
+    .pl-col-label {
+      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 12px; font-weight: 600;
+    }
+    .pl-row {
+      display: flex; justify-content: space-between;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .pl-row:last-child { border-bottom: none; }
+    .pl-row-label { color: var(--text-dim); }
+    .pl-row-val { font-weight: 600; color: var(--accent); }
+    .pl-total {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 14px;
+      display: flex; justify-content: space-between; margin-top: 10px;
+      font-size: 14px;
+    }
+    .pl-total-label { color: var(--text); font-weight: 600; }
+    .pl-total-val { font-size: 18px; font-weight: 700; color: var(--accent); }
+
+    /* ── TABLE ── */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table thead tr { background: var(--surface2); }
+    .data-table th {
+      padding: 10px 14px; text-align: left;
+      color: var(--text-muted); font-weight: 600; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+    }
+    .data-table td { padding: 12px 14px; border-top: 1px solid var(--border); color: var(--text-dim); }
+    .data-table td:first-child { color: var(--text-muted); }
+    .data-table .td-name { color: var(--text); font-weight: 500; }
+    .data-table .td-amount { color: var(--accent); font-weight: 600; }
+    .tag-mat {
+      display: inline-block;
+      font-size: 10px; font-weight: 700; letter-spacing: 1px;
+      padding: 2px 7px; border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .tag-pet  { background: #1a3a20; color: #00e676; }
+    .tag-hdpe { background: #0d2a2a; color: #26c6da; }
+    .tag-ldpe { background: #1a2a3a; color: #42a5f5; }
+    .tag-pp   { background: #2a1a3a; color: #ce93d8; }
+    .badge-paid { background: var(--green-bg); color: var(--accent); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+    .badge-pending { background: var(--amber-bg); color: var(--amber); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+    .badge-sent { background: var(--amber-bg); color: var(--amber); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+    .btn-action {
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); padding: 5px 12px; border-radius: 6px;
+      font-size: 12px; cursor: pointer; font-family: inherit;
+    }
+    .btn-action:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-rate-inline {
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text-muted); padding: 5px 12px; border-radius: 6px;
+      font-size: 12px; cursor: pointer; font-family: inherit;
+    }
+    .table-empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center; }
+    .table-note { font-size: 11px; color: #555; margin-top: 10px; }
+
+    /* ── RATING MODAL ── */
+    .rating-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .rating-overlay.open { display: flex; }
+    .rating-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px; width: 480px; max-width: 95vw;
+    }
+    .rating-modal-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .ratingModalSub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+    .star-row { display: flex; gap: 8px; margin-bottom: 18px; }
+    .star {
+      font-size: 28px; color: #444; cursor: pointer; transition: color 0.1s;
+    }
+    .star.selected, .star:hover { color: var(--amber); }
+    .tag-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .tag-chip {
+      padding: 6px 14px; border-radius: 20px; font-size: 12px; cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .tag-chip.positive { background: #1a3a20; color: var(--accent); border-color: #00e67640; }
+    .tag-chip.negative { background: var(--amber-bg); color: var(--amber); border-color: #ffc10740; }
+    .tag-chip.selected-pos { background: var(--accent); color: var(--accent-dark); border-color: var(--accent); font-weight: 700; }
+    .tag-chip.selected-neg { background: var(--amber); color: #1a0a00; border-color: var(--amber); font-weight: 700; }
+    .rating-note {
+      width: 100%; box-sizing: border-box;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 6px; padding: 10px 12px; color: var(--text);
+      font-size: 13px; font-family: inherit; height: 80px; resize: vertical; margin-bottom: 16px;
+    }
+    .rating-actions { display: flex; gap: 10px; }
+    .btn-submit-rating {
+      background: var(--accent); color: var(--accent-dark); border: none;
+      padding: 10px 24px; border-radius: var(--radius-sm);
+      font-weight: 700; cursor: pointer; font-size: 14px; font-family: inherit;
+    }
+    .btn-cancel-rating {
+      background: transparent; border: 1px solid var(--border2); color: var(--text-muted);
+      padding: 10px 20px; border-radius: var(--radius-sm);
+      font-weight: 600; cursor: pointer; font-size: 14px; font-family: inherit;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 300;
+      background: var(--surface); border: 1px solid var(--accent);
+      border-radius: var(--radius-sm); padding: 14px 20px;
+      color: var(--text); font-size: 14px; font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      transform: translateY(80px); opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .prices-grid { grid-template-columns: repeat(2, 1fr); }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .vol-strip { grid-template-columns: 1fr; }
+      .pl-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .prices-grid { grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- HEADER ─ dark green, collector identity -->
+  <!-- HEADER -->
   <header class="header">
     <div class="header-inner">
-
       <div class="header-top">
-        <a href="/" class="brand">♻ Circul</a>
+        <a href="/" class="brand">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:#00e676;border-radius:50%;font-size:13px;font-weight:700;color:#0a1a0f;margin-right:8px;">C</span>
+          Circul
+        </a>
         <div class="header-right">
-          <span class="header-role-pill">Collector</span>
+          <span class="header-role-pill">COLLECTOR</span>
+          <span id="collectorName" style="color:#e0e0e0;font-weight:600;">—</span>
+          <span id="collectorId" style="color:#888;font-size:13px;"></span>
+          <a href="/" style="color:#888;font-size:13px;text-decoration:none;">← Home</a>
           <button class="btn-signout" onclick="signOut()">Log out</button>
         </div>
       </div>
+    </div>
+  </header>
 
-      <div class="identity-name" id="collectorName">—</div>
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- IDENTITY HERO -->
+    <div>
+      <div class="identity-name" id="collectorNameHero">—</div>
       <div class="identity-meta">
         <span class="identity-meta-item" id="collectorPhone"></span>
         <span class="identity-meta-sep" id="metaSep1" aria-hidden="true" style="display:none">·</span>
@@ -573,41 +518,123 @@
         <span class="identity-meta-sep" aria-hidden="true">·</span>
         <span class="identity-rating">⭐ <span id="collectorRating">—</span></span>
         <span class="identity-meta-sep" aria-hidden="true">·</span>
-        <span class="identity-status" id="collectorStatus">Active</span>
+        <span class="identity-status" id="collectorStatus">ACTIVE</span>
       </div>
-
     </div>
-  </header>
 
-  <!-- MAIN CONTENT -->
-  <main class="main">
+    <!-- VOLUME STRIP -->
+    <div class="vol-strip">
+      <div class="vol-cell">
+        <div class="vol-label">VOLUME COLLECTED</div>
+        <div class="vol-value" id="statTotalKg">— <span>kg this month</span></div>
+        <div class="vol-sub" id="volSubMonth"></div>
+      </div>
+      <div class="vol-cell">
+        <div class="vol-label">VOLUME — YEAR TO DATE</div>
+        <div class="vol-value" id="statVolYTD">— <span>kg since Jan</span></div>
+        <div class="vol-sub" id="volSubYTD"></div>
+      </div>
+      <div class="vol-cell">
+        <div class="vol-label">COLLECTIONS THIS MONTH</div>
+        <div class="vol-value" id="statCollections">— <span>drop-offs</span></div>
+        <div class="vol-sub" id="volSubCollections"></div>
+      </div>
+    </div>
 
-    <!-- LOG COLLECTION CTA -->
+    <!-- ACTION BAR -->
     <div class="action-bar">
-      <a href="/collect.html" class="btn-log">+ Log a Collection</a>
+      <button class="btn-log" onclick="window.location.href='/collect'">+ Log a collection</button>
     </div>
 
-    <!-- 4-STAT GRID -->
+    <!-- STAT GRID -->
     <div class="stat-grid">
       <div class="stat-card">
-        <div class="stat-label">Total kg collected</div>
-        <div class="stat-value" id="statTotalKg">—</div>
-        <div class="stat-unit">kilograms lifetime</div>
+        <div class="stat-label">TOTAL KG COLLECTED</div>
+        <div class="stat-value" id="statTotalKgCard">—<span class="stat-unit"> kg</span></div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Total earned</div>
+        <div class="stat-label">TOTAL EARNED</div>
         <div class="stat-value" id="statEarned">—</div>
-        <div class="stat-unit">lifetime earnings</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Collections</div>
-        <div class="stat-value" id="statCollections">—</div>
-        <div class="stat-unit">total transactions</div>
+        <div class="stat-label">COLLECTIONS</div>
+        <div class="stat-value" id="statCollectionsCard">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Avg rating</div>
+        <div class="stat-label">YOUR RATING</div>
         <div class="stat-value" id="statRating">—</div>
-        <div class="stat-unit">out of 5.0</div>
+      </div>
+    </div>
+
+    <!-- TOP BUYERS -->
+    <div class="top-partners">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My top buyers</div>
+          <div class="section-sub">Aggregators who buy from you most · avg. price over last 10 transactions</div>
+        </div>
+        <div class="toggle-group">
+          <button class="toggle-btn" id="topBuyersMonthBtn" onclick="switchTopBuyers('month')">Mar 2026</button>
+          <button class="toggle-btn active" id="topBuyersYTDBtn" onclick="switchTopBuyers('ytd')">YTD 2026</button>
+          <span class="toggle-sep">|</span>
+          <a class="view-all-link" href="#">View all</a>
+        </div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+        <table class="data-table" id="topBuyersTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>AGGREGATOR</th>
+              <th>VOLUME YTD</th>
+              <th>THIS MONTH</th>
+              <th>AVG PRICE (LAST 10)</th>
+              <th>TRANSACTIONS</th>
+            </tr>
+          </thead>
+          <tbody id="topBuyersBody">
+            <tr><td colspan="6" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note">* avg. price over last 10 transactions per buyer · fewer shown where &lt;10 available</p>
+    </div>
+
+    <!-- EARNINGS P&L -->
+    <div class="earnings-panel">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My earnings</div>
+          <div class="section-sub">What you've earned by material</div>
+        </div>
+        <div class="toggle-group">
+          <button class="toggle-btn" id="plMonthBtn" onclick="switchPL('month')">Mar 2026</button>
+          <button class="toggle-btn active" id="plYTDBtn" onclick="switchPL('ytd')">YTD 2026</button>
+        </div>
+      </div>
+      <div class="pl-grid">
+        <div>
+          <div class="pl-col-label">THIS MONTH</div>
+          <div class="pl-row"><span class="pl-row-label">PET</span><span class="pl-row-val" id="plMonthPET">GH¢ 0</span></div>
+          <div class="pl-row"><span class="pl-row-label">HDPE</span><span class="pl-row-val" id="plMonthHDPE">GH¢ 0</span></div>
+          <div class="pl-row"><span class="pl-row-label">LDPE</span><span class="pl-row-val" id="plMonthLDPE">GH¢ 0</span></div>
+          <div class="pl-row"><span class="pl-row-label">PP</span><span class="pl-row-val" id="plMonthPP">GH¢ 0</span></div>
+          <div class="pl-total">
+            <span class="pl-total-label">Total this month</span>
+            <span class="pl-total-val" id="plMonthTotal">GH¢ 0</span>
+          </div>
+        </div>
+        <div>
+          <div class="pl-col-label">YEAR TO DATE</div>
+          <div class="pl-row"><span class="pl-row-label">PET</span><span class="pl-row-val" id="plYTDPET">GH¢ 0</span></div>
+          <div class="pl-row"><span class="pl-row-label">HDPE</span><span class="pl-row-val" id="plYTDHDPE">GH¢ 0</span></div>
+          <div class="pl-row"><span class="pl-row-label">LDPE</span><span class="pl-row-val" id="plYTDLDPE">GH¢ 0</span></div>
+          <div class="pl-row"><span class="pl-row-label">PP</span><span class="pl-row-val" id="plYTDPP">GH¢ 0</span></div>
+          <div class="pl-total">
+            <span class="pl-total-label">Total YTD</span>
+            <span class="pl-total-val" id="plYTDTotal">GH¢ 0</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -615,43 +642,43 @@
     <div class="card-panel">
       <div class="card-panel-head">
         <div>
-          <div class="card-panel-title">Collector Passport</div>
-          <div class="card-panel-sub">Your verified Circul identity</div>
+          <div class="card-panel-title">My collector passport</div>
+          <div class="card-panel-sub">Your verified identity on the Circul network</div>
         </div>
       </div>
       <div class="passport-body">
         <div class="passport-id-row">
-          <span class="passport-id" id="passportId">C-—</span>
-          <span class="passport-status" id="passportStatus">Active</span>
+          <span class="passport-id" id="passportId">—</span>
+          <span class="passport-status" id="passportStatus">ACTIVE</span>
         </div>
         <div class="passport-meta">
           <div class="passport-meta-item">
-            <div class="passport-meta-label">Phone</div>
-            <div class="passport-meta-value" id="passportPhone">—</div>
+            <span class="passport-meta-label">PHONE</span>
+            <span class="passport-meta-value" id="passportPhone">—</span>
           </div>
           <div class="passport-meta-item">
-            <div class="passport-meta-label">Location</div>
-            <div class="passport-meta-value" id="passportLocation">—</div>
+            <span class="passport-meta-label">LOCATION</span>
+            <span class="passport-meta-value" id="passportLocation">—</span>
           </div>
           <div class="passport-meta-item">
-            <div class="passport-meta-label">Member since</div>
-            <div class="passport-meta-value" id="passportSince">—</div>
+            <span class="passport-meta-label">MEMBER SINCE</span>
+            <span class="passport-meta-value" id="passportSince">—</span>
           </div>
           <div class="passport-meta-item">
-            <div class="passport-meta-label">Status</div>
-            <div class="passport-meta-value" id="passportStatusText">Active</div>
+            <span class="passport-meta-label">STATUS</span>
+            <span class="passport-meta-value" id="passportStatusText">Active</span>
           </div>
         </div>
         <a href="#" class="btn-passport" id="passportLink">View Collector Passport →</a>
       </div>
     </div>
 
-    <!-- MARKET PRICES -->
+    <!-- WHO'S BUYING NEAR YOU -->
     <div class="card-panel">
       <div class="card-panel-head">
         <div>
           <div class="card-panel-title">Who's buying near you</div>
-          <div class="card-panel-sub">Aggregator posted prices · GH₵ per kg</div>
+          <div class="card-panel-sub">Aggregator posted prices · GH¢ per kg · sorted by highest PET price</div>
         </div>
       </div>
       <div class="prices-grid" id="pricesGrid">
@@ -662,491 +689,464 @@
     <!-- PENDING FROM AGGREGATOR -->
     <div class="pend-card" id="pendAggCard" style="display:none">
       <div class="pend-card-head">
-        <div>
-          <div class="pend-card-title">Pending from your aggregator</div>
-          <div class="pend-card-sub">Purchases initiated by your aggregator — approve or decline</div>
-        </div>
+        <div class="pend-card-title">Pending from your aggregator</div>
+        <div class="pend-card-sub">Purchases initiated by your aggregator — approve or decline</div>
       </div>
-      <div id="pendAggList"><div class="pend-empty">Loading…</div></div>
+      <div class="pend-list" id="pendAggList"></div>
     </div>
 
     <!-- RECENT TRANSACTIONS -->
-    <div class="card-panel">
-      <div class="card-panel-head">
+    <div class="table-wrap">
+      <div class="section-head" style="margin-bottom:16px;">
         <div>
-          <div class="card-panel-title">Recent transactions</div>
-          <div class="card-panel-sub" id="txnSub">Your last 10 collection drop-offs</div>
+          <div class="section-title">Recent transactions</div>
+          <div class="section-sub" id="txnSub">Your last 10 drop-offs</div>
         </div>
       </div>
-      <div class="txn-wrap">
-        <table class="txn-table">
+      <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+        <table class="data-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Material</th>
-              <th>Weight</th>
-              <th>Earned</th>
-              <th>Payment</th>
-              <th>Action</th>
+              <th>DATE</th>
+              <th>AGGREGATOR</th>
+              <th>MATERIAL</th>
+              <th>WEIGHT</th>
+              <th>EARNED</th>
+              <th>PAYMENT</th>
+              <th>ACTION</th>
             </tr>
           </thead>
           <tbody id="txnBody">
-            <tr><td colspan="6" class="txn-empty">Loading…</td></tr>
+            <tr><td colspan="7" class="table-empty">Loading…</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
-  </main>
+  </div><!-- /.main -->
 
   <!-- RATING MODAL -->
   <div class="rating-overlay" id="ratingOverlay">
     <div class="rating-modal">
-      <div class="rating-modal-title">Rate your Aggregator</div>
-      <div class="rating-modal-sub" id="ratingModalSub">How was your experience?</div>
+      <div class="rating-modal-title" id="ratingModalTitle">Rate aggregator</div>
+      <div class="ratingModalSub" id="ratingModalSub"></div>
       <div class="star-row" id="starRow">
-        <button class="star-btn" data-v="1" onclick="setStarRating(1)">★</button>
-        <button class="star-btn" data-v="2" onclick="setStarRating(2)">★</button>
-        <button class="star-btn" data-v="3" onclick="setStarRating(3)">★</button>
-        <button class="star-btn" data-v="4" onclick="setStarRating(4)">★</button>
-        <button class="star-btn" data-v="5" onclick="setStarRating(5)">★</button>
+        <span class="star" data-v="1" onclick="setStarRating(1)">★</span>
+        <span class="star" data-v="2" onclick="setStarRating(2)">★</span>
+        <span class="star" data-v="3" onclick="setStarRating(3)">★</span>
+        <span class="star" data-v="4" onclick="setStarRating(4)">★</span>
+        <span class="star" data-v="5" onclick="setStarRating(5)">★</span>
       </div>
+      <div class="tag-grid" id="tagGrid">
+        <span class="tag-chip positive" data-tag="Fair price">Fair price</span>
+        <span class="tag-chip positive" data-tag="Paid on time">Paid on time</span>
+        <span class="tag-chip positive" data-tag="Accurate weight">Accurate weight</span>
+        <span class="tag-chip positive" data-tag="Friendly">Friendly</span>
+        <span class="tag-chip negative" data-tag="Underpaid">Underpaid</span>
+        <span class="tag-chip negative" data-tag="Slow payment">Slow payment</span>
+        <span class="tag-chip negative" data-tag="Disputed weight">Disputed weight</span>
+      </div>
+      <textarea class="rating-note" id="ratingNote" placeholder="Optional note…"></textarea>
       <div class="rating-actions">
-        <button class="btn-rate-cancel" onclick="closeRatingModal()">Cancel</button>
-        <button class="btn-rate-submit" onclick="submitRating()">Submit</button>
+        <button class="btn-submit-rating" onclick="submitRating()">Submit rating</button>
+        <button class="btn-cancel-rating" onclick="closeRatingModal()">Cancel</button>
       </div>
     </div>
   </div>
 
-  <script>
-    var session = null;
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
 
-    /* ── AUTH GATE ───────────────────────────────── */
-    (function () {
-      try { session = JSON.parse(localStorage.getItem('circul_user')); } catch (e) {}
+<script>
+/* ═══════════════════════════════════════════════
+   CIRCUL — COLLECTOR DASHBOARD
+   Reskin: dark theme, volume strip, earnings P&L,
+   top buyers, per-transaction rating, toast
+   ═══════════════════════════════════════════════ */
 
-      if (!session) {
-        window.location.replace('/login.html');
-        return;
-      }
+const API = '/api';
+let _currentRatingTxnId = null;
+let _currentRatingAggId = null;
+let _currentRatingAggName = '';
+let _starValue = 0;
+let _selectedTags = new Set();
 
-      if (session.role && session.role !== 'collector') {
-        var routes = {
-          aggregator: '/aggregator-dashboard',
-          admin:      '/admin',
-          processor:  '/processor-dashboard',
-          converter:  '/processor-dashboard'
-        };
-        window.location.replace(routes[session.role] || '/login.html');
-        return;
-      }
+/* ── helpers ── */
+function apiFetch(path, opts={}) {
+  return fetch(API + path, { credentials:'include', ...opts,
+    headers: { 'Content-Type':'application/json', ...(opts.headers||{}) }
+  }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+}
+function fmtNum(n, dec=2) {
+  const v = parseFloat(n);
+  if (isNaN(v)) return '—';
+  return 'GH¢ ' + v.toFixed(dec);
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+function fmtMonthYear(s) {
+  if (!s) return '';
+  return new Date(s).toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+}
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showToast(msg, duration=3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+function matTag(mat) {
+  if (!mat) return '—';
+  const m = mat.toUpperCase();
+  const cls = m === 'PET' ? 'tag-pet' : m === 'HDPE' ? 'tag-hdpe' : m === 'LDPE' ? 'tag-ldpe' : 'tag-pp';
+  return '<span class="tag-mat ' + cls + '">' + esc(m) + '</span>';
+}
 
-      // Hydrate name and phone immediately from session (avoids flash of blank)
-      // passportId and passportLink are set in loadAll() after resolving collectors.id from phone
-      if (session.name)  document.getElementById('collectorName').textContent = session.name;
-      if (session.phone) {
-        document.getElementById('collectorPhone').textContent = session.phone;
-        document.getElementById('passportPhone').textContent = session.phone;
-      }
-      if (session.avg_rating) {
-        var r = parseFloat(session.avg_rating).toFixed(1);
-        document.getElementById('collectorRating').textContent = r;
-        document.getElementById('statRating').textContent = r;
-      }
+/* ── load all ── */
+async function loadAll() {
+  try {
+    const me = await apiFetch('/collector/me');
+    populateProfile(me);
+    await Promise.all([
+      populateStats(),
+      populateTxns(),
+      populatePrices(),
+      populateTopBuyers(),
+      populatePL(),
+      loadPendingFromAgg(),
+    ]);
+  } catch(e) {
+    console.error('loadAll error', e);
+  }
+}
 
-      loadAll();
-    })();
+/* ── profile ── */
+function populateProfile(me) {
+  const name = me.name || '—';
+  const phone = me.phone || '';
+  const region = me.region || '';
+  const rating = me.avg_rating ? parseFloat(me.avg_rating).toFixed(1) : '—';
+  const id = me.collector_id || me.id || '';
 
-    /* ── API HELPER ──────────────────────────────── */
-    function apiFetch(url) {
-      var headers = {};
-      if (session && session.token) {
-        headers['Authorization'] = 'Bearer ' + session.token;
-      }
-      return fetch(url, { headers: headers }).then(function (r) {
-        if (r.status === 401) { signOut(); throw new Error('Unauthorized'); }
-        return r.json();
-      });
+  // Nav
+  const navName = document.getElementById('collectorName');
+  if (navName) navName.textContent = name;
+  const navId = document.getElementById('collectorId');
+  if (navId && id) navId.textContent = 'C-' + String(id).padStart(4,'0');
+
+  // Hero
+  const heroName = document.getElementById('collectorNameHero');
+  if (heroName) heroName.textContent = name;
+
+  const phoneEl = document.getElementById('collectorPhone');
+  const sep1 = document.getElementById('metaSep1');
+  if (phoneEl) { phoneEl.textContent = phone; if (sep1) sep1.style.display = phone ? '' : 'none'; }
+  const regionEl = document.getElementById('collectorRegion');
+  if (regionEl) regionEl.textContent = region;
+  const ratingEl = document.getElementById('collectorRating');
+  if (ratingEl) ratingEl.textContent = rating;
+
+  // Passport
+  const fields = {
+    passportId: id ? 'COL-' + String(id).padStart(6,'0') : '—',
+    passportPhone: phone || '—',
+    passportLocation: region || '—',
+    passportSince: me.created_at ? fmtMonthYear(me.created_at) : '—',
+    passportStatusText: me.status || 'Active',
+  };
+  Object.entries(fields).forEach(([k,v]) => {
+    const el = document.getElementById(k);
+    if (el) el.textContent = v;
+  });
+  const passportLink = document.getElementById('passportLink');
+  if (passportLink && id) passportLink.href = '/collector-passport/' + id;
+}
+
+/* ── stats ── */
+async function populateStats() {
+  try {
+    const stats = await apiFetch('/collector/stats');
+    const totalKg = stats.total_kg || 0;
+    const earned = stats.total_earned || 0;
+    const collections = stats.total_collections || 0;
+    const rating = stats.avg_rating ? parseFloat(stats.avg_rating).toFixed(1) : '—';
+    const monthKg = stats.month_kg || 0;
+    const ytdKg = stats.ytd_kg || 0;
+    const monthCollections = stats.month_collections || 0;
+
+    // Volume strip
+    const sv = document.getElementById('statTotalKg');
+    if (sv) sv.innerHTML = Math.round(monthKg) + ' <span>kg this month</span>';
+    const ytdEl = document.getElementById('statVolYTD');
+    if (ytdEl) ytdEl.innerHTML = Math.round(ytdKg) + ' <span>kg since Jan</span>';
+    const colEl = document.getElementById('statCollections');
+    if (colEl) colEl.innerHTML = monthCollections + ' <span>drop-offs</span>';
+
+    // Stat cards
+    const sc = document.getElementById('statTotalKgCard');
+    if (sc) sc.innerHTML = Math.round(totalKg) + '<span class="stat-unit"> kg</span>';
+    const se = document.getElementById('statEarned');
+    if (se) se.textContent = fmtNum(earned);
+    const sco = document.getElementById('statCollectionsCard');
+    if (sco) sco.textContent = collections;
+    const sr = document.getElementById('statRating');
+    if (sr) sr.textContent = rating !== '—' ? '⭐ ' + rating : '—';
+  } catch(e) { console.warn('stats error', e); }
+}
+
+/* ── P&L ── */
+async function populatePL() {
+  try {
+    const pl = await apiFetch('/collector/pl');
+    const mats = ['PET','HDPE','LDPE','PP'];
+    let monthTotal = 0, ytdTotal = 0;
+    mats.forEach(m => {
+      const mv = pl.month?.[m] || 0;
+      const yv = pl.ytd?.[m] || 0;
+      monthTotal += mv; ytdTotal += yv;
+      const mel = document.getElementById('plMonth' + m);
+      const yel = document.getElementById('plYTD' + m);
+      if (mel) mel.textContent = fmtNum(mv);
+      if (yel) yel.textContent = fmtNum(yv);
+    });
+    const mt = document.getElementById('plMonthTotal');
+    const yt = document.getElementById('plYTDTotal');
+    if (mt) mt.textContent = fmtNum(monthTotal);
+    if (yt) yt.textContent = fmtNum(ytdTotal);
+  } catch(e) {
+    // Fallback: calculate from transactions
+    console.warn('PL endpoint not available, calculating from txns');
+  }
+}
+
+/* ── top buyers ── */
+async function populateTopBuyers() {
+  try {
+    const data = await apiFetch('/collector/top-buyers');
+    renderTopBuyers(data);
+  } catch(e) {
+    const tbody = document.getElementById('topBuyersBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No data yet</td></tr>';
+  }
+}
+function renderTopBuyers(rows) {
+  const tbody = document.getElementById('topBuyersBody');
+  if (!tbody) return;
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No transactions yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.slice(0,3).map((r,i) => `
+    <tr>
+      <td style="color:${i===0?'#00e676':'#555'};font-weight:700;font-size:15px;">${i+1}</td>
+      <td class="td-name">${esc(r.aggregator_name||'—')}</td>
+      <td style="font-weight:600;">${Math.round(r.ytd_kg||0)} kg</td>
+      <td>${Math.round(r.month_kg||0)} kg</td>
+      <td style="color:#00e676;font-weight:600;">${r.avg_price ? fmtNum(r.avg_price) + '/kg' : '—'}</td>
+      <td>${r.transaction_count||0}</td>
+    </tr>
+  `).join('');
+}
+function switchTopBuyers(mode) {
+  document.getElementById('topBuyersMonthBtn').classList.toggle('active', mode==='month');
+  document.getElementById('topBuyersYTDBtn').classList.toggle('active', mode==='ytd');
+  apiFetch('/collector/top-buyers?period=' + mode).then(renderTopBuyers).catch(()=>{});
+}
+
+/* ── transactions ── */
+async function populateTxns() {
+  try {
+    const txns = await apiFetch('/collector/transactions');
+    const tbody = document.getElementById('txnBody');
+    if (!tbody) return;
+    if (!txns || !txns.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No transactions yet</td></tr>';
+      return;
     }
+    tbody.innerHTML = txns.map(t => {
+      const isPaid = t.payment_status === 'paid';
+      const isSent = t.payment_status === 'sent' || t.payment_status === 'payment_sent';
+      const isPending = !isPaid && !isSent;
+      const badgeCls = isPaid ? 'badge-paid' : isSent ? 'badge-sent' : 'badge-pending';
+      const badgeText = isPaid ? 'Paid ✓' : isSent ? 'Payment sent' : 'Pending';
+      const action = isPending
+        ? `<button class="btn-action" onclick="confirmReceipt(${t.id})">Confirm receipt</button>`
+        : `<button class="btn-rate-inline" onclick="openRateModal(${t.id}, ${t.aggregator_id||0}, '${esc(t.aggregator_name||'')}')">Rate aggregator</button>`;
+      return `<tr>
+        <td>${fmtDate(t.created_at||t.date)}</td>
+        <td class="td-name">${esc(t.aggregator_name||'—')}</td>
+        <td>${matTag(t.material_type)}</td>
+        <td>${t.weight_kg ? Math.round(t.weight_kg) + ' kg' : '—'}</td>
+        <td class="td-amount">${fmtNum(t.total_price||t.amount)}</td>
+        <td><span class="${badgeCls}">${badgeText}</span></td>
+        <td>${action}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.warn('txns error', e); }
+}
 
-    /* ── LOAD ALL ────────────────────────────────── */
-    function loadAll() {
-      // Start prices fetch immediately (not dependent on collector ID resolution)
-      var pricesP = apiFetch('/api/prices?role=collector').catch(function () { return null; });
+async function confirmReceipt(txnId) {
+  try {
+    await apiFetch('/collector/transactions/' + txnId + '/confirm', { method:'POST' });
+    showToast('✓ Receipt confirmed');
+    populateTxns();
+  } catch(e) { showToast('Error confirming receipt'); }
+}
 
-      pricesP.then(function (pricesData) {
-        if (pricesData && pricesData.success) {
-          populatePrices(pricesData.near_prices || pricesData.all_prices || []);
-        } else {
-          document.getElementById('pricesGrid').innerHTML =
-            '<div class="prices-empty" style="grid-column:1/-1">Prices unavailable right now</div>';
-        }
-      });
-
-      // Resolve the collector's actual collectors.id from their phone number.
-      // session.id is operators.id — not the same as collectors.id.
-      // Use GET /api/collectors?phone= to find the matching row.
-      if (!session.phone) {
-        document.getElementById('txnBody').innerHTML =
-          '<tr><td colspan="5" class="txn-empty">Account error — please sign in again</td></tr>';
-        return;
-      }
-
-      apiFetch('/api/collectors?phone=' + encodeURIComponent(session.phone))
-        .then(function (data) {
-          var collectorRow = data && data.collectors && data.collectors[0];
-          if (!collectorRow) {
-            document.getElementById('txnBody').innerHTML =
-              '<tr><td colspan="5" class="txn-empty">No collector record found for this account</td></tr>';
-            return;
-          }
-
-          var collectorId = collectorRow.id;
-
-          // Now set the correct passport ID and link using collectors.id
-          document.getElementById('passportId').textContent = 'C-' + String(collectorId).padStart(4, '0');
-          document.getElementById('passportLink').href = '/report.html?id=' + collectorId;
-
-          // Populate profile from the collector row (has name, phone, region, rating, etc.)
-          collectorRow.name = collectorRow.name || ((collectorRow.first_name || '') + (collectorRow.last_name ? ' ' + collectorRow.last_name : '')).trim();
-          populateProfile(collectorRow);
-
-          // Load pending purchases from aggregators
-          loadPendingFromAgg(collectorId);
-
-          // Fetch transactions using the resolved collectors.id
-          apiFetch('/api/transactions?collector_id=' + collectorId)
-            .then(function (txnsData) {
-              if (txnsData && txnsData.success) {
-                var txns = txnsData.transactions || [];
-                populateStats(txns);
-                populateTxns(txns);
-              } else {
-                document.getElementById('txnBody').innerHTML =
-                  '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
-              }
-            })
-            .catch(function () {
-              document.getElementById('txnBody').innerHTML =
-                '<tr><td colspan="5" class="txn-empty">No transactions yet</td></tr>';
-            });
-        })
-        .catch(function () {
-          document.getElementById('txnBody').innerHTML =
-            '<tr><td colspan="5" class="txn-empty">Failed to load. Please refresh.</td></tr>';
-        });
+/* ── prices ── */
+async function populatePrices() {
+  try {
+    const prices = await apiFetch('/collector/prices');
+    const grid = document.getElementById('pricesGrid');
+    if (!grid) return;
+    if (!prices || !prices.length) {
+      grid.innerHTML = '<div class="prices-empty" style="grid-column:1/-1">No prices posted near you yet</div>';
+      return;
     }
-
-    /* ── POPULATE PROFILE ────────────────────────── */
-    function populateProfile(c) {
-      if (c.name || (c.first_name && c.last_name)) {
-        var name = c.name || (c.first_name + ' ' + c.last_name);
-        document.getElementById('collectorName').textContent = name;
-      }
-
-      if (c.phone) {
-        document.getElementById('collectorPhone').textContent = c.phone;
-        document.getElementById('passportPhone').textContent = c.phone;
-      }
-
-      // Region / city in header meta
-      var region = [c.city, c.region].filter(Boolean).join(', ');
-      if (region) {
-        var regionEl = document.getElementById('collectorRegion');
-        regionEl.textContent = region;
-        document.getElementById('metaSep1').style.display = '';
-        document.getElementById('passportLocation').textContent = region;
-      }
-
-      // Active status
-      var isActive = c.is_active !== false;
-      var statusEl = document.getElementById('collectorStatus');
-      statusEl.textContent = isActive ? 'Active' : 'Inactive';
-      if (!isActive) statusEl.classList.add('inactive');
-
-      var passportStatusEl = document.getElementById('passportStatus');
-      var passportStatusTextEl = document.getElementById('passportStatusText');
-      passportStatusEl.textContent = isActive ? 'Active' : 'Inactive';
-      passportStatusTextEl.textContent = isActive ? 'Active' : 'Inactive';
-      if (!isActive) passportStatusEl.classList.add('inactive');
-
-      // Member since
-      if (c.created_at) {
-        document.getElementById('passportSince').textContent = fmtMonthYear(c.created_at);
-      }
-
-      // Rating
-      if (c.avg_rating) {
-        var r = parseFloat(c.avg_rating).toFixed(1);
-        document.getElementById('collectorRating').textContent = r;
-        document.getElementById('statRating').textContent = r;
-      }
-    }
-
-    /* ── POPULATE STATS ──────────────────────────── */
-    function populateStats(txns) {
-      var totalKg  = 0;
-      var totalEarned = 0;
-
-      txns.forEach(function (t) {
-        totalKg += parseFloat(t.net_weight_kg) || 0;
-        totalEarned += parseFloat(t.total_price) || 0;
-      });
-
-      document.getElementById('statTotalKg').textContent    = fmtNum(totalKg);
-      document.getElementById('statEarned').textContent     = 'GH₵\u202F' + fmtNum(totalEarned);
-      document.getElementById('statCollections').textContent = txns.length.toString();
-
-      // Sub-label on earned
-      if (txns.length > 0) {
-        document.getElementById('txnSub').textContent =
-          'Your last ' + Math.min(txns.length, 10) + ' collection drop-offs';
-      }
-    }
-
-    /* ── POPULATE TRANSACTIONS ───────────────────── */
-    function populateTxns(txns) {
-      var tbody = document.getElementById('txnBody');
-
-      if (!txns.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="txn-empty">No transactions yet</td></tr>';
-        return;
-      }
-
-      // Most recent first, cap at 10
-      var recent = txns.slice().sort(function (a, b) {
-        return new Date(b.transaction_date) - new Date(a.transaction_date);
-      }).slice(0, 10);
-
-      tbody.innerHTML = recent.map(function (t) {
-        var mat = (t.material_type || '').toUpperCase();
-        var matClass = { PET: 'pet', HDPE: 'hdpe', PP: 'pp', LDPE: 'ldpe' }[mat] || 'other';
-        var kg = parseFloat(t.net_weight_kg) || 0;
-        var earned = parseFloat(t.total_price) || 0;
-        var ps = (t.payment_status || 'unpaid').toLowerCase();
-        var payBadge, actionCell = '';
-        if (ps === 'paid') {
-          payBadge = '<span class="status-tag paid">Paid ✓</span>';
-          if (t.aggregator_id) {
-            actionCell = '<button onclick="openRateModal(' + t.id + ',' + t.aggregator_id + ')" style="padding:5px 12px;background:transparent;color:var(--forest);border:1.5px solid var(--forest);border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">Rate Aggregator</button>';
-          }
-        } else if (ps === 'payment_sent') {
-          payBadge = '<span class="status-tag payment_sent" style="background:#fef3c7;color:#92400e;border-color:#fbbf24">Payment Sent</span>';
-          actionCell = '<button onclick="confirmReceipt(' + t.id + ')" style="padding:5px 12px;background:var(--forest);color:white;border:none;border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;min-width:130px">Confirm Receipt</button>';
-        } else {
-          payBadge = '<span class="status-tag unpaid" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">Unpaid</span>';
-        }
-
-        return '<tr>' +
-          '<td>' + fmtDate(t.transaction_date) + '</td>' +
-          '<td><span class="mat-tag ' + matClass + '">' + esc(mat || '—') + '</span></td>' +
-          '<td>' + fmtNum(kg) + ' kg</td>' +
-          '<td>GH₵&thinsp;' + fmtNum(earned) + '</td>' +
-          '<td>' + payBadge + '</td>' +
-          '<td>' + actionCell + '</td>' +
-          '</tr>';
+    // Sort by highest PET price
+    const sorted = [...prices].sort((a,b) => {
+      const petA = parseFloat(a.prices?.PET || a.pet_price || 0);
+      const petB = parseFloat(b.prices?.PET || b.pet_price || 0);
+      return petB - petA;
+    });
+    // Show top 4
+    grid.innerHTML = sorted.slice(0,4).map(p => {
+      const ps = p.prices || {};
+      const buyerName = esc(p.aggregator_name || p.name || '—');
+      const rating = p.avg_rating ? parseFloat(p.avg_rating).toFixed(1) + ' · ' + (p.rating_count||0) + ' ratings' : 'No ratings yet';
+      const mats = ['PET','HDPE','LDPE','PP'];
+      const priceLines = mats.map(m => {
+        const v = ps[m] || p[m.toLowerCase() + '_price'];
+        return v ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+          <span style="color:#888;">${m}</span>
+          <span style="color:#00e676;font-weight:500;">GH¢ ${parseFloat(v).toFixed(2)}/kg</span>
+        </div>` : '';
       }).join('');
+      return `<div class="price-card">
+        <div class="price-card-mat">AGGREGATOR</div>
+        <div class="price-card-buyer" style="font-size:14px;font-weight:600;color:#fff;margin-bottom:8px;">${buyerName}</div>
+        <div style="margin-bottom:10px;">${priceLines}</div>
+        <div class="price-card-rating">⭐ ${rating}</div>
+        <button class="btn-sell" onclick="preselectAndSell(${p.aggregator_id||p.id})">Sell to ${buyerName}</button>
+      </div>`;
+    }).join('');
+    // Show overflow hint
+    if (sorted.length > 4) {
+      const extra = document.createElement('div');
+      extra.style.cssText = 'grid-column:1/-1;font-size:12px;color:#888;margin-top:4px;';
+      extra.textContent = (sorted.length - 4) + ' more aggregator(s) buying near you';
+      grid.appendChild(extra);
     }
+  } catch(e) { console.warn('prices error', e); }
+}
 
-    function confirmReceipt(txnId) {
-      fetch('/api/transactions/' + txnId + '/payment-confirm', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
+function preselectAndSell(aggId) {
+  window.location.href = '/collect?agg=' + aggId;
+}
+
+/* ── pending from aggregator ── */
+async function loadPendingFromAgg() {
+  try {
+    const pending = await apiFetch('/collector/pending-purchases');
+    const card = document.getElementById('pendAggCard');
+    const list = document.getElementById('pendAggList');
+    if (!card || !list) return;
+    if (!pending || !pending.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    list.innerHTML = pending.map(p => `
+      <div class="pend-item">
+        <div class="pend-item-head">
+          <div>
+            <div class="pend-item-title">${esc(p.aggregator_name||'—')} — ${matTag(p.material_type)} ${p.weight_kg ? Math.round(p.weight_kg) + ' kg' : ''}</div>
+            <div class="pend-item-sub">${fmtNum(p.total_price||p.amount)} · ${fmtDate(p.created_at)}</div>
+          </div>
+          <span class="pend-item-badge">Pending review</span>
+        </div>
+        <div class="pend-actions">
+          <button class="btn-accept" onclick="reviewPending(${p.id},'accept')">Accept</button>
+          <button class="btn-decline" onclick="reviewPending(${p.id},'decline')">Decline</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { console.warn('pending error', e); }
+}
+
+async function reviewPending(id, action) {
+  try {
+    await apiFetch('/collector/pending-purchases/' + id + '/' + action, { method:'POST' });
+    showToast(action === 'accept' ? '✓ Purchase accepted' : 'Purchase declined');
+    loadPendingFromAgg();
+    populateTxns();
+  } catch(e) { showToast('Error processing request'); }
+}
+
+/* ── rating ── */
+function openRateModal(txnId, aggId, aggName) {
+  _currentRatingTxnId = txnId;
+  _currentRatingAggId = aggId;
+  _currentRatingAggName = aggName;
+  _starValue = 0;
+  _selectedTags.clear();
+  document.getElementById('ratingModalTitle').textContent = 'Rate ' + aggName;
+  document.getElementById('ratingModalSub').textContent = 'How was your experience with this aggregator?';
+  document.getElementById('ratingNote').value = '';
+  document.querySelectorAll('.star').forEach(s => s.classList.remove('selected'));
+  document.querySelectorAll('.tag-chip').forEach(c => {
+    c.classList.remove('selected-pos','selected-neg');
+    c.onclick = () => toggleTag(c);
+  });
+  document.getElementById('ratingOverlay').classList.add('open');
+}
+function closeRatingModal() {
+  document.getElementById('ratingOverlay').classList.remove('open');
+}
+function setStarRating(v) {
+  _starValue = v;
+  document.querySelectorAll('.star').forEach(s => {
+    s.classList.toggle('selected', parseInt(s.dataset.v) <= v);
+  });
+}
+function toggleTag(chip) {
+  const tag = chip.dataset.tag;
+  const isPos = chip.classList.contains('positive') || chip.classList.contains('selected-pos');
+  if (_selectedTags.has(tag)) {
+    _selectedTags.delete(tag);
+    chip.classList.remove('selected-pos','selected-neg');
+  } else {
+    _selectedTags.add(tag);
+    chip.classList.add(isPos ? 'selected-pos' : 'selected-neg');
+  }
+}
+async function submitRating() {
+  if (!_starValue) { showToast('Please select a star rating'); return; }
+  try {
+    await apiFetch('/collector/rate-aggregator', {
+      method: 'POST',
+      body: JSON.stringify({
+        transaction_id: _currentRatingTxnId,
+        aggregator_id: _currentRatingAggId,
+        rating: _starValue,
+        tags: [..._selectedTags],
+        note: document.getElementById('ratingNote').value,
       })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.success) {
-          // Reload transactions from the cached state
-          var saved = localStorage.getItem('circul_user');
-          if (saved) {
-            try {
-              var u = JSON.parse(saved);
-              fetch('/api/collectors/' + u.id + '/stats')
-                .then(function(r) { return r.json(); })
-                .then(function(data) { if (data.success) populateTxns(data.stats.recent_transactions || []); });
-            } catch(e) {}
-          }
-        } else { alert(d.message || 'Error confirming receipt.'); }
-      })
-      .catch(function() { alert('Connection error.'); });
-    }
+    });
+    closeRatingModal();
+    showToast('✓ Rating submitted — thank you!');
+    populateTxns();
+  } catch(e) { showToast('Error submitting rating'); }
+}
 
-    /* ── POPULATE PRICES ─────────────────────────── */
-    function populatePrices(prices) {
-      var grid = document.getElementById('pricesGrid');
+/* ── sign out ── */
+function signOut() {
+  fetch('/api/auth/signout', { method:'POST', credentials:'include' })
+    .finally(() => window.location.href = '/');
+}
 
-      // Filter to aggregator prices only (collectors sell to aggregators)
-      var aggPrices = prices.filter(function(p) { return p.operator_role === 'aggregator'; });
-
-      if (!aggPrices.length) {
-        grid.innerHTML = '<div class="prices-empty" style="grid-column:1/-1">No prices posted yet</div>';
-        return;
-      }
-
-      // Group by aggregator_id
-      var byAgg = {};
-      var aggOrder = [];
-      aggPrices.forEach(function(p) {
-        var key = p.aggregator_id || p.operator_name || 'unknown';
-        if (!byAgg[key]) {
-          byAgg[key] = { name: p.operator_name || 'Unknown', city: p.city || '', aggregator_id: p.aggregator_id, items: [] };
-          aggOrder.push(key);
-        }
-        byAgg[key].items.push(p);
-      });
-
-      var matOrder = ['PET', 'HDPE', 'PP', 'LDPE'];
-      grid.innerHTML = aggOrder.map(function(key) {
-        var agg = byAgg[key];
-        agg.items.sort(function(a, b) {
-          var ai = matOrder.indexOf((a.material_type || '').toUpperCase()); if (ai === -1) ai = 99;
-          var bi = matOrder.indexOf((b.material_type || '').toUpperCase()); if (bi === -1) bi = 99;
-          return ai - bi;
-        });
-        var matList = agg.items.map(function(p) {
-          var ghs = p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : '—';
-          return '<div class="buyer-mat-row"><span class="buyer-mat-name">' + esc((p.material_type || '').toUpperCase()) + '</span><span class="buyer-mat-price">' + ghs + '/kg</span></div>';
-        }).join('');
-        var sellBtn = agg.aggregator_id
-          ? '<button class="btn-sell-to" onclick="preselectAndSell(' + agg.aggregator_id + ')">Sell to ' + esc(agg.name) + '</button>'
-          : '';
-        return '<div class="buyer-card">' +
-          '<div class="buyer-card-name">' + esc(agg.name) + '</div>' +
-          (agg.city ? '<div class="buyer-card-city">' + esc(agg.city) + '</div>' : '') +
-          '<div class="buyer-mat-list">' + matList + '</div>' +
-          sellBtn +
-          '</div>';
-      }).join('');
-    }
-
-    function preselectAndSell(aggregatorId) {
-      sessionStorage.setItem('preselectAggregatorId', aggregatorId);
-      window.location.href = '/collect.html';
-    }
-
-    /* ── SIGN OUT ────────────────────────────────── */
-    function signOut() {
-      localStorage.removeItem('circul_user');
-      window.location.href = '/login.html';
-    }
-
-    /* ── RATE AGGREGATOR ─────────────────────────── */
-    var _ratingTxnId = null, _ratingAggId = null, _ratingVal = 0;
-
-    function openRateModal(txnId, aggId) {
-      _ratingTxnId = txnId; _ratingAggId = aggId; _ratingVal = 0;
-      setStarRating(0);
-      document.getElementById('ratingOverlay').classList.add('visible');
-    }
-
-    function closeRatingModal() {
-      document.getElementById('ratingOverlay').classList.remove('visible');
-    }
-
-    function setStarRating(val) {
-      _ratingVal = val;
-      document.querySelectorAll('.star-btn').forEach(function(btn) {
-        btn.classList.toggle('active', parseInt(btn.dataset.v) <= val);
-      });
-    }
-
-    function submitRating() {
-      if (!_ratingVal) { alert('Please select a star rating.'); return; }
-      fetch('/api/ratings/operator', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transaction_id: _ratingTxnId,
-          rater_type: 'collector',
-          rater_id: session ? session.id : null,
-          rated_type: 'aggregator',
-          rated_id: _ratingAggId,
-          rating: _ratingVal,
-          rating_direction: 'collector_rates_aggregator'
-        })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        closeRatingModal();
-        if (!d.success) alert(d.message || 'Could not submit rating.');
-      })
-      .catch(function() { closeRatingModal(); alert('Connection error.'); });
-    }
-
-    /* ── PENDING FROM AGGREGATOR ─────────────────── */
-    function loadPendingFromAgg(collectorId) {
-      fetch('/api/pending-transactions?collector_id=' + collectorId)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          var rows = (data.pending_transactions || []).filter(function(pt) {
-            return pt.transaction_type === 'aggregator_purchase';
-          });
-          var card = document.getElementById('pendAggCard');
-          var list = document.getElementById('pendAggList');
-          if (!rows.length) { card.style.display = 'none'; return; }
-          card.style.display = '';
-          list.innerHTML = rows.map(function(pt) {
-            var aggName = esc(pt.aggregator_name || pt.aggregator_display_name || '—');
-            var kg = parseFloat(pt.gross_weight_kg).toFixed(1);
-            var price = pt.price_per_kg ? 'GH₵ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg' : 'Price TBD';
-            var date = fmtDate(pt.created_at);
-            return '<div class="pend-row">' +
-              '<span class="pend-mat">' + esc(pt.material_type) + '</span>' +
-              '<span class="pend-meta">' + kg + ' kg · ' + price + ' · ' + aggName + ' · ' + date + '</span>' +
-              '<div class="pend-actions">' +
-                '<button class="btn-approve" onclick="reviewPending(' + pt.id + ',\'accept\')">Approve</button>' +
-                '<button class="btn-decline" onclick="reviewPending(' + pt.id + ',\'reject\')">Decline</button>' +
-              '</div>' +
-            '</div>';
-          }).join('');
-        })
-        .catch(function() { /* silent fail — section stays hidden */ });
-    }
-
-    function reviewPending(ptId, action) {
-      var body = action === 'accept'
-        ? { action: 'accept', grade: 'B' }
-        : { action: 'reject', rejection_reason: 'Declined by collector' };
-      fetch('/api/pending-transactions/' + ptId + '/review', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.success) {
-          var collectorId = document.getElementById('passportId').textContent.replace('C-','').replace(/^0+/,'');
-          if (collectorId) loadPendingFromAgg(collectorId);
-        } else { alert(d.message || 'Error processing request.'); }
-      })
-      .catch(function() { alert('Connection error.'); });
-    }
-
-    /* ── UTILS ───────────────────────────────────── */
-    function fmtNum(n) {
-      var v = parseFloat(n);
-      if (isNaN(v)) return '0';
-      if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 });
-      if (v >= 100)   return v.toLocaleString('en-US', { maximumFractionDigits: 1 });
-      return v.toFixed(2);
-    }
-
-    function fmtDate(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    }
-
-    function fmtMonthYear(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
-    }
-
-    function esc(s) {
-      var d = document.createElement('div');
-      d.textContent = s || '';
-      return d.innerHTML;
-    }
-  </script>
-
-</body>
+/* ── init ── */
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
 </html>
