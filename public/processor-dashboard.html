@@ -4,19 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Processor Dashboard - Circul</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/shared.css">
 <style>
-  <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
       --bg:#0a1a0f;--surface:#0d2818;--surface2:#0a1a0f;--border:#1a3a20;--border2:#2a4a2f;
       --text:#ffffff;--text-muted:#888888;--text-dim:#aaaaaa;--accent:#00e676;--accent-dark:#0a1a0f;
       --amber:#ffc107;--amber-bg:#332200;--green-bg:#0a2a15;--red:#ef4444;--red-bg:#2a0a0a;
       --radius:12px;--radius-sm:8px;
     }
-    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    body{font-family:var(--font-primary);background:var(--bg);color:var(--text);min-height:100vh;}
     .login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500;}
     .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw;}
     .login-title{font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;}

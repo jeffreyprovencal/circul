@@ -4,12 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Log a Sale — Circul</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
+  <link rel="stylesheet" href="/shared.css">
+<style>
     :root {
       --deep:       #1a2e1a;
       --forest:     #2d6a4f;
@@ -25,13 +21,13 @@
     }
 
     body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: var(--font-primary);
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
-    h1, h2, h3, h4 { font-family: 'Plus Jakarta Sans', sans-serif; }
+    h1, h2, h3, h4 { font-family: var(--font-primary); }
 
     /* ── HEADER ── */
     .header { background: var(--deep); }
@@ -244,7 +240,7 @@
     .pending-card-header {
       padding: 16px 24px;
       background: var(--deep);
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: var(--font-primary);
       font-size: 0.88rem;
       font-weight: 700;
       color: var(--mint);
@@ -303,7 +299,7 @@
     .my-sales-header {
       padding: 14px 24px;
       background: var(--deep);
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: var(--font-primary);
       font-size: 0.88rem;
       font-weight: 700;
       color: var(--mint);
@@ -340,7 +336,7 @@
     }
 
     .sale-mat {
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: var(--font-primary);
       font-weight: 700;
       font-size: 0.9rem;
       color: var(--forest);
@@ -377,7 +373,7 @@
     }
 
     .sale-total {
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: var(--font-primary);
       font-size: 0.9rem;
       font-weight: 700;
       color: var(--deep);
