@@ -460,11 +460,11 @@ body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--t
 
 </body>
 
+<script src="/shared/roles.js"></script>
 <script>
 
 var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
-var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard', recycler: '/recycler-dashboard' };
 var orders = [];
 var recyclerDeliveries = [];
 var activeRecDispatchId = null;
@@ -479,7 +479,7 @@ function checkAuth() {
             var t = localStorage.getItem('circul_token');
             if (t && !state.operator.token) state.operator.token = t;
             if (state.operator.role !== 'recycler') {
-                var route = ROLE_ROUTES[state.operator.role];
+                var route = CirculRoles.ROLE_ROUTES[state.operator.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();
@@ -545,7 +545,7 @@ function handleLogin(e) {
             if (data.token) { state.operator.token = data.token; localStorage.setItem('circul_token', data.token); }
             localStorage.setItem('circul_user', JSON.stringify(state.operator));
             if (user.role !== 'recycler') {
-                var route = ROLE_ROUTES[user.role];
+                var route = CirculRoles.ROLE_ROUTES[user.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();

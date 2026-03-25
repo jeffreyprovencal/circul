@@ -3,6 +3,7 @@ const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const CirculRoles = require('./shared/roles');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
 app.get('/health', (req, res) => res.json({ status: 'healthy' }));
+app.use('/shared', express.static(path.join(__dirname, 'shared')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================
@@ -1347,7 +1349,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/me/prices', requireAuth, async (req, res) => {
   try {
     const role = req.user.role || (req.user.roles && req.user.roles[0]);
-    if (!['processor','recycler','converter'].includes(role)) return res.status(403).json({ success: false, message: 'Access denied' });
+    if (!CirculRoles.PAID_ROLES.includes(role)) return res.status(403).json({ success: false, message: 'Access denied' });
     const result = await pool.query(`SELECT * FROM posted_prices WHERE poster_type=$1 AND poster_id=$2 AND is_active=true ORDER BY material_type`, [role, req.user.id]);
     res.json({ success: true, prices: result.rows });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
@@ -1548,8 +1550,7 @@ app.post('/api/prices', async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59);
     let city = null, region = null, country = 'Ghana';
-    const tableMap = { aggregator: 'aggregators', processor: 'processors', recycler: 'recyclers', converter: 'converters' };
-    const tbl = tableMap[resolvedPosterType];
+    const tbl = CirculRoles.TABLE_MAP[resolvedPosterType];
     if (tbl) {
       const row = await pool.query(`SELECT city, region, country FROM ${tbl} WHERE id=$1`, [resolvedPosterId]);
       if (row.rows.length) { city = row.rows[0].city; region = row.rows[0].region; country = row.rows[0].country; }
@@ -1562,13 +1563,7 @@ app.post('/api/prices', async (req, res) => {
 app.get('/api/prices', async (req, res) => {
   try {
     const { role, material, city } = req.query;
-    let posterTypes = [];
-    if (role === 'collector') posterTypes = ['aggregator'];
-    else if (role === 'aggregator') posterTypes = ['processor','aggregator'];
-    else if (role === 'processor') posterTypes = ['processor','converter','recycler'];
-    else if (role === 'recycler') posterTypes = ['processor'];
-    else if (role === 'converter') posterTypes = ['converter','recycler'];
-    else posterTypes = ['aggregator','processor','recycler','converter'];
+    let posterTypes = CirculRoles.getPosterTypes(role);
     const params = [posterTypes];
     let whereExtra = '';
     if (material) { params.push(material.toUpperCase()); whereExtra += ` AND pp.material_type=$${params.length}`; }
@@ -1730,24 +1725,14 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/request-access', async (req, res) => {
   const { role, name, company, email, phone } = req.body;
   try {
-    if (role === 'processor') {
-      await pool.query(
-        `INSERT INTO processors (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
-        [name, company, email, phone || null]
-      );
-    } else if (role === 'recycler') {
-      await pool.query(
-        `INSERT INTO recyclers (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
-        [name, company, email, phone || null]
-      );
-    } else if (role === 'converter') {
-      await pool.query(
-        `INSERT INTO converters (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
-        [name, company, email, phone || null]
-      );
-    } else {
+    const table = CirculRoles.TABLE_MAP[role];
+    if (!table || !CirculRoles.PAID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Invalid role for access request' });
     }
+    await pool.query(
+      `INSERT INTO ${table} (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
+      [name, company, email, phone || null]
+    );
     res.json({ success: true });
   } catch (err) {
     console.error('Request access error:', err);
@@ -1761,16 +1746,13 @@ app.post('/api/auth/request-access', async (req, res) => {
 
 app.get('/api/admin/pending', async (req, res) => {
   try {
-    const [processors, recyclers, converters] = await Promise.all([
-      pool.query(`SELECT id, name, company, email, phone, created_at FROM processors WHERE is_active=false ORDER BY created_at DESC`),
-      pool.query(`SELECT id, name, company, email, phone, created_at FROM recyclers WHERE is_active=false ORDER BY created_at DESC`),
-      pool.query(`SELECT id, name, company, email, phone, created_at FROM converters WHERE is_active=false ORDER BY created_at DESC`)
-    ]);
-    const result = [
-      ...processors.rows.map(r => ({ ...r, role: 'processor' })),
-      ...recyclers.rows.map(r => ({ ...r, role: 'recycler' })),
-      ...converters.rows.map(r => ({ ...r, role: 'converter' }))
-    ];
+    const queries = CirculRoles.PAID_ROLES.map(role => {
+      const table = CirculRoles.TABLE_MAP[role];
+      return pool.query(`SELECT id, name, company, email, phone, created_at FROM ${table} WHERE is_active=false ORDER BY created_at DESC`)
+        .then(res => res.rows.map(r => ({ ...r, role })));
+    });
+    const results = await Promise.all(queries);
+    const result = results.flat();
     res.json(result);
   } catch (err) {
     console.error('Pending error:', err);
@@ -1781,8 +1763,7 @@ app.get('/api/admin/pending', async (req, res) => {
 app.post('/api/admin/approve', async (req, res) => {
   const { id, role } = req.body;
   try {
-    const tableMap = { processor: 'processors', recycler: 'recyclers', converter: 'converters' };
-    const table = tableMap[role];
+    const table = CirculRoles.TABLE_MAP[role];
     if (!table) return res.status(400).json({ error: 'Invalid role' });
     await pool.query(`UPDATE ${table} SET is_active=true WHERE id=$1`, [id]);
     res.json({ success: true });
@@ -1795,8 +1776,7 @@ app.post('/api/admin/approve', async (req, res) => {
 app.post('/api/admin/reject', async (req, res) => {
   const { id, role } = req.body;
   try {
-    const tableMap = { processor: 'processors', recycler: 'recyclers', converter: 'converters' };
-    const table = tableMap[role];
+    const table = CirculRoles.TABLE_MAP[role];
     if (!table) return res.status(400).json({ error: 'Invalid role' });
     await pool.query(`DELETE FROM ${table} WHERE id=$1`, [id]);
     res.json({ success: true });

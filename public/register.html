@@ -186,6 +186,10 @@
           <div class="role-name">Processor</div>
           <span class="role-badge">Request access</span>
         </div>
+        <div class="role-tile" data-role="recycler" onclick="selectRole('recycler')">
+          <div class="role-name">Recycler</div>
+          <span class="role-badge">Request access</span>
+        </div>
         <div class="role-tile" data-role="converter" onclick="selectRole('converter')">
           <div class="role-name">Converter</div>
           <span class="role-badge">Request access</span>
@@ -285,6 +289,7 @@
     <span class="footer-tagline">Every gram tracked. Every tonne traceable.</span>
   </footer>
 
+  <script src="/shared/roles.js"></script>
   <script>
     var currentRole = 'collector';
 
@@ -293,7 +298,7 @@
       document.querySelectorAll('.role-tile').forEach(function(t) {
         t.classList.toggle('selected', t.dataset.role === role);
       });
-      var isFree = (role === 'collector' || role === 'aggregator');
+      var isFree = CirculRoles.ROLES[role] && CirculRoles.ROLES[role].isFree;
       document.getElementById('form-free').classList.toggle('visible', isFree);
       document.getElementById('form-request').classList.toggle('visible', !isFree);
       clearErrors();

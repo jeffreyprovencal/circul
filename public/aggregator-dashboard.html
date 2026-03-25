@@ -585,6 +585,7 @@
 <div id="toast"></div>
 
 
+<script src="/shared/roles.js"></script>
 <script>
 
 var state = { operator: null, topCollectors: [], currentRatingCollectorId: null, currentRatingStar: 0, selectedTags: [] };
@@ -596,20 +597,13 @@ var reviewStateMap  = {};  // ptId → { grade }
 var activeReviewId  = null;
 var toastTimer      = null;
 
-var ROLE_ROUTES = {
-    collector: '/collector-dashboard',
-    aggregator: '/aggregator-dashboard',
-    processor: '/processor-dashboard',
-    converter: '/converter-dashboard'
-};
-
 function checkAuth() {
     var saved = localStorage.getItem('circul_user');
     if (saved) {
         try {
             state.operator = JSON.parse(saved);
             if (state.operator.role !== 'aggregator') {
-                var route = ROLE_ROUTES[state.operator.role];
+                var route = CirculRoles.ROLE_ROUTES[state.operator.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();
@@ -653,7 +647,7 @@ function handleLogin(e) {
             if (data.token) localStorage.setItem('circul_token', data.token);
             localStorage.setItem('circul_user', JSON.stringify(user));
             if (user.role !== 'aggregator') {
-                var route = ROLE_ROUTES[user.role];
+                var route = CirculRoles.ROLE_ROUTES[user.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();
