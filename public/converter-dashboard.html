@@ -28,7 +28,7 @@ body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--t
 /* NAV */
 .top-nav { background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100; }
 .nav-brand { font-size:18px;font-weight:800;color:var(--accent);letter-spacing:-0.5px; }
-.nav-role-pill { background:#1a0d2a;color:#ce93d8;border:1px solid #ce93d8;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase; }
+.nav-role-pill { background:#2a0a1a;color:#f48fb1;border:1px solid #f48fb1;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase; }
 .nav-user { font-size:13px;color:var(--text-dim); }
 .nav-id { font-size:11px;color:var(--text-muted);margin-left:2px; }
 .nav-spacer { flex:1; }
@@ -153,6 +153,11 @@ body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--t
 .cert-name { flex:1;font-size:13px;font-weight:600; }
 .cert-date { font-size:12px;color:var(--text-muted); }
 .cert-dl { background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text-muted);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit; }
+/* SUPPLY CHAIN VIZ */
+.sc-viz-node { padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px; }
+.sc-viz-node.dim { background:#1a1a1a;color:#666;border:1px solid #333; }
+.sc-viz-node.highlight { background:#2a0a1a;color:#f48fb1;border:2px solid #f48fb1; }
+.sc-viz-arrow { color:#444;font-size:16px; }
 /* RESPONSIVE */
 @media(max-width:768px) {
   .vol-strip { grid-template-columns:1fr 1fr; }
@@ -211,11 +216,26 @@ body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--t
     </div>
   </div>
 
-  <!-- TOP SUPPLIERS (new — processors, handled by new JS) -->
+  <!-- SUPPLY CHAIN VISUALIZATION -->
+  <div class="card" style="margin-bottom:24px;padding:16px 20px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap">
+      <div class="sc-viz-node dim">Collector</div>
+      <div class="sc-viz-arrow">&rarr;</div>
+      <div class="sc-viz-node dim">Aggregator</div>
+      <div class="sc-viz-arrow">&rarr;</div>
+      <div class="sc-viz-node dim">Processor</div>
+      <div class="sc-viz-arrow">&rarr;</div>
+      <div class="sc-viz-node dim">Recycler</div>
+      <div class="sc-viz-arrow">&rarr;</div>
+      <div class="sc-viz-node highlight">Converter</div>
+    </div>
+  </div>
+
+  <!-- TOP SUPPLIERS (multi-tier, handled by new JS) -->
   <div class="top-partners-grid">
     <div class="partners-card">
       <div class="partners-header">
-        <h3>My Top Suppliers</h3>
+        <h3>My Top Suppliers (All Tiers)</h3>
         <div class="ptoggle" id="top-suppliers-toggle">
           <button class="ptoggle-btn active" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
           <button class="ptoggle-btn" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
@@ -236,30 +256,32 @@ body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--t
   <!-- existing JS uses: ord-material, ord-qty, ord-price, ord-colours, ord-excl, ord-contam, ord-notes, ord-total-box, ord-total-ghs, ord-total-usd, ord-msg, ord-submit-btn -->
   <div class="section-title">Place Purchase Order</div>
   <div class="order-form">
+    <div class="tier-selector" style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="tier-btn active" data-tier="recycler" onclick="selectOrderTier('recycler')" style="background:#1a0d2a;color:#b388ff;border:1px solid #b388ff;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Recycler</button>
+      <button class="tier-btn" data-tier="processor" onclick="selectOrderTier('processor')" style="background:transparent;color:#42a5f5;border:1px solid #333;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Processor</button>
+      <button class="tier-btn" data-tier="aggregator" onclick="selectOrderTier('aggregator')" style="background:transparent;color:#26c6da;border:1px solid #333;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Aggregator</button>
+      <button class="tier-btn" data-tier="collector" onclick="selectOrderTier('collector')" style="background:transparent;color:#00e676;border:1px solid #333;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Collector</button>
+    </div>
     <div class="form-row three">
+      <div class="form-group">
+        <label>Supplier</label>
+        <select id="ord-supplier">
+          <option value="">Select supplier...</option>
+        </select>
+      </div>
       <div class="form-group">
         <label>Material Type</label>
         <select id="ord-material" onchange="calcOrderTotal()">
           <option value="">Select material…</option>
-          <option value="PET">PET — Polyethylene terephthalate</option>
-          <option value="HDPE">HDPE — High-density polyethylene</option>
-          <option value="PP">PP — Polypropylene</option>
-          <option value="LDPE">LDPE — Low-density polyethylene</option>
-          <option value="PVC">PVC — Polyvinyl chloride</option>
-          <option value="PS">PS — Polystyrene</option>
+          <option value="PET">PET</option>
+          <option value="HDPE">HDPE</option>
+          <option value="PP">PP</option>
+          <option value="LDPE">LDPE</option>
         </select>
       </div>
       <div class="form-group">
         <label>Quantity (kg)</label>
         <input type="number" id="ord-qty" placeholder="e.g. 500" min="1" oninput="calcOrderTotal()" />
-      </div>
-      <div class="form-group">
-        <label>Grade / Quality</label>
-        <select id="ord-colours">
-          <option value="mixed">Mixed / Any</option>
-          <option value="clear">Clear / Transparent</option>
-          <option value="coloured">Coloured</option>
-        </select>
       </div>
     </div>
     <div class="form-row">
@@ -320,7 +342,7 @@ body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--t
     <div class="card">
       <table class="sc-table">
         <thead><tr>
-          <th>Date</th><th>Processor</th><th>Material</th><th>Qty (kg)</th><th>GHS/kg</th><th>Total (GHS)</th><th>Status</th>
+          <th>Date</th><th>Supplier</th><th>Material</th><th>Qty (kg)</th><th>GHS/kg</th><th>Total (GHS)</th><th>Status</th>
         </tr></thead>
         <tbody id="supplyBody"><tr><td colspan="7" style="color:#8aab90;padding:20px;text-align:center">Loading...</td></tr></tbody>
       </table>
@@ -449,7 +471,7 @@ function showDashboard() {
 }
 
 function handleLogin(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     var email = document.getElementById('conv-email').value.trim();
     var password = document.getElementById('conv-password').value.trim();
     if (!email || !password) return;
@@ -535,7 +557,8 @@ function submitOrder() {
     var material = document.getElementById('ord-material').value.trim();
     var qty      = document.getElementById('ord-qty').value;
     var price    = document.getElementById('ord-price').value;
-    var colours  = document.getElementById('ord-colours').value.trim();
+    var supplierId = document.getElementById('ord-supplier').value;
+    var colours  = (document.getElementById('ord-colours') || {}).value || '';
     var excl     = document.getElementById('ord-excl').value.trim();
     var contam   = document.getElementById('ord-contam').value;
     var notes    = document.getElementById('ord-notes').value.trim();
@@ -553,6 +576,8 @@ function submitOrder() {
             material_type:       material,
             target_quantity_kg:  parseFloat(qty),
             price_per_kg:        parseFloat(price),
+            supplier_tier:       _orderTier || 'recycler',
+            supplier_id:         supplierId ? parseInt(supplierId) : null,
             accepted_colours:    colours || null,
             excluded_contaminants: excl || null,
             max_contamination_pct: contam !== '' && !isNaN(parseFloat(contam)) ? parseFloat(contam) : null,
@@ -565,7 +590,7 @@ function submitOrder() {
             document.getElementById('ord-material').value = '';
             document.getElementById('ord-qty').value      = '';
             document.getElementById('ord-price').value    = '';
-            document.getElementById('ord-colours').value  = '';
+            document.getElementById('ord-supplier').value = '';
             document.getElementById('ord-excl').value     = '';
             document.getElementById('ord-contam').value   = '';
             document.getElementById('ord-notes').value    = '';
@@ -659,7 +684,7 @@ function loadConverterQueue() {
         } else {
             document.getElementById('cvQueueCompleted').innerHTML =
                 '<div style="overflow-x:auto"><table><thead><tr>' +
-                '<th>Processor</th><th>Material</th><th>Weight</th><th>Total (GHS)</th><th>Total (USD)</th><th>Status</th><th>Date</th>' +
+                '<th>Supplier</th><th>Tier</th><th>Material</th><th>Weight</th><th>Total (GHS)</th><th>Total (USD)</th><th>Status</th><th>Date</th>' +
                 '</tr></thead><tbody>' + completed.map(buildConvCompletedRow).join('') + '</tbody></table></div>';
         }
     })
@@ -671,7 +696,8 @@ function loadConverterQueue() {
 function buildConvPendingCard(pt) {
     var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
     var hasPhotos = photos.length > 0;
-    var procName = esc(pt.processor_company || pt.processor_name || '—');
+    var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
+    var tierHtml = deliveryTierBadge(pt);
     var photoHtml = hasPhotos
         ? '<span class="badge badge-green">✓ ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
         : '<span class="badge badge-amber">⚠ No photos</span>';
@@ -681,6 +707,7 @@ function buildConvPendingCard(pt) {
     return '<div class="del-card" id="cvdc-' + pt.id + '">' +
         '<div class="del-row">' +
         '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        tierHtml +
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
@@ -698,11 +725,13 @@ function buildConvPendingCard(pt) {
 }
 
 function buildConvApprovedCard(pt) {
-    var procName = esc(pt.processor_company || pt.processor_name || '—');
+    var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
+    var tierHtml = deliveryTierBadge(pt);
     return '<div class="del-card" id="cvdc-arr-' + pt.id + '">' +
         '<div class="del-row">' +
         '<span class="badge badge-green">✓ Approved</span>' +
         '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        tierHtml +
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
@@ -715,7 +744,7 @@ function buildConvApprovedCard(pt) {
 }
 
 function buildConvCompletedRow(pt) {
-    var procName = esc(pt.processor_company || pt.processor_name || '—');
+    var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
     var statusBadge = (pt.status === 'arrived' || pt.status === 'completed')
         ? '<span class="badge badge-green">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
@@ -725,6 +754,7 @@ function buildConvCompletedRow(pt) {
         : '';
     return '<tr>' +
         '<td>' + procName + '</td>' +
+        '<td>' + deliveryTierBadge(pt) + '</td>' +
         '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
         '<td>GH₵ ' + fmt(total) + '</td>' +
@@ -888,7 +918,7 @@ function loadProcessorPrices() {
             el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
                 '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th>' +
                 '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Price</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Processor</th>' +
+                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Supplier</th>' +
                 '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">City</th>' +
                 '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actual avg</th>' +
                 '</tr></thead><tbody>' +
@@ -1045,8 +1075,73 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s || ''
 checkAuth();
 
 
-// ── TOP SUPPLIERS (processors) — NEW ─────────────────────────────
-let _convTopPeriod = "month";
+// ── TIER BADGE HELPERS ────────────────────────────────────────────
+function tierBadge(tier) {
+    var colors = {
+        collector:  { bg: '#1a3a20', color: '#00e676' },
+        aggregator: { bg: '#0d2a2a', color: '#26c6da' },
+        processor:  { bg: '#0d1a2a', color: '#42a5f5' },
+        recycler:   { bg: '#1a0d2a', color: '#b388ff' }
+    };
+    var c = colors[tier] || colors.processor;
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;background:' + c.bg + ';color:' + c.color + ';border:1px solid ' + c.color + '">' + (tier || 'unknown') + '</span>';
+}
+
+function deliveryTierBadge(pt) {
+    if (pt.transaction_type === 'recycler_sale') return tierBadge('recycler');
+    if (pt.transaction_type === 'aggregator_sale') return tierBadge('aggregator');
+    return tierBadge('processor');
+}
+
+// ── MULTI-TIER ORDER FUNCTIONS ───────────────────────────────────
+var _orderTier = 'recycler';
+var _supplierCache = {};
+
+function selectOrderTier(tier) {
+    _orderTier = tier;
+    document.querySelectorAll('.tier-btn').forEach(function(b) {
+        var active = b.dataset.tier === tier;
+        b.classList.toggle('active', active);
+        var colors = { recycler: '#b388ff', processor: '#42a5f5', aggregator: '#26c6da', collector: '#00e676' };
+        var bgs = { recycler: '#1a0d2a', processor: '#0d1a2a', aggregator: '#0d2a2a', collector: '#1a3a20' };
+        b.style.background = active ? bgs[b.dataset.tier] : 'transparent';
+        b.style.borderColor = active ? colors[b.dataset.tier] : '#333';
+    });
+    loadSupplierDropdown(tier);
+}
+
+function loadSupplierDropdown(tier) {
+    var sel = document.getElementById('ord-supplier');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Loading...</option>';
+    var endpoints = { recycler: '/api/recyclers', processor: '/api/processors', aggregator: '/api/aggregators', collector: '/api/collectors' };
+    var url = endpoints[tier];
+    if (!url) return;
+    if (_supplierCache[tier]) { renderSupplierOptions(tier, _supplierCache[tier]); return; }
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = data[tier + 's'] || data.recyclers || data.processors || data.aggregators || data.collectors || [];
+            _supplierCache[tier] = list;
+            renderSupplierOptions(tier, list);
+        })
+        .catch(function() { sel.innerHTML = '<option value="">Error loading</option>'; });
+}
+
+function renderSupplierOptions(tier, list) {
+    var sel = document.getElementById('ord-supplier');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Select ' + tier + '...</option>';
+    list.forEach(function(s) {
+        var opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.company || s.name || (s.first_name ? s.first_name + ' ' + (s.last_name || '') : tier + ' #' + s.id);
+        sel.appendChild(opt);
+    });
+}
+
+// ── TOP SUPPLIERS (multi-tier) — NEW ─────────────────────────────
+var _convTopPeriod = 'month';
 
 function switchTopSuppliers(period) {
   _convTopPeriod = period;
@@ -1066,10 +1161,11 @@ function loadTopSuppliers(period) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
       if (!items.length) { el.innerHTML = "<div style=\"color:#8aab90;font-size:13px;padding:12px 0\">No data yet</div>"; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
+        var badge = p.tier ? ' ' + tierBadge(p.tier) : '';
         return [
           "<div class=\"partner-row\">",
           "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-          "  <span class=\"partner-name\">" + (p.name || p.processor_name || "Unknown") + "</span>",
+          "  <span class=\"partner-name\">" + (p.name || p.processor_name || "Unknown") + badge + "</span>",
           "  <span class=\"partner-vol\">" + cvFmtVol(p.volume || p.total_volume || 0) + " kg</span>",
           "  <div class=\"partner-price-block\">",
           "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
@@ -1087,15 +1183,15 @@ function loadTopSuppliers(period) {
 
 function cvRenderDemoSuppliers() {
   var demo = [
-    { name: "AccraPoly Processing", volume: 5200, avg: 2.45 },
-    { name: "PlasticTech Ltd", volume: 3800, avg: 2.38 },
-    { name: "NordicPlast Africa", volume: 2100, avg: 2.52 }
+    { name: "Poly Recycling", volume: 5200, avg: 2.45, tier: "recycler" },
+    { name: "rePATRN Processing", volume: 3800, avg: 2.38, tier: "processor" },
+    { name: "Green Collect GH", volume: 2100, avg: 2.52, tier: "aggregator" }
   ];
   return demo.map(function(p, i) {
     return [
       "<div class=\"partner-row\">",
       "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-      "  <span class=\"partner-name\">" + p.name + "</span>",
+      "  <span class=\"partner-name\">" + p.name + " " + tierBadge(p.tier) + "</span>",
       "  <span class=\"partner-vol\">" + cvFmtVol(p.volume) + " kg</span>",
       "  <div class=\"partner-price-block\">",
       "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
@@ -1173,6 +1269,7 @@ document.addEventListener("DOMContentLoaded", function() {
   setTimeout(function() {
     loadTopSuppliers("month");
   }, 700);
+  loadSupplierDropdown('recycler');
 });
 </script>
 </html>
