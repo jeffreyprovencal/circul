@@ -6,7 +6,7 @@
     <title>Recycler Dashboard - Circul</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ── RECYCLER DASHBOARD — DARK RESKIN ───── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -16,7 +16,7 @@
   --amber:#ffc107;--amber-bg:#332200;--green-bg:#0a2a15;--red:#ef4444;--red-bg:#2a0a0a;
   --radius:12px;--radius-sm:8px;
 }
-body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+body { font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
 .login-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500; }
 .login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw; }
 .login-box h2 { font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent); }
@@ -453,7 +453,7 @@ body { font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--t
 </div>
 
 <!-- TOAST -->
-<div id="recToast" style="position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#160d2e;color:#b388ff;border:1px solid #b388ff;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:600;z-index:9999;display:none;font-family:'Space Grotesk',sans-serif;white-space:nowrap;"></div>
+<div id="recToast" style="position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#160d2e;color:#b388ff;border:1px solid #b388ff;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:600;z-index:9999;display:none;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;"></div>
 
 <!-- ARRIVAL FORM CONTAINER -->
 <div id="rec-arrival-form"></div>
@@ -1121,7 +1121,7 @@ function loadRatings() {
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--accent);color:#0a0a1a;border:none;border-radius:6px;font-family:\'Space Grotesk\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></div>';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--accent);color:#0a0a1a;border:none;border-radius:6px;font-family:\'Plus Jakarta Sans\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></div>';
             }).join('');
         });
     fetch('/api/ratings/operator/' + state.operator.id)
