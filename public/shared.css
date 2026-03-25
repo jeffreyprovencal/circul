@@ -77,7 +77,10 @@ a { text-decoration: none; color: inherit; }
 /* ── 4. Typography ──────────────────────────────────────────────── */
 h1, h2, h3, h4 { font-family: var(--font-primary); line-height: 1.15; }
 
-/* ── 5. Responsive base ─────────────────────────────────────────── */
+/* ── 5. Login overlay ──────────────────────────────────────────── */
+.login-overlay.hidden { display: none; }
+
+/* ── 6. Responsive base ─────────────────────────────────────────── */
 @media (max-width: 768px) {
   .nav { padding: 16px 20px; }
 }
