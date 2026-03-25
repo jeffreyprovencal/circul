@@ -393,6 +393,60 @@ app.get('/api/converters/:id/stats', async (req, res) => {
 });
 
 // ============================================
+// RECYCLERS
+// ============================================
+
+app.get('/api/recyclers', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, company, email, phone, city, region, country, is_active, created_at FROM recyclers WHERE is_active=true ORDER BY company, name`
+    );
+    res.json({ success: true, recyclers: result.rows });
+  } catch (err) {
+    console.error('Error listing recyclers:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/recyclers/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT id, name, company, email, city, region, country FROM recyclers WHERE id = $1`, [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Recycler not found' });
+    res.json({ success: true, recycler: result.rows[0] });
+  } catch (err) {
+    console.error('GET /api/recyclers/:id error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/recyclers/:id/stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rc = await pool.query(`SELECT id, name, company, email, city, region, country FROM recyclers WHERE id=$1 AND is_active=true`, [id]);
+    if (!rc.rows.length) return res.status(404).json({ success: false, message: 'Recycler not found' });
+    const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
+
+    const [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE recycler_id=$1 AND transaction_type='processor_sale'`, [id]),
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE recycler_id=$1 AND transaction_type='processor_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
+      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE recycler_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='processor_sale'`, [id]),
+      pool.query(`SELECT * FROM posted_prices WHERE poster_type='recycler' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
+    ]);
+
+    res.json({
+      success: true, buyer: rc.rows[0],
+      stats: { totals: totals.rows[0], this_month: monthlyTotals.rows[0], pending_payments: inboundPending.rows[0], posted_prices: postedPrices.rows }
+    });
+  } catch (err) {
+    console.error('Recycler stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
 // TRANSACTIONS
 // ============================================
 
@@ -832,11 +886,19 @@ app.post('/api/pending-transactions/:id/arrival-confirmation', requireAuth, asyn
 app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const { converter_id, material_type, gross_weight_kg, price_per_kg, notes } = req.body;
-    if (!converter_id || !material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'converter_id, material_type, gross_weight_kg, price_per_kg required' });
+    const { converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, notes } = req.body;
+    if (!material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'material_type, gross_weight_kg, price_per_kg required' });
+    if (!converter_id && !recycler_id) return res.status(400).json({ success: false, message: 'Either converter_id or recycler_id is required' });
+    if (converter_id && recycler_id) return res.status(400).json({ success: false, message: 'Provide converter_id or recycler_id, not both' });
     const kg = parseFloat(gross_weight_kg), price = parseFloat(price_per_kg);
     if (isNaN(kg) || kg <= 0) return res.status(400).json({ success: false, message: 'Invalid weight' });
     if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price' });
+    if (recycler_id) {
+      const recResult = await pool.query(`SELECT id FROM recyclers WHERE id=$1 AND is_active=true`, [recycler_id]);
+      if (!recResult.rows.length) return res.status(400).json({ success: false, message: 'Recycler not found' });
+      const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, recycler_id, material_type, kg, price, kg*price, notes||null]);
+      return res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+    }
     const convResult = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]);
     if (!convResult.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' });
     const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
@@ -847,16 +909,97 @@ app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, re
 app.get('/api/pending-transactions/processor-sales', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='processor_sale' AND pt.processor_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type='processor_sale' AND pt.processor_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Get processor sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
+
+// ── Recycler inbound queue (processor_sale → recycler) ──
+
+app.get('/api/pending-transactions/recycler-queue', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
+    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.transaction_type='processor_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC`, [req.user.id]);
+    res.json({ success: true, pending_transactions: result.rows });
+  } catch (err) { console.error('Recycler queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/pending-transactions/:id/recycler-dispatch-decision', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
+    const { id } = req.params;
+    const { decision, rejection_reason } = req.body;
+    if (!decision || !['approve','reject'].includes(decision)) return res.status(400).json({ success: false, message: 'decision must be approve or reject' });
+    const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id=$1`, [id]);
+    if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    const pt = ptResult.rows[0];
+    if (parseInt(pt.recycler_id) !== parseInt(req.user.id)) return res.status(403).json({ success: false, message: 'Not your delivery' });
+    if (pt.status !== 'pending') return res.status(400).json({ success: false, message: 'Delivery is not in pending status' });
+    if (decision === 'reject') {
+      if (!rejection_reason?.trim()) return res.status(400).json({ success: false, message: 'rejection_reason required' });
+      const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_rejected', rejection_reason=$1, updated_at=NOW() WHERE id=$2 RETURNING *`, [rejection_reason.trim(), id]);
+      return res.json({ success: true, pending_transaction: updated.rows[0] });
+    }
+    const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_approved', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
+    res.json({ success: true, pending_transaction: updated.rows[0] });
+  } catch (err) { console.error('Recycler dispatch decision error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/pending-transactions/:id/recycler-arrival', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
+    const { id } = req.params;
+    const { actual_weight_kg, grade, rejection_reason } = req.body;
+    if (!actual_weight_kg || isNaN(parseFloat(actual_weight_kg)) || parseFloat(actual_weight_kg) <= 0) return res.status(400).json({ success: false, message: 'actual_weight_kg is required and must be positive' });
+    if (!grade || !['A','B','C'].includes(grade)) return res.status(400).json({ success: false, message: 'grade must be A, B, or C' });
+    const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id=$1`, [id]);
+    if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    const pt = ptResult.rows[0];
+    if (parseInt(pt.recycler_id) !== parseInt(req.user.id)) return res.status(403).json({ success: false, message: 'Not your delivery' });
+    if (pt.status !== 'dispatch_approved') return res.status(400).json({ success: false, message: 'Dispatch must be approved before logging arrival' });
+    const kg = parseFloat(actual_weight_kg);
+    const basePrice = parseFloat(pt.price_per_kg||0);
+    const multiplier = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
+    const finalPrice = parseFloat((basePrice * multiplier).toFixed(2));
+    const totalPrice = parseFloat((finalPrice * kg).toFixed(2));
+    const newStatus = grade === 'C' ? 'grade_c_flagged' : 'arrived';
+    const updatedPt = await pool.query(`UPDATE pending_transactions SET status=$1, grade=$2, gross_weight_kg=$3, total_price=$4, rejection_reason=$5, updated_at=NOW() WHERE id=$6 RETURNING *`, [newStatus, grade, kg, totalPrice, rejection_reason||null, id]);
+    res.json({ success: true, pending_transaction: updatedPt.rows[0] });
+  } catch (err) { console.error('Recycler arrival error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ── Recycler outbound sales (recycler → converter) ──
+
+app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
+    const { converter_id, material_type, gross_weight_kg, price_per_kg, notes } = req.body;
+    if (!converter_id || !material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'converter_id, material_type, gross_weight_kg, price_per_kg required' });
+    const kg = parseFloat(gross_weight_kg), price = parseFloat(price_per_kg);
+    if (isNaN(kg) || kg <= 0) return res.status(400).json({ success: false, message: 'Invalid weight' });
+    if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price' });
+    const convResult = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]);
+    if (!convResult.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' });
+    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, recycler_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('recycler_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
+    res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+  } catch (err) { console.error('Recycler sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/pending-transactions/recycler-sales', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
+    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='recycler_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    res.json({ success: true, pending_transactions: result.rows });
+  } catch (err) { console.error('Get recycler sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ── Converter inbound queue (processor_sale or recycler_sale → converter) ──
 
 app.get('/api/pending-transactions/converter-queue', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
     const converterId = req.user.converter_id || req.user.id;
-    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.transaction_type='processor_sale' AND pt.converter_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
+    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type IN ('processor_sale','recycler_sale') AND pt.converter_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Converter queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1058,28 +1201,44 @@ app.post('/api/auth/login', async (req, res) => {
 
       // 2. Processor
       const procResult = await pool.query(`SELECT id, name, company, email, password_hash FROM processors WHERE email=$1 AND is_active=true`, [emailLower]);
-      // 3. Converter
+      // 3. Recycler
+      const recResult = await pool.query(`SELECT id, name, company, email, password_hash FROM recyclers WHERE email=$1 AND is_active=true`, [emailLower]);
+      // 4. Converter
       const convResult = await pool.query(`SELECT id, name, company, email, password_hash FROM converters WHERE email=$1 AND is_active=true`, [emailLower]);
 
-      if (!procResult.rows.length && !convResult.rows.length) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      if (!procResult.rows.length && !recResult.rows.length && !convResult.rows.length) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
-      const checkRow = procResult.rows[0] || convResult.rows[0];
+      const checkRow = procResult.rows[0] || recResult.rows[0] || convResult.rows[0];
       const valid = await verifyPassword(password, checkRow.password_hash);
       if (!valid) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
       const isProcessor = procResult.rows.length > 0;
+      const isRecycler  = recResult.rows.length > 0;
       const isConverter = convResult.rows.length > 0;
 
+      // Multi-role combos
       if (isProcessor && isConverter) {
         const proc = procResult.rows[0], conv = convResult.rows[0];
         const token = generateToken({ type: 'buyer', id: proc.id, converter_id: conv.id, email: emailLower, roles: ['processor','converter'] }, AUTH_SECRET);
         return res.json({ success: true, role: null, roles: ['processor','converter'], token, user: { id: proc.id, converter_id: conv.id, name: proc.name, company: proc.company, email: emailLower } });
       }
 
+      if (isRecycler && isConverter) {
+        const rec = recResult.rows[0], conv = convResult.rows[0];
+        const token = generateToken({ type: 'buyer', id: rec.id, converter_id: conv.id, email: emailLower, roles: ['recycler','converter'] }, AUTH_SECRET);
+        return res.json({ success: true, role: null, roles: ['recycler','converter'], token, user: { id: rec.id, converter_id: conv.id, name: rec.name, company: rec.company, email: emailLower } });
+      }
+
       if (isProcessor) {
         const proc = procResult.rows[0];
         const token = generateToken({ type: 'buyer', id: proc.id, email: emailLower, role: 'processor' }, AUTH_SECRET);
         return res.json({ success: true, role: 'processor', roles: null, token, user: { id: proc.id, name: proc.name, company: proc.company, email: emailLower, role: 'processor' } });
+      }
+
+      if (isRecycler) {
+        const rec = recResult.rows[0];
+        const token = generateToken({ type: 'buyer', id: rec.id, email: emailLower, role: 'recycler' }, AUTH_SECRET);
+        return res.json({ success: true, role: 'recycler', roles: null, token, user: { id: rec.id, name: rec.name, company: rec.company, email: emailLower, role: 'recycler' } });
       }
 
       const conv = convResult.rows[0];
@@ -1114,7 +1273,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/me/prices', requireAuth, async (req, res) => {
   try {
     const role = req.user.role || (req.user.roles && req.user.roles[0]);
-    if (!['processor','converter'].includes(role)) return res.status(403).json({ success: false, message: 'Access denied' });
+    if (!['processor','recycler','converter'].includes(role)) return res.status(403).json({ success: false, message: 'Access denied' });
     const result = await pool.query(`SELECT * FROM posted_prices WHERE poster_type=$1 AND poster_id=$2 AND is_active=true ORDER BY material_type`, [role, req.user.id]);
     res.json({ success: true, prices: result.rows });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
@@ -1126,16 +1285,17 @@ app.get('/api/me/prices', requireAuth, async (req, res) => {
 
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
-    const [collectors, aggregators, processors, converters, transactions, volume] = await Promise.all([
+    const [collectors, aggregators, processors, recyclers, converters, transactions, volume] = await Promise.all([
       pool.query(`SELECT COUNT(*) as count FROM collectors WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM aggregators WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM processors WHERE is_active=true`),
+      pool.query(`SELECT COUNT(*) as count FROM recyclers WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM converters WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM transactions`),
       pool.query(`SELECT material_type, COALESCE(SUM(net_weight_kg),0) as total_kg, COUNT(*) as count FROM transactions GROUP BY material_type ORDER BY total_kg DESC`)
     ]);
     const totalVol = await pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total FROM transactions`);
-    res.json({ success: true, stats: { collectors: parseInt(collectors.rows[0].count), aggregators: parseInt(aggregators.rows[0].count), processors: parseInt(processors.rows[0].count), converters: parseInt(converters.rows[0].count), transactions: parseInt(transactions.rows[0].count), total_volume_kg: parseFloat(totalVol.rows[0].total), by_material: volume.rows } });
+    res.json({ success: true, stats: { collectors: parseInt(collectors.rows[0].count), aggregators: parseInt(aggregators.rows[0].count), processors: parseInt(processors.rows[0].count), recyclers: parseInt(recyclers.rows[0].count), converters: parseInt(converters.rows[0].count), transactions: parseInt(transactions.rows[0].count), total_volume_kg: parseFloat(totalVol.rows[0].total), by_material: volume.rows } });
   } catch (err) { console.error('Admin stats error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -1274,6 +1434,31 @@ app.put('/api/admin/converters/:id', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+app.get('/api/admin/recyclers', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT id, name, company, email, phone, city, region, country, is_active, created_at FROM recyclers ORDER BY created_at DESC`);
+    res.json({ success: true, recyclers: result.rows });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.put('/api/admin/recyclers/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, company, email, password, is_active, is_flagged } = req.body;
+    const fields = [], params = [];
+    if (name !== undefined) { params.push(name); fields.push(`name=$${params.length}`); }
+    if (company !== undefined) { params.push(company); fields.push(`company=$${params.length}`); }
+    if (email !== undefined) { params.push(email.toLowerCase()); fields.push(`email=$${params.length}`); }
+    if (is_active !== undefined) { params.push(is_active); fields.push(`is_active=$${params.length}`); }
+    if (is_flagged !== undefined) { params.push(is_flagged); fields.push(`is_flagged=$${params.length}`); }
+    if (password) { const h = await hashPassword(password); params.push(h); fields.push(`password_hash=$${params.length}`); }
+    if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
+    params.push(req.params.id);
+    const result = await pool.query(`UPDATE recyclers SET ${fields.join(',')} WHERE id=$${params.length} RETURNING id, name, company, email, is_active`, params);
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, recycler: result.rows[0] });
+  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 // ============================================
 // POSTED PRICES
 // ============================================
@@ -1289,7 +1474,7 @@ app.post('/api/prices', async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59);
     let city = null, region = null, country = 'Ghana';
-    const tableMap = { aggregator: 'aggregators', processor: 'processors', converter: 'converters' };
+    const tableMap = { aggregator: 'aggregators', processor: 'processors', recycler: 'recyclers', converter: 'converters' };
     const tbl = tableMap[resolvedPosterType];
     if (tbl) {
       const row = await pool.query(`SELECT city, region, country FROM ${tbl} WHERE id=$1`, [resolvedPosterId]);
@@ -1306,18 +1491,19 @@ app.get('/api/prices', async (req, res) => {
     let posterTypes = [];
     if (role === 'collector') posterTypes = ['aggregator'];
     else if (role === 'aggregator') posterTypes = ['processor','aggregator'];
-    else if (role === 'processor') posterTypes = ['processor','converter'];
-    else if (role === 'converter') posterTypes = ['converter'];
-    else posterTypes = ['aggregator','processor','converter'];
+    else if (role === 'processor') posterTypes = ['processor','converter','recycler'];
+    else if (role === 'recycler') posterTypes = ['processor'];
+    else if (role === 'converter') posterTypes = ['converter','recycler'];
+    else posterTypes = ['aggregator','processor','recycler','converter'];
     const params = [posterTypes];
     let whereExtra = '';
     if (material) { params.push(material.toUpperCase()); whereExtra += ` AND pp.material_type=$${params.length}`; }
     let nearPrices = { rows: [] };
     if (city) {
       const nearParams = [...params, city];
-      nearPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true AND pp.city=$${nearParams.length}${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, nearParams);
+      nearPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'recycler' THEN (SELECT name FROM recyclers WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true AND pp.city=$${nearParams.length}${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, nearParams);
     }
-    const allPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, params);
+    const allPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'recycler' THEN (SELECT name FROM recyclers WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, params);
     const nationalAvg = await pool.query(`SELECT material_type, AVG(price_per_kg_ghs) as avg_usd, COUNT(DISTINCT poster_id) as buyer_count FROM posted_prices WHERE poster_type=ANY($1) AND is_active=true${whereExtra.replace(/pp\./g,'')} GROUP BY material_type ORDER BY material_type`, params);
     let nearRows = nearPrices.rows;
     if (nearRows.length === 0 && allPrices.rows.length > 0) {
@@ -1428,6 +1614,7 @@ app.get('/collector-dashboard',  (req, res) => res.sendFile(path.join(__dirname,
 app.get('/aggregator-dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'aggregator-dashboard.html')));
 app.get('/processor-dashboard',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'processor-dashboard.html')));
 app.get('/converter-dashboard',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'converter-dashboard.html')));
+app.get('/recycler-dashboard',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'recycler-dashboard.html')));
 app.get('/report',               (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
 app.get('/passport',             (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
 app.get('/login',                (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
@@ -1474,6 +1661,11 @@ app.post('/api/auth/request-access', async (req, res) => {
         `INSERT INTO processors (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
         [name, company, email, phone || null]
       );
+    } else if (role === 'recycler') {
+      await pool.query(
+        `INSERT INTO recyclers (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
+        [name, company, email, phone || null]
+      );
     } else if (role === 'converter') {
       await pool.query(
         `INSERT INTO converters (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
@@ -1495,12 +1687,14 @@ app.post('/api/auth/request-access', async (req, res) => {
 
 app.get('/api/admin/pending', async (req, res) => {
   try {
-    const [processors, converters] = await Promise.all([
+    const [processors, recyclers, converters] = await Promise.all([
       pool.query(`SELECT id, name, company, email, phone, created_at FROM processors WHERE is_active=false ORDER BY created_at DESC`),
+      pool.query(`SELECT id, name, company, email, phone, created_at FROM recyclers WHERE is_active=false ORDER BY created_at DESC`),
       pool.query(`SELECT id, name, company, email, phone, created_at FROM converters WHERE is_active=false ORDER BY created_at DESC`)
     ]);
     const result = [
       ...processors.rows.map(r => ({ ...r, role: 'processor' })),
+      ...recyclers.rows.map(r => ({ ...r, role: 'recycler' })),
       ...converters.rows.map(r => ({ ...r, role: 'converter' }))
     ];
     res.json(result);
@@ -1513,7 +1707,9 @@ app.get('/api/admin/pending', async (req, res) => {
 app.post('/api/admin/approve', async (req, res) => {
   const { id, role } = req.body;
   try {
-    const table = role === 'processor' ? 'processors' : 'converters';
+    const tableMap = { processor: 'processors', recycler: 'recyclers', converter: 'converters' };
+    const table = tableMap[role];
+    if (!table) return res.status(400).json({ error: 'Invalid role' });
     await pool.query(`UPDATE ${table} SET is_active=true WHERE id=$1`, [id]);
     res.json({ success: true });
   } catch (err) {
@@ -1525,7 +1721,9 @@ app.post('/api/admin/approve', async (req, res) => {
 app.post('/api/admin/reject', async (req, res) => {
   const { id, role } = req.body;
   try {
-    const table = role === 'processor' ? 'processors' : 'converters';
+    const tableMap = { processor: 'processors', recycler: 'recyclers', converter: 'converters' };
+    const table = tableMap[role];
+    if (!table) return res.status(400).json({ error: 'Invalid role' });
     await pool.query(`DELETE FROM ${table} WHERE id=$1`, [id]);
     res.json({ success: true });
   } catch (err) {
