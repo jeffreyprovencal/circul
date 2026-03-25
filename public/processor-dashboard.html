@@ -312,6 +312,7 @@
 
 
 
+<script src="/shared/roles.js"></script>
 <script>
 
 var state = { operator: null };
@@ -323,7 +324,6 @@ var arrivalGradeMap = {};
 var processorSales = [];
 var convertersList = [];
 var procToastTimer = null;
-var ROLE_ROUTES = { collector: '/collector-dashboard', aggregator: '/aggregator-dashboard', processor: '/processor-dashboard', converter: '/converter-dashboard' };
 
 function checkAuth() {
     var saved = localStorage.getItem('circul_user');
@@ -333,7 +333,7 @@ function checkAuth() {
             var t = localStorage.getItem('circul_token');
             if (t && !state.operator.token) state.operator.token = t;
             if (state.operator.role !== 'processor') {
-                var route = ROLE_ROUTES[state.operator.role];
+                var route = CirculRoles.ROLE_ROUTES[state.operator.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();
@@ -384,7 +384,7 @@ function handleLogin(e) {
             }
             localStorage.setItem('circul_user', JSON.stringify(state.operator));
             if (user.role !== 'processor') {
-                var route = ROLE_ROUTES[user.role];
+                var route = CirculRoles.ROLE_ROUTES[user.role];
                 if (route) { window.location.href = route; return; }
             }
             showDashboard();

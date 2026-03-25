@@ -287,19 +287,8 @@
     <p>© 2026 Circul — The Waste-to-Resource Operating System · Built in Accra</p>
   </footer>
 
+  <script src="/shared/roles.js"></script>
   <script>
-    var ROLE_ROUTES = {
-      collector:  '/collector-dashboard',
-      aggregator: '/aggregator-dashboard',
-      processor:  '/processor-dashboard',
-      recycler:   '/recycler-dashboard',
-      converter:  '/converter-dashboard',
-      admin:      '/admin',
-      operator:   '/admin'
-    };
-
-    var TIER_HIERARCHY = ['converter', 'recycler', 'processor', 'aggregator', 'collector'];
-
     var ROLE_LABELS = {
       processor: { title: 'Processor Dashboard', sub: 'Manage incoming material, grade & confirm.' },
       converter: { title: 'Converter Dashboard', sub: 'Full supply chain view + conversion outputs.' }
@@ -412,14 +401,14 @@
         // Store all roles for later switching, auto-redirect to highest tier
         if (userObj) { userObj.roles = roles; localStorage.setItem('circul_user', JSON.stringify(userObj)); }
         var best = null;
-        for (var i = 0; i < TIER_HIERARCHY.length; i++) {
-          if (roles.indexOf(TIER_HIERARCHY[i]) !== -1) { best = TIER_HIERARCHY[i]; break; }
+        for (var i = 0; i < CirculRoles.TIER_HIERARCHY.length; i++) {
+          if (roles.indexOf(CirculRoles.TIER_HIERARCHY[i]) !== -1) { best = CirculRoles.TIER_HIERARCHY[i]; break; }
         }
-        window.location.href = ROLE_ROUTES[best] || '/';
+        window.location.href = CirculRoles.dashboardFor(best);
         return;
       }
       var role = (data.role || '').toLowerCase();
-      window.location.href = ROLE_ROUTES[role] || '/';
+      window.location.href = CirculRoles.dashboardFor(role);
     }
 
     /* ── Demo fill ────────────────────────── */
@@ -457,7 +446,7 @@
 
     function selectRole(role) {
       document.getElementById('roleSelector').classList.remove('visible');
-      window.location.href = ROLE_ROUTES[role] || '/';
+      window.location.href = CirculRoles.dashboardFor(role);
     }
 
     function cancelRoleSelector() {

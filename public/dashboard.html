@@ -343,6 +343,7 @@
     // dashboard.html retired — redirect all traffic to aggregator-dashboard.html
     window.location.replace('/aggregator-dashboard.html');
     </script>
+    <script src="/shared/roles.js"></script>
     <script>
     (function() {
         'use strict';
@@ -364,19 +365,12 @@
         };
 
         // ---- AUTH ----
-        var ROLE_ROUTES = {
-            collector: '/collector-dashboard',
-            aggregator: '/aggregator-dashboard',
-            processor: '/processor-dashboard',
-            converter: '/converter-dashboard'
-        };
-
         function checkAuth() {
             var saved = localStorage.getItem('circul_user');
             if (saved) {
                 try {
                     state.operator = JSON.parse(saved);
-                    var route = ROLE_ROUTES[state.operator.role];
+                    var route = CirculRoles.ROLE_ROUTES[state.operator.role];
                     if (route) { window.location.href = route; return; }
                     showDashboard();
                     return;
@@ -432,7 +426,7 @@
                     state.operator = user;
                     if (data.token) localStorage.setItem('circul_token', data.token);
                     localStorage.setItem('circul_user', JSON.stringify(user));
-                    var route = ROLE_ROUTES[user.role];
+                    var route = CirculRoles.ROLE_ROUTES[user.role];
                     if (route) { window.location.href = route; return; }
                     showDashboard();
                 } else {
