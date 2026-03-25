@@ -392,6 +392,36 @@ app.get('/api/converters/:id/stats', async (req, res) => {
   }
 });
 
+app.get('/api/converter/top-suppliers', async (req, res) => {
+  try {
+    const { period } = req.query;
+    const since = period === 'ytd'
+      ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+      : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
+    const result = await pool.query(
+      `SELECT
+         COALESCE(p.company, p.name, r.company, r.name, 'Unknown') AS name,
+         CASE WHEN pt.recycler_id IS NOT NULL THEN 'recycler' ELSE 'processor' END AS tier,
+         SUM(pt.gross_weight_kg) AS volume,
+         AVG(pt.price_per_kg) AS avg_price_paid
+       FROM pending_transactions pt
+       LEFT JOIN processors p ON p.id = pt.processor_id
+       LEFT JOIN recyclers r ON r.id = pt.recycler_id
+       WHERE pt.converter_id IS NOT NULL
+         AND pt.transaction_type IN ('processor_sale','recycler_sale')
+         AND pt.created_at >= $1
+       GROUP BY name, tier
+       ORDER BY volume DESC
+       LIMIT 5`,
+      [since]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Converter top-suppliers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ============================================
 // RECYCLERS
 // ============================================
@@ -442,6 +472,50 @@ app.get('/api/recyclers/:id/stats', async (req, res) => {
     });
   } catch (err) {
     console.error('Recycler stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/recycler/top-suppliers', async (req, res) => {
+  try {
+    const { period } = req.query;
+    const since = period === 'ytd'
+      ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+      : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
+    const result = await pool.query(
+      `SELECT COALESCE(p.company, p.name, 'Unknown') AS name, 'processor' AS tier,
+              SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
+       FROM pending_transactions pt
+       LEFT JOIN processors p ON p.id = pt.processor_id
+       WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
+       GROUP BY name ORDER BY volume DESC LIMIT 5`,
+      [since]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Recycler top-suppliers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/recycler/top-buyers', async (req, res) => {
+  try {
+    const { period } = req.query;
+    const since = period === 'ytd'
+      ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+      : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
+    const result = await pool.query(
+      `SELECT COALESCE(c.company, c.name, 'Unknown') AS name, 'converter' AS tier,
+              SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
+       FROM pending_transactions pt
+       LEFT JOIN converters c ON c.id = pt.converter_id
+       WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'recycler_sale' AND pt.created_at >= $1
+       GROUP BY name ORDER BY volume DESC LIMIT 5`,
+      [since]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Recycler top-buyers error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
