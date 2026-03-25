@@ -1215,8 +1215,8 @@ app.patch('/api/pending-transactions/:id/payment-confirm', async (req, res) => {
 
 app.post('/api/orders', requireAuth, async (req, res) => {
   try {
-    if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
-    const { material_type, target_quantity_kg, price_per_kg, accepted_colours, excluded_contaminants, max_contamination_pct, notes } = req.body;
+    if (!req.user.hasRole('converter') && !req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Converter or recycler access only' });
+    const { material_type, target_quantity_kg, price_per_kg, accepted_colours, excluded_contaminants, max_contamination_pct, notes, supplier_tier, supplier_id } = req.body;
     if (!material_type || !target_quantity_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'material_type, target_quantity_kg, price_per_kg required' });
     const qty = parseFloat(target_quantity_kg), price = parseFloat(price_per_kg);
     if (isNaN(qty) || qty <= 0) return res.status(400).json({ success: false, message: 'Invalid target_quantity_kg' });

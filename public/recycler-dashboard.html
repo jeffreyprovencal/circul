@@ -964,7 +964,7 @@ function submitRecSale() {
         body: JSON.stringify({
             converter_id: parseInt(converterId),
             material_type: material,
-            quantity_kg: parseFloat(qty),
+            gross_weight_kg: parseFloat(qty),
             price_per_kg: parseFloat(price)
         })
     })
@@ -1006,7 +1006,7 @@ function loadRecSales() {
                 return '<tr>' +
                     '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">' + esc(s.converter_company || s.converter_name || '\u2014') + '</td>' +
                     '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">' + esc(s.material_type || '\u2014') + '</td>' +
-                    '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">' + fmt(s.quantity_kg || s.gross_weight_kg || 0) + ' kg</td>' +
+                    '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">' + fmt(s.gross_weight_kg || 0) + ' kg</td>' +
                     '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">GH\u20B5 ' + fmt(s.price_per_kg || 0) + '</td>' +
                     '<td style="padding:10px 12px;border-bottom:1px solid var(--border)"><span class="status-badge ' + statusCls + '">' + esc(s.status || 'pending') + '</span></td>' +
                     '</tr>';
@@ -1041,16 +1041,16 @@ function timeAgo(iso) {
 // ── TABS FUNCTIONS ─────────────────────────────────────────────────────────────
 
 function loadTxns() {
-    // Try recycler_id first, fall back to empty
-    fetch('/api/transactions?recycler_id=' + state.operator.id + '&limit=30')
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/recycler-queue', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var tbody = document.getElementById('supplyBody');
-            if (!data.success || !data.transactions || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
-            tbody.innerHTML = data.transactions.map(function(t) {
-                var gps = t.lat ? '<span class="badge badge-green">GPS \u2713</span>' : '\u2014';
-                var journey = '<a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="font-size:0.78rem;color:var(--accent)">View</a>';
-                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '\u2014') + '</td><td>' + paymentBadge(t.payment_status) + '</td><td>' + gps + '</td><td>' + journey + '</td></tr>';
+            var txns = data.pending_transactions || [];
+            if (!txns.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
+            tbody.innerHTML = txns.map(function(t) {
+                var statusBadge = '<span class="status-badge status-' + (t.status === 'dispatch_approved' ? 'approved' : t.status === 'arrived' || t.status === 'completed' ? 'completed' : t.status === 'dispatch_rejected' ? 'rejected' : 'pending') + '">' + esc(t.status) + '</span>';
+                return '<tr><td>' + fmtDate(t.created_at) + '</td><td>' + esc(t.processor_company || t.processor_name || '\u2014') + '</td><td><span class="badge badge-blue">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td>' + fmt(t.price_per_kg || 0) + '</td><td>GHS ' + fmt(t.total_price || 0) + '</td><td>' + statusBadge + '</td></tr>';
             }).join('');
         })
         .catch(function() {
@@ -1089,31 +1089,35 @@ function loadProcessorPrices() {
 }
 
 function loadTxnCerts() {
-    fetch('/api/transactions?recycler_id=' + state.operator.id + '&limit=20')
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/recycler-queue', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('txnCerts');
-            if (!data.success || !data.transactions || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            var txns = (data.pending_transactions || []).filter(function(t) { return t.status === 'arrived' || t.status === 'completed'; });
+            if (!txns.length) { el.innerHTML = '<div class="empty">No completed transactions yet</div>'; return; }
             el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
                 '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Date</th>' +
                 '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Material</th>' +
                 '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">kg</th>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Actions</th>' +
+                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Grade</th>' +
                 '</tr></thead><tbody>' +
-                data.transactions.map(function(t) {
-                    return '<tr><td style="padding:10px 0">' + fmtDate(t.transaction_date) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + t.material_type + '</span></td><td style="padding:10px 0">' + fmt(t.net_weight_kg) + ' kg</td><td style="padding:10px 0"><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--accent);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
+                txns.map(function(t) {
+                    return '<tr><td style="padding:10px 0">' + fmtDate(t.created_at) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + esc(t.material_type) + '</span></td><td style="padding:10px 0">' + fmt(t.gross_weight_kg) + ' kg</td><td style="padding:10px 0">' + (t.grade || '\u2014') + '</td></tr>';
                 }).join('') + '</tbody></table></div>';
         });
 }
 
 function loadRatings() {
-    fetch('/api/transactions?recycler_id=' + state.operator.id + '&limit=100')
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/recycler-queue', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('processorRatingsList');
-            if (!data.success || !data.transactions || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            var txns = data.pending_transactions || [];
+            if (!txns.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
             var seen = {};
-            data.transactions.forEach(function(t) { if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name || t.aggregator_display_name; });
+            txns.forEach(function(t) { if (t.processor_id && !seen[t.processor_id]) seen[t.processor_id] = t.processor_company || t.processor_name || 'Processor #' + t.processor_id; });
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
