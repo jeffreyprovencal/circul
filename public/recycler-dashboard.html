@@ -4,20 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recycler Dashboard - Circul</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/shared.css">
+    <link rel="stylesheet" href="/shared.css">
 <style>
 /* ── RECYCLER DASHBOARD — DARK RESKIN ───── */
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
   --bg:#0a0a1a;--surface:#0d0d28;--surface2:#0a0a1a;--border:#1a1a3a;--border2:#2a2a4f;
   --text:#ffffff;--text-muted:#888888;--text-dim:#aaaaaa;--accent:#b388ff;--accent-dark:#0a0a1a;
   --amber:#ffc107;--amber-bg:#332200;--green-bg:#0a2a15;--red:#ef4444;--red-bg:#2a0a0a;
   --radius:12px;--radius-sm:8px;
 }
-body { font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+body { font-family:var(--font-primary);background:var(--bg);color:var(--text);min-height:100vh; }
 .login-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500; }
 .login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw; }
 .login-box h2 { font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent); }
