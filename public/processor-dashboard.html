@@ -233,7 +233,7 @@
       <div id="queueApproved"></div>
       <div>
         <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin:16px 0 10px;">COMPLETED / REJECTED</div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>DATE</th><th>AGGREGATOR</th><th>MATERIAL</th><th>NET KG</th><th>PRICE PAID</th><th>PAYMENT</th></tr></thead><tbody id="queueCompleted"><tr><td colspan="6" class="table-empty">No completed deliveries yet</td></tr></tbody></table></div>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>DATE</th><th>AGGREGATOR</th><th>MATERIAL</th><th>WEIGHT</th><th>AMOUNT</th><th>PAYMENT</th></tr></thead><tbody id="queueCompleted"><tr><td colspan="6" class="table-empty">No completed deliveries yet</td></tr></tbody></table></div>
       </div>
     </div>
 
@@ -243,7 +243,7 @@
         <div><div class="section-title">Supply chain — recent transactions</div><div class="section-sub">Full chain: Collector → Aggregator → You</div></div>
         <button class="compliance-btn" onclick="downloadCompliance()">↓ EPR/CSRD report</button>
       </div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>DATE</th><th>AGGREGATOR</th><th>MATERIAL</th><th>NET KG</th><th>PRICE PAID</th><th>PAYMENT</th></tr></thead><tbody id="txnsList"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody></table></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>DATE</th><th>AGGREGATOR</th><th>MATERIAL</th><th>WEIGHT</th><th>AMOUNT</th><th>PAYMENT</th></tr></thead><tbody id="txnsList"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody></table></div>
     </div>
 
     <!-- SELL TO CONVERTERS -->
@@ -363,6 +363,9 @@ function showDashboard() {
     document.getElementById('navName').textContent = op.company || op.name || '';
     var navProcId = document.getElementById('navProcId');
     if (navProcId && op.id) navProcId.textContent = 'P-' + String(op.id).padStart(4, '0');
+    // Populate identity hero
+    var heroEl = document.getElementById('navTitle');
+    if (heroEl) heroEl.textContent = op.company || op.name || '—';
     loadAll();
     if (op.token) {
         var opId = op.id;
@@ -370,7 +373,9 @@ function showDashboard() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.processor) {
-                    document.getElementById('navName').textContent = data.processor.company || data.processor.name || op.name || '';
+                    var name = data.processor.company || data.processor.name || op.name || '';
+                    document.getElementById('navName').textContent = name;
+                    if (heroEl) heroEl.textContent = name;
                 }
             })
             .catch(function() {});
@@ -450,14 +455,14 @@ function loadTxns() {
             if (!tbody) return;
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
-                var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '<span class="badge badge-gray">—</span>';
+                var aggName = esc(t.aggregator_company || t.aggregator_name || t.seller_name || '—');
                 return '<tr>' +
                     '<td>' + fmtDate(t.transaction_date) + '</td>' +
+                    '<td class="td-name">' + aggName + '</td>' +
                     '<td><span class="badge badge-blue">' + t.material_type + '</span></td>' +
                     '<td>' + fmt(t.net_weight_kg) + ' kg</td>' +
-                    '<td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td>' +
+                    '<td class="td-amount">' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td>' +
                     '<td>' + paymentBadge(t.payment_status) + '</td>' +
-                    '<td>' + gps + '</td>' +
                     '</tr>';
             }).join('');
         });
@@ -566,8 +571,8 @@ function loadDeliveries() {
             document.getElementById('queueCompleted').innerHTML = '<div class="empty">No completed or flagged deliveries yet.</div>';
         } else {
             document.getElementById('queueCompleted').innerHTML =
-                '<div style="overflow-x:auto"><table><thead><tr>' +
-                '<th>Seller</th><th>Material</th><th>Weight</th><th>Grade</th><th>Total</th><th>Status</th><th>Date</th><th>Payment</th>' +
+                '<div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
+                '<th>DATE</th><th>SELLER</th><th>MATERIAL</th><th>WEIGHT</th><th>GRADE</th><th>AMOUNT</th><th>STATUS</th><th>PAYMENT</th>' +
                 '</tr></thead><tbody>' + completed.map(buildCompletedRow).join('') + '</tbody></table></div>';
         }
     })
@@ -707,13 +712,13 @@ function buildCompletedRow(pt) {
         : '<button class="btn-approve" style="font-size:0.75rem;padding:4px 10px" onclick="openPTPayForm(' + pt.id + ')">Pay</button>' +
           '<div id="pt-pay-form-' + pt.id + '" style="display:none;margin-top:6px">' + buildPTPaymentUI(pt) + '</div>';
     return '<tr>' +
-        '<td>' + aggName + '</td>' +
+        '<td>' + fmtDate(pt.created_at) + '</td>' +
+        '<td class="td-name">' + aggName + '</td>' +
         '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
         '<td>' + gradeBadge + '</td>' +
-        '<td>' + total + '</td>' +
+        '<td class="td-amount">' + total + '</td>' +
         '<td>' + statusBadge + '</td>' +
-        '<td>' + fmtDate(pt.created_at) + '</td>' +
         '<td>' + payCell + '</td>' +
     '</tr>';
 }

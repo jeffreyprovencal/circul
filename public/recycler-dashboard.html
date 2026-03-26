@@ -8,6 +8,13 @@
 <style>
 /* ── RECYCLER DASHBOARD ───── */
 body { font-family:var(--font-primary);background:var(--bg);color:var(--text-primary);min-height:100vh; }
+.identity-name { font-size:26px;font-weight:700;color:var(--text-primary);padding:20px 0 6px; }
+.data-table { width:100%;border-collapse:collapse; }
+.data-table th { padding:10px 16px;background:var(--surface);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
+.data-table td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
+.data-table tr:last-child td { border-bottom:none; }
+.data-table .td-name { color:var(--text-primary);font-weight:500; }
+.data-table .td-amount { color:var(--accent);font-weight:600; }
 .login-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500; }
 .login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw; }
 .login-box h2 { font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent); }
@@ -194,6 +201,16 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
 <!-- MAIN DASHBOARD -->
 <div class="main-wrap" id="dashboard" style="display:none">
 
+  <!-- IDENTITY -->
+  <div>
+    <div class="identity-name" id="heroName">—</div>
+    <div style="display:flex;align-items:center;gap:6px;padding-bottom:20px;font-size:13px;color:var(--text-muted);">
+      <span id="heroEmail"></span>
+      <span>·</span>
+      <span id="heroRegion"></span>
+    </div>
+  </div>
+
   <!-- VOLUME STRIP -->
   <div class="vol-strip">
     <div class="vol-card">
@@ -376,9 +393,9 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
   <!-- SUPPLY CHAIN TAB -->
   <div class="tab-panel active" id="tab-supply">
     <div class="card">
-      <table class="sc-table">
+      <table class="data-table">
         <thead><tr>
-          <th>Date</th><th>Processor</th><th>Material</th><th>Qty (kg)</th><th>GHS/kg</th><th>Total (GHS)</th><th>Status</th>
+          <th>DATE</th><th>PROCESSOR</th><th>MATERIAL</th><th>WEIGHT</th><th>PRICE/KG</th><th>AMOUNT</th><th>STATUS</th>
         </tr></thead>
         <tbody id="supplyBody"><tr><td colspan="7" style="color:#8a8ab0;padding:20px;text-align:center">Loading...</td></tr></tbody>
       </table>
@@ -506,12 +523,23 @@ function showDashboard() {
     if (navId && op.id) navId.textContent = 'R-' + String(op.id).padStart(4, '0');
     checkDualRole();
     loadAll();
+    // Populate identity area
+    var heroEl = document.getElementById('heroName');
+    if (heroEl) heroEl.textContent = op.company || op.name || '—';
+    var emailEl = document.getElementById('heroEmail');
+    if (emailEl) emailEl.textContent = op.email || '';
     if (op.token) {
         var opId = op.id;
         fetch('/api/recyclers/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.recycler) document.getElementById('navName').textContent = data.recycler.company || data.recycler.name || op.name || '';
+                if (data.recycler) {
+                    var name = data.recycler.company || data.recycler.name || op.name || '';
+                    document.getElementById('navName').textContent = name;
+                    if (heroEl) heroEl.textContent = name;
+                    var regionEl = document.getElementById('heroRegion');
+                    if (regionEl) regionEl.textContent = data.recycler.city || data.recycler.region || '';
+                }
             })
             .catch(function() {});
     }
@@ -1039,7 +1067,7 @@ function loadTxns() {
             if (!txns.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = txns.map(function(t) {
                 var statusBadge = '<span class="status-badge status-' + (t.status === 'dispatch_approved' ? 'approved' : t.status === 'arrived' || t.status === 'completed' ? 'completed' : t.status === 'dispatch_rejected' ? 'rejected' : 'pending') + '">' + esc(t.status) + '</span>';
-                return '<tr><td>' + fmtDate(t.created_at) + '</td><td>' + esc(t.processor_company || t.processor_name || '\u2014') + '</td><td><span class="badge badge-blue">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td>' + fmt(t.price_per_kg || 0) + '</td><td>GHS ' + fmt(t.total_price || 0) + '</td><td>' + statusBadge + '</td></tr>';
+                return '<tr><td>' + fmtDate(t.created_at) + '</td><td class="td-name">' + esc(t.processor_company || t.processor_name || '\u2014') + '</td><td><span class="badge badge-blue">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td>' + fmt(t.price_per_kg || 0) + '</td><td class="td-amount">GHS ' + fmt(t.total_price || 0) + '</td><td>' + statusBadge + '</td></tr>';
             }).join('');
         })
         .catch(function() {

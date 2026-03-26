@@ -811,17 +811,32 @@ app.get('/api/converters/:id/stats', async (req, res) => {
     if (!cv.rows.length) return res.status(404).json({ success: false, message: 'Converter not found' });
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
 
-    const [totals, monthlyTotals, inboundPending, postedPrices, orderStats] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale')`, [id]),
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale') AND created_at>=$2`, [id, thisMonth.toISOString()]),
-      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type IN ('processor_sale','recycler_sale')`, [id]),
+    const [totals, monthlyTotals, ptTotals, ptMonthly, inboundPending, postedPrices, orderStats] = await Promise.all([
+      // Query the transactions table (completed trades)
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM transactions WHERE converter_id=$1`, [id]),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM transactions WHERE converter_id=$1 AND transaction_date>=$2`, [id, thisMonth.toISOString()]),
+      // Also query pending_transactions for in-flight trades
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ total_kg: 0, total_value: 0, total_txns: 0 }] })),
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale') AND created_at>=$2`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ month_kg: 0, month_value: 0, month_txns: 0 }] })),
+      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ count: 0, value: 0 }] })),
       pool.query(`SELECT * FROM posted_prices WHERE poster_type='converter' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
       pool.query(`SELECT COUNT(*) as total_orders, COUNT(*) FILTER (WHERE status='open') as open_orders, COALESCE(SUM(fulfilled_kg),0) as fulfilled_kg FROM orders WHERE buyer_id=$1`, [id]).catch(() => ({ rows: [{ total_orders: 0, open_orders: 0, fulfilled_kg: 0 }] }))
     ]);
+    // Merge totals from both tables
+    const mergedTotals = {
+      total_kg: parseFloat(totals.rows[0].total_kg) + parseFloat(ptTotals.rows[0].total_kg),
+      total_value: parseFloat(totals.rows[0].total_value) + parseFloat(ptTotals.rows[0].total_value),
+      total_txns: parseInt(totals.rows[0].total_txns) + parseInt(ptTotals.rows[0].total_txns)
+    };
+    const mergedMonthly = {
+      month_kg: parseFloat(monthlyTotals.rows[0].month_kg) + parseFloat(ptMonthly.rows[0].month_kg),
+      month_value: parseFloat(monthlyTotals.rows[0].month_value) + parseFloat(ptMonthly.rows[0].month_value),
+      month_txns: parseInt(monthlyTotals.rows[0].month_txns) + parseInt(ptMonthly.rows[0].month_txns)
+    };
 
     res.json({
       success: true, buyer: cv.rows[0],
-      stats: { totals: totals.rows[0], this_month: monthlyTotals.rows[0], pending_payments: inboundPending.rows[0], posted_prices: postedPrices.rows, orders: orderStats.rows[0] }
+      stats: { totals: mergedTotals, this_month: mergedMonthly, pending_payments: inboundPending.rows[0], posted_prices: postedPrices.rows, orders: orderStats.rows[0] }
     });
   } catch (err) {
     console.error('Converter stats error:', err);
