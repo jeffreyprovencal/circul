@@ -1673,6 +1673,9 @@ app.post('/api/orders', requireAuth, async (req, res) => {
     const qty = parseFloat(target_quantity_kg), price = parseFloat(price_per_kg);
     if (isNaN(qty) || qty <= 0) return res.status(400).json({ success: false, message: 'Invalid target_quantity_kg' });
     if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price_per_kg' });
+    // Check if orders table exists
+    const tableCheck = await pool.query(`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'orders')`).catch(() => ({ rows: [{ exists: false }] }));
+    if (!tableCheck.rows[0].exists) return res.status(503).json({ success: false, message: 'Orders feature is being deployed. Please try again in a few minutes.' });
     // Determine buyer identity and role
     const buyerRole = req.user.hasRole('converter') ? 'converter' : 'recycler';
     const buyerId = buyerRole === 'converter' ? (req.user.converter_id || req.user.id) : req.user.id;
@@ -1689,18 +1692,27 @@ app.post('/api/orders', requireAuth, async (req, res) => {
 
 app.get('/api/orders/my', async (req, res) => {
   try {
+    // Parse token (optional auth — no 401, just empty orders)
     let user = null;
     const auth = req.headers.authorization || '';
     const token = auth.replace('Bearer ', '').trim() || req.query.token;
     if (token) {
       try { user = verifyToken(token, AUTH_SECRET); } catch (_) { /* invalid token */ }
     }
-    if (!user) return res.json({ success: true, orders: [] });
+    if (!user || typeof user !== 'object') return res.json({ success: true, orders: [] });
 
     // Determine buyer identity based on role
     const isConverter = user.role === 'converter' || (Array.isArray(user.roles) && user.roles.includes('converter'));
+    const isRecycler = user.role === 'recycler' || (Array.isArray(user.roles) && user.roles.includes('recycler'));
     const buyerId = isConverter ? (user.converter_id || user.id) : user.id;
     if (!buyerId) return res.json({ success: true, orders: [] });
+
+    // Check if orders table exists before querying
+    const tableCheck = await pool.query(
+      `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'orders')`
+    ).catch(() => ({ rows: [{ exists: false }] }));
+    if (!tableCheck.rows[0].exists) return res.json({ success: true, orders: [] });
+
     const result = await pool.query(
       `SELECT * FROM orders WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 50`, [buyerId]
     ).catch(() => ({ rows: [] }));
