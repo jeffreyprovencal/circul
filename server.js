@@ -276,12 +276,12 @@ app.get('/api/collector/prices', requireAuth, async (req, res) => {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const result = await pool.query(
       `SELECT pp.poster_id as aggregator_id, a.name as aggregator_name, a.company,
-              a.average_rating as avg_rating,
+              COALESCE((SELECT AVG(r.rating)::NUMERIC(3,2) FROM ratings r WHERE r.rated_type='aggregator' AND r.rated_id=a.id), 0) as avg_rating,
               (SELECT COUNT(*) FROM ratings WHERE rated_type='aggregator' AND rated_id=a.id) as rating_count,
-              json_object_agg(pp.material_type, pp.price_per_kg_ghs) as prices
+              json_object_agg(pp.material_type, pp.price_per_kg_ghs) FILTER (WHERE pp.material_type IS NOT NULL) as prices
        FROM posted_prices pp
        JOIN aggregators a ON a.id=pp.poster_id AND a.is_active=true
-       WHERE pp.poster_type='aggregator' AND pp.is_active=true
+       WHERE pp.poster_type='aggregator' AND pp.is_active=true AND pp.material_type IS NOT NULL
        GROUP BY pp.poster_id, a.id`
     );
     res.json(result.rows);
@@ -342,6 +342,71 @@ app.get('/api/collector/pending-purchases', requireAuth, async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) { console.error('GET /api/collector/pending-purchases error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/collector/transactions/:id/confirm', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const collectorId = req.user.id;
+    const txnId = req.params.id;
+    const txn = await pool.query(`SELECT * FROM transactions WHERE id=$1 AND collector_id=$2`, [txnId, collectorId]);
+    if (!txn.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    const result = await pool.query(
+      `UPDATE transactions SET payment_status='paid', updated_at=NOW() WHERE id=$1 AND collector_id=$2 RETURNING *`,
+      [txnId, collectorId]
+    );
+    res.json({ success: true, transaction: result.rows[0] });
+  } catch (err) { console.error('POST /api/collector/transactions/:id/confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/collector/pending-purchases/:id/accept', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const result = await pool.query(
+      `UPDATE pending_transactions SET status='accepted', updated_at=NOW() WHERE id=$1 AND collector_id=$2 AND status='pending' RETURNING *`,
+      [req.params.id, req.user.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    res.json({ success: true, pending_transaction: result.rows[0] });
+  } catch (err) { console.error('POST /api/collector/pending-purchases/:id/accept error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/collector/pending-purchases/:id/decline', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const result = await pool.query(
+      `UPDATE pending_transactions SET status='declined', updated_at=NOW() WHERE id=$1 AND collector_id=$2 AND status='pending' RETURNING *`,
+      [req.params.id, req.user.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    res.json({ success: true, pending_transaction: result.rows[0] });
+  } catch (err) { console.error('POST /api/collector/pending-purchases/:id/decline error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.post('/api/collector/rate-aggregator', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const { transaction_id, aggregator_id, rating, tags, note } = req.body;
+    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1-5' });
+    // Check if rating already exists for this transaction+rater combo
+    const existing = await pool.query(
+      `SELECT id FROM ratings WHERE transaction_id=$1 AND rater_type='collector' AND rater_id=$2`, [transaction_id, req.user.id]
+    );
+    let result;
+    if (existing.rows.length) {
+      result = await pool.query(
+        `UPDATE ratings SET rating=$1, tags=$2, notes=$3, updated_at=NOW() WHERE id=$4 RETURNING *`,
+        [rating, JSON.stringify(tags || []), note || null, existing.rows[0].id]
+      );
+    } else {
+      result = await pool.query(
+        `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction)
+         VALUES ($1, 'collector', $2, 'aggregator', $3, $4, $5, $6, 'upward') RETURNING *`,
+        [transaction_id, req.user.id, aggregator_id, rating, JSON.stringify(tags || []), note || null]
+      );
+    }
+    res.json({ success: true, rating: result.rows[0] });
+  } catch (err) { console.error('POST /api/collector/rate-aggregator error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 // ============================================
@@ -579,9 +644,9 @@ app.get('/api/converters/:id/stats', async (req, res) => {
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
 
     const [totals, monthlyTotals, inboundPending, postedPrices, orderStats] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type='processor_sale'`, [id]),
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type='processor_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
-      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='processor_sale'`, [id]),
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale')`, [id]),
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale') AND created_at>=$2`, [id, thisMonth.toISOString()]),
+      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type IN ('processor_sale','recycler_sale')`, [id]),
       pool.query(`SELECT * FROM posted_prices WHERE poster_type='converter' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
       pool.query(`SELECT COUNT(*) as total_orders, COUNT(*) FILTER (WHERE status='open') as open_orders, COALESCE(SUM(fulfilled_kg),0) as fulfilled_kg FROM orders WHERE converter_id=$1`, [id]).catch(() => ({ rows: [{ total_orders: 0, open_orders: 0, fulfilled_kg: 0 }] }))
     ]);
@@ -614,7 +679,7 @@ app.get('/api/converter/top-suppliers', async (req, res) => {
        WHERE pt.converter_id IS NOT NULL
          AND pt.transaction_type IN ('processor_sale','recycler_sale')
          AND pt.created_at >= $1
-       GROUP BY name, tier
+       GROUP BY 1, 2
        ORDER BY volume DESC
        LIMIT 5`,
       [since]
@@ -1433,18 +1498,19 @@ app.post('/api/orders', requireAuth, async (req, res) => {
 
 app.get('/api/orders/my', async (req, res) => {
   try {
-    // Support both Bearer token auth and query-param fallback (consistent with other endpoints)
     let user = null;
     const auth = req.headers.authorization || '';
     const token = auth.replace('Bearer ', '').trim() || req.query.token;
-    if (token) user = verifyToken(token, AUTH_SECRET);
+    if (token) {
+      try { user = verifyToken(token, AUTH_SECRET); } catch (_) { /* invalid token — treat as unauthenticated */ }
+    }
     if (!user) return res.json({ success: true, orders: [] });
 
     const converterId = user.converter_id || user.id;
     if (!converterId) return res.json({ success: true, orders: [] });
-    const result = await pool.query(`SELECT * FROM orders WHERE converter_id=$1 ORDER BY created_at DESC LIMIT 20`, [converterId]);
+    const result = await pool.query(`SELECT * FROM orders WHERE converter_id=$1 ORDER BY created_at DESC LIMIT 20`, [converterId]).catch(() => ({ rows: [] }));
     res.json({ success: true, orders: result.rows });
-  } catch (err) { console.error('GET /api/orders/my error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('GET /api/orders/my error:', err); res.json({ success: true, orders: [] }); }
 });
 
 // ============================================

@@ -677,11 +677,12 @@ function loadAll() {
         .then(function(data) {
             if (!data.success) return;
             var s = data.stats;
-            document.getElementById('statCollectors').textContent = s.active_collectors;
-            document.getElementById('statPending').textContent = s.pending_payments.count;
-            document.getElementById('statPendingVal').textContent = 'GHS ' + fmt(s.pending_payments.value);
-            document.getElementById('statMonthKg').textContent = fmt(s.this_month.month_kg);
-            document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg);
+            var el;
+            el = document.getElementById('statCollectors'); if (el) el.textContent = s.active_collectors;
+            el = document.getElementById('statPending'); if (el) el.textContent = s.pending_payments.count;
+            el = document.getElementById('statPendingVal'); if (el) el.textContent = 'GHS ' + fmt(s.pending_payments.value);
+            el = document.getElementById('statMonthKg'); if (el) el.textContent = fmt(s.this_month.month_kg);
+            el = document.getElementById('statTotalKg'); if (el) el.textContent = fmt(s.totals.total_kg);
             renderPriceCards(s.posted_prices);
             renderCollectors(s.top_collectors);
             renderRatingsReceived(s.ratings);
@@ -854,6 +855,7 @@ function renderPL(s) {
 
 function renderRatingsReceived(ratings) {
     var el = document.getElementById('ratingsReceivedList');
+    if (!el) return;
     if (!ratings || !ratings.avg_rating) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
     el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--green-deep)">⭐ ' + ratings.avg_rating + ' <span style="font-size:0.85rem;color:var(--slate-light);font-weight:400">from ' + ratings.count + ' ratings</span></div>';
 }

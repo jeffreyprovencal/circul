@@ -6,13 +6,7 @@
     <title>Recycler Dashboard - Circul</title>
     <link rel="stylesheet" href="/shared.css">
 <style>
-/* ── RECYCLER DASHBOARD — DARK RESKIN ───── */
-:root {
-  --bg:#0a0a1a;--surface:#0d0d28;--surface2:#0a0a1a;--border:#1a1a3a;--border2:#2a2a4f;
-  --text:#ffffff;--text-muted:#888888;--text-dim:#aaaaaa;--accent:#b388ff;--accent-dark:#0a0a1a;
-  --amber:#ffc107;--amber-bg:#332200;--green-bg:#0a2a15;--red:#ef4444;--red-bg:#2a0a0a;
-  --radius:12px;--radius-sm:8px;
-}
+/* ── RECYCLER DASHBOARD ───── */
 body { font-family:var(--font-primary);background:var(--bg);color:var(--text);min-height:100vh; }
 .login-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500; }
 .login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw; }
@@ -151,11 +145,6 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 .cert-date { font-size:12px;color:var(--text-muted); }
 .cert-dl { background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text-muted);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit; }
 /* SUPPLY CHAIN VIZ */
-.sc-viz { display:flex;align-items:center;gap:0;margin-bottom:24px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto; }
-.sc-viz-node { padding:8px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap; }
-.sc-viz-node.dim { background:#1a1a2a;color:var(--text-muted);border:1px solid var(--border); }
-.sc-viz-node.highlight { background:#2a1a4a;color:#b388ff;border:2px solid #b388ff; }
-.sc-viz-arrow { color:var(--text-muted);font-size:18px;padding:0 8px; }
 /* OUTBOUND SALES */
 .sales-list { margin-top:16px; }
 .sale-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px; }
@@ -190,29 +179,17 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 
 <!-- TOP NAV -->
 <nav class="top-nav">
-  <span class="nav-brand">Circul</span>
-  <span class="nav-role-pill">Recycler</span>
+  <a href="/" class="nav-brand">Circul</a>
+  <span class="nav-role-pill">RECYCLER</span>
   <span class="nav-user" id="navName">&mdash;</span>
+  <span class="nav-id" id="navRecId"></span>
   <span class="nav-spacer"></span>
-  <a href="/" class="nav-link">Home</a>
+  <a href="/" class="nav-link">&larr; Home</a>
   <button class="nav-logout" onclick="handleLogout()">Log out</button>
 </nav>
 
 <!-- MAIN DASHBOARD -->
 <div class="main-wrap" id="dashboard" style="display:none">
-
-  <!-- SUPPLY CHAIN VISUALIZATION -->
-  <div class="sc-viz">
-    <div class="sc-viz-node dim">Collector</div>
-    <span class="sc-viz-arrow">&rarr;</span>
-    <div class="sc-viz-node dim">Aggregator</div>
-    <span class="sc-viz-arrow">&rarr;</span>
-    <div class="sc-viz-node dim">Processor</div>
-    <span class="sc-viz-arrow">&rarr;</span>
-    <div class="sc-viz-node highlight">Recycler</div>
-    <span class="sc-viz-arrow">&rarr;</span>
-    <div class="sc-viz-node dim">Converter</div>
-  </div>
 
   <!-- VOLUME STRIP -->
   <div class="vol-strip">
@@ -511,12 +488,12 @@ function showDashboard() {
     document.getElementById('dashboard').style.display = '';
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
+    var navId = document.getElementById('navRecId');
+    if (navId && op.id) navId.textContent = 'R-' + String(op.id).padStart(4, '0');
     checkDualRole();
     loadAll();
     if (op.token) {
-        var tokenId = null;
-        try { tokenId = JSON.parse(atob(op.token.split('.')[1])).id; } catch(e) {}
-        var opId = tokenId || op.id;
+        var opId = op.id;
         fetch('/api/recyclers/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
