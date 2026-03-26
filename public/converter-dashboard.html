@@ -151,10 +151,6 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 .cert-date { font-size:12px;color:var(--text-muted); }
 .cert-dl { background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text-muted);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit; }
 /* SUPPLY CHAIN VIZ */
-.sc-viz-node { padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px; }
-.sc-viz-node.dim { background:#1a1a1a;color:#666;border:1px solid #333; }
-.sc-viz-node.highlight { background:#2a0a1a;color:#f48fb1;border:2px solid #f48fb1; }
-.sc-viz-arrow { color:#444;font-size:16px; }
 /* RESPONSIVE */
 @media(max-width:768px) {
   .vol-strip { grid-template-columns:1fr 1fr; }
@@ -182,13 +178,14 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
   </div>
 </div>
 
-<!-- TOP NAV (existing JS uses: dashboard, navName) -->
+<!-- TOP NAV -->
 <nav class="top-nav">
-  <span class="nav-brand">Circul</span>
-  <span class="nav-role-pill">Converter</span>
+  <a href="/" class="nav-brand">Circul</a>
+  <span class="nav-role-pill">CONVERTER</span>
   <span class="nav-user" id="navName">—</span>
+  <span class="nav-id" id="navConvId"></span>
   <span class="nav-spacer"></span>
-  <a href="/" class="nav-link">Home</a>
+  <a href="/" class="nav-link">&larr; Home</a>
   <button class="nav-logout" onclick="handleLogout()">Log out</button>
 </nav>
 
@@ -211,21 +208,6 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
       <div class="vol-label">Open Orders</div>
       <div><span class="vol-value" id="statOpenOrders">—</span></div>
       <div class="vol-sub">Awaiting fulfilment</div>
-    </div>
-  </div>
-
-  <!-- SUPPLY CHAIN VISUALIZATION -->
-  <div class="card" style="margin-bottom:24px;padding:16px 20px">
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap">
-      <div class="sc-viz-node dim">Collector</div>
-      <div class="sc-viz-arrow">&rarr;</div>
-      <div class="sc-viz-node dim">Aggregator</div>
-      <div class="sc-viz-arrow">&rarr;</div>
-      <div class="sc-viz-node dim">Processor</div>
-      <div class="sc-viz-arrow">&rarr;</div>
-      <div class="sc-viz-node dim">Recycler</div>
-      <div class="sc-viz-arrow">&rarr;</div>
-      <div class="sc-viz-node highlight">Converter</div>
     </div>
   </div>
 
@@ -406,6 +388,17 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var orders = [];
+
+/* ── 503 retry wrapper ── */
+function apiFetch(url, opts) {
+  return fetch(url, opts || {}).then(function(r) {
+    if (r.status === 503) {
+      return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+        .then(function() { return fetch(url, opts || {}); });
+    }
+    return r;
+  });
+}
 var converterDeliveries = [];
 var activeConvDispatchId = null;
 var activeConvArrivalId = null;
@@ -439,7 +432,7 @@ function checkDualRole() {
                 try {
                     var p = JSON.parse(atob(parts[i]));
                     if (p && p.roles && p.roles.indexOf('processor') !== -1) {
-                        document.getElementById('switch-role-btn').style.display = 'inline-block';
+                        var srb = document.getElementById('switch-role-btn'); if (srb) srb.style.display = 'inline-block';
                         return;
                     }
                 } catch(e) {}
@@ -453,6 +446,9 @@ function showDashboard() {
     document.getElementById('dashboard').style.display = '';
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
+    var navConvId = document.getElementById('navConvId');
+    var convId = op.converter_id || op.id;
+    if (navConvId && convId) navConvId.textContent = 'CV-' + String(convId).padStart(4, '0');
     checkDualRole();
     loadAll();
     if (op.token) {
@@ -513,7 +509,7 @@ function loadAll() {
     var id = state.operator.converter_id || state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
-    fetch('/api/converters/' + id + '/stats', fetchOpts)
+    apiFetch('/api/converters/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;

@@ -120,6 +120,38 @@ scripts/               — SQL seed scripts
 
 5. **After merge, always verify on circul.polsia.app** — not just in the local repo. The deploy pipeline can introduce its own issues.
 
+### Pre-Commit Self-Audit Checklist
+
+**Run these checks before every commit that touches dashboard HTML files or server.js routes.**
+
+#### DOM ID Consistency
+For each dashboard HTML file changed:
+- Extract every `document.getElementById('...')` and `document.querySelector('...')` call from the `<script>` block.
+- Verify each referenced ID/selector exists as an actual element in the HTML portion of the same file.
+- Every DOM write (`el.textContent = ...`, `el.innerHTML = ...`) must have a null guard or the element must be guaranteed to exist.
+- List any mismatches. Fix before committing.
+
+#### SQL Column Audit
+For each SQL query added or changed in server.js:
+- Verify every column name exists in the corresponding table. Cross-reference against `migrations/` files.
+- Verify every GROUP BY is unambiguous — use positional (`GROUP BY 1, 2`) or fully qualified (`table.column`), never bare column aliases that could clash with table columns.
+- Verify JOINs reference valid foreign keys.
+- Verify WHERE clauses handle NULL values.
+
+#### Route Completeness
+For each dashboard HTML file changed:
+- Verify every `fetch()` or `apiFetch()` URL in the `<script>` block has a corresponding route in server.js.
+- If a frontend calls an endpoint that doesn't exist, either build the route or remove the frontend call.
+
+#### UI Consistency
+After any HTML/CSS changes to dashboard files:
+- All 5 dashboard headers must match: linked Circul logo, UPPERCASE tier pill, user name, identifier code, "← Home" link, "Log out" button.
+- No dashboard should contain the supply chain tier bar (Collector → Aggregator → ... → Converter).
+- Login overlay style should be consistent across dashboards.
+
+#### 503 Retry
+Every dashboard's `apiFetch` function (or equivalent) must include retry logic for 503 responses: 1 retry after 1-second delay.
+
 ---
 
 ## Known Issues & Patterns

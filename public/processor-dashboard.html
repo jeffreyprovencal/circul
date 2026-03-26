@@ -143,6 +143,7 @@
       <div class="nav-right">
         <span class="role-pill" id="navRoleBadge">PROCESSOR</span>
         <span class="nav-name" id="navName">—</span>
+        <span class="nav-id" id="navProcId" style="color:#888;font-size:13px;"></span>
         <a href="/" class="nav-home">← Home</a>
         <button class="btn-signout" onclick="handleLogout()">Log out</button>
       </div>
@@ -315,6 +316,17 @@
 var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var deliveries = [];
+
+/* ── 503 retry wrapper ── */
+function apiFetch(url, opts) {
+  return fetch(url, opts || {}).then(function(r) {
+    if (r.status === 503) {
+      return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+        .then(function() { return fetch(url, opts || {}); });
+    }
+    return r;
+  });
+}
 var activeDispatchId = null;
 var activeArrivalId = null;
 var arrivalGradeMap = {};
@@ -345,11 +357,11 @@ function showDashboard() {
     document.getElementById('dashboard').style.display = '';
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
+    var navProcId = document.getElementById('navProcId');
+    if (navProcId && op.id) navProcId.textContent = 'P-' + String(op.id).padStart(4, '0');
     loadAll();
     if (op.token) {
-        var tokenId = null;
-        try { tokenId = JSON.parse(atob(op.token.split('.')[1])).id; } catch(e) {}
-        var opId = tokenId || op.id;
+        var opId = op.id;
         fetch('/api/processors/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
@@ -405,15 +417,16 @@ function loadAll() {
     var id = state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
-    fetch('/api/processors/' + id + '/stats', fetchOpts)
+    apiFetch('/api/processors/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
             var s = data.stats;
-            document.getElementById('statMonthKg').textContent = fmt(s.this_month.month_kg);
-            document.getElementById('statTxns').textContent = s.totals.total_txns;
-            document.getElementById('statPending').textContent = fmt(s.pending_payments.value);
-            document.getElementById('statTotal').textContent = fmt(s.totals.total_kg);
+            var el;
+            el = document.getElementById('statMonthKg'); if (el) el.textContent = fmt(s.this_month.month_kg);
+            el = document.getElementById('statTxns'); if (el) el.textContent = s.totals.total_txns;
+            el = document.getElementById('statPending'); if (el) el.textContent = fmt(s.pending_payments.value);
+            el = document.getElementById('statTotal'); if (el) el.textContent = fmt(s.totals.total_kg);
             renderPriceCards(s.posted_prices);
         });
     loadTxns();
@@ -427,7 +440,8 @@ function loadTxns() {
     fetch('/api/transactions?processor_id=' + state.operator.id + '&limit=30')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var tbody = document.getElementById('supplyBody');
+            var tbody = document.getElementById('supplyBody') || document.getElementById('txnsList');
+            if (!tbody) return;
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
                 var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '<span class="badge badge-gray">—</span>';
@@ -447,7 +461,8 @@ function loadAggregators() {
     fetch('/api/transactions?processor_id=' + state.operator.id + '&limit=100')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var el = document.getElementById('aggregatorRatingsList');
+            var el = document.getElementById('aggregatorRatingsList') || document.getElementById('aggRatingsList');
+            if (!el) return;
             if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
             // Unique aggregators from transactions
             var seen = {};
@@ -881,12 +896,15 @@ function loadConverters() {
 function calcProcSaleTotal() {
     var w = parseFloat(document.getElementById('ps-weight').value);
     var p = parseFloat(document.getElementById('ps-price').value);
-    var box = document.getElementById('ps-total-box');
+    var box = document.getElementById('ps-total-box') || document.getElementById('ps-total');
     if (!box) return;
     if (!isNaN(w) && w > 0 && !isNaN(p) && p > 0) {
         var total = w * p;
-        document.getElementById('ps-total-ghs').textContent = 'GH₵ ' + fmt(total) + ' total';
-        document.getElementById('ps-total-usd').textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
+        var ghsEl = document.getElementById('ps-total-ghs');
+        var usdEl = document.getElementById('ps-total-usd');
+        if (ghsEl) ghsEl.textContent = 'GH₵ ' + fmt(total) + ' total';
+        if (usdEl) usdEl.textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
+        if (!ghsEl && !usdEl) box.textContent = 'GH¢ ' + fmt(total);
         box.style.display = '';
     } else {
         box.style.display = 'none';
@@ -901,15 +919,17 @@ function submitProcessorSale() {
     var material     = document.getElementById('ps-material').value;
     var weight       = document.getElementById('ps-weight').value;
     var price        = document.getElementById('ps-price').value;
-    var notes        = document.getElementById('ps-notes').value.trim();
+    var notesEl      = document.getElementById('ps-notes');
+    var notes        = notesEl ? notesEl.value.trim() : '';
 
-    msgEl.textContent = '';
-    if (!converterId)            { msgEl.textContent = 'Select a converter.';       msgEl.style.color = 'var(--red)'; return; }
-    if (!material)               { msgEl.textContent = 'Select a material.';        msgEl.style.color = 'var(--red)'; return; }
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = 'var(--red)'; return; }
-    if (!price  || parseFloat(price)  <= 0) { msgEl.textContent = 'Enter a valid price.';  msgEl.style.color = 'var(--red)'; return; }
+    if (msgEl) msgEl.textContent = '';
+    function showMsg(m) { if (msgEl) { msgEl.textContent = m; msgEl.style.color = 'var(--red)'; } }
+    if (!converterId)            { showMsg('Select a converter.');       return; }
+    if (!material)               { showMsg('Select a material.');        return; }
+    if (!weight || parseFloat(weight) <= 0) { showMsg('Enter a valid weight.'); return; }
+    if (!price  || parseFloat(price)  <= 0) { showMsg('Enter a valid price.');  return; }
 
-    btn.disabled = true; btn.textContent = 'Logging…';
+    if (btn) { btn.disabled = true; btn.textContent = 'Logging…'; }
     fetch('/api/pending-transactions/processor-sale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -928,18 +948,17 @@ function submitProcessorSale() {
             document.getElementById('ps-material').value  = '';
             document.getElementById('ps-weight').value    = '';
             document.getElementById('ps-price').value     = '';
-            document.getElementById('ps-notes').value     = '';
-            document.getElementById('ps-total-box').style.display = 'none';
-            msgEl.textContent = '';
+            var pn = document.getElementById('ps-notes'); if (pn) pn.value = '';
+            var ptb = document.getElementById('ps-total-box') || document.getElementById('ps-total'); if (ptb) ptb.style.display = 'none';
+            if (msgEl) msgEl.textContent = '';
             showProcToast('Sale logged — awaiting converter dispatch approval');
             loadProcessorSales();
         } else {
-            msgEl.textContent = data.message || 'Error submitting sale.';
-            msgEl.style.color = 'var(--red)';
+            showMsg(data.message || 'Error submitting sale.');
         }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; })
-    .finally(function() { btn.disabled = false; btn.textContent = 'Log Sale to Converter'; });
+    .catch(function() { showMsg('Connection error.'); })
+    .finally(function() { if (btn) { btn.disabled = false; btn.textContent = 'Log Sale to Converter'; } });
 }
 
 function loadProcessorSales() {
