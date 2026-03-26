@@ -504,18 +504,18 @@
       </div>
     </div>
 
-    <!-- BATCH SALES HISTORY -->
+    <!-- SALES HISTORY -->
     <div class="section-card" id="myBatchSalesCard">
       <div class="section-head">
         <div>
-          <div class="section-title">Batch sales history</div>
+          <div class="section-title">Sales history</div>
           <div class="section-sub">To processors</div>
         </div>
       </div>
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr><th>DATE</th><th>MATERIAL</th><th>PROCESSOR</th><th>WEIGHT</th><th>TOTAL</th><th>STATUS</th><th>PAYMENT</th></tr></thead>
-          <tbody id="myBatchSalesList"><tr><td colspan="7" class="table-empty">No batch sales yet</td></tr></tbody>
+          <tbody id="myBatchSalesList"><tr><td colspan="7" class="table-empty">No sales yet</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1318,7 +1318,7 @@ function loadMyBatchSales() {
             var list = document.getElementById('myBatchSalesList');
             var rows = data.pending_transactions || [];
             if (!rows.length) {
-                list.innerHTML = '<div class="empty">No batch sales yet.</div>';
+                list.innerHTML = '<div class="empty">No sales yet.</div>';
                 return;
             }
             list.innerHTML = rows.map(renderBatchSaleItem).join('');
@@ -1447,9 +1447,9 @@ async function loadTopSuppliers(period) {
   var tbody = document.getElementById("topSuppliersBody");
   if (!tbody) return;
   try {
-    var aggId = window._aggId;
-    var url = "/api/transactions?aggregator_id=" + aggId + "&top_suppliers=1&period=" + period;
-    var data = await fetch(url, {credentials:"include"}).then(function(r){return r.json();});
+    var token = localStorage.getItem('circul_token') || '';
+    var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
+    var data = await apiFetch("/api/aggregator/top-suppliers?period=" + period, opts).then(function(r){return r.json();});
     renderTopTable(tbody, data, "collector_name", 5);
   } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"table-empty\">No data yet</td></tr>"; }
 }
@@ -1459,9 +1459,9 @@ async function loadTopBuyers(period) {
   var tbody = document.getElementById("topBuyersBody");
   if (!tbody) return;
   try {
-    var aggId = window._aggId;
-    var url = "/api/pending-transactions/aggregator-sales?aggregator_id=" + aggId + "&top_buyers=1&period=" + period;
-    var data = await fetch(url, {credentials:"include"}).then(function(r){return r.json();});
+    var token = localStorage.getItem('circul_token') || '';
+    var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
+    var data = await apiFetch("/api/aggregator/top-buyers?period=" + period, opts).then(function(r){return r.json();});
     renderTopTable(tbody, data, "processor_name", 5);
   } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"table-empty\">No data yet</td></tr>"; }
 }

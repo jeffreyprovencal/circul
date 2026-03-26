@@ -551,6 +551,62 @@ app.post('/api/aggregator/suggest-cost-category', async (req, res) => {
   } catch (err) { console.error('POST /api/aggregator/suggest-cost-category error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+app.get('/api/aggregator/top-suppliers', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const { period } = req.query;
+    const since = period === 'month'
+      ? (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })()
+      : new Date(new Date().getFullYear(), 0, 1).toISOString();
+    const result = await pool.query(
+      `SELECT COALESCE(c.first_name || ' ' || c.last_name, 'Unknown') AS collector_name,
+              COALESCE(c.first_name || ' ' || c.last_name, 'Unknown') AS name,
+              SUM(t.net_weight_kg) AS ytd_kg,
+              SUM(CASE WHEN t.transaction_date >= $2 THEN t.net_weight_kg ELSE 0 END) AS month_kg,
+              AVG(t.price_per_kg) AS avg_price,
+              COUNT(*) AS transaction_count
+       FROM transactions t
+       LEFT JOIN collectors c ON c.id = t.collector_id
+       WHERE t.aggregator_id = $1 AND t.transaction_date >= $3
+       GROUP BY 1, 2 ORDER BY ytd_kg DESC LIMIT 5`,
+      [aggId, since, new Date(new Date().getFullYear(), 0, 1).toISOString()]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Aggregator top-suppliers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const { period } = req.query;
+    const since = period === 'month'
+      ? (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })()
+      : new Date(new Date().getFullYear(), 0, 1).toISOString();
+    const result = await pool.query(
+      `SELECT COALESCE(p.company, p.name, 'Unknown') AS processor_name,
+              COALESCE(p.company, p.name, 'Unknown') AS name,
+              SUM(pt.gross_weight_kg) AS ytd_kg,
+              SUM(CASE WHEN pt.created_at >= $2 THEN pt.gross_weight_kg ELSE 0 END) AS month_kg,
+              AVG(pt.price_per_kg) AS avg_price,
+              COUNT(*) AS transaction_count
+       FROM pending_transactions pt
+       LEFT JOIN processors p ON p.id = pt.processor_id
+       WHERE pt.aggregator_id = $1 AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $3
+       GROUP BY 1, 2 ORDER BY ytd_kg DESC LIMIT 5`,
+      [aggId, since, new Date(new Date().getFullYear(), 0, 1).toISOString()]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Aggregator top-buyers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ============================================
 // PROCESSORS
 // ============================================

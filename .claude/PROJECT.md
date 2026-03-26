@@ -37,6 +37,14 @@ Changes being synced (PR #N, merged to main):
 After deploy, I'll verify at circul.polsia.app.
 ```
 
+### CDN Cache Warning
+
+Polsia's `fetch-upstream-dashboards.js` fetches files from `raw.githubusercontent.com`. GitHub's raw CDN caches aggressively — sometimes 5+ minutes after a merge. If a sync runs too soon after merging a PR, the CDN can serve stale pre-merge file contents.
+
+**Mitigation:** The fetch URLs in `fetch-upstream-dashboards.js` should include a cache-busting query parameter: `?t=${Date.now()}`. This forces GitHub to serve the actual latest content. Polsia was asked to add this permanently (March 2026).
+
+**After every sync:** Verify on circul.polsia.app that the deployed code reflects the expected changes. Do not assume a sync succeeded just because the file sizes changed.
+
 ---
 
 ## Architecture
@@ -156,11 +164,10 @@ Every dashboard's `apiFetch` function (or equivalent) must include retry logic f
 
 ## Known Issues & Patterns
 
-- **`/api/collector/me` returns 404** — this route was never built in server.js. Collector dashboard renders but can't load personal stats.
-- **`/api/orders/my` returns 500** — order endpoint has a bug (seen in network logs).
-- **`/api/recycler/top-suppliers` and `/api/recycler/top-buyers` return 500** — these endpoints exist but error on certain queries.
-- **`/api/converters/2/stats` returns 404** — converter stats route may not handle all converter IDs.
-- **Some aggregator API calls return 503 intermittently** — likely Render cold start or DB connection pool issue.
+- **`/api/collector/prices` returns 500** — fix is in PR #19 (pending deploy). Uses a ratings subquery to replace non-existent `aggregators.average_rating` column.
+- **Collector passport section shows `COL-XXXXXX` format but header shows `C-XXXX`.** Should be consistent — use `C-XXXX` everywhere.
+- **Aggregator dashboard has a section labeled "Batch sales history"** — should be renamed to "Sales history".
+- **Some aggregator API calls return 503 intermittently** — likely Render cold start or DB connection pool issue. All dashboards now have 503 retry logic.
 
 ---
 
