@@ -13,13 +13,20 @@
   --amber:#ffc107;--amber-bg:#332200;--green-bg:#0a2a15;--red:#ef4444;--red-bg:#2a0a0a;
   --radius:12px;--radius-sm:8px;
 }
-body { font-family:var(--font-primary);background:var(--bg);color:var(--text);min-height:100vh; }
+body { font-family:var(--font-primary);background:var(--bg);color:var(--text-primary);min-height:100vh; }
+.identity-name { font-size:26px;font-weight:700;color:var(--text-primary);padding:20px 0 6px; }
+.data-table { width:100%;border-collapse:collapse; }
+.data-table th { padding:10px 16px;background:var(--surface);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
+.data-table td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
+.data-table tr:last-child td { border-bottom:none; }
+.data-table .td-name { color:var(--text-primary);font-weight:500; }
+.data-table .td-amount { color:var(--accent);font-weight:600; }
 .login-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500; }
 .login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw; }
 .login-box h2 { font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent); }
 .login-box p { color:var(--text-muted);font-size:14px;margin-bottom:24px; }
 .login-box label { font-size:13px;color:var(--text-dim);display:block;margin-bottom:5px; }
-.login-box input { width:100%;padding:10px 12px;background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;margin-bottom:16px;font-family:inherit; }
+.login-box input { width:100%;padding:10px 12px;background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;margin-bottom:16px;font-family:inherit; }
 .login-box button { width:100%;padding:12px;background:var(--accent);color:#0a1a0f;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit; }
 .login-error { color:#ef4444;font-size:13px;margin-top:8px; }
 /* NAV */
@@ -35,7 +42,7 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 .nav-logout:hover { border-color:var(--accent);color:var(--accent); }
 /* LAYOUT */
 .main-wrap { max-width:1200px;margin:0 auto;padding:24px 20px; }
-.section-title { font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px; }
+.section-title { font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:16px; }
 .card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
 /* VOLUME STRIP */
 .vol-strip { display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px; }
@@ -75,7 +82,7 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 .form-row.three { grid-template-columns:2fr 1fr 1fr; }
 .form-group { display:flex;flex-direction:column;gap:6px; }
 .form-group label { font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px; }
-.form-group input, .form-group select, .form-group textarea { background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;font-family:inherit; }
+.form-group input, .form-group select, .form-group textarea { background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;padding:10px 12px;font-family:inherit; }
 .form-group select { appearance:none; }
 .form-group textarea { resize:vertical;min-height:70px; }
 .order-total { background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:14px;color:var(--text-dim); }
@@ -100,7 +107,7 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 .tabs-bar { display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px; }
 .tab-btn { background:transparent;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;transition:all 0.2s;margin-bottom:-1px; }
 .tab-btn.active { border-bottom-color:var(--accent);color:var(--accent); }
-.tab-btn:hover { color:var(--text); }
+.tab-btn:hover { color:var(--text-primary); }
 .tab-panel { display:none; }
 .tab-panel.active { display:block; }
 /* SUPPLY CHAIN TABLE */
@@ -124,7 +131,7 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 .rtag.positive.selected { background:#1a3a20;border-color:#00e676; }
 .rtag.negative { background:#2a1a00;color:#ffc107;border-color:#3a2a00; }
 .rtag.negative.selected { background:#3a2a00;border-color:#ffc107; }
-.modal-note { width:100%;background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:10px 12px;font-family:inherit;resize:vertical;min-height:60px;margin-bottom:20px; }
+.modal-note { width:100%;background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;padding:10px 12px;font-family:inherit;resize:vertical;min-height:60px;margin-bottom:20px; }
 .modal-actions { display:flex;gap:10px;justify-content:flex-end; }
 /* QUEUE CARDS */
 .queue-section { margin-bottom:20px; }
@@ -194,6 +201,16 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 
 <!-- MAIN DASHBOARD (existing JS uses id="dashboard") -->
 <div class="main-wrap" id="dashboard" style="display:none">
+
+  <!-- IDENTITY -->
+  <div>
+    <div class="identity-name" id="heroName">—</div>
+    <div style="display:flex;align-items:center;gap:6px;padding-bottom:20px;font-size:13px;color:var(--text-muted);">
+      <span id="heroEmail"></span>
+      <span>·</span>
+      <span id="heroRegion"></span>
+    </div>
+  </div>
 
   <!-- VOLUME STRIP (new — uses statTotalKg, statSpentGhs, statSpentUsd from loadAll) -->
   <div class="vol-strip">
@@ -323,9 +340,9 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
   <!-- SUPPLY CHAIN TAB (existing JS: supplyBody) -->
   <div class="tab-panel active" id="tab-supply">
     <div class="card">
-      <table class="sc-table">
+      <table class="data-table">
         <thead><tr>
-          <th>Date</th><th>Supplier</th><th>Material</th><th>Qty (kg)</th><th>GHS/kg</th><th>Total (GHS)</th><th>Status</th>
+          <th>DATE</th><th>SUPPLIER</th><th>MATERIAL</th><th>WEIGHT</th><th>PRICE/KG</th><th>AMOUNT</th><th>STATUS</th>
         </tr></thead>
         <tbody id="supplyBody"><tr><td colspan="7" style="color:#8aab90;padding:20px;text-align:center">Loading...</td></tr></tbody>
       </table>
@@ -452,6 +469,11 @@ function showDashboard() {
     var navConvId = document.getElementById('navConvId');
     var convId = op.converter_id || op.id;
     if (navConvId && convId) navConvId.textContent = 'CV-' + String(convId).padStart(4, '0');
+    // Populate identity area
+    var heroEl = document.getElementById('heroName');
+    if (heroEl) heroEl.textContent = op.company || op.name || '—';
+    var emailEl = document.getElementById('heroEmail');
+    if (emailEl) emailEl.textContent = op.email || '';
     checkDualRole();
     loadAll();
     if (op.token) {
@@ -459,7 +481,13 @@ function showDashboard() {
         fetch('/api/converters/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.converter) document.getElementById('navName').textContent = data.converter.company || data.converter.name || op.name || '';
+                if (data.converter) {
+                    var name = data.converter.company || data.converter.name || op.name || '';
+                    document.getElementById('navName').textContent = name;
+                    if (heroEl) heroEl.textContent = name;
+                    var regionEl = document.getElementById('heroRegion');
+                    if (regionEl) regionEl.textContent = data.converter.city || data.converter.region || '';
+                }
             })
             .catch(function() {});
     }
@@ -893,9 +921,9 @@ function loadTxns() {
             var tbody = document.getElementById('supplyBody');
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
-                var gps = t.lat ? '<span class="badge badge-green">GPS ✓</span>' : '—';
-                var journey = '<a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="font-size:0.78rem;color:var(--green-primary)">View</a>';
-                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td><td>' + gps + '</td><td>' + journey + '</td></tr>';
+                var supplier = esc(t.processor_company || t.processor_name || t.seller_name || '—');
+                var priceKg = t.price_per_kg ? fmt(t.price_per_kg) : '—';
+                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + priceKg + '</td><td class="td-amount">' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
             }).join('');
         });
 }

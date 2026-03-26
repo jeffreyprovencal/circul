@@ -485,7 +485,7 @@
       </div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>NAME</th><th>THIS MONTH</th><th>TOTAL KG</th><th>TRANSACTIONS</th><th>RATING</th><th>PAYMENT OWED</th><th></th></tr></thead>
+          <thead><tr><th>NAME</th><th>LOCATION</th><th>VOLUME</th><th>TRANSACTIONS</th><th>RATING</th><th></th></tr></thead>
           <tbody id="collectorsBody"><tr><td colspan="7" class="table-empty">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -639,6 +639,9 @@ function showDashboard() {
     var op = state.operator;
     document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
     document.getElementById('navAggId').textContent = fmtAggId(op.id);
+    // Populate identity hero
+    var heroEl = document.getElementById('heroName');
+    if (heroEl) heroEl.textContent = op.name + (op.company ? ' · ' + op.company : '');
     loadAll();
     refreshTimer = setInterval(loadAll, 30000);
 }
@@ -758,9 +761,9 @@ function renderCollectors(collectors) {
         var name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.display_name;
         var rating = c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—';
         return '<tr>' +
-            '<td>' + esc(name) + '</td>' +
+            '<td class="td-name">' + esc(name) + '</td>' +
             '<td>' + esc(c.city || '—') + '</td>' +
-            '<td>' + fmt(c.total_kg) + ' kg</td>' +
+            '<td class="td-amount">' + fmt(c.total_kg) + ' kg</td>' +
             '<td>' + c.txns + '</td>' +
             '<td>' + rating + '</td>' +
             '<td><button class="btn-pay" onclick="openRatingModal(' + c.id + ',\'' + esc(name) + '\')">Rate</button></td>' +
