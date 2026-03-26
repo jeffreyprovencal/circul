@@ -345,6 +345,73 @@ app.get('/api/collector/pending-purchases', requireAuth, async (req, res) => {
 });
 
 // ============================================
+// ROLE /me ENDPOINTS (authenticated, token-based)
+// ============================================
+
+app.get('/api/aggregator/me', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const id = req.user.id;
+    const result = await pool.query(
+      `SELECT a.id, a.name, a.company, a.phone, a.city, a.region, a.country,
+              a.is_active, a.id_verified, a.created_at, a.average_rating,
+              'A-' || LPAD(a.id::text, 4, '0') AS display_name
+       FROM aggregators a WHERE a.id=$1`, [id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Aggregator not found' });
+    const a = result.rows[0];
+    a.avg_rating = a.average_rating;
+    a.status = a.is_active ? 'Active' : 'Inactive';
+    res.json({ success: true, aggregator: a });
+  } catch (err) { console.error('GET /api/aggregator/me error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/processor/me', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
+    const id = req.user.id;
+    const result = await pool.query(
+      `SELECT id, name, company, email, city, region, country, is_active, created_at
+       FROM processors WHERE id=$1`, [id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Processor not found' });
+    const p = result.rows[0];
+    p.status = p.is_active ? 'Active' : 'Inactive';
+    res.json({ success: true, processor: p });
+  } catch (err) { console.error('GET /api/processor/me error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/converter/me', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
+    const id = req.user.converter_id || req.user.id;
+    const result = await pool.query(
+      `SELECT id, name, company, email, city, region, country, is_active, created_at
+       FROM converters WHERE id=$1`, [id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Converter not found' });
+    const c = result.rows[0];
+    c.status = c.is_active ? 'Active' : 'Inactive';
+    res.json({ success: true, converter: c });
+  } catch (err) { console.error('GET /api/converter/me error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/recycler/me', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
+    const id = req.user.id;
+    const result = await pool.query(
+      `SELECT id, name, company, email, city, region, country, is_active, created_at
+       FROM recyclers WHERE id=$1`, [id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Recycler not found' });
+    const r = result.rows[0];
+    r.status = r.is_active ? 'Active' : 'Inactive';
+    res.json({ success: true, recycler: r });
+  } catch (err) { console.error('GET /api/recycler/me error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ============================================
 // AGGREGATORS
 // ============================================
 
@@ -511,16 +578,17 @@ app.get('/api/converters/:id/stats', async (req, res) => {
     if (!cv.rows.length) return res.status(404).json({ success: false, message: 'Converter not found' });
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
 
-    const [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
+    const [totals, monthlyTotals, inboundPending, postedPrices, orderStats] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type='processor_sale'`, [id]),
       pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type='processor_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
       pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='processor_sale'`, [id]),
-      pool.query(`SELECT * FROM posted_prices WHERE poster_type='converter' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
+      pool.query(`SELECT * FROM posted_prices WHERE poster_type='converter' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
+      pool.query(`SELECT COUNT(*) as total_orders, COUNT(*) FILTER (WHERE status='open') as open_orders, COALESCE(SUM(fulfilled_kg),0) as fulfilled_kg FROM orders WHERE converter_id=$1`, [id]).catch(() => ({ rows: [{ total_orders: 0, open_orders: 0, fulfilled_kg: 0 }] }))
     ]);
 
     res.json({
       success: true, buyer: cv.rows[0],
-      stats: { totals: totals.rows[0], this_month: monthlyTotals.rows[0], pending_payments: inboundPending.rows[0], posted_prices: postedPrices.rows }
+      stats: { totals: totals.rows[0], this_month: monthlyTotals.rows[0], pending_payments: inboundPending.rows[0], posted_prices: postedPrices.rows, orders: orderStats.rows[0] }
     });
   } catch (err) {
     console.error('Converter stats error:', err);

@@ -456,9 +456,7 @@ function showDashboard() {
     checkDualRole();
     loadAll();
     if (op.token) {
-        var tokenId = null;
-        try { tokenId = JSON.parse(atob(op.token.split('.')[1])).id; } catch(e) {}
-        var opId = tokenId || op.id;
+        var opId = op.converter_id || op.id;
         fetch('/api/converters/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
@@ -512,10 +510,9 @@ function showTab(tab, el) {
 }
 
 function loadAll() {
-    var id = state.operator.id;
+    var id = state.operator.converter_id || state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
-    // TODO: wire converter stats when endpoint returns total_value for converter transactions
     fetch('/api/converters/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
