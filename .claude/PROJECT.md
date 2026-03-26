@@ -170,3 +170,16 @@ Every dashboard's `apiFetch` function (or equivalent) must include retry logic f
 - **Safe refactoring:** Use two-commit approach — Commit 1 is purely additive (can't break), Commit 2 removes old code (independently revertable)
 - **Merge command:** `gh pr merge N --merge`
 - **After merge:** Always provide Polsia sync prompt using the template above
+
+---
+
+## Backlog
+
+### CSS Design System Refactor
+A contributed `style.css` was reviewed (March 26, 2026) with improvements worth adopting in a future sprint:
+- **Raw → semantic token split:** abstract hex colors into named variables (`--green-500`) then reference them in semantic tokens (`--accent: var(--green-500)`)
+- **Light/dark mode:** add `@media (prefers-color-scheme: light)` auto-detection and `[data-theme="light"]` manual override
+- **Responsive typography:** replace fixed font sizes with `clamp()` for fluid scaling
+- **Reusable component classes:** `.card`, `.button`, `.pill`, `.container`, `.grid`, `.flex`
+
+**Do NOT drop-in replace shared.css.** The contributed file is missing critical rules and variables the dashboards depend on (`.login-overlay.hidden`, role pill colors, `--bg-nav`, `--border-nav`, `--accent-muted`, `--text-placeholder`, `--radius-sm/lg`, link reset, `min-height: 100vh`). Adopt the good ideas incrementally into the existing shared.css using the two-commit safe refactoring approach.
