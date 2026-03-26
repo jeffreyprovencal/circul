@@ -441,6 +441,17 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text);mi
 var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var orders = [];
+
+/* ── 503 retry wrapper ── */
+function apiFetch(url, opts) {
+  return fetch(url, opts || {}).then(function(r) {
+    if (r.status === 503) {
+      return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+        .then(function() { return fetch(url, opts || {}); });
+    }
+    return r;
+  });
+}
 var recyclerDeliveries = [];
 var activeRecDispatchId = null;
 var activeRecArrivalId = null;
@@ -550,7 +561,7 @@ function loadAll() {
     var id = state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
-    fetch('/api/recyclers/' + id + '/stats', fetchOpts)
+    apiFetch('/api/recyclers/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;

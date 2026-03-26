@@ -588,6 +588,17 @@
 var state = { operator: null, topCollectors: [], currentRatingCollectorId: null, currentRatingStar: 0, selectedTags: [] };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var refreshTimer = null;
+
+/* ── 503 retry wrapper ── */
+function apiFetch(url, opts) {
+  return fetch(url, opts || {}).then(function(r) {
+    if (r.status === 503) {
+      return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+        .then(function() { return fetch(url, opts || {}); });
+    }
+    return r;
+  });
+}
 var postedPriceMap  = {};  // material_type → price_per_kg_ghs (string)
 var pendingMap      = {};  // ptId → pending_transaction row
 var reviewStateMap  = {};  // ptId → { grade }
@@ -672,7 +683,7 @@ function handleLogout() {
 
 function loadAll() {
     var id = state.operator.id;
-    fetch('/api/aggregators/' + id + '/stats')
+    apiFetch('/api/aggregators/' + id + '/stats')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;

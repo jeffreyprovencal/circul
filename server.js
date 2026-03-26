@@ -542,6 +542,15 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
   }
 });
 
+app.post('/api/aggregator/suggest-cost-category', async (req, res) => {
+  try {
+    const { category_name, aggregator_id } = req.body;
+    if (!category_name || !category_name.trim()) return res.status(400).json({ success: false, message: 'Category name required' });
+    console.log('Cost category suggestion:', { category_name: category_name.trim(), aggregator_id, submitted_at: new Date().toISOString() });
+    res.json({ success: true, message: 'Suggestion received' });
+  } catch (err) { console.error('POST /api/aggregator/suggest-cost-category error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 // ============================================
 // PROCESSORS
 // ============================================
@@ -595,6 +604,52 @@ app.get('/api/processors/:id/stats', async (req, res) => {
     });
   } catch (err) {
     console.error('Processor stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/processor/top-suppliers', async (req, res) => {
+  try {
+    const { period } = req.query;
+    const since = period === 'ytd'
+      ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+      : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
+    const result = await pool.query(
+      `SELECT COALESCE(a.company, a.name, 'Unknown') AS name, 'aggregator' AS tier,
+              SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
+       FROM pending_transactions pt
+       LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+       WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $1
+       GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
+      [since]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Processor top-suppliers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/processor/top-buyers', async (req, res) => {
+  try {
+    const { period } = req.query;
+    const since = period === 'ytd'
+      ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+      : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
+    const result = await pool.query(
+      `SELECT COALESCE(c.company, c.name, r.company, r.name, 'Unknown') AS name,
+              CASE WHEN pt.recycler_id IS NOT NULL THEN 'recycler' ELSE 'converter' END AS tier,
+              SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
+       FROM pending_transactions pt
+       LEFT JOIN converters c ON c.id = pt.converter_id
+       LEFT JOIN recyclers r ON r.id = pt.recycler_id
+       WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
+       GROUP BY 1, 2 ORDER BY volume DESC LIMIT 5`,
+      [since]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Processor top-buyers error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
