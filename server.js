@@ -703,7 +703,7 @@ app.get('/api/converters/:id/stats', async (req, res) => {
       pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale') AND created_at>=$2`, [id, thisMonth.toISOString()]),
       pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type IN ('processor_sale','recycler_sale')`, [id]),
       pool.query(`SELECT * FROM posted_prices WHERE poster_type='converter' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
-      pool.query(`SELECT COUNT(*) as total_orders, COUNT(*) FILTER (WHERE status='open') as open_orders, COALESCE(SUM(fulfilled_kg),0) as fulfilled_kg FROM orders WHERE converter_id=$1`, [id]).catch(() => ({ rows: [{ total_orders: 0, open_orders: 0, fulfilled_kg: 0 }] }))
+      pool.query(`SELECT COUNT(*) as total_orders, COUNT(*) FILTER (WHERE status='open') as open_orders, COALESCE(SUM(fulfilled_kg),0) as fulfilled_kg FROM orders WHERE buyer_id=$1`, [id]).catch(() => ({ rows: [{ total_orders: 0, open_orders: 0, fulfilled_kg: 0 }] }))
     ]);
 
     res.json({
@@ -1545,8 +1545,16 @@ app.post('/api/orders', requireAuth, async (req, res) => {
     const qty = parseFloat(target_quantity_kg), price = parseFloat(price_per_kg);
     if (isNaN(qty) || qty <= 0) return res.status(400).json({ success: false, message: 'Invalid target_quantity_kg' });
     if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price_per_kg' });
-    const converterId = req.user.converter_id || req.user.id;
-    const result = await pool.query(`INSERT INTO orders (converter_id, material_type, target_quantity_kg, price_per_kg, accepted_colours, excluded_contaminants, max_contamination_pct, status, fulfilled_kg, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,'open',0,$8) RETURNING *`, [converterId, material_type, qty, price, accepted_colours||null, excluded_contaminants||null, max_contamination_pct != null && max_contamination_pct !== '' ? parseFloat(max_contamination_pct) : null, notes||null]);
+    // Determine buyer identity and role
+    const buyerRole = req.user.hasRole('converter') ? 'converter' : 'recycler';
+    const buyerId = buyerRole === 'converter' ? (req.user.converter_id || req.user.id) : req.user.id;
+    const result = await pool.query(
+      `INSERT INTO orders (buyer_id, buyer_role, material_type, target_quantity_kg, price_per_kg, accepted_colours, excluded_contaminants, max_contamination_pct, supplier_tier, supplier_id, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [buyerId, buyerRole, material_type, qty, price, accepted_colours||null, excluded_contaminants||null,
+       max_contamination_pct != null && max_contamination_pct !== '' ? parseFloat(max_contamination_pct) : null,
+       supplier_tier||null, supplier_id||null, notes||null]
+    );
     res.status(201).json({ success: true, order: result.rows[0] });
   } catch (err) { console.error('Create order error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1557,13 +1565,17 @@ app.get('/api/orders/my', async (req, res) => {
     const auth = req.headers.authorization || '';
     const token = auth.replace('Bearer ', '').trim() || req.query.token;
     if (token) {
-      try { user = verifyToken(token, AUTH_SECRET); } catch (_) { /* invalid token — treat as unauthenticated */ }
+      try { user = verifyToken(token, AUTH_SECRET); } catch (_) { /* invalid token */ }
     }
     if (!user) return res.json({ success: true, orders: [] });
 
-    const converterId = user.converter_id || user.id;
-    if (!converterId) return res.json({ success: true, orders: [] });
-    const result = await pool.query(`SELECT * FROM orders WHERE converter_id=$1 ORDER BY created_at DESC LIMIT 20`, [converterId]).catch(() => ({ rows: [] }));
+    // Determine buyer identity based on role
+    const isConverter = user.role === 'converter' || (Array.isArray(user.roles) && user.roles.includes('converter'));
+    const buyerId = isConverter ? (user.converter_id || user.id) : user.id;
+    if (!buyerId) return res.json({ success: true, orders: [] });
+    const result = await pool.query(
+      `SELECT * FROM orders WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 50`, [buyerId]
+    ).catch(() => ({ rows: [] }));
     res.json({ success: true, orders: result.rows });
   } catch (err) { console.error('GET /api/orders/my error:', err); res.json({ success: true, orders: [] }); }
 });
