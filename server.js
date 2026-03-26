@@ -211,6 +211,140 @@ app.get('/api/collectors/:id/stats', async (req, res) => {
 });
 
 // ============================================
+// COLLECTOR (authenticated, singular) ROUTES
+// ============================================
+
+app.get('/api/collector/me', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const id = req.user.id;
+    const result = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.city, c.average_rating,
+              c.is_active, c.id_verified, c.created_at,
+              'C-' || LPAD(c.id::text, 4, '0') AS display_name,
+              COALESCE(SUM(t.net_weight_kg),0) as total_weight_kg,
+              COUNT(t.id) as transaction_count
+       FROM collectors c
+       LEFT JOIN transactions t ON t.collector_id=c.id
+       WHERE c.id=$1 GROUP BY c.id`, [id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Collector not found' });
+    const c = result.rows[0];
+    c.name = ((c.first_name||'') + (c.last_name ? ' '+c.last_name : '')).trim();
+    c.collector_id = c.id;
+    c.avg_rating = c.average_rating;
+    c.status = c.is_active ? 'Active' : 'Inactive';
+    res.json(c);
+  } catch (err) { console.error('GET /api/collector/me error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/collector/stats', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const id = req.user.id;
+    const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
+    const ytdStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
+    const [total, monthly, ytd, ratings] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_earned, COUNT(*) as total_collections FROM transactions WHERE collector_id=$1`, [id]),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_earned, COUNT(*) as month_collections FROM transactions WHERE collector_id=$1 AND transaction_date>=$2`, [id, thisMonth.toISOString()]),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as ytd_kg FROM transactions WHERE collector_id=$1 AND transaction_date>=$2`, [id, ytdStart]),
+      pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_type='collector' AND rated_id=$1`, [id]).catch(() => ({ rows: [{ avg_rating: null, count: 0 }] }))
+    ]);
+    res.json({ ...total.rows[0], ...monthly.rows[0], ytd_kg: ytd.rows[0].ytd_kg, avg_rating: ratings.rows[0].avg_rating });
+  } catch (err) { console.error('GET /api/collector/stats error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/collector/transactions', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const id = req.user.id;
+    const result = await pool.query(
+      `SELECT t.*, a.name as aggregator_name, a.company as aggregator_company,
+              'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display,
+              EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id=t.id AND r.rater_type='collector' AND r.rater_id=$1) as rated
+       FROM transactions t
+       LEFT JOIN aggregators a ON a.id=t.aggregator_id
+       WHERE t.collector_id=$1
+       ORDER BY t.transaction_date DESC LIMIT 50`, [id]
+    );
+    res.json(result.rows);
+  } catch (err) { console.error('GET /api/collector/transactions error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/collector/prices', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const result = await pool.query(
+      `SELECT pp.poster_id as aggregator_id, a.name as aggregator_name, a.company,
+              a.average_rating as avg_rating,
+              (SELECT COUNT(*) FROM ratings WHERE rated_type='aggregator' AND rated_id=a.id) as rating_count,
+              json_object_agg(pp.material_type, pp.price_per_kg_ghs) as prices
+       FROM posted_prices pp
+       JOIN aggregators a ON a.id=pp.poster_id AND a.is_active=true
+       WHERE pp.poster_type='aggregator' AND pp.is_active=true
+       GROUP BY pp.poster_id, a.id`
+    );
+    res.json(result.rows);
+  } catch (err) { console.error('GET /api/collector/prices error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/collector/top-buyers', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const id = req.user.id;
+    const { period } = req.query;
+    const since = period === 'ytd'
+      ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+      : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
+    const result = await pool.query(
+      `SELECT a.id as aggregator_id, COALESCE(a.company, a.name, 'Unknown') as aggregator_name,
+              SUM(t.net_weight_kg) as ytd_kg,
+              SUM(CASE WHEN t.transaction_date >= $2 THEN t.net_weight_kg ELSE 0 END) as month_kg,
+              AVG(t.price_per_kg) as avg_price,
+              COUNT(*) as transaction_count
+       FROM transactions t
+       JOIN aggregators a ON a.id=t.aggregator_id
+       WHERE t.collector_id=$1
+       GROUP BY a.id ORDER BY ytd_kg DESC LIMIT 5`,
+      [id, since]
+    );
+    res.json(result.rows);
+  } catch (err) { console.error('GET /api/collector/top-buyers error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/collector/pl', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const id = req.user.id;
+    const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
+    const ytdStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
+    const [monthly, ytd] = await Promise.all([
+      pool.query(`SELECT material_type, COALESCE(SUM(total_price),0) as earned FROM transactions WHERE collector_id=$1 AND transaction_date>=$2 GROUP BY material_type`, [id, thisMonth.toISOString()]),
+      pool.query(`SELECT material_type, COALESCE(SUM(total_price),0) as earned FROM transactions WHERE collector_id=$1 AND transaction_date>=$2 GROUP BY material_type`, [id, ytdStart])
+    ]);
+    const monthMap = {}; monthly.rows.forEach(r => { monthMap[r.material_type] = parseFloat(r.earned); });
+    const ytdMap = {}; ytd.rows.forEach(r => { ytdMap[r.material_type] = parseFloat(r.earned); });
+    res.json({ month: monthMap, ytd: ytdMap });
+  } catch (err) { console.error('GET /api/collector/pl error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/collector/pending-purchases', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const id = req.user.id;
+    const result = await pool.query(
+      `SELECT pt.*, a.name as aggregator_name, a.company as aggregator_company,
+              'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display
+       FROM pending_transactions pt
+       LEFT JOIN aggregators a ON a.id=pt.aggregator_id
+       WHERE pt.collector_id=$1 AND pt.transaction_type='aggregator_purchase' AND pt.status='pending'
+       ORDER BY pt.created_at DESC`, [id]
+    );
+    res.json(result.rows);
+  } catch (err) { console.error('GET /api/collector/pending-purchases error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ============================================
 // AGGREGATORS
 // ============================================
 
@@ -490,7 +624,7 @@ app.get('/api/recycler/top-suppliers', async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN processors p ON p.id = pt.processor_id
        WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
-       GROUP BY name ORDER BY volume DESC LIMIT 5`,
+       GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
       [since]
     );
     res.json(result.rows);
@@ -512,7 +646,7 @@ app.get('/api/recycler/top-buyers', async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN converters c ON c.id = pt.converter_id
        WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'recycler_sale' AND pt.created_at >= $1
-       GROUP BY name ORDER BY volume DESC LIMIT 5`,
+       GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
       [since]
     );
     res.json(result.rows);
@@ -1229,11 +1363,17 @@ app.post('/api/orders', requireAuth, async (req, res) => {
   } catch (err) { console.error('Create order error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.get('/api/orders/my', requireAuth, async (req, res) => {
+app.get('/api/orders/my', async (req, res) => {
   try {
-    const buyerId = req.user?.buyerId ?? req.user?.id;
-    if (!buyerId) return res.json({ success: true, orders: [] });
-    const converterId = req.user.converter_id || buyerId;
+    // Support both Bearer token auth and query-param fallback (consistent with other endpoints)
+    let user = null;
+    const auth = req.headers.authorization || '';
+    const token = auth.replace('Bearer ', '').trim() || req.query.token;
+    if (token) user = verifyToken(token, AUTH_SECRET);
+    if (!user) return res.json({ success: true, orders: [] });
+
+    const converterId = user.converter_id || user.id;
+    if (!converterId) return res.json({ success: true, orders: [] });
     const result = await pool.query(`SELECT * FROM orders WHERE converter_id=$1 ORDER BY created_at DESC LIMIT 20`, [converterId]);
     res.json({ success: true, orders: result.rows });
   } catch (err) { console.error('GET /api/orders/my error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
