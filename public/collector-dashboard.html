@@ -477,9 +477,33 @@
     @media (max-width: 480px) {
       .prices-grid { grid-template-columns: 1fr 1fr; }
     }
+    .login-overlay { position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500; }
+    .login-overlay .login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius, 12px);padding:40px;width:380px;max-width:95vw; }
+    .login-overlay .login-title { font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px; }
+    .login-overlay .login-sub { font-size:13px;color:var(--text-muted);margin-bottom:28px; }
+    .login-overlay .form-label { display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px; }
+    .login-overlay .form-input { display:block;width:100%;padding:12px 14px;background:var(--surface2, #0a1a0f);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;margin-bottom:16px;box-sizing:border-box; }
+    .login-overlay .form-input:focus { outline:none;border-color:var(--accent); }
+    .login-overlay .btn-primary { width:100%;padding:14px;background:var(--accent);color:#0a1a0f;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer; }
+    .login-overlay .login-error { color:#ef4444;font-size:13px;margin-bottom:12px;display:none; }
+    .login-overlay.hidden { display: none; }
   </style>
 </head>
 <body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-title">Sign in to Circul</div>
+    <div class="login-sub">Collector access</div>
+    <div class="login-error" id="loginError"></div>
+    <label class="form-label">Phone number</label>
+    <input class="form-input" id="loginPhone" type="tel" placeholder="0241 000 001" />
+    <label class="form-label">4-digit PIN</label>
+    <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')handleCollectorLogin()" />
+    <button class="btn-primary" id="loginBtn" onclick="handleCollectorLogin()">Sign in</button>
+  </div>
+</div>
 
   <!-- HEADER -->
   <header class="header">
@@ -752,6 +776,7 @@
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
 
+<script src="/shared/roles.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
    CIRCUL — COLLECTOR DASHBOARD
@@ -765,12 +790,69 @@ let _currentRatingAggId = null;
 let _currentRatingAggName = '';
 let _starValue = 0;
 let _selectedTags = new Set();
+let _collectorState = {};
+
+/* ── auth ── */
+function checkAuth() {
+  var saved = localStorage.getItem('circul_user');
+  if (saved) {
+    try {
+      _collectorState = JSON.parse(saved);
+      var t = localStorage.getItem('circul_token');
+      if (t && !_collectorState.token) _collectorState.token = t;
+      if (_collectorState.role !== 'collector') {
+        var route = CirculRoles.ROLE_ROUTES[_collectorState.role];
+        if (route) { window.location.href = route; return; }
+      }
+      showDashboard();
+      return;
+    } catch (e) { localStorage.removeItem('circul_user'); }
+  }
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  loadAll();
+}
+
+function handleCollectorLogin() {
+  var phone = document.getElementById('loginPhone').value.trim();
+  var pin = document.getElementById('loginPin').value.trim();
+  if (!phone || !pin) return;
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  var errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, pin: pin }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        var user = data.user || data.collector;
+        _collectorState = user;
+        if (data.token) { _collectorState.token = data.token; localStorage.setItem('circul_token', data.token); }
+        localStorage.setItem('circul_user', JSON.stringify(_collectorState));
+        if (user.role !== 'collector') {
+          var route = CirculRoles.ROLE_ROUTES[user.role];
+          if (route) { window.location.href = route; return; }
+        }
+        showDashboard();
+      } else {
+        errEl.textContent = data.message || 'Invalid phone or PIN';
+        errEl.style.display = 'block';
+      }
+    })
+    .catch(function() { errEl.textContent = 'Connection error.'; errEl.style.display = 'block'; })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
+}
 
 /* ── helpers ── */
 function apiFetch(path, opts={}) {
-  return fetch(API + path, { credentials:'include', ...opts,
-    headers: { 'Content-Type':'application/json', ...(opts.headers||{}) }
-  }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+  var token = (_collectorState && _collectorState.token) || localStorage.getItem('circul_token') || '';
+  var headers = { 'Content-Type':'application/json', ...(opts.headers||{}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(API + path, { ...opts, headers: headers })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
 }
 function fmtNum(n, dec=2) {
   const v = parseFloat(n);
@@ -1137,11 +1219,13 @@ async function submitRating() {
 
 /* ── sign out ── */
 function signOut() {
-  fetch('/api/auth/signout', { method:'POST', credentials:'include' })
-    .finally(() => window.location.href = '/');
+  _collectorState = {};
+  localStorage.removeItem('circul_user');
+  localStorage.removeItem('circul_token');
+  window.location.href = '/login';
 }
 
 /* ── init ── */
-document.addEventListener('DOMContentLoaded', loadAll);
+document.addEventListener('DOMContentLoaded', checkAuth);
 </script>
 </html>
