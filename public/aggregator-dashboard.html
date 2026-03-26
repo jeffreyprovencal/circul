@@ -28,6 +28,17 @@
 
     body { font-family: var(--font-primary); background: var(--bg); color: var(--text); min-height: 100vh; }
 
+    /* ── NAV ── */
+    .top-nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+    .nav-role-pill { border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .nav-user { font-size: 13px; color: var(--text-dim); }
+    .nav-id { font-size: 11px; color: var(--text-muted); margin-left: 2px; }
+    .nav-spacer { flex: 1; }
+    .nav-link { color: var(--text-muted); font-size: 13px; text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+    .nav-link:hover { color: var(--accent); }
+    .nav-logout { background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--text-muted); font-size: 13px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
+    .nav-logout:hover { border-color: var(--accent); color: var(--accent); }
+
     /* ── LOGIN OVERLAY ── */
     .login-overlay {
       position: fixed; inset: 0; background: var(--bg);
@@ -258,20 +269,17 @@
 <div id="dashboard" style="display:none">
 
   <!-- NAV -->
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="brand">
-        <div class="brand-icon">C</div>
-        Circul
-      </a>
-      <div class="nav-right">
-        <span class="role-pill">AGGREGATOR</span>
-        <span class="nav-name" id="navName">—</span>
-        <span class="nav-id" id="navAggId"></span>
-        <a href="/" class="nav-home">← Home</a>
-        <button class="btn-signout" onclick="handleLogout()">Log out</button>
-      </div>
-    </div>
+  <nav class="top-nav">
+    <a class="nav-logo" href="/">
+      <div class="nav-logo-icon">◎</div>
+      Circul
+    </a>
+    <span class="nav-role-pill" style="background:#0a1e2e;color:#26c6da">AGGREGATOR</span>
+    <span class="nav-user" id="navName">—</span>
+    <span class="nav-id" id="navAggId"></span>
+    <span class="nav-spacer"></span>
+    <a class="nav-link" href="/">← Home</a>
+    <button class="nav-logout" onclick="handleLogout()">Log out</button>
   </nav>
 
   <!-- MAIN -->
@@ -703,6 +711,8 @@ function loadAll() {
     loadIncomingCollections();
     loadMyBatchSales();
     loadProcessors();
+    loadTopSuppliers('ytd');
+    loadTopBuyers('ytd');
 }
 
 function renderPriceCards(prices) {

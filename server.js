@@ -344,6 +344,21 @@ app.get('/api/collector/pending-purchases', requireAuth, async (req, res) => {
   } catch (err) { console.error('GET /api/collector/pending-purchases error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+app.post('/api/collector/confirm-receipt', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    const { transaction_id } = req.body;
+    if (!transaction_id) return res.status(400).json({ success: false, message: 'transaction_id required' });
+    const txn = await pool.query(`SELECT * FROM transactions WHERE id=$1 AND collector_id=$2`, [transaction_id, req.user.id]);
+    if (!txn.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    const result = await pool.query(
+      `UPDATE transactions SET payment_status='paid', updated_at=NOW() WHERE id=$1 AND collector_id=$2 RETURNING *`,
+      [transaction_id, req.user.id]
+    );
+    res.json({ success: true, transaction: result.rows[0] });
+  } catch (err) { console.error('POST /api/collector/confirm-receipt error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 app.post('/api/collector/transactions/:id/confirm', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
@@ -392,17 +407,18 @@ app.post('/api/collector/rate-aggregator', requireAuth, async (req, res) => {
     const existing = await pool.query(
       `SELECT id FROM ratings WHERE transaction_id=$1 AND rater_type='collector' AND rater_id=$2`, [transaction_id, req.user.id]
     );
+    const pgTags = Array.isArray(tags) && tags.length ? '{' + tags.map(t => '"' + String(t).replace(/"/g, '\\"') + '"').join(',') + '}' : '{}';
     let result;
     if (existing.rows.length) {
       result = await pool.query(
-        `UPDATE ratings SET rating=$1, tags=$2, notes=$3, updated_at=NOW() WHERE id=$4 RETURNING *`,
-        [rating, JSON.stringify(tags || []), note || null, existing.rows[0].id]
+        `UPDATE ratings SET rating=$1, tags=$2::TEXT[], notes=$3 WHERE id=$4 RETURNING *`,
+        [rating, pgTags, note || null, existing.rows[0].id]
       );
     } else {
       result = await pool.query(
         `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction)
-         VALUES ($1, 'collector', $2, 'aggregator', $3, $4, $5, $6, 'upward') RETURNING *`,
-        [transaction_id, req.user.id, aggregator_id, rating, JSON.stringify(tags || []), note || null]
+         VALUES ($1, 'collector', $2, 'aggregator', $3, $4, $5::TEXT[], $6, 'upward') RETURNING *`,
+        [transaction_id, req.user.id, aggregator_id, rating, pgTags, note || null]
       );
     }
     res.json({ success: true, rating: result.rows[0] });
@@ -419,13 +435,13 @@ app.get('/api/aggregator/me', requireAuth, async (req, res) => {
     const id = req.user.id;
     const result = await pool.query(
       `SELECT a.id, a.name, a.company, a.phone, a.city, a.region, a.country,
-              a.is_active, a.id_verified, a.created_at, a.average_rating,
+              a.is_active, a.id_verified, a.created_at,
+              COALESCE((SELECT AVG(r.rating)::NUMERIC(3,2) FROM ratings r WHERE r.rated_type='aggregator' AND r.rated_id=a.id), 0) AS avg_rating,
               'A-' || LPAD(a.id::text, 4, '0') AS display_name
        FROM aggregators a WHERE a.id=$1`, [id]
     );
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Aggregator not found' });
     const a = result.rows[0];
-    a.avg_rating = a.average_rating;
     a.status = a.is_active ? 'Active' : 'Inactive';
     res.json({ success: true, aggregator: a });
   } catch (err) { console.error('GET /api/aggregator/me error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
@@ -708,6 +724,47 @@ app.get('/api/processor/top-buyers', async (req, res) => {
     console.error('Processor top-buyers error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
+});
+
+app.get('/api/processor/transactions', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
+    const procId = req.user.id;
+    const result = await pool.query(
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.price_per_kg, pt.total_price,
+              pt.status, pt.transaction_type, pt.created_at,
+              COALESCE(a.company, a.name, 'Unknown') AS aggregator_name,
+              COALESCE(c.company, c.name, r.company, r.name, 'Unknown') AS buyer_name
+       FROM pending_transactions pt
+       LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+       LEFT JOIN converters c ON c.id = pt.converter_id
+       LEFT JOIN recyclers r ON r.id = pt.recycler_id
+       WHERE pt.processor_id = $1
+       ORDER BY pt.created_at DESC LIMIT 30`,
+      [procId]
+    );
+    res.json({ success: true, transactions: result.rows });
+  } catch (err) { console.error('GET /api/processor/transactions error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/recycler/transactions', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
+    const recId = req.user.id;
+    const result = await pool.query(
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.price_per_kg, pt.total_price,
+              pt.status, pt.transaction_type, pt.created_at,
+              COALESCE(p.company, p.name, 'Unknown') AS processor_name,
+              COALESCE(c.company, c.name, 'Unknown') AS converter_name
+       FROM pending_transactions pt
+       LEFT JOIN processors p ON p.id = pt.processor_id
+       LEFT JOIN converters c ON c.id = pt.converter_id
+       WHERE pt.recycler_id = $1
+       ORDER BY pt.created_at DESC LIMIT 30`,
+      [recId]
+    );
+    res.json({ success: true, transactions: result.rows });
+  } catch (err) { console.error('GET /api/recycler/transactions error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 // ============================================

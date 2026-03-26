@@ -32,6 +32,15 @@
     }
 
     /* ── NAV ── */
+    .top-nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+    .nav-role-pill { border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .nav-user { font-size: 13px; color: var(--text-dim); font-weight: 600; }
+    .nav-id { font-size: 11px; color: var(--text-muted); margin-left: 2px; }
+    .nav-spacer { flex: 1; }
+    .nav-link { color: var(--text-muted); font-size: 13px; text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+    .nav-link:hover { color: var(--accent); }
+    .nav-logout { background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--text-muted); font-size: 13px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
+    .nav-logout:hover { border-color: var(--accent); color: var(--accent); }
     .header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -506,23 +515,19 @@
 </div>
 
   <!-- HEADER -->
-  <header class="header">
-    <div class="header-inner">
-      <div class="header-top">
-        <a href="/" class="brand">
-          <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:#00e676;border-radius:50%;font-size:13px;font-weight:700;color:#0a1a0f;margin-right:8px;">C</span>
-          Circul
-        </a>
-        <div class="header-right">
-          <span class="header-role-pill">COLLECTOR</span>
-          <span id="collectorName" style="color:#e0e0e0;font-weight:600;">—</span>
-          <span id="collectorId" style="color:#888;font-size:13px;"></span>
-          <a href="/" style="color:#888;font-size:13px;text-decoration:none;">← Home</a>
-          <button class="btn-signout" onclick="signOut()">Log out</button>
-        </div>
-      </div>
-    </div>
-  </header>
+  <nav class="top-nav">
+    <a class="nav-logo" href="/">
+      <div class="nav-logo-icon">◎</div>
+      Circul
+    </a>
+    <span class="nav-role-pill" style="background:#0a2e1a;color:#00e676">COLLECTOR</span>
+    <span class="nav-user" id="collectorName">—</span>
+    <span class="nav-id" id="collectorId"></span>
+    <span class="nav-spacer"></span>
+    <a class="nav-link" href="/">← Home</a>
+    <button class="nav-logout" onclick="signOut()">Log out</button>
+  </nav>
+  <!-- end nav -->
 
   <!-- MAIN CONTENT -->
   <div class="main">
@@ -1059,9 +1064,11 @@ async function populateTxns() {
       const isPending = !isPaid && !isSent;
       const badgeCls = isPaid ? 'badge-paid' : isSent ? 'badge-sent' : 'badge-pending';
       const badgeText = isPaid ? 'Paid ✓' : isSent ? 'Payment sent' : 'Pending';
-      const action = isPending
+      const action = isSent
         ? `<button class="btn-action" onclick="confirmReceipt(${t.id})">Confirm receipt</button>`
-        : `<button class="btn-rate-inline" onclick="openRateModal(${t.id}, ${t.aggregator_id||0}, '${esc(t.aggregator_name||'')}')">Rate aggregator</button>`;
+        : isPaid
+          ? `<button class="btn-rate-inline" onclick="openRateModal(${t.id}, ${t.aggregator_id||0}, '${esc(t.aggregator_name||'')}')">Rate aggregator</button>`
+          : '—';
       return `<tr>
         <td>${fmtDate(t.created_at||t.date)}</td>
         <td class="td-name">${esc(t.aggregator_name||'—')}</td>
@@ -1077,8 +1084,11 @@ async function populateTxns() {
 
 async function confirmReceipt(txnId) {
   try {
-    await apiFetch('/collector/transactions/' + txnId + '/confirm', { method:'POST' });
-    showToast('✓ Receipt confirmed');
+    await apiFetch('/collector/confirm-receipt', {
+      method: 'POST',
+      body: JSON.stringify({ transaction_id: txnId })
+    });
+    showToast('✓ Payment confirmed');
     populateTxns();
   } catch(e) { showToast('Error confirming receipt'); }
 }
