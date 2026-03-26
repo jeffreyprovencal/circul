@@ -938,7 +938,7 @@ function populateProfile(me) {
 
   // Passport
   const fields = {
-    passportId: id ? 'COL-' + String(id).padStart(6,'0') : '—',
+    passportId: id ? 'C-' + String(id).padStart(4,'0') : '—',
     passportPhone: phone || '—',
     passportLocation: region || '—',
     passportSince: me.created_at ? fmtMonthYear(me.created_at) : '—',
