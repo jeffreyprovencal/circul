@@ -1,8 +1,8 @@
-# Circul — Project Knowledge
+# Circul â Project Knowledge
 
 ## What Circul Is
 
-Circul is a waste-to-resource operating system for Africa's plastic recycling supply chain. It connects 5 tiers — Collector → Aggregator → Processor → Recycler → Converter — in a digital marketplace where materials flow upstream and payments flow downstream.
+Circul is a waste-to-resource operating system for Africa's plastic recycling supply chain. It connects 5 tiers â Collector â Aggregator â Processor â Recycler â Converter â in a digital marketplace where materials flow upstream and payments flow downstream.
 
 **Tech stack:** Node.js (Express), PostgreSQL, vanilla HTML/CSS/JS. Deployed on Render via `render.yaml`.
 
@@ -12,9 +12,9 @@ Circul is a waste-to-resource operating system for Africa's plastic recycling su
 
 ```
 jeffreyprovencal/circul (Jeff's fork)
-        ↓  (Polsia syncs from here)
+        â  (Polsia syncs from here)
 Polsia-Inc/circul (private)
-        ↓  (Render auto-deploy)
+        â  (Render auto-deploy)
 circul.polsia.app (live)
 ```
 
@@ -27,9 +27,9 @@ When syncing to Polsia, use this format:
 ```
 Please sync `jeffreyprovencal/circul` main to `Polsia-Inc/circul`.
 
-Before triggering the Render deploy, add [NEW FILES] to the file list in `scripts/fetch-upstream-dashboards.js` so they auto-sync on future builds. The current list has N files — it should become N+X:
+Before triggering the Render deploy, add [NEW FILES] to the file list in `scripts/fetch-upstream-dashboards.js` so they auto-sync on future builds. The current list has N files â it should become N+X:
 
-- [list all files including new ones, mark new with ← new]
+- [list all files including new ones, mark new with â new]
 
 Changes being synced (PR #N, merged to main):
 1. [numbered list of changes with affected files]
@@ -39,7 +39,7 @@ After deploy, I'll verify at circul.polsia.app.
 
 ### CDN Cache Warning
 
-Polsia's `fetch-upstream-dashboards.js` fetches files from `raw.githubusercontent.com`. GitHub's raw CDN caches aggressively — sometimes 5+ minutes after a merge. If a sync runs too soon after merging a PR, the CDN can serve stale pre-merge file contents.
+Polsia's `fetch-upstream-dashboards.js` fetches files from `raw.githubusercontent.com`. GitHub's raw CDN caches aggressively â sometimes 5+ minutes after a merge. If a sync runs too soon after merging a PR, the CDN can serve stale pre-merge file contents.
 
 **Mitigation:** The fetch URLs in `fetch-upstream-dashboards.js` should include a cache-busting query parameter: `?t=${Date.now()}`. This forces GitHub to serve the actual latest content. Polsia was asked to add this permanently (March 2026).
 
@@ -49,7 +49,7 @@ Polsia's `fetch-upstream-dashboards.js` fetches files from `raw.githubuserconten
 
 ## Architecture
 
-### Role System — Single Source of Truth
+### Role System â Single Source of Truth
 
 `shared/roles.js` is a UMD module (works in Node.js via `require()` and browser via `<script src>`). It defines ALL role metadata:
 
@@ -68,9 +68,9 @@ Polsia's `fetch-upstream-dashboards.js` fetches files from `raw.githubuserconten
 ### Authentication
 
 - **localStorage keys:** `circul_token`, `circul_user`
-- **Token format:** `base64(JSON_payload).base64(HMAC-SHA256_signature)` — custom JWT-like
+- **Token format:** `base64(JSON_payload).base64(HMAC-SHA256_signature)` â custom JWT-like
 - **Two auth types:** phone+PIN (free tiers), email+password (paid tiers)
-- **Dual-role users:** Login returns `roles: ["processor", "converter"]` — login.html auto-routes to highest tier using `TIER_HIERARCHY`
+- **Dual-role users:** Login returns `roles: ["processor", "converter"]` â login.html auto-routes to highest tier using `TIER_HIERARCHY`
 
 ### Dashboard Login Overlay Pattern
 
@@ -92,33 +92,33 @@ Every paid dashboard has an inline login overlay (`<div class="login-overlay" id
 | Recycler | poly@circul.demo / demo1234 | Email + Password |
 | Converter | miniplast@circul.demo / demo1234 | Email + Password |
 
-miniplast@circul.demo is a dual-role account (processor + converter) — should auto-route to converter dashboard (highest tier).
+miniplast@circul.demo is a dual-role account (processor + converter) â should auto-route to converter dashboard (highest tier).
 
 ---
 
 ## File Structure
 
 ```
-server.js              — All API routes + auth (1789 lines)
-shared/roles.js        — Role definitions (single source of truth)
-public/shared.css      — Global design system
-public/login.html      — Unified login (phone+PIN or email+password)
-public/register.html   — Account creation
-public/index.html      — Landing page
-public/*-dashboard.html — 5 role-specific dashboards + dashboard.html (generic)
-public/admin.html      — Admin panel
-public/collect.html, prices.html, report.html, demo-access.html — Utility pages
-migrations/            — Timestamped database migrations
-scripts/               — SQL seed scripts
+server.js              â All API routes + auth (1789 lines)
+shared/roles.js        â Role definitions (single source of truth)
+public/shared.css      â Global design system
+public/login.html      â Unified login (phone+PIN or email+password)
+public/register.html   â Account creation
+public/index.html      â Landing page
+public/*-dashboard.html â 5 role-specific dashboards + dashboard.html (generic)
+public/admin.html      â Admin panel
+public/collect.html, prices.html, report.html, demo-access.html â Utility pages
+migrations/            â Timestamped database migrations
+scripts/               â SQL seed scripts
 ```
 
 ---
 
 ## Testing Rules
 
-**CRITICAL — read this before every review or verification task:**
+**CRITICAL â read this before every review or verification task:**
 
-1. **NEVER bypass UI with JavaScript when testing.** Do not use `document.querySelector('.login-overlay').style.display = 'none'` or `fetch('/api/auth/login')` to skip login flows. Always test the real user experience — click through forms, submit buttons, follow redirects.
+1. **NEVER bypass UI with JavaScript when testing.** Do not use `document.querySelector('.login-overlay').style.display = 'none'` or `fetch('/api/auth/login')` to skip login flows. Always test the real user experience â click through forms, submit buttons, follow redirects.
 
 2. **Test the full flow, not just the endpoint.** A successful API response (200) does not mean the feature works. The login API can return 200 while the dashboard overlay stays broken. Always verify the VISUAL result.
 
@@ -126,7 +126,7 @@ scripts/               — SQL seed scripts
 
 4. **After any CSS change, verify every dashboard visually on the live site.** CSS extractions and refactors can silently break layouts. Take screenshots of all 5 dashboards + landing page + login page.
 
-5. **After merge, always verify on circul.polsia.app** — not just in the local repo. The deploy pipeline can introduce its own issues.
+5. **After merge, always verify on circul.polsia.app** â not just in the local repo. The deploy pipeline can introduce its own issues.
 
 ### Pre-Commit Self-Audit Checklist
 
@@ -142,7 +142,7 @@ For each dashboard HTML file changed:
 #### SQL Column Audit
 For each SQL query added or changed in server.js:
 - Verify every column name exists in the corresponding table. Cross-reference against `migrations/` files.
-- Verify every GROUP BY is unambiguous — use positional (`GROUP BY 1, 2`) or fully qualified (`table.column`), never bare column aliases that could clash with table columns.
+- Verify every GROUP BY is unambiguous â use positional (`GROUP BY 1, 2`) or fully qualified (`table.column`), never bare column aliases that could clash with table columns.
 - Verify JOINs reference valid foreign keys.
 - Verify WHERE clauses handle NULL values.
 
@@ -153,8 +153,8 @@ For each dashboard HTML file changed:
 
 #### UI Consistency
 After any HTML/CSS changes to dashboard files:
-- All 5 dashboard headers must match: linked Circul logo, UPPERCASE tier pill, user name, identifier code, "← Home" link, "Log out" button.
-- No dashboard should contain the supply chain tier bar (Collector → Aggregator → ... → Converter).
+- All 5 dashboard headers must match: linked Circul logo, UPPERCASE tier pill, user name, identifier code, "â Home" link, "Log out" button.
+- No dashboard should contain the supply chain tier bar (Collector â Aggregator â ... â Converter).
 - Login overlay style should be consistent across dashboards.
 
 #### 503 Retry
@@ -166,7 +166,7 @@ Every dashboard's `apiFetch` function (or equivalent) must include retry logic f
 
 **Before marking any PR ready:**
 
-1. For every INSERT/UPDATE, verify each column's type from `migrations/*.js` — no assumptions.
+1. For every INSERT/UPDATE, verify each column's type from `migrations/*.js` â no assumptions.
 2. For every string literal in a constrained column, verify it against the CHECK constraint.
 3. Run a curl smoke test against each modified endpoint on the local server (or staging).
 4. For seed SQL, validate column count and types match the table schema before committing.
@@ -178,19 +178,31 @@ This won't catch everything, but it would have caught all five issues in PR9 bef
 
 ## Known Issues & Patterns
 
-- **`/api/collector/prices` returns 500** — fix is in PR #19 (pending deploy). Uses a ratings subquery to replace non-existent `aggregators.average_rating` column.
-- **Collector passport section shows `COL-XXXXXX` format but header shows `C-XXXX`.** Should be consistent — use `C-XXXX` everywhere.
-- **Aggregator dashboard has a section labeled "Batch sales history"** — should be renamed to "Sales history".
-- **Some aggregator API calls return 503 intermittently** — likely Render cold start or DB connection pool issue. All dashboards now have 503 retry logic.
+- **`/api/collector/prices` returns 500** â fix is in PR #19 (pending deploy). Uses a ratings subquery to replace non-existent `aggregators.average_rating` column.
+- **Collector passport section shows `COL-XXXXXX` format but header shows `C-XXXX`.** Should be consistent â use `C-XXXX` everywhere.
+- **Aggregator dashboard has a section labeled "Batch sales history"** â should be renamed to "Sales history".
+- **Some aggregator API calls return 503 intermittently** â likely Render cold start or DB connection pool issue. All dashboards now have 503 retry logic.
 
 ---
 
 ## PR & Commit Conventions
 
 - **Branch naming:** `feat/`, `fix/`, `refactor/`, `style/` prefixes
-- **Safe refactoring:** Use two-commit approach — Commit 1 is purely additive (can't break), Commit 2 removes old code (independently revertable)
+- **Safe refactoring:** Use two-commit approach â Commit 1 is purely additive (can't break), Commit 2 removes old code (independently revertable)
 - **Merge command:** `gh pr merge N --merge`
 - **After merge:** Always provide Polsia sync prompt using the template above
+
+---
+
+## Lessons Learned
+
+### Sync Prompt Discipline (PR #25, March 2026)
+
+1. **Always verify filenames against the actual repo before writing sync prompts.** Mockup filenames (`admin-dashboard.html`, `collector-passport.html`, `converter-output.html`) were used instead of checking `public/` on GitHub. This caused 3 unnecessary 404s on deploy. Always run `ls public/` or check the repo file tree before listing files.
+
+2. **Read PROJECT.md before writing any operational prompt.** The sync template, cache buster requirement, and file structure are all documented here. Writing from memory missed the format and the `?t=${Date.now()}` pattern. Check the source of truth first.
+
+3. **The mockup-to-repo filename mapping must be explicit.** Mockup files and repo files can have different names. Cross-reference the mapping (documented in the implementation prompt) when writing deploy or sync prompts.
 
 ---
 
@@ -198,7 +210,7 @@ This won't catch everything, but it would have caught all five issues in PR9 bef
 
 ### CSS Design System Refactor
 A contributed `style.css` was reviewed (March 26, 2026) with improvements worth adopting in a future sprint:
-- **Raw → semantic token split:** abstract hex colors into named variables (`--green-500`) then reference them in semantic tokens (`--accent: var(--green-500)`)
+- **Raw â semantic token split:** abstract hex colors into named variables (`--green-500`) then reference them in semantic tokens (`--accent: var(--green-500)`)
 - **Light/dark mode:** add `@media (prefers-color-scheme: light)` auto-detection and `[data-theme="light"]` manual override
 - **Responsive typography:** replace fixed font sizes with `clamp()` for fluid scaling
 - **Reusable component classes:** `.card`, `.button`, `.pill`, `.container`, `.grid`, `.flex`
