@@ -4,7 +4,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const CirculRoles = require('./shared/roles');
-
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -24,6 +23,16 @@ app.set('trust proxy', 1);
 
 app.get('/health', (req, res) => res.json({ status: 'healthy' }));
 app.use('/shared', express.static(path.join(__dirname, 'shared')));
+
+// Clean URLs — serve .html files without the extension
+app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.includes('.') || req.path === '/') return next();
+    const htmlPath = path.join(__dirname, 'public', req.path + '.html');
+    fs.access(htmlPath, fs.constants.F_OK, (err) => {
+          if (err) return next();
+          res.sendFile(htmlPath);
+    });
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================
