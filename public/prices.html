@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Circul — Buyer Price Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared.css">
 <style>
     :root{
       --green:#16a34a;--green-dark:#0a2e1a;--green-light:#bbf7d0;--green-wash:#f0fdf4;
-      --red:#ef4444;--amber:#f59e0b;--border:#e2e8f0;--bg:#f8fafc;--white:#fff;--slate:#334155;--slate-light:#94a3b8;
+      --red:#ef4444;--amber:#f59e0b;--p-border:#e2e8f0;--p-bg:#f8fafc;--white:#fff;--slate:#334155;--slate-light:#94a3b8;
     }
-    body{font-family:var(--font-primary);background:var(--bg);color:var(--slate);min-height:100vh}
-    h1,h2,h3{font-family:var(--font-primary)}
+    body{background:var(--bg);min-height:100vh}
 
     /* LOGIN */
     #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--green-dark)}
@@ -19,53 +19,47 @@
     .login-card .logo{text-align:center;margin-bottom:32px}
     .login-card .logo h1{font-size:1.8rem;color:var(--green-dark)}
     .login-card .logo p{color:var(--slate-light);font-size:0.9rem;margin-top:4px}
-    .form-group{margin-bottom:16px}
-    .form-group label{display:block;font-size:0.85rem;font-weight:600;margin-bottom:6px}
-    .form-group input{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none;transition:border-color .2s}
-    .form-group input:focus{border-color:var(--green)}
-    .btn{width:100%;padding:12px;background:var(--green);color:white;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:inherit}
-    .btn:hover{background:#15803d}
+    .prices-form-group{margin-bottom:16px}
+    .prices-form-group label{display:block;font-size:0.85rem;font-weight:600;margin-bottom:6px;color:var(--slate)}
+    .prices-form-group input{width:100%;padding:10px 14px;border:1.5px solid var(--p-border);border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none;transition:border-color .2s;color:var(--slate)}
+    .prices-form-group input:focus{border-color:var(--green)}
+    .btn-prices-login{width:100%;padding:12px;background:var(--green);color:white;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+    .btn-prices-login:hover{background:#15803d}
     .error-msg{color:var(--red);font-size:0.85rem;margin-top:8px;text-align:center}
     .success-msg{color:var(--green);font-size:0.85rem;margin-top:8px;text-align:center}
 
     /* MAIN */
     #main-screen{display:none;min-height:100vh;flex-direction:column}
-    .topbar{background:var(--green-dark);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px}
-    .topbar .brand{font-family:var(--font-primary);font-size:1.2rem;color:white;font-weight:700}
-    .topbar .brand span{color:var(--green-light)}
-    .topbar .right{display:flex;align-items:center;gap:12px;color:var(--green-light);font-size:0.9rem}
-    .topbar .right button{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.85rem}
-    .topbar .right button:hover{background:rgba(255,255,255,0.2)}
     .content{flex:1;padding:32px;max-width:800px;margin:0 auto;width:100%}
     .welcome{margin-bottom:28px}
-    .welcome h2{font-size:1.5rem;color:var(--green-dark)}
-    .welcome p{color:var(--slate-light);margin-top:6px}
-    .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600}
-    .badge-green{background:var(--green-light);color:#166534}
-    .badge-blue{background:#dbeafe;color:#1e40af}
+    .welcome h2{font-size:1.5rem;color:var(--text-1)}
+    .welcome p{color:var(--text-2);margin-top:6px}
+    .prices-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600}
+    .prices-badge-green{background:var(--green-light);color:#166534}
+    .prices-badge-blue{background:#dbeafe;color:#1e40af}
 
     /* PRICE CARDS */
-    .price-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
-    .price-card{background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:24px;transition:border-color .2s}
-    .price-card:hover{border-color:var(--green)}
-    .price-card .mat-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-    .price-card .mat-name{font-size:1.3rem;font-weight:700;color:var(--green-dark)}
-    .price-card .mat-desc{font-size:0.8rem;color:var(--slate-light);margin-top:2px}
-    .price-card .current-price{font-size:2rem;font-weight:700;color:var(--green);font-family:var(--font-primary)}
-    .price-card .price-unit{font-size:0.85rem;color:var(--slate-light);margin-bottom:16px}
-    .price-card .last-updated{font-size:0.78rem;color:var(--slate-light);margin-bottom:16px}
+    .prices-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+    .prices-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:24px;transition:border-color .2s}
+    .prices-card:hover{border-color:var(--accent)}
+    .prices-card .mat-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .prices-card .mat-name{font-size:1.3rem;font-weight:700;color:var(--text-1)}
+    .prices-card .mat-desc{font-size:0.8rem;color:var(--text-2);margin-top:2px}
+    .prices-card .current-price{font-size:2rem;font-weight:700;color:var(--accent);font-family:var(--font)}
+    .prices-card .price-unit{font-size:0.85rem;color:var(--text-2);margin-bottom:16px}
+    .prices-card .last-updated{font-size:0.78rem;color:var(--text-3);margin-bottom:16px}
     .price-input-row{display:flex;gap:8px;align-items:center}
-    .price-input-row input{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;font-weight:600;outline:none;transition:border-color .2s}
-    .price-input-row input:focus{border-color:var(--green)}
-    .price-input-row button{padding:9px 16px;background:var(--green);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:0.9rem;white-space:nowrap}
-    .price-input-row button:hover{background:#15803d}
-    .saved-msg{color:var(--green);font-size:0.8rem;margin-top:6px;min-height:18px}
+    .price-input-row input{flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:1rem;font-family:inherit;font-weight:600;outline:none;transition:border-color .2s;background:var(--surface-alt);color:var(--text-1)}
+    .price-input-row input:focus{border-color:var(--accent)}
+    .price-input-row button{padding:9px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-weight:600;cursor:pointer;font-family:inherit;font-size:0.9rem;white-space:nowrap}
+    .price-input-row button:hover{background:var(--accent-hover)}
+    .saved-msg{color:var(--accent);font-size:0.8rem;margin-top:6px;min-height:18px}
 
-    .info-box{background:var(--green-wash);border:1px solid var(--green-light);border-radius:10px;padding:16px;margin-bottom:28px;font-size:0.9rem;color:#166534}
+    .info-box{background:var(--accent-muted);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;margin-bottom:28px;font-size:0.9rem;color:var(--text-1)}
     .info-box strong{font-weight:600}
 
     @media(max-width:600px){
-      .price-grid{grid-template-columns:1fr}
+      .prices-grid{grid-template-columns:1fr}
       .content{padding:20px 16px}
     }
   </style>
@@ -79,29 +73,30 @@
       <h1>Circul</h1>
       <p>Buyer Price Portal</p>
     </div>
-    <div class="form-group">
+    <div class="prices-form-group">
       <label>Email</label>
       <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
     </div>
-    <div class="form-group">
+    <div class="prices-form-group">
       <label>Password</label>
       <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
     </div>
-    <button class="btn" onclick="buyerLogin()">Sign In</button>
+    <button class="btn-prices-login" onclick="buyerLogin()">Sign In</button>
     <div id="login-error" class="error-msg"></div>
   </div>
 </div>
 
 <!-- MAIN -->
 <div id="main-screen">
-  <div class="topbar">
-    <div class="brand">Circul <span>Prices</span></div>
-    <div class="right">
-      <span id="buyer-name-display"></span>
+  <nav>
+    <a class="nav-logo" href="/"><div class="nav-logo-icon">&#9678;</div> Circul</a>
+    <span class="nav-spacer"></span>
+    <div class="nav-right">
+      <span class="nav-name" id="buyer-name-display"></span>
       <span id="buyer-role-badge"></span>
-      <button onclick="logout()">Logout</button>
+      <button class="nav-logout" onclick="logout()">Logout</button>
     </div>
-  </div>
+  </nav>
   <div class="content">
     <div class="welcome">
       <h2>Set Your Buy Prices</h2>
@@ -113,7 +108,7 @@
       Collectors on the Circul network will see your best prices in real time.
     </div>
 
-    <div class="price-grid" id="price-grid">
+    <div class="prices-grid" id="price-grid">
       <!-- Filled by JS -->
     </div>
   </div>
@@ -164,7 +159,7 @@ function showMain() {
   document.getElementById('main-screen').style.display = 'flex';
   if (buyerData) {
     document.getElementById('buyer-name-display').textContent = buyerData.name || buyerData.email;
-    document.getElementById('buyer-role-badge').innerHTML = `<span class="badge ${buyerData.role === 'aggregator' ? 'badge-green' : 'badge-blue'}">${buyerData.role}</span>`;
+    document.getElementById('buyer-role-badge').innerHTML = `<span class="prices-badge ${buyerData.role === 'aggregator' ? 'prices-badge-green' : 'prices-badge-blue'}">${buyerData.role}</span>`;
   }
 }
 
@@ -200,13 +195,13 @@ async function loadPrices() {
       const currentPrice = p ? parseFloat(p.price_per_kg).toFixed(2) : null;
       const lastUpdated = p ? `Last updated: ${fmtDate(p.updated_at)}` : 'Not set yet';
       return `
-        <div class="price-card" id="card-${m}">
+        <div class="prices-card" id="card-${m}">
           <div class="mat-header">
             <div>
               <div class="mat-name">${MATERIALS[m].name}</div>
               <div class="mat-desc">${MATERIALS[m].desc}</div>
             </div>
-            ${currentPrice ? '<span style="color:var(--green);font-size:1.3rem">●</span>' : '<span style="color:var(--slate-light);font-size:1.3rem">○</span>'}
+            ${currentPrice ? '<span style="color:var(--accent);font-size:1.3rem">●</span>' : '<span style="color:var(--text-3);font-size:1.3rem">○</span>'}
           </div>
           <div class="current-price" id="price-display-${m}">${currentPrice ? 'GHS ' + currentPrice : '—'}</div>
           <div class="price-unit">per kg</div>

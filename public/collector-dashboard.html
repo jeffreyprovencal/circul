@@ -1,502 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Collector Dashboard — Circul</title>
-  <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Collector Dashboard — Circul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
 <style>
-    :root {
-      --bg:           #0a1a0f;
-      --surface:      #0d2818;
-      --surface2:     #0a1a0f;
-      --border:       #1a3a20;
-      --border2:      #2a4a2f;
-      --text:         #ffffff;
-      --text-muted:   #888888;
-      --text-dim:     #aaaaaa;
-      --accent:       #00e676;
-      --accent-dark:  #0a1a0f;
-      --amber:        #ffc107;
-      --amber-bg:     #332200;
-      --green-bg:     #0a2a15;
-      --radius:       12px;
-      --radius-sm:    8px;
-    }
-
-    body {
-      font-family: var(--font-primary);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-
-    /* ── NAV ── */
-    .top-nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
-    .nav-role-pill { border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-    .nav-user { font-size: 13px; color: var(--text-dim); font-weight: 600; }
-    .nav-id { font-size: 11px; color: var(--text-muted); margin-left: 2px; }
-    .nav-spacer { flex: 1; }
-    .nav-link { color: var(--text-muted); font-size: 13px; text-decoration: none; padding: 6px 10px; border-radius: 6px; }
-    .nav-link:hover { color: var(--accent); }
-    .nav-logout { background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--text-muted); font-size: 13px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
-    .nav-logout:hover { border-color: var(--accent); color: var(--accent); }
-    .header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .header-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 24px;
-    }
-    .header-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 0;
-    }
-    .brand {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--text);
-      text-decoration: none;
-    }
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .header-role-pill {
-      background: #1a3a20;
-      color: var(--accent);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 20px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-    .btn-signout {
-      background: var(--accent);
-      color: var(--accent-dark);
-      border: none;
-      padding: 8px 18px;
-      border-radius: var(--radius-sm);
-      font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 13px;
-    }
-    .btn-signout:hover { opacity: 0.9; }
-
-    /* ── IDENTITY ── */
-    .identity-name {
-      font-size: 26px;
-      font-weight: 700;
-      color: var(--text);
-      padding: 20px 0 6px;
-    }
-    .identity-meta {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding-bottom: 20px;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-    .identity-meta-item { color: var(--text-muted); }
-    .identity-meta-sep { color: var(--border2); }
-    .identity-rating { color: var(--text); }
-    .identity-rating span { font-weight: 600; }
-    .identity-status {
-      background: #1a3a20;
-      color: var(--accent);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 3px 10px;
-      border-radius: 20px;
-      letter-spacing: 1px;
-    }
-
-    /* ── VOLUME STRIP ── */
-    .vol-strip {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 1px;
-      background: var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      margin-bottom: 24px;
-    }
-    .vol-cell {
-      background: var(--surface);
-      padding: 18px 22px;
-    }
-    .vol-label {
-      font-size: 10px;
-      color: var(--text-muted);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-    .vol-value {
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--text);
-    }
-    .vol-value span { font-size: 14px; font-weight: 400; color: var(--text-dim); }
-    .vol-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-
-    /* ── MAIN ── */
-    .main {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 32px 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    /* ── ACTION BAR ── */
-    .action-bar {
-      display: flex;
-      gap: 12px;
-    }
-    .btn-log {
-      background: var(--accent);
-      color: var(--accent-dark);
-      border: none;
-      padding: 12px 24px;
-      border-radius: var(--radius-sm);
-      font-weight: 700;
-      font-size: 15px;
-      cursor: pointer;
-      font-family: inherit;
-    }
-    .btn-log:hover { opacity: 0.9; }
-
-    /* ── STAT GRID ── */
-    .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-    }
-    .stat-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 18px 20px;
-    }
-    .stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
-    .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
-    .stat-unit { font-size: 13px; color: var(--text-dim); font-weight: 400; }
-
-    /* ── TOP BUYERS ── */
-    .top-partners {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 22px;
-    }
-    .section-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-    .section-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
-    .section-sub { font-size: 12px; color: var(--text-muted); }
-    .toggle-group { display: flex; gap: 6px; align-items: center; }
-    .toggle-btn {
-      background: var(--surface2);
-      border: 1px solid var(--border2);
-      color: var(--text-muted);
-      padding: 5px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      cursor: pointer;
-      font-family: inherit;
-    }
-    .toggle-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--accent-dark);
-      font-weight: 700;
-    }
-    .toggle-sep { color: var(--border2); margin: 0 4px; }
-    .view-all-link { color: var(--accent); font-size: 12px; text-decoration: none; cursor: pointer; }
-
-    /* ── CARD PANEL ── */
-    .card-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 22px;
-    }
-    .card-panel-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 18px;
-    }
-    .card-panel-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
-    .card-panel-sub { font-size: 12px; color: var(--text-muted); }
-
-    /* ── PASSPORT ── */
-    .passport-body { display: flex; flex-direction: column; gap: 10px; }
-    .passport-id-row { display: flex; align-items: center; gap: 10px; }
-    .passport-id { font-size: 13px; color: var(--text-dim); font-family: monospace; }
-    .passport-status {
-      font-size: 11px;
-      font-weight: 700;
-      padding: 3px 10px;
-      border-radius: 20px;
-      background: #1a3a20;
-      color: var(--accent);
-      letter-spacing: 1px;
-    }
-    .passport-meta { display: flex; flex-wrap: wrap; gap: 16px; }
-    .passport-meta-item { display: flex; flex-direction: column; gap: 3px; }
-    .passport-meta-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
-    .passport-meta-value { font-size: 13px; color: var(--text); font-weight: 500; }
-    .btn-passport {
-      display: inline-block;
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 600;
-      margin-top: 4px;
-    }
-
-    /* ── PRICES GRID ── */
-    .prices-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-    }
-    .prices-empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; }
-    .price-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 16px;
-      min-width: 0;
-    }
-    .price-card-mat { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
-    .price-card-val { font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
-    .price-card-buyer { font-size: 12px; color: var(--text-dim); margin-bottom: 2px; }
-    .price-card-rating { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
-    .btn-sell {
-      width: 100%;
-      background: transparent;
-      border: 1px solid var(--border2);
-      color: var(--text);
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-    }
-    .btn-sell:hover { border-color: var(--accent); color: var(--accent); }
-
-    /* ── PENDING CARD ── */
-    .pend-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 22px;
-    }
-    .pend-card-head { margin-bottom: 16px; }
-    .pend-card-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
-    .pend-card-sub { font-size: 12px; color: var(--text-muted); }
-    .pend-list { display: flex; flex-direction: column; gap: 12px; }
-    .pend-item {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 14px 16px;
-    }
-    .pend-item-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-    .pend-item-title { font-size: 14px; font-weight: 600; color: var(--text); }
-    .pend-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-    .pend-item-badge {
-      font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
-      background: var(--amber-bg); color: var(--amber);
-    }
-    .pend-actions { display: flex; gap: 8px; }
-    .btn-accept {
-      background: var(--accent); color: var(--accent-dark); border: none;
-      padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px;
-    }
-    .btn-decline {
-      background: transparent; border: 1px solid var(--border2); color: var(--text-muted);
-      padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 13px;
-    }
-    .pend-empty { color: var(--text-muted); font-size: 13px; padding: 16px 0; }
-
-    /* ── EARNINGS P&L ── */
-    .earnings-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 22px;
-    }
-    .pl-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-top: 16px;
-    }
-    .pl-col-label {
-      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
-      color: var(--text-muted); margin-bottom: 12px; font-weight: 600;
-    }
-    .pl-row {
-      display: flex; justify-content: space-between;
-      padding: 8px 0; border-bottom: 1px solid var(--border);
-      font-size: 13px;
-    }
-    .pl-row:last-child { border-bottom: none; }
-    .pl-row-label { color: var(--text-dim); }
-    .pl-row-val { font-weight: 600; color: var(--accent); }
-    .pl-total {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 12px 14px;
-      display: flex; justify-content: space-between; margin-top: 10px;
-      font-size: 14px;
-    }
-    .pl-total-label { color: var(--text); font-weight: 600; }
-    .pl-total-val { font-size: 18px; font-weight: 700; color: var(--accent); }
-
-    /* ── TABLE ── */
-    .table-wrap {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 22px;
-    }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .data-table thead tr { background: var(--surface2); }
-    .data-table th {
-      padding: 10px 14px; text-align: left;
-      color: var(--text-muted); font-weight: 600; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
-    }
-    .data-table td { padding: 12px 14px; border-top: 1px solid var(--border); color: var(--text-dim); }
-    .data-table td:first-child { color: var(--text-muted); }
-    .data-table .td-name { color: var(--text); font-weight: 500; }
-    .data-table .td-amount { color: var(--accent); font-weight: 600; }
-    .tag-mat {
-      display: inline-block;
-      font-size: 10px; font-weight: 700; letter-spacing: 1px;
-      padding: 2px 7px; border-radius: 4px;
-      text-transform: uppercase;
-    }
-    .tag-pet  { background: #1a3a20; color: #00e676; }
-    .tag-hdpe { background: #0d2a2a; color: #26c6da; }
-    .tag-ldpe { background: #1a2a3a; color: #42a5f5; }
-    .tag-pp   { background: #2a1a3a; color: #ce93d8; }
-    .badge-paid { background: var(--green-bg); color: var(--accent); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
-    .badge-pending { background: var(--amber-bg); color: var(--amber); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
-    .badge-sent { background: var(--amber-bg); color: var(--amber); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
-    .btn-action {
-      background: var(--surface2); border: 1px solid var(--border2);
-      color: var(--text); padding: 5px 12px; border-radius: 6px;
-      font-size: 12px; cursor: pointer; font-family: inherit;
-    }
-    .btn-action:hover { border-color: var(--accent); color: var(--accent); }
-    .btn-rate-inline {
-      background: var(--surface2); border: 1px solid var(--border2);
-      color: var(--text-muted); padding: 5px 12px; border-radius: 6px;
-      font-size: 12px; cursor: pointer; font-family: inherit;
-    }
-    .table-empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center; }
-    .table-note { font-size: 11px; color: #555; margin-top: 10px; }
-
-    /* ── RATING MODAL ── */
-    .rating-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.7); z-index: 200;
-      align-items: center; justify-content: center;
-    }
-    .rating-overlay.open { display: flex; }
-    .rating-modal {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 28px; width: 480px; max-width: 95vw;
-    }
-    .rating-modal-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .ratingModalSub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
-    .star-row { display: flex; gap: 8px; margin-bottom: 18px; }
-    .star {
-      font-size: 28px; color: #444; cursor: pointer; transition: color 0.1s;
-    }
-    .star.selected, .star:hover { color: var(--amber); }
-    .tag-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-    .tag-chip {
-      padding: 6px 14px; border-radius: 20px; font-size: 12px; cursor: pointer;
-      border: 1px solid transparent;
-    }
-    .tag-chip.positive { background: #1a3a20; color: var(--accent); border-color: #00e67640; }
-    .tag-chip.negative { background: var(--amber-bg); color: var(--amber); border-color: #ffc10740; }
-    .tag-chip.selected-pos { background: var(--accent); color: var(--accent-dark); border-color: var(--accent); font-weight: 700; }
-    .tag-chip.selected-neg { background: var(--amber); color: #1a0a00; border-color: var(--amber); font-weight: 700; }
-    .rating-note {
-      width: 100%; box-sizing: border-box;
-      background: var(--surface2); border: 1px solid var(--border2);
-      border-radius: 6px; padding: 10px 12px; color: var(--text);
-      font-size: 13px; font-family: inherit; height: 80px; resize: vertical; margin-bottom: 16px;
-    }
-    .rating-actions { display: flex; gap: 10px; }
-    .btn-submit-rating {
-      background: var(--accent); color: var(--accent-dark); border: none;
-      padding: 10px 24px; border-radius: var(--radius-sm);
-      font-weight: 700; cursor: pointer; font-size: 14px; font-family: inherit;
-    }
-    .btn-cancel-rating {
-      background: transparent; border: 1px solid var(--border2); color: var(--text-muted);
-      padding: 10px 20px; border-radius: var(--radius-sm);
-      font-weight: 600; cursor: pointer; font-size: 14px; font-family: inherit;
-    }
-
-    /* ── TOAST ── */
-    .toast {
-      position: fixed; bottom: 24px; right: 24px; z-index: 300;
-      background: var(--surface); border: 1px solid var(--accent);
-      border-radius: var(--radius-sm); padding: 14px 20px;
-      color: var(--text); font-size: 14px; font-weight: 500;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-      transform: translateY(80px); opacity: 0;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-      pointer-events: none;
-    }
-    .toast.show { transform: translateY(0); opacity: 1; }
-
-    /* ── RESPONSIVE ── */
-    @media (max-width: 768px) {
-      .prices-grid { grid-template-columns: repeat(2, 1fr); }
-      .stat-grid { grid-template-columns: repeat(2, 1fr); }
-      .vol-strip { grid-template-columns: 1fr; }
-      .pl-grid { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 480px) {
-      .prices-grid { grid-template-columns: 1fr 1fr; }
-    }
-    .login-overlay { position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500; }
-    .login-overlay .login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius, 12px);padding:40px;width:380px;max-width:95vw; }
-    .login-overlay .login-title { font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px; }
-    .login-overlay .login-sub { font-size:13px;color:var(--text-muted);margin-bottom:28px; }
-    .login-overlay .form-label { display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px; }
-    .login-overlay .form-input { display:block;width:100%;padding:12px 14px;background:var(--surface2, #0a1a0f);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;margin-bottom:16px;box-sizing:border-box; }
-    .login-overlay .form-input:focus { outline:none;border-color:var(--accent); }
-    .login-overlay .btn-primary { width:100%;padding:14px;background:var(--accent);color:#0a1a0f;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer; }
-    .login-overlay .login-error { color:#ef4444;font-size:13px;margin-bottom:12px;display:none; }
-    .login-overlay.hidden { display: none; }
-  </style>
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
+.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
+.login-error{color:#ef4444;font-size:0.8rem;margin-bottom:12px;display:none}
+/* ── RATING MODAL ── */
+.rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
+.rating-overlay.open{display:flex}
+.rating-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:440px;max-width:95vw}
+.rating-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
+.rating-sub{font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
+.stars-row{display:flex;gap:8px;margin-bottom:20px}
+.star{font-size:1.6rem;cursor:pointer;color:var(--border);transition:color 0.15s;line-height:1}
+.star.selected{color:#ffd740}
+.tag-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.tag-chip{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-2);font-family:var(--font)}
+.tag-chip.positive{background:rgba(0,230,118,0.1);color:var(--accent);border-color:rgba(0,230,118,0.2)}
+.tag-chip.selected-pos{background:rgba(0,230,118,0.2);border-color:var(--accent)}
+.tag-chip.negative{background:rgba(255,193,7,0.1);color:#ffd740;border-color:rgba(255,193,7,0.2)}
+.tag-chip.selected-neg{background:rgba(255,193,7,0.2);border-color:#ffd740}
+/* ── PENDING CARDS ── */
+.pend-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
+.pend-item-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pend-item-title{font-weight:600;font-size:0.85rem}
+.pend-item-sub{font-size:0.75rem;color:var(--text-3);margin-top:2px}
+.pend-item-badge{font-size:0.7rem;font-weight:600;color:#ffb74d;background:rgba(255,152,0,0.15);padding:3px 8px;border-radius:10px}
+.pend-actions{display:flex;gap:8px;margin-top:10px}
+.btn-accept{background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:var(--r-sm);font-weight:600;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
+.btn-decline{background:transparent;border:1px solid var(--border);color:var(--text-2);padding:6px 14px;border-radius:var(--r-sm);font-weight:600;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-sm);padding:14px 20px;color:var(--text-1);font-size:0.85rem;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.4);transform:translateY(80px);opacity:0;transition:transform 0.3s ease,opacity 0.3s ease;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1;pointer-events:auto}
+</style>
 </head>
 <body>
 
@@ -506,287 +50,236 @@
     <div class="login-title">Sign in to Circul</div>
     <div class="login-sub">Collector access</div>
     <div class="login-error" id="loginError"></div>
-    <label class="form-label">Phone number</label>
-    <input class="form-input" id="loginPhone" type="tel" placeholder="0241 000 001" />
-    <label class="form-label">4-digit PIN</label>
-    <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')handleCollectorLogin()" />
-    <button class="btn-primary" id="loginBtn" onclick="handleCollectorLogin()">Sign in</button>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Phone number</label>
+      <input class="form-input" id="loginPhone" type="tel" placeholder="0241 000 001">
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">4-digit PIN</label>
+      <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')handleCollectorLogin()">
+    </div>
+    <button class="form-submit" id="loginBtn" onclick="handleCollectorLogin()">Sign in</button>
   </div>
 </div>
 
-  <!-- HEADER -->
-  <nav class="top-nav">
-    <a class="nav-logo" href="/">
-      <div class="nav-logo-icon">◎</div>
-      Circul
-    </a>
-    <span class="nav-role-pill" style="background:#0a2e1a;color:#00e676">COLLECTOR</span>
-    <span class="nav-user" id="collectorName">—</span>
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <span class="nav-spacer"></span>
+  <div class="nav-right">
+    <span class="nav-pill" style="background:#0f2a14;color:#00e676">COLLECTOR</span>
+    <span class="nav-name" id="collectorName">—</span>
     <span class="nav-id" id="collectorId"></span>
-    <span class="nav-spacer"></span>
-    <a class="nav-link" href="/">← Home</a>
+    <a class="nav-link" href="/">Home</a>
     <button class="nav-logout" onclick="signOut()">Log out</button>
-  </nav>
-  <!-- end nav -->
+  </div>
+</nav>
 
-  <!-- MAIN CONTENT -->
-  <div class="main">
+<div class="page">
 
-    <!-- IDENTITY HERO -->
-    <div>
-      <div class="identity-name" id="collectorNameHero">—</div>
-      <div class="identity-meta">
-        <span class="identity-meta-item" id="collectorPhone"></span>
-        <span class="identity-meta-sep" id="metaSep1" aria-hidden="true" style="display:none">·</span>
-        <span class="identity-meta-item" id="collectorRegion"></span>
-        <span class="identity-meta-sep" aria-hidden="true">·</span>
-        <span class="identity-rating">⭐ <span id="collectorRating">—</span></span>
-        <span class="identity-meta-sep" aria-hidden="true">·</span>
-        <span class="identity-status" id="collectorStatus">ACTIVE</span>
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-name" id="collectorNameHero">—</div>
+      <div class="hero-meta">
+        <span id="collectorPhone"></span>
+        <span class="sep" id="metaSep1" style="display:none">·</span>
+        <span id="collectorRegion"></span>
+        <span class="stars">★</span> <span id="collectorRating">—</span>
+        <span class="badge">ACTIVE</span>
       </div>
     </div>
+    <a class="btn-primary" href="/collect">+ Log a collection</a>
+  </div>
 
-    <!-- VOLUME STRIP -->
-    <div class="vol-strip">
-      <div class="vol-cell">
-        <div class="vol-label">VOLUME COLLECTED</div>
-        <div class="vol-value" id="statTotalKg">— <span>kg this month</span></div>
-        <div class="vol-sub" id="volSubMonth"></div>
+  <!-- STATS — VOLUME STRIP -->
+  <div class="stats stats-3">
+    <div class="stat">
+      <div class="stat-label">Volume Collected</div>
+      <div class="stat-val" id="statTotalKg">— <small>kg this month</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Volume — Year to Date</div>
+      <div class="stat-val" id="statVolYTD">— <small>kg since Jan</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Collections This Month</div>
+      <div class="stat-val" id="statCollections">— <small>drop-offs</small></div>
+    </div>
+  </div>
+
+  <!-- LIFETIME STATS -->
+  <div class="stats stats-4">
+    <div class="stat">
+      <div class="stat-label">Total KG Collected</div>
+      <div class="stat-val" id="statTotalKgCard">— <small>kg</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total Earned</div>
+      <div class="stat-val" id="statEarned">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Collections</div>
+      <div class="stat-val" id="statCollectionsCard">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Your Rating</div>
+      <div class="stat-val" id="statRating">—</div>
+    </div>
+  </div>
+
+  <!-- MY TOP BUYERS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">My top buyers</div>
+        <div class="section-sub">Aggregators who buy from you · avg. price over last 10 txns</div>
       </div>
-      <div class="vol-cell">
-        <div class="vol-label">VOLUME — YEAR TO DATE</div>
-        <div class="vol-value" id="statVolYTD">— <span>kg since Jan</span></div>
-        <div class="vol-sub" id="volSubYTD"></div>
-      </div>
-      <div class="vol-cell">
-        <div class="vol-label">COLLECTIONS THIS MONTH</div>
-        <div class="vol-value" id="statCollections">— <span>drop-offs</span></div>
-        <div class="vol-sub" id="volSubCollections"></div>
+      <div class="tabs">
+        <button class="tab" id="topBuyersMonthBtn" onclick="switchTopBuyers('month')">This Month</button>
+        <button class="tab on" id="topBuyersYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
+        <span class="view-all">View all</span>
       </div>
     </div>
-
-    <!-- ACTION BAR -->
-    <div class="action-bar">
-      <button class="btn-log" onclick="window.location.href='/collect'">+ Log a collection</button>
-    </div>
-
-    <!-- STAT GRID -->
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-label">TOTAL KG COLLECTED</div>
-        <div class="stat-value" id="statTotalKgCard">—<span class="stat-unit"> kg</span></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">TOTAL EARNED</div>
-        <div class="stat-value" id="statEarned">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">COLLECTIONS</div>
-        <div class="stat-value" id="statCollectionsCard">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">YOUR RATING</div>
-        <div class="stat-value" id="statRating">—</div>
-      </div>
-    </div>
-
-    <!-- TOP BUYERS -->
-    <div class="top-partners">
-      <div class="section-head">
-        <div>
-          <div class="section-title">My top buyers</div>
-          <div class="section-sub">Aggregators who buy from you most · avg. price over last 10 transactions</div>
-        </div>
-        <div class="toggle-group">
-          <button class="toggle-btn" id="topBuyersMonthBtn" onclick="switchTopBuyers('month')">Mar 2026</button>
-          <button class="toggle-btn active" id="topBuyersYTDBtn" onclick="switchTopBuyers('ytd')">YTD 2026</button>
-          <span class="toggle-sep">|</span>
-          <a class="view-all-link" href="#">View all</a>
-        </div>
-      </div>
-      <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
-        <table class="data-table" id="topBuyersTable">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>AGGREGATOR</th>
-              <th>VOLUME YTD</th>
-              <th>THIS MONTH</th>
-              <th>AVG PRICE (LAST 10)</th>
-              <th>TRANSACTIONS</th>
-            </tr>
-          </thead>
-          <tbody id="topBuyersBody">
-            <tr><td colspan="6" class="table-empty">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="table-note">* avg. price over last 10 transactions per buyer · fewer shown where &lt;10 available</p>
-    </div>
-
-    <!-- EARNINGS P&L -->
-    <div class="earnings-panel">
-      <div class="section-head">
-        <div>
-          <div class="section-title">My earnings</div>
-          <div class="section-sub">What you've earned by material</div>
-        </div>
-        <div class="toggle-group">
-          <button class="toggle-btn" id="plMonthBtn" onclick="switchPL('month')">Mar 2026</button>
-          <button class="toggle-btn active" id="plYTDBtn" onclick="switchPL('ytd')">YTD 2026</button>
-        </div>
-      </div>
-      <div class="pl-grid">
-        <div>
-          <div class="pl-col-label">THIS MONTH</div>
-          <div class="pl-row"><span class="pl-row-label">PET</span><span class="pl-row-val" id="plMonthPET">GH¢ 0</span></div>
-          <div class="pl-row"><span class="pl-row-label">HDPE</span><span class="pl-row-val" id="plMonthHDPE">GH¢ 0</span></div>
-          <div class="pl-row"><span class="pl-row-label">LDPE</span><span class="pl-row-val" id="plMonthLDPE">GH¢ 0</span></div>
-          <div class="pl-row"><span class="pl-row-label">PP</span><span class="pl-row-val" id="plMonthPP">GH¢ 0</span></div>
-          <div class="pl-total">
-            <span class="pl-total-label">Total this month</span>
-            <span class="pl-total-val" id="plMonthTotal">GH¢ 0</span>
-          </div>
-        </div>
-        <div>
-          <div class="pl-col-label">YEAR TO DATE</div>
-          <div class="pl-row"><span class="pl-row-label">PET</span><span class="pl-row-val" id="plYTDPET">GH¢ 0</span></div>
-          <div class="pl-row"><span class="pl-row-label">HDPE</span><span class="pl-row-val" id="plYTDHDPE">GH¢ 0</span></div>
-          <div class="pl-row"><span class="pl-row-label">LDPE</span><span class="pl-row-val" id="plYTDLDPE">GH¢ 0</span></div>
-          <div class="pl-row"><span class="pl-row-label">PP</span><span class="pl-row-val" id="plYTDPP">GH¢ 0</span></div>
-          <div class="pl-total">
-            <span class="pl-total-label">Total YTD</span>
-            <span class="pl-total-val" id="plYTDTotal">GH¢ 0</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- COLLECTOR PASSPORT -->
-    <div class="card-panel">
-      <div class="card-panel-head">
-        <div>
-          <div class="card-panel-title">My collector passport</div>
-          <div class="card-panel-sub">Your verified identity on the Circul network</div>
-        </div>
-      </div>
-      <div class="passport-body">
-        <div class="passport-id-row">
-          <span class="passport-id" id="passportId">—</span>
-          <span class="passport-status" id="passportStatus">ACTIVE</span>
-        </div>
-        <div class="passport-meta">
-          <div class="passport-meta-item">
-            <span class="passport-meta-label">PHONE</span>
-            <span class="passport-meta-value" id="passportPhone">—</span>
-          </div>
-          <div class="passport-meta-item">
-            <span class="passport-meta-label">LOCATION</span>
-            <span class="passport-meta-value" id="passportLocation">—</span>
-          </div>
-          <div class="passport-meta-item">
-            <span class="passport-meta-label">MEMBER SINCE</span>
-            <span class="passport-meta-value" id="passportSince">—</span>
-          </div>
-          <div class="passport-meta-item">
-            <span class="passport-meta-label">STATUS</span>
-            <span class="passport-meta-value" id="passportStatusText">Active</span>
-          </div>
-        </div>
-        <a href="#" class="btn-passport" id="passportLink">View Collector Passport →</a>
-      </div>
-    </div>
-
-    <!-- WHO'S BUYING NEAR YOU -->
-    <div class="card-panel">
-      <div class="card-panel-head">
-        <div>
-          <div class="card-panel-title">Who's buying near you</div>
-          <div class="card-panel-sub">Aggregator posted prices · GH¢ per kg · sorted by highest PET price</div>
-        </div>
-      </div>
-      <div class="prices-grid" id="pricesGrid">
-        <div class="prices-empty" style="grid-column:1/-1">Loading prices…</div>
-      </div>
-    </div>
-
-    <!-- PENDING FROM AGGREGATOR -->
-    <div class="pend-card" id="pendAggCard" style="display:none">
-      <div class="pend-card-head">
-        <div class="pend-card-title">Pending from your aggregator</div>
-        <div class="pend-card-sub">Purchases initiated by your aggregator — approve or decline</div>
-      </div>
-      <div class="pend-list" id="pendAggList"></div>
-    </div>
-
-    <!-- RECENT TRANSACTIONS -->
     <div class="table-wrap">
-      <div class="section-head" style="margin-bottom:16px;">
-        <div>
-          <div class="section-title">Recent transactions</div>
-          <div class="section-sub" id="txnSub">Your last 10 drop-offs</div>
-        </div>
-      </div>
-      <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>DATE</th>
-              <th>AGGREGATOR</th>
-              <th>MATERIAL</th>
-              <th>WEIGHT</th>
-              <th>EARNED</th>
-              <th>PAYMENT</th>
-              <th>ACTION</th>
-            </tr>
-          </thead>
-          <tbody id="txnBody">
-            <tr><td colspan="7" class="table-empty">Loading…</td></tr>
-          </tbody>
-        </table>
+      <table>
+        <thead><tr>
+          <th>#</th><th>Aggregator</th><th>Volume YTD</th><th>Avg Price (last 10)</th><th>Transactions</th>
+        </tr></thead>
+        <tbody id="topBuyersBody"><tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- EARNINGS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">My earnings</div>
+        <div class="section-sub">What you've earned by material</div>
       </div>
     </div>
-
-  </div><!-- /.main -->
-
-  <!-- RATING MODAL -->
-  <div class="rating-overlay" id="ratingOverlay">
-    <div class="rating-modal">
-      <div class="rating-modal-title" id="ratingModalTitle">Rate aggregator</div>
-      <div class="ratingModalSub" id="ratingModalSub"></div>
-      <div class="star-row" id="starRow">
-        <span class="star" data-v="1" onclick="setStarRating(1)">★</span>
-        <span class="star" data-v="2" onclick="setStarRating(2)">★</span>
-        <span class="star" data-v="3" onclick="setStarRating(3)">★</span>
-        <span class="star" data-v="4" onclick="setStarRating(4)">★</span>
-        <span class="star" data-v="5" onclick="setStarRating(5)">★</span>
+    <div class="pl-grid">
+      <div>
+        <div class="pl-col-title">This Month</div>
+        <div class="pl-row"><span>PET</span><span class="td-green" id="plMonthPET">—</span></div>
+        <div class="pl-row"><span>HDPE</span><span class="td-green" id="plMonthHDPE">—</span></div>
+        <div class="pl-row"><span>LDPE</span><span class="td-green" id="plMonthLDPE">—</span></div>
+        <div class="pl-row"><span>PP</span><span class="td-green" id="plMonthPP">—</span></div>
+        <div class="pl-total">
+          <span>Total this month</span>
+          <span class="pl-total-val" id="plMonthTotal">—</span>
+        </div>
       </div>
-      <div class="tag-grid" id="tagGrid">
-        <span class="tag-chip positive" data-tag="Fair price">Fair price</span>
-        <span class="tag-chip positive" data-tag="Paid on time">Paid on time</span>
-        <span class="tag-chip positive" data-tag="Accurate weight">Accurate weight</span>
-        <span class="tag-chip positive" data-tag="Friendly">Friendly</span>
-        <span class="tag-chip negative" data-tag="Underpaid">Underpaid</span>
-        <span class="tag-chip negative" data-tag="Slow payment">Slow payment</span>
-        <span class="tag-chip negative" data-tag="Disputed weight">Disputed weight</span>
-      </div>
-      <textarea class="rating-note" id="ratingNote" placeholder="Optional note…"></textarea>
-      <div class="rating-actions">
-        <button class="btn-submit-rating" onclick="submitRating()">Submit rating</button>
-        <button class="btn-cancel-rating" onclick="closeRatingModal()">Cancel</button>
+      <div>
+        <div class="pl-col-title">Year to Date</div>
+        <div class="pl-row"><span>PET</span><span class="td-green" id="plYTDPET">—</span></div>
+        <div class="pl-row"><span>HDPE</span><span class="td-green" id="plYTDHDPE">—</span></div>
+        <div class="pl-row"><span>LDPE</span><span class="td-green" id="plYTDLDPE">—</span></div>
+        <div class="pl-row"><span>PP</span><span class="td-green" id="plYTDPP">—</span></div>
+        <div class="pl-total">
+          <span>Total YTD</span>
+          <span class="pl-total-val" id="plYTDTotal">—</span>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- TOAST -->
-  <div class="toast" id="toast"></div>
+  <!-- COLLECTOR PASSPORT -->
+  <div class="section">
+    <div class="section-title">My collector passport</div>
+    <div class="section-sub" style="margin-bottom:14px">Your verified identity on the Circul network</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span class="passport-id" id="passportId">—</span>
+      <span class="badge" id="passportStatusText">ACTIVE</span>
+    </div>
+    <div class="passport-grid">
+      <div><div class="passport-label">Phone</div><div class="passport-val" id="passportPhone">—</div></div>
+      <div><div class="passport-label">Location</div><div class="passport-val" id="passportLocation">—</div></div>
+      <div><div class="passport-label">Member Since</div><div class="passport-val" id="passportSince">—</div></div>
+      <div><div class="passport-label">Status</div><div class="passport-val">Active</div></div>
+    </div>
+    <a href="#" class="passport-link" id="passportLink">View Collector Passport →</a>
+  </div>
+
+  <!-- WHO'S BUYING NEAR YOU -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Who's buying near you</div>
+        <div class="section-sub">Aggregator posted prices · GH¢/kg · sorted by highest PET price</div>
+      </div>
+    </div>
+    <div class="price-grid" id="pricesGrid">
+      <div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-3)">Loading…</div>
+    </div>
+  </div>
+
+  <!-- PENDING PURCHASES -->
+  <div class="section" id="pendAggCard" style="display:none">
+    <div class="section-title">Pending purchases from aggregators</div>
+    <div class="section-sub" style="margin-bottom:14px">Review and accept or decline</div>
+    <div id="pendAggList"></div>
+  </div>
+
+  <!-- RECENT TRANSACTIONS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Recent transactions</div>
+        <div class="section-sub">Your last 10 drop-offs</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Earned</th><th>Payment</th><th>Action</th>
+        </tr></thead>
+        <tbody id="txnBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- RATING MODAL -->
+<div class="rating-overlay" id="ratingOverlay">
+  <div class="rating-box">
+    <h3 id="ratingModalTitle">Rate aggregator</h3>
+    <div class="rating-sub" id="ratingModalSub">How was your experience?</div>
+    <div class="stars-row">
+      <span class="star" data-v="1" onclick="setStarRating(1)">★</span>
+      <span class="star" data-v="2" onclick="setStarRating(2)">★</span>
+      <span class="star" data-v="3" onclick="setStarRating(3)">★</span>
+      <span class="star" data-v="4" onclick="setStarRating(4)">★</span>
+      <span class="star" data-v="5" onclick="setStarRating(5)">★</span>
+    </div>
+    <div class="form-label">Tags</div>
+    <div class="tag-chips" id="ratingTags">
+      <span class="tag-chip positive" data-tag="fair_price">Fair price</span>
+      <span class="tag-chip positive" data-tag="paid_on_time">Paid on time</span>
+      <span class="tag-chip positive" data-tag="professional">Professional</span>
+      <span class="tag-chip negative" data-tag="slow_payment">Slow payment</span>
+      <span class="tag-chip negative" data-tag="unfair_price">Unfair price</span>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Note (optional)</label>
+      <textarea class="form-input" id="ratingNote" rows="3" placeholder="Any additional feedback…"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeRatingModal()">Cancel</button>
+      <button class="btn-green" onclick="submitRating()">Submit Rating</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
 
 <script src="/shared/roles.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
    CIRCUL — COLLECTOR DASHBOARD
-   Reskin: dark theme, volume strip, earnings P&L,
-   top buyers, per-transaction rating, toast
    ═══════════════════════════════════════════════ */
 
 const API = '/api';
@@ -890,11 +383,11 @@ function showToast(msg, duration=3000) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), duration);
 }
-function matTag(mat) {
+function matPill(mat) {
   if (!mat) return '—';
   const m = mat.toUpperCase();
-  const cls = m === 'PET' ? 'tag-pet' : m === 'HDPE' ? 'tag-hdpe' : m === 'LDPE' ? 'tag-ldpe' : 'tag-pp';
-  return '<span class="tag-mat ' + cls + '">' + esc(m) + '</span>';
+  const cls = m === 'PET' ? 'pill-pet' : m === 'HDPE' ? 'pill-hdpe' : m === 'LDPE' ? 'pill-ldpe' : 'pill-pp';
+  return '<span class="pill ' + cls + '">' + esc(m) + '</span>';
 }
 
 /* ── load all ── */
@@ -923,13 +416,11 @@ function populateProfile(me) {
   const rating = me.avg_rating ? parseFloat(me.avg_rating).toFixed(1) : '—';
   const id = me.collector_id || me.id || '';
 
-  // Nav
   const navName = document.getElementById('collectorName');
   if (navName) navName.textContent = name;
   const navId = document.getElementById('collectorId');
   if (navId && id) navId.textContent = 'C-' + String(id).padStart(4,'0');
 
-  // Hero
   const heroName = document.getElementById('collectorNameHero');
   if (heroName) heroName.textContent = name;
 
@@ -941,7 +432,6 @@ function populateProfile(me) {
   const ratingEl = document.getElementById('collectorRating');
   if (ratingEl) ratingEl.textContent = rating;
 
-  // Passport
   const fields = {
     passportId: id ? 'C-' + String(id).padStart(4,'0') : '—',
     passportPhone: phone || '—',
@@ -969,17 +459,15 @@ async function populateStats() {
     const ytdKg = stats.ytd_kg || 0;
     const monthCollections = stats.month_collections || 0;
 
-    // Volume strip
     const sv = document.getElementById('statTotalKg');
-    if (sv) sv.innerHTML = Math.round(monthKg) + ' <span>kg this month</span>';
+    if (sv) sv.innerHTML = Math.round(monthKg) + ' <small>kg this month</small>';
     const ytdEl = document.getElementById('statVolYTD');
-    if (ytdEl) ytdEl.innerHTML = Math.round(ytdKg) + ' <span>kg since Jan</span>';
+    if (ytdEl) ytdEl.innerHTML = Math.round(ytdKg) + ' <small>kg since Jan</small>';
     const colEl = document.getElementById('statCollections');
-    if (colEl) colEl.innerHTML = monthCollections + ' <span>drop-offs</span>';
+    if (colEl) colEl.innerHTML = monthCollections + ' <small>drop-offs</small>';
 
-    // Stat cards
     const sc = document.getElementById('statTotalKgCard');
-    if (sc) sc.innerHTML = Math.round(totalKg) + '<span class="stat-unit"> kg</span>';
+    if (sc) sc.innerHTML = Math.round(totalKg) + ' <small>kg</small>';
     const se = document.getElementById('statEarned');
     if (se) se.textContent = fmtNum(earned);
     const sco = document.getElementById('statCollectionsCard');
@@ -1009,7 +497,6 @@ async function populatePL() {
     if (mt) mt.textContent = fmtNum(monthTotal);
     if (yt) yt.textContent = fmtNum(ytdTotal);
   } catch(e) {
-    // Fallback: calculate from transactions
     console.warn('PL endpoint not available, calculating from txns');
   }
 }
@@ -1021,30 +508,31 @@ async function populateTopBuyers() {
     renderTopBuyers(data);
   } catch(e) {
     const tbody = document.getElementById('topBuyersBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No data yet</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">No data yet</td></tr>';
   }
 }
 function renderTopBuyers(rows) {
   const tbody = document.getElementById('topBuyersBody');
   if (!tbody) return;
   if (!rows || !rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No transactions yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">No transactions yet</td></tr>';
     return;
   }
-  tbody.innerHTML = rows.slice(0,3).map((r,i) => `
+  tbody.innerHTML = rows.slice(0,5).map((r,i) => `
     <tr>
-      <td style="color:${i===0?'#00e676':'#555'};font-weight:700;font-size:15px;">${i+1}</td>
+      <td style="color:${i===0?'var(--accent)':'var(--text-3)'};font-weight:700">${i+1}</td>
       <td class="td-name">${esc(r.aggregator_name||'—')}</td>
-      <td style="font-weight:600;">${Math.round(r.ytd_kg||0)} kg</td>
-      <td>${Math.round(r.month_kg||0)} kg</td>
-      <td style="color:#00e676;font-weight:600;">${r.avg_price ? fmtNum(r.avg_price) + '/kg' : '—'}</td>
+      <td>${Math.round(r.ytd_kg||0)} kg</td>
+      <td class="td-green">${r.avg_price ? fmtNum(r.avg_price) + '/kg' : '—'}</td>
       <td>${r.transaction_count||0}</td>
     </tr>
   `).join('');
 }
 function switchTopBuyers(mode) {
-  document.getElementById('topBuyersMonthBtn').classList.toggle('active', mode==='month');
-  document.getElementById('topBuyersYTDBtn').classList.toggle('active', mode==='ytd');
+  var mBtn = document.getElementById('topBuyersMonthBtn');
+  var yBtn = document.getElementById('topBuyersYTDBtn');
+  if (mBtn) { mBtn.className = mode==='month' ? 'tab on' : 'tab'; }
+  if (yBtn) { yBtn.className = mode==='ytd' ? 'tab on' : 'tab'; }
   apiFetch('/collector/top-buyers?period=' + mode).then(renderTopBuyers).catch(()=>{});
 }
 
@@ -1055,27 +543,26 @@ async function populateTxns() {
     const tbody = document.getElementById('txnBody');
     if (!tbody) return;
     if (!txns || !txns.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No transactions yet</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">No transactions yet</td></tr>';
       return;
     }
     tbody.innerHTML = txns.map(t => {
       const isPaid = t.payment_status === 'paid';
       const isSent = t.payment_status === 'sent' || t.payment_status === 'payment_sent';
-      const isPending = !isPaid && !isSent;
-      const badgeCls = isPaid ? 'badge-paid' : isSent ? 'badge-sent' : 'badge-pending';
-      const badgeText = isPaid ? 'Paid ✓' : isSent ? 'Payment sent' : 'Pending';
+      const pillCls = isPaid ? 'pill-paid' : isSent ? 'pill-sent' : 'pill-pending';
+      const pillText = isPaid ? 'Paid ✓' : isSent ? 'Payment sent' : 'Pending';
       const action = isSent
-        ? `<button class="btn-action" onclick="confirmReceipt(${t.id})">Confirm receipt</button>`
+        ? `<button class="btn" onclick="confirmReceipt(${t.id})">Confirm receipt</button>`
         : isPaid
-          ? `<button class="btn-rate-inline" onclick="openRateModal(${t.id}, ${t.aggregator_id||0}, '${esc(t.aggregator_name||'')}')">Rate aggregator</button>`
+          ? `<button class="btn" onclick="openRateModal(${t.id}, ${t.aggregator_id||0}, '${esc(t.aggregator_name||'')}')">Rate</button>`
           : '—';
       return `<tr>
         <td>${fmtDate(t.created_at||t.date)}</td>
         <td class="td-name">${esc(t.aggregator_name||'—')}</td>
-        <td>${matTag(t.material_type)}</td>
+        <td>${matPill(t.material_type)}</td>
         <td>${t.weight_kg ? Math.round(t.weight_kg) + ' kg' : '—'}</td>
-        <td class="td-amount">${fmtNum(t.total_price||t.amount)}</td>
-        <td><span class="${badgeCls}">${badgeText}</span></td>
+        <td class="td-green">${fmtNum(t.total_price||t.amount)}</td>
+        <td><span class="pill ${pillCls}">${pillText}</span></td>
         <td>${action}</td>
       </tr>`;
     }).join('');
@@ -1100,43 +587,31 @@ async function populatePrices() {
     const grid = document.getElementById('pricesGrid');
     if (!grid) return;
     if (!prices || !prices.length) {
-      grid.innerHTML = '<div class="prices-empty" style="grid-column:1/-1">No prices posted near you yet</div>';
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-3)">No prices posted near you yet</div>';
       return;
     }
-    // Sort by highest PET price
     const sorted = [...prices].sort((a,b) => {
       const petA = parseFloat(a.prices?.PET || a.pet_price || 0);
       const petB = parseFloat(b.prices?.PET || b.pet_price || 0);
       return petB - petA;
     });
-    // Show top 4
     grid.innerHTML = sorted.slice(0,4).map(p => {
       const ps = p.prices || {};
       const buyerName = esc(p.aggregator_name || p.name || '—');
-      const rating = p.avg_rating ? parseFloat(p.avg_rating).toFixed(1) + ' · ' + (p.rating_count||0) + ' ratings' : 'No ratings yet';
+      const rating = p.avg_rating ? parseFloat(p.avg_rating).toFixed(1) + ' · ' + (p.rating_count||0) + ' ratings' : '0.0 · 0 ratings';
       const mats = ['PET','HDPE','LDPE','PP'];
       const priceLines = mats.map(m => {
         const v = ps[m] || p[m.toLowerCase() + '_price'];
-        return v ? `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
-          <span style="color:#888;">${m}</span>
-          <span style="color:#00e676;font-weight:500;">GH¢ ${parseFloat(v).toFixed(2)}/kg</span>
-        </div>` : '';
+        return v ? `<div class="pc-row"><span>${m}</span><span class="pc-val">GH¢ ${parseFloat(v).toFixed(2)}/kg</span></div>` : '';
       }).join('');
       return `<div class="price-card">
-        <div class="price-card-mat">AGGREGATOR</div>
-        <div class="price-card-buyer" style="font-size:14px;font-weight:600;color:#fff;margin-bottom:8px;">${buyerName}</div>
-        <div style="margin-bottom:10px;">${priceLines}</div>
-        <div class="price-card-rating">⭐ ${rating}</div>
-        <button class="btn-sell" onclick="preselectAndSell(${p.aggregator_id||p.id})">Sell to ${buyerName}</button>
+        <div class="pc-label">Aggregator</div>
+        <div class="pc-name">${buyerName}</div>
+        ${priceLines}
+        <div class="pc-footer"><span class="stars">★</span> ${rating}</div>
+        <button class="pc-sell" onclick="preselectAndSell(${p.aggregator_id||p.id})">Sell to ${buyerName}</button>
       </div>`;
     }).join('');
-    // Show overflow hint
-    if (sorted.length > 4) {
-      const extra = document.createElement('div');
-      extra.style.cssText = 'grid-column:1/-1;font-size:12px;color:#888;margin-top:4px;';
-      extra.textContent = (sorted.length - 4) + ' more aggregator(s) buying near you';
-      grid.appendChild(extra);
-    }
   } catch(e) { console.warn('prices error', e); }
 }
 
@@ -1157,7 +632,7 @@ async function loadPendingFromAgg() {
       <div class="pend-item">
         <div class="pend-item-head">
           <div>
-            <div class="pend-item-title">${esc(p.aggregator_name||'—')} — ${matTag(p.material_type)} ${p.weight_kg ? Math.round(p.weight_kg) + ' kg' : ''}</div>
+            <div class="pend-item-title">${esc(p.aggregator_name||'—')} — ${matPill(p.material_type)} ${p.weight_kg ? Math.round(p.weight_kg) + ' kg' : ''}</div>
             <div class="pend-item-sub">${fmtNum(p.total_price||p.amount)} · ${fmtDate(p.created_at)}</div>
           </div>
           <span class="pend-item-badge">Pending review</span>

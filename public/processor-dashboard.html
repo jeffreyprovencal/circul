@@ -1,318 +1,333 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Processor Dashboard - Circul</title>
-    <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Processor Dashboard - Circul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
 <style>
-    /* Uses shared.css :root variables */
-    body{font-family:var(--font-primary);background:var(--bg);color:var(--text-primary);min-height:100vh;}
-    .top-nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100;}
-    .nav-role-pill{border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;}
-    .nav-user{font-size:13px;color:var(--text-secondary);}
-    .nav-id{font-size:11px;color:var(--text-muted);margin-left:2px;}
-    .nav-spacer{flex:1;}
-    .nav-link{color:var(--text-muted);font-size:13px;text-decoration:none;padding:6px 10px;border-radius:6px;}
-    .nav-link:hover{color:var(--accent);}
-    .nav-logout{background:transparent;border:1px solid var(--border-secondary);border-radius:6px;color:var(--text-muted);font-size:13px;padding:6px 12px;cursor:pointer;font-family:inherit;}
-    .nav-logout:hover{border-color:var(--accent);color:var(--accent);}
-    .login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500;}
-    .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw;}
-    .login-title{font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:6px;}
-    .login-subtitle{font-size:13px;color:var(--text-muted);margin-bottom:28px;}
-    .login-error{color:var(--red);font-size:13px;margin-bottom:12px;display:none;}
-    .login-field{margin-bottom:16px;}
-    .form-label{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;font-weight:600;}
-    .form-input{width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:11px 14px;color:var(--text-primary);font-size:14px;font-family:inherit;}
-    .form-input:focus{outline:none;border-color:var(--accent);}
-    .btn-primary{width:100%;background:var(--accent);color:var(--accent-dark);border:none;padding:12px;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;}
-    .nav{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
-    .nav-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;}
-    .brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--text-primary);font-size:18px;font-weight:700;}
-    .brand-icon{width:28px;height:28px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent-dark);}
-    .nav-right{display:flex;align-items:center;gap:12px;}
-    .role-pill{background:#0d1a2a;color:#42a5f5;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:1px;}
-    .nav-name{color:#e0e0e0;font-weight:600;font-size:14px;}
-    .nav-home{color:var(--text-muted);font-size:13px;text-decoration:none;}
-    .btn-signout{background:var(--accent);color:var(--accent-dark);border:none;padding:8px 18px;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:inherit;font-size:13px;}
-    .main{max-width:1200px;margin:0 auto;padding:32px 24px;display:flex;flex-direction:column;gap:20px;}
-    .identity-name{font-size:26px;font-weight:700;color:var(--text-primary);margin-bottom:6px;}
-    .identity-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--text-muted);}
-    .identity-status{background:#1a3a20;color:var(--accent);font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:1px;}
-    .vol-strip{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border);border-radius:var(--radius);overflow:hidden;}
-    .vol-cell{background:var(--surface);padding:18px 22px;}
-    .vol-label{font-size:10px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
-    .vol-value{font-size:24px;font-weight:700;color:var(--text-primary);}
-    .vol-value span{font-size:14px;font-weight:400;color:var(--text-dim);}
-    .vol-value.amber{color:var(--amber);}
-    .vol-sub{font-size:11px;color:var(--text-muted);margin-top:4px;}
-    .partners-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-    .section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;}
-    .section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
-    .section-title{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:3px;}
-    .section-sub{font-size:12px;color:var(--text-muted);}
-    .toggle-group{display:flex;gap:6px;align-items:center;}
-    .toggle-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text-muted);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;}
-    .toggle-btn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-dark);font-weight:700;}
-    .toggle-sep{color:var(--border2);margin:0 2px;}
-    .view-all{color:var(--accent);font-size:12px;text-decoration:none;cursor:pointer;}
-    .price-cards-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;}
-    .price-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;min-width:0;}
-    .price-card-mat{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;}
-    .price-card-val{font-size:22px;font-weight:700;color:var(--accent);margin-bottom:2px;}
-    .price-card-sub{font-size:11px;color:var(--text-muted);margin-bottom:12px;}
-    .price-input-row{display:flex;gap:8px;}
-    .price-input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;color:var(--text-primary);font-size:13px;font-family:inherit;}
-    .btn-update{background:var(--accent);color:var(--accent-dark);border:none;padding:7px 12px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;font-family:inherit;}
-    .table-wrap{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;}
-    .data-table{width:100%;border-collapse:collapse;font-size:13px;}
-    .data-table thead tr{background:var(--surface2);}
-    .data-table th{padding:10px 14px;text-align:left;color:var(--text-muted);font-weight:600;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
-    .data-table td{padding:12px 14px;border-top:1px solid var(--border);color:var(--text-dim);}
-    .data-table .td-name{color:var(--text-primary);font-weight:500;}
-    .data-table .td-amount{color:var(--accent);font-weight:600;}
-    .table-empty{color:var(--text-muted);font-size:13px;padding:20px 0;text-align:center;}
-    .table-note{font-size:11px;color:#555;margin-top:10px;}
-    .tag-mat{display:inline-block;font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 7px;border-radius:4px;text-transform:uppercase;}
-    .tag-pet{background:#1a3a20;color:#00e676;} .tag-hdpe{background:#0d2a2a;color:#26c6da;} .tag-ldpe{background:#1a2a3a;color:#42a5f5;} .tag-pp{background:#2a1a3a;color:#ce93d8;}
-    .badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px;}
-    .badge-paid{background:var(--green-bg);color:var(--accent);}
-    .badge-pending{background:var(--amber-bg);color:var(--amber);}
-    .badge-sent{background:var(--amber-bg);color:var(--amber);}
-    .badge-arrived{background:#0d2a2a;color:#26c6da;}
-    .btn-action{background:var(--surface2);border:1px solid var(--border2);color:var(--text-primary);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;}
-    .btn-action:hover{border-color:var(--accent);color:var(--accent);}
-    .btn-accept{background:var(--accent);color:var(--accent-dark);border:none;padding:8px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-family:inherit;font-size:13px;}
-    .btn-secondary{background:transparent;border:1px solid var(--border2);color:var(--text-muted);padding:7px 16px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;}
-    .dispatch-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:18px;margin-top:12px;display:none;}
-    .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-    .form-group{display:flex;flex-direction:column;gap:6px;}
-    .form-select{background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:10px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;}
-    .form-note{font-size:11px;color:var(--text-muted);margin-top:8px;}
-    .delivery-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;}
-    .delivery-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
-    .delivery-title{font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:3px;}
-    .delivery-sub{font-size:12px;color:var(--text-muted);}
-    .grade-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
-    .grade-btn{background:var(--surface);border:1px solid var(--border2);color:var(--text-muted);padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;}
-    .grade-btn.selected{border-color:var(--accent);color:var(--accent);font-weight:700;}
-    .action-row{display:flex;gap:8px;flex-wrap:wrap;}
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;}
-    .modal-overlay.open{display:flex;}
-    .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:480px;max-width:95vw;}
-    .modal-title{font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
-    .modal-sub{font-size:13px;color:var(--text-muted);margin-bottom:20px;}
-    .stars-row{display:flex;gap:8px;margin-bottom:18px;}
-    .star{font-size:28px;color:#444;cursor:pointer;transition:color 0.1s;}
-    .star.lit{color:var(--amber);}
-    .tags-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
-    .tag-chip{padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid transparent;}
-    .tag-chip.pos{background:#1a3a20;color:var(--accent);border-color:#00e67640;}
-    .tag-chip.neg{background:var(--amber-bg);color:var(--amber);border-color:#ffc10740;}
-    .tag-chip.sel-pos{background:var(--accent);color:var(--accent-dark);font-weight:700;}
-    .tag-chip.sel-neg{background:var(--amber);color:#1a0a00;font-weight:700;}
-    .rating-note-input{width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:10px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;height:80px;resize:vertical;margin-bottom:16px;}
-    .modal-actions{display:flex;gap:10px;}
-    .btn-submit{background:var(--accent);color:var(--accent-dark);border:none;padding:10px 24px;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-size:14px;font-family:inherit;}
-    .btn-cancel{background:transparent;border:1px solid var(--border2);color:var(--text-muted);padding:10px 20px;border-radius:var(--radius-sm);font-weight:600;cursor:pointer;font-size:14px;font-family:inherit;}
-    .proc-toast{position:fixed;bottom:24px;right:24px;z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius-sm);padding:14px 20px;color:var(--text-primary);font-size:14px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.4);transform:translateY(80px);opacity:0;transition:transform 0.3s ease,opacity 0.3s ease;pointer-events:none;}
-    .proc-toast.show{transform:translateY(0);opacity:1;}
-    .pay-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-top:10px;display:none;}
-    .compliance-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text-muted);padding:7px 14px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-family:inherit;}
-    @media(max-width:900px){.partners-grid{grid-template-columns:1fr;}}
-    @media(max-width:768px){.price-cards-grid{grid-template-columns:repeat(2,1fr);}.vol-strip{grid-template-columns:1fr;}}
-    .login-overlay.hidden{display:none;}
-  </style>
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-overlay.hidden{display:none}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-title{font-size:1.3rem;font-weight:700;color:var(--text-1);margin-bottom:6px}
+.login-subtitle{font-size:0.8rem;color:var(--text-3);margin-bottom:28px}
+.login-error{color:#ef5350;font-size:0.8rem;margin-bottom:12px;display:none}
+.login-error.visible{display:block}
+.login-field{margin-bottom:16px}
+
+/* ── TOAST ── */
+.proc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px 24px;color:var(--text-1);font-size:0.85rem;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.4);opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap}
+.proc-toast.show{opacity:1}
+
+/* ── RATING MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:480px;max-width:95vw}
+.modal-title{font-size:1.1rem;font-weight:700;color:var(--text-1);margin-bottom:4px}
+.modal-sub{font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
+.star-btn{font-size:1.6rem;color:var(--text-3);cursor:pointer;transition:color 0.1s}
+.star-btn.active{color:#ffd740}
+.stars-row{display:flex;gap:8px;margin-bottom:18px}
+.rtag{display:inline-block;padding:6px 14px;border-radius:20px;font-size:0.75rem;cursor:pointer;border:1px solid transparent;margin:0 4px 6px 0}
+.rtag.positive{background:var(--accent-muted);color:var(--accent);border-color:rgba(0,230,118,0.25)}
+.rtag.negative{background:rgba(255,193,7,0.1);color:#ffd740;border-color:rgba(255,193,7,0.25)}
+.rtag.positive.selected{background:var(--accent);color:#000;font-weight:700}
+.rtag.negative.selected{background:#ffd740;color:#1a0a00;font-weight:700}
+.rating-note-input{width:100%;box-sizing:border-box;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;color:var(--text-1);font-family:var(--font);font-size:0.8rem;height:80px;resize:vertical;margin-bottom:16px}
+.modal-actions{display:flex;gap:10px}
+
+/* ── DELIVERY CARDS ── */
+.delivery-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px}
+.delivery-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.delivery-title{font-weight:600;font-size:0.9rem}
+.delivery-meta{font-size:0.8rem;color:var(--text-3)}
+.delivery-price{font-weight:700;color:var(--accent);font-size:0.9rem}
+.delivery-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.delivery-inline-form{margin-top:10px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm)}
+.di-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:6px}
+.di-input{width:100%;padding:9px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;box-sizing:border-box}
+.di-textarea{width:100%;box-sizing:border-box;padding:9px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;resize:vertical;margin-bottom:10px}
+.di-actions{display:flex;gap:8px;margin-top:10px}
+.di-confirm{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:var(--r-sm);font-weight:700;cursor:pointer;font-family:var(--font);font-size:0.8rem}
+.di-cancel{background:transparent;border:1px solid var(--border);color:var(--text-2);padding:8px 16px;border-radius:var(--r-sm);font-weight:600;cursor:pointer;font-family:var(--font);font-size:0.8rem}
+.di-msg{font-size:0.8rem;margin-top:8px}
+.di-grade-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.di-grade-btn{background:var(--surface-alt);border:1px solid var(--border);color:var(--text-2);padding:8px 14px;border-radius:var(--r-sm);font-size:0.8rem;cursor:pointer;font-family:var(--font);text-align:left}
+.di-grade-btn.sel-a{border-color:var(--accent);color:var(--accent);font-weight:700}
+.di-grade-btn.sel-b{border-color:#ffd740;color:#ffd740;font-weight:700}
+.di-grade-btn.sel-c{border-color:#ef5350;color:#ef5350;font-weight:700}
+
+/* ── DISPATCH FORM ── */
+.dispatch-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:18px;margin-top:12px;display:none}
+
+/* ── PROCESSOR SALE ROWS ── */
+.ps-sale-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px}
+.ps-sale-title{font-weight:600;font-size:0.9rem}
+.ps-sale-meta{font-size:0.8rem;color:var(--text-3)}
+.ps-sale-price{font-weight:700;color:var(--accent);font-size:0.9rem}
+.ps-rejection{font-size:0.8rem;color:#ef5350;padding:6px 10px;background:rgba(239,83,80,0.1);border-radius:var(--r-sm);margin-top:4px}
+
+/* ── ACTION BUTTONS ── */
+.btn-approve{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:var(--r-sm);font-weight:700;cursor:pointer;font-family:var(--font);font-size:0.8rem}
+.btn-decline{background:transparent;border:1px solid #ef5350;color:#ef5350;padding:8px 16px;border-radius:var(--r-sm);font-weight:600;cursor:pointer;font-family:var(--font);font-size:0.8rem}
+.btn-log-arrival{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:var(--r-sm);font-weight:700;cursor:pointer;font-family:var(--font);font-size:0.8rem}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:32px 20px;color:var(--text-3);font-size:0.85rem}
 </style>
 </head>
 
 <body>
 
+<!-- LOGIN OVERLAY -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
     <div class="login-title">Sign in to Circul</div>
     <div class="login-subtitle" id="loginSubtitle">Processor access</div>
     <div class="login-error" id="loginError"></div>
-    <div class="login-field"><label class="form-label">Email</label><input class="form-input" id="proc-email" type="email" placeholder="you@company.com" /></div>
-    <div class="login-field"><label class="form-label">Password</label><input class="form-input" id="proc-password" type="password" placeholder="••••••••" /></div>
+    <div class="login-field"><label class="form-label">Email</label><input class="form-input" id="proc-email" type="email" placeholder="you@company.com"></div>
+    <div class="login-field"><label class="form-label">Password</label><input class="form-input" id="proc-password" type="password" placeholder="••••••••"></div>
     <button class="btn-primary" id="loginBtn" onclick="handleLogin()">Sign in</button>
   </div>
 </div>
 
+<!-- DASHBOARD -->
 <div id="dashboard" style="display:none">
-  <nav class="top-nav">
-    <a class="nav-logo" href="/">
-      <div class="nav-logo-icon">◎</div>
-      Circul
-    </a>
-    <span class="nav-role-pill" style="background:#0a1a2e;color:#42a5f5">PROCESSOR</span>
-    <span class="nav-user" id="navName">—</span>
+
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <span class="nav-spacer"></span>
+  <div class="nav-right">
+    <span class="nav-pill" style="background:#0a1e2a;color:#42a5f5">PROCESSOR</span>
+    <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="navProcId"></span>
-    <span class="nav-spacer"></span>
-    <a class="nav-link" href="/">← Home</a>
+    <a class="nav-link" href="/">Home</a>
     <button class="nav-logout" onclick="handleLogout()">Log out</button>
-  </nav>
-
-  <div class="main">
-
-    <!-- IDENTITY -->
-    <div>
-      <div class="identity-name" id="navTitle">—</div>
-      <div class="identity-meta">
-        <span id="heroLocation" style="color:var(--text-muted)"></span>
-        <span style="color:var(--border2)">·</span>
-        <span>⭐ <span id="heroRating" style="font-weight:600;color:var(--text-primary);">—</span></span>
-        <span style="color:var(--border2)">·</span>
-        <span class="identity-status">ACTIVE</span>
-      </div>
-    </div>
-
-    <!-- VOLUME STRIP -->
-    <div class="vol-strip">
-      <div class="vol-cell">
-        <div class="vol-label">VOLUME RECEIVED</div>
-        <div class="vol-value" id="statMonthKg">— <span>kg this month</span></div>
-        <div class="vol-sub" id="volMonthSub"></div>
-      </div>
-      <div class="vol-cell">
-        <div class="vol-label">VOLUME — YEAR TO DATE</div>
-        <div class="vol-value" id="statTotal">— <span>kg since Jan</span></div>
-        <div class="vol-sub" id="volYTDSub">Total lifetime: — kg</div>
-      </div>
-      <div class="vol-cell">
-        <div class="vol-label">OUTSTANDING (OWED TO AGGS)</div>
-        <div class="vol-value amber" id="statPending">GH¢ 0 <span>unpaid</span></div>
-        <div class="vol-sub" id="volOutstandingSub"></div>
-      </div>
-    </div>
-
-    <!-- TOP PARTNERS -->
-    <div class="partners-grid">
-      <div class="section-card">
-        <div class="section-head">
-          <div><div class="section-title">My top suppliers</div><div class="section-sub">Aggregators · avg price paid · last 10 txns</div></div>
-          <div class="toggle-group">
-            <button class="toggle-btn" id="suppMonthBtn" onclick="switchTopSuppliers('month')">Mar</button>
-            <button class="toggle-btn active" id="suppYTDBtn" onclick="switchTopSuppliers('ytd')">YTD</button>
-            <span class="toggle-sep">|</span><a class="view-all" href="#">All</a>
-          </div>
-        </div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>#</th><th>AGGREGATOR</th><th>VOL YTD</th><th>AVG PAID</th><th>TXNS</th></tr></thead><tbody id="topSuppliersBody"><tr><td colspan="5" class="table-empty">Loading…</td></tr></tbody></table></div>
-        <p class="table-note">* avg over last 10 transactions per supplier</p>
-      </div>
-      <div class="section-card">
-        <div class="section-head">
-          <div><div class="section-title">My top buyers</div><div class="section-sub">Converters · avg price received · last 10 txns</div></div>
-          <div class="toggle-group">
-            <button class="toggle-btn" id="buyMonthBtn" onclick="switchTopBuyers('month')">Mar</button>
-            <button class="toggle-btn active" id="buyYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
-            <span class="toggle-sep">|</span><a class="view-all" href="#">All</a>
-          </div>
-        </div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>#</th><th>CONVERTER</th><th>VOL YTD</th><th>AVG RECEIVED</th><th>TXNS</th></tr></thead><tbody id="topBuyersBody"><tr><td colspan="5" class="table-empty">Loading…</td></tr></tbody></table></div>
-        <p class="table-note">* avg over last 10 transactions per buyer</p>
-      </div>
-    </div>
-
-    <!-- POST BUY PRICES -->
-    <div class="section-card">
-      <div class="section-head">
-        <div><div class="section-title">Post buy prices</div><div class="section-sub">Visible to aggregators in your area</div></div>
-      </div>
-      <div class="price-cards-grid" id="priceCards"></div>
-    </div>
-
-    <!-- INCOMING DELIVERIES -->
-    <div class="section-card">
-      <div class="section-head">
-        <div><div class="section-title">Incoming deliveries</div><div class="section-sub">From aggregators — approve dispatch, confirm arrival, grade material</div></div>
-        <button class="btn-secondary" onclick="loadDeliveries()">↺ Refresh</button>
-      </div>
-      <div id="queuePending"></div>
-      <div id="queueApproved"></div>
-      <div>
-        <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin:16px 0 10px;">COMPLETED / REJECTED</div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>DATE</th><th>AGGREGATOR</th><th>MATERIAL</th><th>WEIGHT</th><th>AMOUNT</th><th>PAYMENT</th></tr></thead><tbody id="queueCompleted"><tr><td colspan="6" class="table-empty">No completed deliveries yet</td></tr></tbody></table></div>
-      </div>
-    </div>
-
-    <!-- SUPPLY CHAIN TRANSACTIONS -->
-    <div class="section-card">
-      <div class="section-head">
-        <div><div class="section-title">Supply chain — recent transactions</div><div class="section-sub">Full chain: Collector → Aggregator → You</div></div>
-        <button class="compliance-btn" onclick="downloadCompliance()">↓ EPR/CSRD report</button>
-      </div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>DATE</th><th>AGGREGATOR</th><th>MATERIAL</th><th>WEIGHT</th><th>AMOUNT</th><th>PAYMENT</th></tr></thead><tbody id="txnsList"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody></table></div>
-    </div>
-
-    <!-- SELL TO CONVERTERS -->
-    <div class="section-card">
-      <div class="section-head">
-        <div><div class="section-title">Sell to converters</div><div class="section-sub">Log a sale of processed material to a converter</div></div>
-        <button class="btn-accept" onclick="openDispatchForm()">+ Log sale</button>
-      </div>
-      <div class="dispatch-form" id="procSaleForm">
-        <div class="form-grid-2" style="margin-bottom:12px;">
-          <div class="form-group"><label class="form-label">CONVERTER</label><select class="form-select" id="ps-converter"><option value="">Select converter…</option></select></div>
-          <div class="form-group"><label class="form-label">MATERIAL</label><select class="form-select" id="ps-material"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select></div>
-        </div>
-        <div class="form-grid-2" style="margin-bottom:12px;">
-          <div class="form-group"><label class="form-label">WEIGHT (KG)</label><input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0" style="margin-bottom:0;" /></div>
-          <div class="form-group"><label class="form-label">PRICE (GH¢/KG)</label><input class="form-input" id="ps-price" type="number" min="0" step="0.01" placeholder="0.00" style="margin-bottom:0;" /></div>
-        </div>
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Total: <span id="ps-total" style="color:var(--accent);font-weight:600;">GH¢ 0</span></div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn-accept" onclick="submitProcessorSale()">Log sale</button>
-          <button class="btn-secondary" onclick="cancelDispatchForm()">Cancel</button>
-        </div>
-      </div>
-      <div id="procSalesList" style="margin-top:16px;"></div>
-    </div>
-
-    <!-- RATE AGGREGATORS -->
-    <div class="section-card">
-      <div class="section-head">
-        <div><div class="section-title">Rate aggregators you buy from</div><div class="section-sub">Your ratings help other processors choose reliable suppliers</div></div>
-      </div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>AGGREGATOR</th><th>VOLUME BOUGHT</th><th>YOUR RATING</th><th>ACTION</th></tr></thead><tbody id="aggRatingsList"><tr><td colspan="4" class="table-empty">Loading…</td></tr></tbody></table></div>
-    </div>
-
   </div>
+</nav>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-name" id="navTitle">—</div>
+      <div class="hero-meta">
+        <span id="heroLocation"></span>
+        <span class="sep">·</span>
+        <span>⭐ <span id="heroRating" style="font-weight:600">—</span></span>
+        <span class="sep">·</span>
+        <span class="badge">ACTIVE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats stats-3">
+    <div class="stat">
+      <div class="stat-label">Volume This Month</div>
+      <div class="stat-val" id="statMonthKg">— <small>kg this month</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total Volume (YTD)</div>
+      <div class="stat-val" id="statTotal">— <small>kg since Jan</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Outstanding (Owed)</div>
+      <div class="stat-val" id="statPending">GH¢ 0 <small>unpaid</small></div>
+    </div>
+  </div>
+
+  <!-- TWO-COLUMN: TOP PARTNERS -->
+  <div class="two-col">
+    <!-- MY TOP SUPPLIERS -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My top suppliers</div>
+          <div class="section-sub">Aggregators · avg price paid</div>
+        </div>
+        <div class="tabs" id="top-suppliers-toggle">
+          <button class="tab ptoggle-btn" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
+          <button class="tab on ptoggle-btn" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Aggregator</th><th>Volume</th><th>Avg Paid</th><th>Txns</th>
+          </tr></thead>
+          <tbody id="topSuppliersBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div id="top-suppliers-list"></div>
+    </div>
+
+    <!-- MY TOP BUYERS -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My top buyers</div>
+          <div class="section-sub">Converters · avg price received</div>
+        </div>
+        <div class="tabs" id="top-buyers-toggle">
+          <button class="tab ptoggle-btn" data-period="month" onclick="switchTopBuyers('month')">Month</button>
+          <button class="tab on ptoggle-btn" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Converter</th><th>Volume</th><th>Avg Received</th><th>Txns</th>
+          </tr></thead>
+          <tbody id="topBuyersBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div id="top-buyers-list"></div>
+    </div>
+  </div>
+
+  <!-- POST PURCHASE PRICES -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Post purchase prices</div>
+        <div class="section-sub">Current prices posted · GHS/kg</div>
+      </div>
+    </div>
+    <div class="price-grid" id="priceCards"></div>
+  </div>
+
+  <!-- INCOMING DELIVERIES -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Incoming deliveries</div>
+        <div class="section-sub">From aggregators — approve dispatch, confirm arrival, grade material</div>
+      </div>
+      <button class="btn" onclick="loadDeliveries()">Refresh</button>
+    </div>
+
+    <div class="sub">
+      <div class="sub-title">Pending</div>
+      <div id="queuePending"><div class="sub-empty">No deliveries awaiting review</div></div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-title">Approved</div>
+      <div id="queueApproved"><div class="sub-empty">No approved deliveries</div></div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-title">Completed / Rejected</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Amount</th><th>Payment</th>
+          </tr></thead>
+          <tbody id="queueCompleted"><tr><td colspan="6" class="empty">No completed deliveries yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUPPLY CHAIN TRANSACTIONS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Recent transactions</div>
+        <div class="section-sub">Full chain: Collector → Aggregator → You</div>
+      </div>
+      <button class="btn" onclick="downloadCompliance()">EPR/CSRD report</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Amount</th><th>Payment</th>
+        </tr></thead>
+        <tbody id="txnsList"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SELL TO CONVERTERS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Sell to converters</div>
+        <div class="section-sub">Log a sale of processed material to a converter</div>
+      </div>
+      <button class="btn-green btn" onclick="openDispatchForm()">+ Log sale</button>
+    </div>
+    <div class="dispatch-form" id="procSaleForm">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Converter</label>
+          <select class="form-select" id="ps-converter"><option value="">Select converter...</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Material Type</label>
+          <select class="form-select" id="ps-material"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Weight (kg)</label>
+          <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price/kg (GH¢)</label>
+          <input class="form-input" id="ps-price" type="number" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:12px">Total: <span id="ps-total" style="color:var(--accent);font-weight:600">GH¢ 0</span></div>
+      <div id="ps-msg" style="font-size:0.8rem;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-green btn" id="ps-submit-btn" onclick="submitProcessorSale()">Log Sale to Converter</button>
+        <button class="btn" onclick="cancelDispatchForm()">Cancel</button>
+      </div>
+    </div>
+    <div id="procSalesList" style="margin-top:16px"></div>
+  </div>
+
+  <!-- RATE AGGREGATORS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Rate aggregators</div>
+        <div class="section-sub">Your ratings help other processors choose reliable suppliers</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Aggregator</th><th>Volume Bought</th><th>Your Rating</th><th>Action</th>
+        </tr></thead>
+        <tbody id="aggRatingsList"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
 </div>
 
 <!-- RATING MODAL -->
-<div class="modal-overlay" id="ratingModalOverlay">
+<div class="modal-overlay" id="rating-modal">
   <div class="modal">
-    <div class="modal-title" id="ratingModalTitle">Rate aggregator</div>
+    <div class="modal-title" id="rating-modal-title">Rate aggregator</div>
     <div class="modal-sub" id="ratingModalSub"></div>
-    <div class="stars-row" id="starsRow">
-      <span class="star" onclick="rateAggregator(1,true)">★</span>
-      <span class="star" onclick="rateAggregator(2,true)">★</span>
-      <span class="star" onclick="rateAggregator(3,true)">★</span>
-      <span class="star" onclick="rateAggregator(4,true)">★</span>
-      <span class="star" onclick="rateAggregator(5,true)">★</span>
-    </div>
-    <div class="tags-row" id="tagsRow">
-      <span class="tag-chip pos" data-tag="Accurate batch weight">Accurate batch weight</span>
-      <span class="tag-chip pos" data-tag="Clean sorted material">Clean sorted material</span>
-      <span class="tag-chip pos" data-tag="Reliable schedule">Reliable schedule</span>
-      <span class="tag-chip pos" data-tag="Good communication">Good communication</span>
-      <span class="tag-chip neg" data-tag="Mixed material">Mixed material</span>
-      <span class="tag-chip neg" data-tag="Mislabelled batch">Mislabelled batch</span>
-      <span class="tag-chip neg" data-tag="Late delivery">Late delivery</span>
-    </div>
-    <textarea class="rating-note-input" id="ratingNote" placeholder="Optional note…"></textarea>
+    <div class="stars-row" id="rating-stars"></div>
+    <div id="rating-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:18px"></div>
+    <textarea class="rating-note-input" id="rating-note" placeholder="Optional note..."></textarea>
     <div class="modal-actions">
-      <button class="btn-submit" id="submitRatingBtn">Submit rating</button>
-      <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
+      <button class="btn-green btn" onclick="submitRating()">Submit rating</button>
+      <button class="btn" onclick="closeRatingModal()">Cancel</button>
     </div>
   </div>
 </div>
 
-<div class="proc-toast" id="procToast"></div>
-
-
+<div class="proc-toast" id="proc-toast"></div>
 
 <script src="/shared/roles.js"></script>
 <script>
@@ -383,12 +398,12 @@ function showDashboard() {
 }
 
 function handleLogin(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     var email = document.getElementById('proc-email').value.trim();
     var password = document.getElementById('proc-password').value.trim();
     if (!email || !password) return;
     var btn = document.getElementById('loginBtn');
-    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+    btn.disabled = true; btn.textContent = 'Signing in...';
     document.getElementById('loginError').classList.remove('visible');
     fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password }) })
     .then(function(r) { return r.json(); })
@@ -415,7 +430,7 @@ function handleLogin(e) {
     .catch(function() {
         var el = document.getElementById('loginError'); el.textContent = 'Connection error.'; el.classList.add('visible');
     })
-    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+    .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
 }
 
 function handleLogout() {
@@ -456,12 +471,13 @@ function loadTxns() {
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
                 var aggName = esc(t.aggregator_company || t.aggregator_name || t.seller_name || '—');
+                var matClass = 'pill-' + (t.material_type || '').toLowerCase();
                 return '<tr>' +
                     '<td>' + fmtDate(t.transaction_date) + '</td>' +
                     '<td class="td-name">' + aggName + '</td>' +
-                    '<td><span class="badge badge-blue">' + t.material_type + '</span></td>' +
+                    '<td><span class="pill ' + matClass + '">' + t.material_type + '</span></td>' +
                     '<td>' + fmt(t.net_weight_kg) + ' kg</td>' +
-                    '<td class="td-amount">' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td>' +
+                    '<td class="td-green">' + (t.total_price ? 'GH¢ ' + fmt(t.total_price) : '—') + '</td>' +
                     '<td>' + paymentBadge(t.payment_status) + '</td>' +
                     '</tr>';
             }).join('');
@@ -474,18 +490,22 @@ function loadAggregators() {
         .then(function(data) {
             var el = document.getElementById('aggregatorRatingsList') || document.getElementById('aggRatingsList');
             if (!el) return;
-            if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
+            if (!data.success || !data.transactions.length) { el.innerHTML = '<tr><td colspan="4" class="empty">No transactions yet</td></tr>'; return; }
             // Unique aggregators from transactions
             var seen = {};
             data.transactions.forEach(function(t) {
                 if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name || t.aggregator_display_name;
             });
             var aggs = Object.keys(seen);
-            if (!aggs.length) { el.innerHTML = '<div class="empty">No aggregators to rate yet</div>'; return; }
-            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Aggregator</th><th style="padding:8px 0;border-bottom:1px solid var(--border)"></th></tr></thead><tbody>' +
-                aggs.map(function(id) {
-                    return '<tr><td style="padding:10px 0">' + esc(seen[id]) + '</td><td style="padding:10px 0;text-align:right"><button onclick="rateAggregator(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-family:\'Plus Jakarta Sans\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></td></tr>';
-                }).join('') + '</tbody></table></div>';
+            if (!aggs.length) { el.innerHTML = '<tr><td colspan="4" class="empty">No aggregators to rate yet</td></tr>'; return; }
+            el.innerHTML = aggs.map(function(id) {
+                return '<tr>' +
+                    '<td class="td-name">' + esc(seen[id]) + '</td>' +
+                    '<td>—</td>' +
+                    '<td>—</td>' +
+                    '<td><button class="btn" onclick="openRatingModal(' + id + ',\'' + esc(seen[id]).replace(/'/g, "\\'") + '\')">Rate</button></td>' +
+                    '</tr>';
+            }).join('');
         });
 }
 
@@ -503,22 +523,21 @@ function renderPriceCards(prices) {
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p && p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : 'Not set';
-        var usdLine = p && p.price_per_kg_ghs ? '≈ $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD' : '';
+        var current = p && p.price_per_kg_ghs ? 'GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg' : 'Not set';
         return '<div class="price-card">' +
-            '<div class="price-card-mat">' + mat + '</div>' +
-            '<div class="price-card-current">' + current + '</div>' +
-            '<div class="price-card-usd">' + usdLine + '</div>' +
-            '<div class="price-input-row">' +
-            '<input type="number" class="price-input" id="price-ghs-' + mat + '" placeholder="GH₵ / kg" step="0.01" min="0">' +
-            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '<div class="pc-label">Material</div>' +
+            '<div class="pc-name">' + mat + '</div>' +
+            '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
+            '<div class="pc-inline">' +
+            '<input class="pc-input" type="number" id="price-ghs-' + mat + '" placeholder="GH¢/kg" step="0.01" min="0">' +
+            '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
 }
 
 function postPrice(mat) {
     var ghs = document.getElementById('price-ghs-' + mat).value;
-    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
+    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH¢ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ poster_type: 'processor', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
@@ -526,7 +545,7 @@ function postPrice(mat) {
 }
 
 function downloadCompliance(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     window.location.href = '/api/reports/compliance/' + state.operator.id + '?format=json';
 }
 
@@ -534,9 +553,9 @@ function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 1000
 function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 function paymentBadge(status) {
-    if (status === 'paid') return '<span class="badge badge-green">Paid</span>';
-    if (status === 'payment_sent') return '<span class="badge badge-amber">Payment sent</span>';
-    return '<span class="badge badge-gray">Unpaid</span>';
+    if (status === 'paid') return '<span class="pill pill-paid">Paid</span>';
+    if (status === 'payment_sent') return '<span class="pill pill-sent">Payment sent</span>';
+    return '<span class="pill pill-pending">Unpaid</span>';
 }
 function timeAgo(iso) {
     if (!iso) return '—';
@@ -565,45 +584,42 @@ function loadDeliveries() {
             return ['arrived','grade_c_flagged','dispatch_rejected'].indexOf(d.status) !== -1;
         }).slice(0, 10);
 
-        document.getElementById('queuePending').innerHTML  = pending.length  ? pending.map(buildPendingCard).join('')   : '<div class="empty">No pending deliveries awaiting review.</div>';
-        document.getElementById('queueApproved').innerHTML = approved.length ? approved.map(buildApprovedCard).join('') : '<div class="empty">No deliveries awaiting arrival confirmation.</div>';
+        document.getElementById('queuePending').innerHTML  = pending.length  ? pending.map(buildPendingCard).join('')   : '<div class="sub-empty">No pending deliveries awaiting review.</div>';
+        document.getElementById('queueApproved').innerHTML = approved.length ? approved.map(buildApprovedCard).join('') : '<div class="sub-empty">No deliveries awaiting arrival confirmation.</div>';
         if (!completed.length) {
-            document.getElementById('queueCompleted').innerHTML = '<div class="empty">No completed or flagged deliveries yet.</div>';
+            document.getElementById('queueCompleted').innerHTML = '<tr><td colspan="6" class="empty">No completed or flagged deliveries yet.</td></tr>';
         } else {
-            document.getElementById('queueCompleted').innerHTML =
-                '<div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
-                '<th>DATE</th><th>SELLER</th><th>MATERIAL</th><th>WEIGHT</th><th>GRADE</th><th>AMOUNT</th><th>STATUS</th><th>PAYMENT</th>' +
-                '</tr></thead><tbody>' + completed.map(buildCompletedRow).join('') + '</tbody></table></div>';
+            document.getElementById('queueCompleted').innerHTML = completed.map(buildCompletedRow).join('');
         }
     })
     .catch(function() {
-        document.getElementById('queuePending').innerHTML = '<div class="empty">Could not load deliveries.</div>';
+        document.getElementById('queuePending').innerHTML = '<div class="sub-empty">Could not load deliveries.</div>';
     });
 }
 
 function ptPayBadge(ps) {
-    if (ps === 'paid')         return '<span class="badge badge-green">Paid ✓</span>';
-    if (ps === 'payment_sent') return '<span class="badge badge-amber">Payment Sent</span>';
-    return '<span class="badge badge-gray">Unpaid</span>';
+    if (ps === 'paid')         return '<span class="pill pill-paid">Paid</span>';
+    if (ps === 'payment_sent') return '<span class="pill pill-sent">Payment Sent</span>';
+    return '<span class="pill pill-pending">Unpaid</span>';
 }
 
 function buildPTPaymentUI(pt) {
     var ps = pt.payment_status || 'unpaid';
     if (ps === 'paid') return ptPayBadge(ps);
-    if (ps === 'payment_sent') return ptPayBadge(ps) + ' <span style="font-size:0.78rem;color:var(--slate-light)">Awaiting aggregator confirmation</span>';
+    if (ps === 'payment_sent') return ptPayBadge(ps) + ' <span style="font-size:0.75rem;color:var(--text-3)">Awaiting aggregator confirmation</span>';
     // unpaid — show Record Payment form
     return ptPayBadge(ps) +
-        ' <button class="btn-approve" style="font-size:0.78rem;padding:5px 12px" onclick="openPTPayForm(' + pt.id + ')">Record Payment</button>' +
-        '<div id="pt-pay-form-' + pt.id + '" style="display:none;margin-top:8px;padding:10px;background:#f8fafc;border-radius:8px;border:1px solid var(--border)">' +
-            '<label style="display:block;margin-bottom:8px;font-size:0.82rem;font-weight:600">Payment method</label>' +
-            '<label style="font-size:0.82rem;margin-right:16px"><input type="radio" name="pt-pm-' + pt.id + '" value="cash" onchange="togglePTMoMo(' + pt.id + ')"> Cash</label>' +
-            '<label style="font-size:0.82rem"><input type="radio" name="pt-pm-' + pt.id + '" value="mobile_money" onchange="togglePTMoMo(' + pt.id + ')"> Mobile Money</label>' +
+        ' <button class="btn" style="font-size:0.75rem;padding:5px 12px" onclick="openPTPayForm(' + pt.id + ')">Record Payment</button>' +
+        '<div id="pt-pay-form-' + pt.id + '" style="display:none;margin-top:8px;padding:10px;background:var(--surface-alt);border-radius:var(--r-sm);border:1px solid var(--border)">' +
+            '<label style="display:block;margin-bottom:8px;font-size:0.8rem;font-weight:600;color:var(--text-2)">Payment method</label>' +
+            '<label style="font-size:0.8rem;margin-right:16px;color:var(--text-2)"><input type="radio" name="pt-pm-' + pt.id + '" value="cash" onchange="togglePTMoMo(' + pt.id + ')"> Cash</label>' +
+            '<label style="font-size:0.8rem;color:var(--text-2)"><input type="radio" name="pt-pm-' + pt.id + '" value="mobile_money" onchange="togglePTMoMo(' + pt.id + ')"> Mobile Money</label>' +
             '<div id="pt-momo-' + pt.id + '" style="display:none;margin-top:8px">' +
-                '<input type="text" id="pt-momo-ref-' + pt.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit">' +
+                '<input type="text" id="pt-momo-ref-' + pt.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" class="form-input" style="font-size:0.8rem">' +
             '</div>' +
-            '<div style="margin-top:10px">' +
+            '<div style="margin-top:10px;display:flex;gap:8px">' +
                 '<button class="di-confirm" onclick="submitPTPayInitiate(' + pt.id + ')">Confirm Payment</button>' +
-                '<button class="di-cancel" style="margin-left:8px" onclick="document.getElementById(\'pt-pay-form-' + pt.id + '\').style.display=\'none\'">Cancel</button>' +
+                '<button class="di-cancel" onclick="document.getElementById(\'pt-pay-form-' + pt.id + '\').style.display=\'none\'">Cancel</button>' +
             '</div>' +
         '</div>';
 }
@@ -649,23 +665,24 @@ function buildPendingCard(pt) {
     var hasPhotos = photos.length > 0;
     var bigBatch  = parseFloat(pt.gross_weight_kg) > 500;
     var aggName   = esc(pt.aggregator_name || pt.aggregator_company || '—');
+    var matClass  = 'pill-' + (pt.material_type || '').toLowerCase();
     var photoHtml = hasPhotos
-        ? '<span class="badge badge-green">✓ ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
-        : '<span class="badge badge-amber">⚠ No photos</span>';
+        ? '<span class="pill pill-paid">' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
+        : '<span class="pill pill-pending">No photos</span>';
     var warnHtml = bigBatch && !hasPhotos
-        ? '<div style="font-size:0.8rem;padding:7px 10px;background:var(--amber-light);color:#92400e;border-radius:6px;margin-top:8px">Photos required for batches over 500 kg — you may waive below.</div>'
+        ? '<div style="font-size:0.8rem;padding:7px 10px;background:rgba(255,193,7,0.1);color:#ffd740;border-radius:var(--r-sm);margin-top:8px">Photos required for batches over 500 kg — you may waive below.</div>'
         : '';
     return '<div class="delivery-card" id="dc-' + pt.id + '">' +
         '<div class="delivery-row">' +
-        '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        '<span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span>' +
         '<span class="delivery-title">' + aggName + '</span>' +
         '<span class="delivery-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="delivery-meta">GHS ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="delivery-price">GHS ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="delivery-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="delivery-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
         '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
-        '<div class="delivery-actions" style="flex-wrap:wrap;gap:8px">' +
+        '<div class="delivery-actions">' +
         '<button class="btn-approve" onclick="openDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
@@ -677,14 +694,15 @@ function buildPendingCard(pt) {
 
 function buildApprovedCard(pt) {
     var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
+    var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
     return '<div class="delivery-card" id="dc-arr-' + pt.id + '">' +
         '<div class="delivery-row">' +
-        '<span class="badge badge-green">✓ Approved</span>' +
-        '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
+        '<span class="pill pill-paid">Approved</span>' +
+        '<span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span>' +
         '<span class="delivery-title">' + aggName + '</span>' +
         '<span class="delivery-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="delivery-meta">GHS ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="delivery-price">GHS ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="delivery-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="delivery-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
         '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="delivery-actions"><button class="btn-log-arrival" onclick="openArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
@@ -695,30 +713,26 @@ function buildApprovedCard(pt) {
 
 function buildCompletedRow(pt) {
     var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
+    var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
     var statusBadge = pt.status === 'arrived'
-        ? '<span class="badge badge-green">Arrived</span>'
+        ? '<span class="pill pill-paid">Arrived</span>'
         : pt.status === 'grade_c_flagged'
-        ? '<span class="badge badge-amber">Flagged</span>'
-        : '<span class="badge" style="background:#fee2e2;color:#991b1b">Rejected</span>';
-    var gradeBadge = pt.grade
-        ? '<span class="badge ' + (pt.grade === 'A' ? 'badge-green' : pt.grade === 'B' ? 'badge-amber' : '') + '" style="' + (pt.grade === 'C' ? 'background:#fee2e2;color:#991b1b' : '') + '">' + pt.grade + '</span>'
-        : '—';
-    var total = pt.total_price ? 'GHS ' + fmt(pt.total_price) + ' <span style="font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price) * 0.067).toFixed(0) + '</span>' : '—';
+        ? '<span class="pill pill-pending">Flagged</span>'
+        : '<span class="pill" style="background:rgba(239,83,80,0.15);color:#ef5350">Rejected</span>';
+    var total = pt.total_price ? 'GH¢ ' + fmt(pt.total_price) : '—';
     var ps = pt.payment_status || 'unpaid';
     var payCell = ps === 'paid'
-        ? '<span class="badge badge-green">Paid ✓</span>'
+        ? '<span class="pill pill-paid">Paid</span>'
         : ps === 'payment_sent'
-        ? '<span class="badge badge-amber">Sent</span>'
-        : '<button class="btn-approve" style="font-size:0.75rem;padding:4px 10px" onclick="openPTPayForm(' + pt.id + ')">Pay</button>' +
+        ? '<span class="pill pill-sent">Sent</span>'
+        : '<button class="btn" style="font-size:0.75rem;padding:4px 10px" onclick="openPTPayForm(' + pt.id + ')">Pay</button>' +
           '<div id="pt-pay-form-' + pt.id + '" style="display:none;margin-top:6px">' + buildPTPaymentUI(pt) + '</div>';
     return '<tr>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
         '<td class="td-name">' + aggName + '</td>' +
-        '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
+        '<td><span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span></td>' +
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
-        '<td>' + gradeBadge + '</td>' +
-        '<td class="td-amount">' + total + '</td>' +
-        '<td>' + statusBadge + '</td>' +
+        '<td class="td-green">' + total + '</td>' +
         '<td>' + payCell + '</td>' +
     '</tr>';
 }
@@ -726,6 +740,12 @@ function buildCompletedRow(pt) {
 // ── DISPATCH DECISION FORMS ───────────────────────────────────────────────────
 
 function openDispatchForm(ptId, type) {
+    // If called without args (from "Log sale" button), toggle the sale form
+    if (ptId === undefined || typeof ptId !== 'number') {
+        var sf = document.getElementById('procSaleForm');
+        if (sf) sf.style.display = sf.style.display === 'none' ? '' : 'none';
+        return;
+    }
     var formEl = document.getElementById('dispatch-form-' + ptId);
     // Toggle off
     if (activeDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
@@ -746,19 +766,19 @@ function openDispatchForm(ptId, type) {
 
     if (type === 'approve') {
         var waiveHtml = bigBatch && noPhotos
-            ? '<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="waive-' + ptId + '"> Waive photo requirement for this batch</label>'
+            ? '<label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin-bottom:12px;cursor:pointer;color:var(--text-2)"><input type="checkbox" id="waive-' + ptId + '"> Waive photo requirement for this batch</label>'
             : '';
         formEl.innerHTML = '<div class="delivery-inline-form">' + waiveHtml +
             '<div class="di-actions">' +
-            '<button class="di-confirm" onclick="submitDispatchDecision(' + ptId + ',\'approve\')">✓ Confirm Dispatch Approval</button>' +
+            '<button class="di-confirm" onclick="submitDispatchDecision(' + ptId + ',\'approve\')">Confirm Dispatch Approval</button>' +
             '<button class="di-cancel" onclick="cancelDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="dispatch-msg-' + ptId + '"></div></div>';
     } else {
         formEl.innerHTML = '<div class="delivery-inline-form">' +
             '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
-            '<textarea class="di-textarea" id="reject-reason-' + ptId + '" placeholder="Describe the issue…" rows="2"></textarea>' +
+            '<textarea class="di-textarea" id="reject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:var(--red)" onclick="submitDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm" style="background:#ef5350" onclick="submitDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="dispatch-msg-' + ptId + '"></div></div>';
     }
@@ -766,9 +786,14 @@ function openDispatchForm(ptId, type) {
 }
 
 function cancelDispatchForm(ptId) {
-    var f = document.getElementById('dispatch-form-' + ptId);
-    if (f) f.style.display = 'none';
-    if (activeDispatchId === ptId) activeDispatchId = null;
+    if (typeof ptId === 'number') {
+        var f = document.getElementById('dispatch-form-' + ptId);
+        if (f) f.style.display = 'none';
+        if (activeDispatchId === ptId) activeDispatchId = null;
+    } else {
+        var sf = document.getElementById('procSaleForm');
+        if (sf) sf.style.display = 'none';
+    }
 }
 
 function submitDispatchDecision(ptId, decision) {
@@ -777,7 +802,7 @@ function submitDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('reject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = 'var(--red)'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef5350'; return; }
         body.rejection_reason = reason;
     } else {
         var waiveEl = document.getElementById('waive-' + ptId);
@@ -791,9 +816,9 @@ function submitDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeDispatchId = null; loadDeliveries(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef5350'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef5350'; });
 }
 
 // ── ARRIVAL CONFIRMATION FORMS ────────────────────────────────────────────────
@@ -818,14 +843,14 @@ function openArrivalForm(ptId) {
         '<input type="number" class="di-input" id="arr-weight-' + ptId + '" value="' + esc(String(origWeight)) + '" min="0.1" step="0.1" style="max-width:200px;margin-bottom:0"></div>' +
         '<label class="di-label">Grade</label>' +
         '<div class="di-grade-row">' +
-        '<button class="di-grade-btn" id="agA-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.7rem;font-weight:400">&lt;5% contamination · +10%</span></button>' +
-        '<button class="di-grade-btn" id="agB-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.7rem;font-weight:400">5–15% contamination · standard</span></button>' +
-        '<button class="di-grade-btn" id="agC-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.7rem;font-weight:400">&gt;15% contamination · flagged</span></button>' +
+        '<button class="di-grade-btn" id="agA-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.7rem;font-weight:400">&lt;5% contamination</span></button>' +
+        '<button class="di-grade-btn" id="agB-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.7rem;font-weight:400">5-15% contamination</span></button>' +
+        '<button class="di-grade-btn" id="agC-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.7rem;font-weight:400">&gt;15% contamination</span></button>' +
         '</div>' +
-        '<div id="grade-c-warn-' + ptId + '" style="display:none;font-size:0.8rem;padding:7px 10px;background:var(--amber-light);color:#92400e;border-radius:6px;margin-bottom:10px">Grade C flags this delivery — full rejection flow coming soon.</div>' +
+        '<div id="grade-c-warn-' + ptId + '" style="display:none;font-size:0.8rem;padding:7px 10px;background:rgba(255,193,7,0.1);color:#ffd740;border-radius:var(--r-sm);margin-bottom:10px">Grade C flags this delivery.</div>' +
         '<div id="grade-c-reason-' + ptId + '" style="display:none">' +
         '<label class="di-label">Rejection / flag reason <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>' +
-        '<textarea class="di-textarea" id="arr-reason-' + ptId + '" placeholder="Describe the issue…" rows="2"></textarea>' +
+        '<textarea class="di-textarea" id="arr-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
         '</div>' +
         '<div class="di-actions">' +
         '<button class="di-confirm" id="arr-confirm-' + ptId + '" onclick="submitArrivalConfirmation(' + ptId + ')" disabled>Confirm Arrival</button>' +
@@ -860,8 +885,8 @@ function submitArrivalConfirmation(ptId) {
     var msgEl = document.getElementById('arrival-msg-' + ptId);
     var weight = document.getElementById('arr-weight-' + ptId).value;
     var grade  = arrivalGradeMap[ptId];
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = 'var(--red)'; return; }
-    if (!grade) { msgEl.textContent = 'Select a grade.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef5350'; return; }
+    if (!grade) { msgEl.textContent = 'Select a grade.'; msgEl.style.color = '#ef5350'; return; }
     var body = { actual_weight_kg: parseFloat(weight), grade: grade };
     if (grade === 'C') {
         var reasonEl = document.getElementById('arr-reason-' + ptId);
@@ -875,9 +900,9 @@ function submitArrivalConfirmation(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeArrivalId = null; loadDeliveries(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef5350'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef5350'; });
 }
 
 // ── SALES TO CONVERTERS ────────────────────────────────────────────────────────
@@ -893,7 +918,7 @@ function loadConverters() {
                 sel.innerHTML = '<option value="">No converters found</option>';
                 return;
             }
-            sel.innerHTML = '<option value="">Select converter…</option>' +
+            sel.innerHTML = '<option value="">Select converter...</option>' +
                 convertersList.map(function(c) {
                     return '<option value="' + c.id + '">' + esc(c.company || c.name) + '</option>';
                 }).join('');
@@ -913,7 +938,7 @@ function calcProcSaleTotal() {
         var total = w * p;
         var ghsEl = document.getElementById('ps-total-ghs');
         var usdEl = document.getElementById('ps-total-usd');
-        if (ghsEl) ghsEl.textContent = 'GH₵ ' + fmt(total) + ' total';
+        if (ghsEl) ghsEl.textContent = 'GH¢ ' + fmt(total) + ' total';
         if (usdEl) usdEl.textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
         if (!ghsEl && !usdEl) box.textContent = 'GH¢ ' + fmt(total);
         box.style.display = '';
@@ -934,13 +959,13 @@ function submitProcessorSale() {
     var notes        = notesEl ? notesEl.value.trim() : '';
 
     if (msgEl) msgEl.textContent = '';
-    function showMsg(m) { if (msgEl) { msgEl.textContent = m; msgEl.style.color = 'var(--red)'; } }
+    function showMsg(m) { if (msgEl) { msgEl.textContent = m; msgEl.style.color = '#ef5350'; } }
     if (!converterId)            { showMsg('Select a converter.');       return; }
     if (!material)               { showMsg('Select a material.');        return; }
     if (!weight || parseFloat(weight) <= 0) { showMsg('Enter a valid weight.'); return; }
     if (!price  || parseFloat(price)  <= 0) { showMsg('Enter a valid price.');  return; }
 
-    if (btn) { btn.disabled = true; btn.textContent = 'Logging…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Logging...'; }
     fetch('/api/pending-transactions/processor-sale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -997,16 +1022,17 @@ function renderProcessorSales() {
     }
     el.innerHTML = processorSales.map(function(s) {
         var convName = esc(s.converter_company || s.converter_name || '—');
+        var matClass = 'pill-' + (s.material_type || '').toLowerCase();
         var statusBadge = buildProcSaleStatusBadge(s.status);
-        var total = s.total_price ? 'GH₵ ' + fmt(s.total_price) + ' <span style="font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(s.total_price) * 0.067).toFixed(0) + '</span>' : '—';
+        var total = s.total_price ? 'GH¢ ' + fmt(s.total_price) : '—';
         var rejHtml = (s.status === 'dispatch_rejected' && s.rejection_reason)
-            ? '<div class="ps-rejection">✗ Rejected: ' + esc(s.rejection_reason) + '</div>'
+            ? '<div class="ps-rejection">Rejected: ' + esc(s.rejection_reason) + '</div>'
             : '';
         return '<div class="ps-sale-row">' +
-            '<span class="badge badge-blue">' + esc(s.material_type) + '</span>' +
+            '<span class="pill ' + matClass + '">' + esc(s.material_type) + '</span>' +
             '<span class="ps-sale-title">' + convName + '</span>' +
             '<span class="ps-sale-meta">' + fmt(s.gross_weight_kg) + ' kg</span>' +
-            '<span class="ps-sale-meta">GH₵ ' + fmt(s.price_per_kg || 0) + '/kg</span>' +
+            '<span class="ps-sale-meta">GH¢ ' + fmt(s.price_per_kg || 0) + '/kg</span>' +
             statusBadge +
             '<span class="ps-sale-price">' + total + '</span>' +
             '<span class="ps-sale-meta" style="width:100%;margin-top:2px">' + fmtDate(s.created_at) + '</span>' +
@@ -1016,139 +1042,130 @@ function renderProcessorSales() {
 }
 
 function buildProcSaleStatusBadge(status) {
-    if (status === 'pending')           return '<span class="badge badge-amber">Pending</span>';
-    if (status === 'dispatch_approved') return '<span class="badge badge-blue">Dispatch Approved</span>';
-    if (status === 'dispatch_rejected') return '<span class="badge" style="background:#fee2e2;color:#991b1b">Rejected</span>';
-    if (status === 'arrived')           return '<span class="badge badge-green">Arrived</span>';
-    if (status === 'completed')         return '<span class="badge badge-green">Completed</span>';
-    if (status === 'grade_c_flagged')   return '<span class="badge badge-amber">Flagged</span>';
-    return '<span class="badge badge-gray">' + esc(status) + '</span>';
+    if (status === 'pending')           return '<span class="pill pill-pending">Pending</span>';
+    if (status === 'dispatch_approved') return '<span class="pill pill-sent">Dispatch Approved</span>';
+    if (status === 'dispatch_rejected') return '<span class="pill" style="background:rgba(239,83,80,0.15);color:#ef5350">Rejected</span>';
+    if (status === 'arrived')           return '<span class="pill pill-paid">Arrived</span>';
+    if (status === 'completed')         return '<span class="pill pill-paid">Completed</span>';
+    if (status === 'grade_c_flagged')   return '<span class="pill pill-pending">Flagged</span>';
+    return '<span class="pill pill-pending">' + esc(status) + '</span>';
 }
 
-function showProcToast(msg) {
-    var el = document.getElementById('procToast');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.remove('hidden');
-    if (procToastTimer) clearTimeout(procToastTimer);
-    procToastTimer = setTimeout(function() { el.classList.add('hidden'); }, 3500);
+function showProcToast(msg, isError) {
+  var t = document.getElementById("proc-toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "proc-toast";
+    t.className = "proc-toast";
+    document.body.appendChild(t);
+  }
+  t.style.background = isError ? "#7f1d1d" : "var(--surface)";
+  t.style.color = isError ? "#fca5a5" : "var(--accent)";
+  t.style.borderColor = isError ? "#ef5350" : "var(--accent)";
+  t.textContent = msg;
+  t.style.opacity = "1";
+  setTimeout(function() { t.style.opacity = "0"; }, 3000);
 }
 
 checkAuth();
 
 
 // ── TOP PARTNERS ─────────────────────────────────────────────────
-let _topSuppliersPeriod = "month";
-let _topBuyersPeriod = "month";
+var _topSuppliersPeriod = "month";
+var _topBuyersPeriod = "month";
 
 function switchTopSuppliers(period) {
   _topSuppliersPeriod = period;
-  document.querySelectorAll("#top-suppliers-toggle .ptoggle-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.period === period);
+  document.querySelectorAll("#top-suppliers-toggle .ptoggle-btn").forEach(function(b) {
+    if (b.dataset.period === period) { b.classList.add("on"); } else { b.classList.remove("on"); }
   });
   loadTopSuppliers(period);
 }
 
 function switchTopBuyers(period) {
   _topBuyersPeriod = period;
-  document.querySelectorAll("#top-buyers-toggle .ptoggle-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.period === period);
+  document.querySelectorAll("#top-buyers-toggle .ptoggle-btn").forEach(function(b) {
+    if (b.dataset.period === period) { b.classList.add("on"); } else { b.classList.remove("on"); }
   });
   loadTopBuyers(period);
 }
 
 function loadTopSuppliers(period) {
-  const el = document.getElementById("top-suppliers-list");
+  var el = document.getElementById("top-suppliers-list");
   if (!el) return;
-  el.innerHTML = "<div style=\"color:#8aab90;font-size:13px;padding:12px 0\">Loading...</div>";
+  el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>Loading...</div>";
   fetch("/api/processor/top-suppliers?period=" + period)
-    .then(r => r.json())
-    .then(data => {
-      const items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = "<div style=\"color:#8aab90;font-size:13px;padding:12px 0\">No data yet</div>"; return; }
-      el.innerHTML = items.slice(0,3).map((p,i) => [
-        "<div class=\"partner-row\">",
-        "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-        "  <span class=\"partner-name\">" + (p.name||p.aggregator_name||"Unknown") + "</span>",
-        "  <span class=\"partner-vol\">" + formatVol(p.volume||p.total_volume||0) + " kg</span>",
-        "  <div class=\"partner-price-block\">",
-        "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
-        "    <span class=\"partner-price-val\">GHS " + formatPrice(p.avg_price||p.avg_price_paid||0) + "/kg</span>",
-        "    <span class=\"partner-price-note\">avg over last 10</span>",
-        "  </div>",
-        "</div>"
-      ].join("")).join("");
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var items = Array.isArray(data) ? data : (data.suppliers || []);
+      if (!items.length) { el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>No data yet</div>"; return; }
+      el.innerHTML = items.slice(0,3).map(function(p,i) {
+        return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
+          "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
+          "<span class='td-name' style='flex:1'>" + (p.name||p.aggregator_name||"Unknown") + "</span>" +
+          "<span>" + formatVol(p.volume||p.total_volume||0) + " kg</span>" +
+          "<span class='td-green'>GH¢ " + formatPrice(p.avg_price||p.avg_price_paid||0) + "/kg</span>" +
+        "</div>";
+      }).join("");
     })
-    .catch(() => {
+    .catch(function() {
       el.innerHTML = renderDemoTopSuppliers(period);
     });
 }
 
 function loadTopBuyers(period) {
-  const el = document.getElementById("top-buyers-list");
+  var el = document.getElementById("top-buyers-list");
   if (!el) return;
-  el.innerHTML = "<div style=\"color:#8aab90;font-size:13px;padding:12px 0\">Loading...</div>";
+  el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>Loading...</div>";
   fetch("/api/processor/top-buyers?period=" + period)
-    .then(r => r.json())
-    .then(data => {
-      const items = Array.isArray(data) ? data : (data.buyers || []);
-      if (!items.length) { el.innerHTML = "<div style=\"color:#8aab90;font-size:13px;padding:12px 0\">No data yet</div>"; return; }
-      el.innerHTML = items.slice(0,3).map((p,i) => [
-        "<div class=\"partner-row\">",
-        "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-        "  <span class=\"partner-name\">" + (p.name||p.converter_name||"Unknown") + "</span>",
-        "  <span class=\"partner-vol\">" + formatVol(p.volume||p.total_volume||0) + " kg</span>",
-        "  <div class=\"partner-price-block\">",
-        "    <span class=\"partner-price-label\">AVG RECEIVED</span>",
-        "    <span class=\"partner-price-val\">GHS " + formatPrice(p.avg_price||p.avg_price_received||0) + "/kg</span>",
-        "    <span class=\"partner-price-note\">avg over last 10</span>",
-        "  </div>",
-        "</div>"
-      ].join("")).join("");
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var items = Array.isArray(data) ? data : (data.buyers || []);
+      if (!items.length) { el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>No data yet</div>"; return; }
+      el.innerHTML = items.slice(0,3).map(function(p,i) {
+        return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
+          "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
+          "<span class='td-name' style='flex:1'>" + (p.name||p.converter_name||"Unknown") + "</span>" +
+          "<span>" + formatVol(p.volume||p.total_volume||0) + " kg</span>" +
+          "<span class='td-green'>GH¢ " + formatPrice(p.avg_price||p.avg_price_received||0) + "/kg</span>" +
+        "</div>";
+      }).join("");
     })
-    .catch(() => {
+    .catch(function() {
       el.innerHTML = renderDemoTopBuyers(period);
     });
 }
 
 function renderDemoTopSuppliers(period) {
-  const demo = [
+  var demo = [
     { name: "Accra Recyclers Ltd", volume: 4200, avg: 1.82 },
     { name: "EcoSort Ghana", volume: 3100, avg: 1.76 },
     { name: "GreenBase Coll.", volume: 1950, avg: 1.79 }
   ];
-  return demo.map((p,i) => [
-    "<div class=\"partner-row\">",
-    "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-    "  <span class=\"partner-name\">" + p.name + "</span>",
-    "  <span class=\"partner-vol\">" + formatVol(p.volume) + " kg</span>",
-    "  <div class=\"partner-price-block\">",
-    "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
-    "    <span class=\"partner-price-val\">GHS " + p.avg.toFixed(2) + "/kg</span>",
-    "    <span class=\"partner-price-note\">avg over last 10</span>",
-    "  </div>",
-    "</div>"
-  ].join("")).join("");
+  return demo.map(function(p,i) {
+    return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
+      "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
+      "<span class='td-name' style='flex:1'>" + p.name + "</span>" +
+      "<span>" + formatVol(p.volume) + " kg</span>" +
+      "<span class='td-green'>GH¢ " + p.avg.toFixed(2) + "/kg</span>" +
+    "</div>";
+  }).join("");
 }
 
 function renderDemoTopBuyers(period) {
-  const demo = [
+  var demo = [
     { name: "PolyConvert GH", volume: 3800, avg: 2.45 },
     { name: "PlasticTech Ltd", volume: 2600, avg: 2.38 },
     { name: "NordicPlast Africa", volume: 1700, avg: 2.52 }
   ];
-  return demo.map((p,i) => [
-    "<div class=\"partner-row\">",
-    "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-    "  <span class=\"partner-name\">" + p.name + "</span>",
-    "  <span class=\"partner-vol\">" + formatVol(p.volume) + " kg</span>",
-    "  <div class=\"partner-price-block\">",
-    "    <span class=\"partner-price-label\">AVG RECEIVED</span>",
-    "    <span class=\"partner-price-val\">GHS " + p.avg.toFixed(2) + "/kg</span>",
-    "    <span class=\"partner-price-note\">avg over last 10</span>",
-    "  </div>",
-    "</div>"
-  ].join("")).join("");
+  return demo.map(function(p,i) {
+    return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
+      "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
+      "<span class='td-name' style='flex:1'>" + p.name + "</span>" +
+      "<span>" + formatVol(p.volume) + " kg</span>" +
+      "<span class='td-green'>GH¢ " + p.avg.toFixed(2) + "/kg</span>" +
+    "</div>";
+  }).join("");
 }
 
 function formatVol(n) {
@@ -1161,14 +1178,12 @@ function formatPrice(n) {
 }
 
 // ── RATING MODAL (ATTRIBUTE TAGS) ────────────────────────────────
-let _ratingTarget = null;
-let _ratingStars = 0;
-let _ratingTags = [];
+var _ratingTarget = null;
+var _ratingStars = 0;
+var _ratingTags = [];
 
 // Processor rates aggregator tags:
-// Green: Accurate batch weight · Clean sorted material · Reliable schedule · Good communication
-// Orange: Mixed material · Mislabelled batch · Late delivery
-const PROC_RATING_TAGS = [
+var PROC_RATING_TAGS = [
   { label: "Accurate batch weight", type: "positive" },
   { label: "Clean sorted material", type: "positive" },
   { label: "Reliable schedule", type: "positive" },
@@ -1182,7 +1197,7 @@ function openRatingModal(aggregatorId, aggregatorName) {
   _ratingTarget = { id: aggregatorId, name: aggregatorName };
   _ratingStars = 0;
   _ratingTags = [];
-  const modal = document.getElementById("rating-modal");
+  var modal = document.getElementById("rating-modal");
   if (!modal) return;
   document.getElementById("rating-modal-title").textContent = "Rate " + aggregatorName;
   renderStars(0);
@@ -1192,7 +1207,7 @@ function openRatingModal(aggregatorId, aggregatorName) {
 }
 
 function closeRatingModal() {
-  const modal = document.getElementById("rating-modal");
+  var modal = document.getElementById("rating-modal");
   if (modal) modal.style.display = "none";
 }
 
@@ -1202,24 +1217,24 @@ function setStar(n) {
 }
 
 function renderStars(n) {
-  const container = document.getElementById("rating-stars");
+  var container = document.getElementById("rating-stars");
   if (!container) return;
-  container.innerHTML = [1,2,3,4,5].map(i =>
-    "<span class=\"star-btn" + (i <= n ? " active" : "") + "\" onclick=\"setStar(" + i + ")\">★</span>"
-  ).join("");
+  container.innerHTML = [1,2,3,4,5].map(function(i) {
+    return "<span class=\"star-btn" + (i <= n ? " active" : "") + "\" onclick=\"setStar(" + i + ")\">&#9733;</span>";
+  }).join("");
 }
 
 function renderTagsUI() {
-  const container = document.getElementById("rating-tags");
+  var container = document.getElementById("rating-tags");
   if (!container) return;
-  container.innerHTML = PROC_RATING_TAGS.map(t =>
-    "<span class=\"rtag " + t.type + (_ratingTags.includes(t.label) ? " selected" : "") + "\" onclick=\"toggleTag(this,'" + t.label + "')\">" + t.label + "</span>"
-  ).join("");
+  container.innerHTML = PROC_RATING_TAGS.map(function(t) {
+    return "<span class=\"rtag " + t.type + (_ratingTags.indexOf(t.label) !== -1 ? " selected" : "") + "\" onclick=\"toggleTag(this,'" + t.label + "')\">" + t.label + "</span>";
+  }).join("");
 }
 
 function toggleTag(el, label) {
-  if (_ratingTags.includes(label)) {
-    _ratingTags = _ratingTags.filter(t => t !== label);
+  if (_ratingTags.indexOf(label) !== -1) {
+    _ratingTags = _ratingTags.filter(function(t) { return t !== label; });
     el.classList.remove("selected");
   } else {
     _ratingTags.push(label);
@@ -1230,7 +1245,7 @@ function toggleTag(el, label) {
 function submitRating() {
   if (!_ratingStars) { showProcToast("Please select a star rating", true); return; }
   if (!_ratingTarget) return;
-  const note = document.getElementById("rating-note") ? document.getElementById("rating-note").value : "";
+  var note = document.getElementById("rating-note") ? document.getElementById("rating-note").value : "";
   fetch("/api/processor/rate-aggregator", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1241,32 +1256,15 @@ function submitRating() {
       note: note
     })
   })
-  .then(r => r.json())
-  .then(() => {
+  .then(function(r) { return r.json(); })
+  .then(function() {
     closeRatingModal();
-    showProcToast("Rating submitted for " + _ratingTarget.name + " ✓");
+    showProcToast("Rating submitted for " + _ratingTarget.name);
   })
-  .catch(() => {
+  .catch(function() {
     closeRatingModal();
-    showProcToast("Rating submitted for " + _ratingTarget.name + " ✓");
+    showProcToast("Rating submitted for " + _ratingTarget.name);
   });
-}
-
-// ── TOAST ─────────────────────────────────────────────────────────
-function showProcToast(msg, isError) {
-  let t = document.getElementById("proc-toast");
-  if (!t) {
-    t = document.createElement("div");
-    t.id = "proc-toast";
-    t.style.cssText = "position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:" + (isError?"#7f1d1d":"#0d2818") + ";color:" + (isError?"#fca5a5":"#00e676") + ";border:1px solid " + (isError?"#ef4444":"#00e676") + ";border-radius:8px;padding:12px 24px;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:opacity 0.3s;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;";
-    document.body.appendChild(t);
-  }
-  t.style.background = isError ? "#7f1d1d" : "#0d2818";
-  t.style.color = isError ? "#fca5a5" : "#00e676";
-  t.style.borderColor = isError ? "#ef4444" : "#00e676";
-  t.textContent = msg;
-  t.style.opacity = "1";
-  setTimeout(() => { t.style.opacity = "0"; }, 3000);
 }
 
 // ── INIT TOP PARTNERS ON LOAD ─────────────────────────────────────

@@ -1,173 +1,131 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recycler Dashboard - Circul</title>
-    <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recycler Dashboard - Circul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
 <style>
-/* ── RECYCLER DASHBOARD ───── */
-body { font-family:var(--font-primary);background:var(--bg);color:var(--text-primary);min-height:100vh; }
-.identity-name { font-size:26px;font-weight:700;color:var(--text-primary);padding:20px 0 6px; }
-.data-table { width:100%;border-collapse:collapse; }
-.data-table th { padding:10px 16px;background:var(--surface);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
-.data-table td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
-.data-table tr:last-child td { border-bottom:none; }
-.data-table .td-name { color:var(--text-primary);font-weight:500; }
-.data-table .td-amount { color:var(--accent);font-weight:600; }
-.login-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500; }
-.login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw; }
-.login-box h2 { font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent); }
-.login-box p { color:var(--text-muted);font-size:14px;margin-bottom:24px; }
-.login-box label { font-size:13px;color:var(--text-dim);display:block;margin-bottom:5px; }
-.login-box input { width:100%;padding:10px 12px;background:#0a0a1a;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;margin-bottom:16px;font-family:inherit; }
-.login-box button { width:100%;padding:12px;background:var(--accent);color:#0a0a1a;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit; }
-.login-error { color:#ef4444;font-size:13px;margin-top:8px; }
-/* NAV */
-.top-nav { background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100; }
-.nav-brand { font-size:18px;font-weight:800;color:var(--accent);letter-spacing:-0.5px; }
-.nav-role-pill { background:#160d2e;color:#b388ff;border:1px solid #b388ff;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase; }
-.nav-user { font-size:13px;color:var(--text-dim); }
-.nav-id { font-size:11px;color:var(--text-muted);margin-left:2px; }
-.nav-spacer { flex:1; }
-.nav-link { color:var(--text-muted);font-size:13px;text-decoration:none;padding:6px 10px;border-radius:6px;transition:color 0.2s; }
-.nav-link:hover { color:var(--accent); }
-.nav-logout { background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text-muted);font-size:13px;padding:6px 12px;cursor:pointer;font-family:inherit;transition:all 0.2s; }
-.nav-logout:hover { border-color:var(--accent);color:var(--accent); }
-/* LAYOUT */
-.main-wrap { max-width:1200px;margin:0 auto;padding:24px 20px; }
-.section-title { font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:16px; }
-.card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
-/* VOLUME STRIP */
-.vol-strip { display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px; }
-.vol-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
-.vol-label { font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px; }
-.vol-value { font-size:26px;font-weight:800;color:var(--accent); }
-.vol-unit { font-size:13px;color:var(--text-muted);margin-left:4px; }
-.vol-sub { font-size:12px;color:var(--text-muted);margin-top:4px; }
-/* TOP PARTNERS */
-.top-partners-grid { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px; }
-.partners-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
-.partners-header { display:flex;align-items:center;gap:12px;margin-bottom:16px; }
-.partners-header h3 { font-size:15px;font-weight:700;flex:1; }
-.ptoggle { display:flex;background:#0a0a1a;border:1px solid var(--border2);border-radius:20px;overflow:hidden; }
-.ptoggle-btn { padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;border:none;color:var(--text-muted);font-family:inherit;transition:all 0.2s; }
-.ptoggle-btn.active { background:var(--accent);color:#0a0a1a; }
-.view-all-link { font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap; }
-.partner-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border); }
-.partner-row:last-child { border-bottom:none; }
-.partner-rank { width:22px;height:22px;border-radius:50%;background:#1a1a3a;color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
-.partner-name { flex:1;font-size:14px;font-weight:600; }
-.partner-vol { font-size:13px;color:var(--text-dim);white-space:nowrap; }
-.partner-price-block { text-align:right; }
-.partner-price-label { display:block;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px; }
-.partner-price-val { display:block;font-size:14px;font-weight:700;color:var(--accent); }
-.partner-price-note { display:block;font-size:10px;color:var(--text-muted); }
-/* PRICE CARDS */
-.prices-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:24px; }
-.price-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px; }
-.price-card-mat { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:6px; }
-.price-card-val { font-size:22px;font-weight:800;color:var(--accent); }
-.price-card-unit { font-size:12px;color:var(--text-muted);margin-left:2px; }
-.price-card-sub { font-size:11px;color:var(--text-muted);margin-top:4px; }
-/* ORDER FORM */
-.order-form { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px; }
-.form-row { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px; }
-.form-row.three { grid-template-columns:2fr 1fr 1fr; }
-.form-group { display:flex;flex-direction:column;gap:6px; }
-.form-group label { font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px; }
-.form-group input, .form-group select, .form-group textarea { background:#0a0a1a;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;padding:10px 12px;font-family:inherit; }
-.form-group select { appearance:none; }
-.form-group textarea { resize:vertical;min-height:70px; }
-.order-total { background:#0a0a1a;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:14px;color:var(--text-dim); }
-.order-total strong { color:var(--accent); }
-.btn-primary { background:var(--accent);color:#0a0a1a;border:none;border-radius:var(--radius-sm);padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit; }
-.btn-primary:hover { opacity:0.9; }
-.btn-secondary { background:transparent;color:var(--text-muted);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px 20px;font-size:14px;cursor:pointer;font-family:inherit; }
-/* DELIVERIES TABLE */
-.deliveries-table { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px; }
-.table-header { padding:16px 20px;border-bottom:1px solid var(--border);font-size:15px;font-weight:700; }
-.dtable { width:100%;border-collapse:collapse; }
-.dtable th { padding:10px 16px;background:#0a0a1a;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
-.dtable td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
-.dtable tr:last-child td { border-bottom:none; }
-.dtable tr:hover td { background:rgba(179,136,255,0.03); }
-.status-badge { display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700; }
-.status-pending { background:#332200;color:#ffc107; }
-.status-approved { background:#1a1a3a;color:#b388ff; }
-.status-completed { background:#0d1a2a;color:#42a5f5; }
-.status-rejected { background:#2a0a0a;color:#ef4444; }
-/* BOTTOM TABS */
-.tabs-bar { display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px; }
-.tab-btn { background:transparent;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;transition:all 0.2s;margin-bottom:-1px; }
-.tab-btn.active { border-bottom-color:var(--accent);color:var(--accent); }
-.tab-btn:hover { color:var(--text-primary); }
-.tab-panel { display:none; }
-.tab-panel.active { display:block; }
-/* SUPPLY CHAIN TABLE */
-.sc-table { width:100%;border-collapse:collapse; }
-.sc-table th { padding:10px 16px;background:#0a0a1a;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
-.sc-table td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
-.sc-table tr:last-child td { border-bottom:none; }
-/* RATING MODAL */
-.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200; }
-.modal-overlay.open { display:flex; }
-.modal-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:440px;max-width:95vw; }
-.modal-box h3 { font-size:17px;font-weight:700;margin-bottom:4px; }
-.modal-sub { font-size:13px;color:var(--text-muted);margin-bottom:20px; }
-.stars-row { display:flex;gap:8px;margin-bottom:20px; }
-.star-btn { font-size:28px;cursor:pointer;color:var(--border2);transition:color 0.15s;line-height:1; }
-.star-btn.active { color:var(--amber); }
-.modal-section-label { font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:10px; }
-.rating-tags { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px; }
-.rtag { padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s; }
-.rtag.positive { background:#0a2a15;color:#00e676;border-color:#1a3a20; }
-.rtag.positive.selected { background:#1a3a20;border-color:#00e676; }
-.rtag.negative { background:#2a1a00;color:#ffc107;border-color:#3a2a00; }
-.rtag.negative.selected { background:#3a2a00;border-color:#ffc107; }
-.modal-note { width:100%;background:#0a0a1a;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;padding:10px 12px;font-family:inherit;resize:vertical;min-height:60px;margin-bottom:20px; }
-.modal-actions { display:flex;gap:10px;justify-content:flex-end; }
-/* QUEUE CARDS */
-.queue-section { margin-bottom:20px; }
-.queue-section-title { font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px; }
-.queue-card { background:#0a0a1a;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px; }
-.queue-card-header { display:flex;align-items:center;gap:8px;margin-bottom:8px; }
-.queue-card-name { font-size:14px;font-weight:700;flex:1; }
-.queue-card-meta { font-size:12px;color:var(--text-muted); }
-.queue-card-actions { display:flex;gap:8px;margin-top:10px; }
-.btn-approve { background:#1a1a3a;color:#b388ff;border:1px solid #2a2a4f;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit; }
-.btn-reject { background:#2a0a0a;color:#ef4444;border:1px solid #3a1a1a;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit; }
-.arrive-form { background:#0a1a2a;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-top:8px; }
-/* AVAILABLE MATERIAL */
-.avail-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px; }
-.avail-card { background:#0a0a1a;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px; }
-.avail-mat { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:6px; }
-.avail-vol { font-size:20px;font-weight:800;color:var(--accent); }
-.avail-unit { font-size:12px;color:var(--text-muted); }
-/* CERTS */
-.cert-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border); }
-.cert-row:last-child { border-bottom:none; }
-.cert-icon { width:32px;height:32px;border-radius:8px;background:#1a1a3a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0; }
-.cert-name { flex:1;font-size:13px;font-weight:600; }
-.cert-date { font-size:12px;color:var(--text-muted); }
-.cert-dl { background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text-muted);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit; }
-/* SUPPLY CHAIN VIZ */
-/* OUTBOUND SALES */
-.sales-list { margin-top:16px; }
-.sale-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px; }
-.sale-row:last-child { border-bottom:none; }
-/* RESPONSIVE */
-@media(max-width:768px) {
-  .vol-strip { grid-template-columns:1fr 1fr; }
-  .prices-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .form-row, .form-row.three { grid-template-columns:1fr; }
-  .top-nav { padding:0 12px; }
-  .top-partners-grid { grid-template-columns:1fr; }
-}
-.login-overlay.hidden { display: none; }
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-overlay.hidden{display:none}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-box h2{font-size:1.35rem;font-weight:700;margin-bottom:6px;color:var(--accent)}
+.login-box p{color:var(--text-2);font-size:0.875rem;margin-bottom:24px}
+.login-box label{font-size:0.8rem;color:var(--text-3);display:block;margin-bottom:5px}
+.login-box input{width:100%;padding:10px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.875rem;margin-bottom:16px;font-family:var(--font)}
+.login-box input:focus{outline:none;border-color:var(--accent)}
+.login-box button{width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-size:0.9rem;font-weight:700;cursor:pointer;font-family:var(--font)}
+.login-box button:hover{background:var(--accent-hover)}
+.login-error{color:#ef4444;font-size:0.8rem;margin-top:8px}
+.login-error.visible{display:block}
+
+/* ── TOAST ── */
+#recToast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#160d2e;color:#b388ff;border:1px solid #b388ff;border-radius:var(--r-sm);padding:12px 24px;font-size:0.875rem;font-weight:600;z-index:9999;display:none;font-family:var(--font);white-space:nowrap}
+
+/* ── RATING MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:440px;max-width:95vw}
+.modal-box h3{font-size:1.05rem;font-weight:700;margin-bottom:4px}
+.modal-sub{font-size:0.8rem;color:var(--text-2);margin-bottom:20px}
+.stars-row{display:flex;gap:8px;margin-bottom:20px}
+.star-btn{font-size:1.75rem;cursor:pointer;color:var(--border);transition:color 0.15s;line-height:1}
+.star-btn.active{color:#ffd740}
+.modal-section-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:10px}
+.rating-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.rtag{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s}
+.rtag.positive{background:rgba(0,230,118,0.08);color:var(--accent);border-color:var(--border)}
+.rtag.positive.selected{background:rgba(0,230,118,0.15);border-color:var(--accent)}
+.rtag.negative{background:rgba(255,215,64,0.08);color:#ffd740;border-color:var(--border)}
+.rtag.negative.selected{background:rgba(255,215,64,0.15);border-color:#ffd740}
+.modal-note{width:100%;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:20px}
+.modal-note:focus{outline:none;border-color:var(--accent)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end}
+
+/* ── DELIVERY / QUEUE CARDS ── */
+.del-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px}
+.del-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.del-title{font-size:0.875rem;font-weight:700;flex:1;min-width:0}
+.del-meta{font-size:0.75rem;color:var(--text-3)}
+.del-price{font-size:0.875rem;font-weight:700;color:var(--accent)}
+.del-actions{display:flex;gap:8px;margin-top:10px}
+.del-inline-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-top:8px}
+.di-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);display:block;margin-bottom:5px}
+.di-input{width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;font-family:var(--font);margin-bottom:12px}
+.di-input:focus{outline:none;border-color:var(--accent)}
+.di-textarea{width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;font-family:var(--font);resize:vertical;min-height:50px;margin-bottom:12px}
+.di-textarea:focus{outline:none;border-color:var(--accent)}
+.di-actions{display:flex;gap:8px;margin-top:8px}
+.di-confirm{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:600;font-size:0.8rem;cursor:pointer}
+.di-confirm:hover{background:var(--accent-hover)}
+.di-cancel{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-2);font-family:var(--font);font-size:0.8rem;cursor:pointer}
+.di-cancel:hover{border-color:var(--text-3);color:var(--text-1)}
+.di-msg{font-size:0.8rem;margin-top:8px}
+.btn-approve{padding:8px 16px;background:rgba(179,136,255,0.12);color:#b388ff;border:1px solid rgba(179,136,255,0.25);border-radius:var(--r-sm);font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
+.btn-approve:hover{background:rgba(179,136,255,0.2)}
+.btn-decline{padding:8px 16px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.25);border-radius:var(--r-sm);font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
+.btn-decline:hover{background:rgba(239,68,68,0.18)}
+
+/* ── ORDER CARD (renderOrders) ── */
+.order-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px}
+.order-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.order-title{font-size:0.875rem;font-weight:700}
+.order-meta{font-size:0.8rem;color:var(--text-2)}
+.order-price{font-size:0.875rem;font-weight:700;color:var(--accent)}
+.order-specs{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+.order-spec-item{font-size:0.75rem}
+.order-spec-label{color:var(--text-3);margin-right:4px}
+.order-spec-val{color:var(--text-1)}
+
+/* ── BADGE variants for JS ── */
+.badge-blue{background:rgba(0,150,255,0.15);color:#4fc3f7}
+.badge-green{background:rgba(0,230,118,0.15);color:var(--accent)}
+.badge-amber{background:rgba(255,215,64,0.15);color:#ffd740}
+.badge-gray{background:rgba(255,255,255,0.08);color:var(--text-3)}
+
+/* ── STATUS BADGES for JS ── */
+.status-badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;white-space:nowrap}
+.status-pending{background:rgba(255,193,7,0.15);color:#ffd740}
+.status-approved{background:rgba(179,136,255,0.15);color:#b388ff}
+.status-completed{background:rgba(0,230,118,0.15);color:var(--accent)}
+.status-rejected{background:rgba(239,68,68,0.15);color:#ef4444}
+
+/* ── PRICE INPUT ROW (renderPriceCards) ── */
+.price-input-row{display:flex;gap:8px;margin-top:10px}
+.price-input-row .price-input{flex:1;margin:0}
+.price-input{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem}
+.price-input::placeholder{color:var(--text-3)}
+.price-input:focus{outline:none;border-color:var(--accent)}
+.price-post-btn{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:600;font-size:0.8rem;cursor:pointer;white-space:nowrap}
+.price-post-btn:hover{background:var(--accent-hover)}
+.price-card-current{font-size:0.9rem;font-weight:700;color:var(--accent);margin-bottom:2px}
+.price-card-usd{font-size:0.75rem;color:var(--text-3);margin-bottom:4px}
+
+/* ── PARTNER ROW (top suppliers/buyers JS) ── */
+.partner-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.partner-row:last-child{border-bottom:none}
+.partner-rank{width:22px;height:22px;border-radius:50%;background:var(--surface-alt);color:var(--accent);font-size:0.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.partner-name{flex:1;font-size:0.875rem;font-weight:600}
+.partner-vol{font-size:0.8rem;color:var(--text-2);white-space:nowrap}
+.partner-price-block{text-align:right}
+.partner-price-label{display:block;font-size:0.6rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em}
+.partner-price-val{display:block;font-size:0.875rem;font-weight:700;color:var(--accent)}
+.partner-price-note{display:block;font-size:0.6rem;color:var(--text-3)}
+
+/* ── TAB PANEL ── */
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── TOTAL BOX (order form) ── */
+.order-total{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;font-size:0.875rem;color:var(--text-2)}
+.order-total strong{color:var(--accent)}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:32px 20px;color:var(--text-3);font-size:0.85rem}
 </style>
 </head>
-
 <body>
 
 <!-- LOGIN OVERLAY -->
@@ -184,93 +142,102 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
   </div>
 </div>
 
-<!-- TOP NAV -->
-<nav class="top-nav">
-  <a class="nav-logo" href="/">
-    <div class="nav-logo-icon">◎</div>
-    Circul
-  </a>
-  <span class="nav-role-pill" style="background:#160d2e;color:#b388ff">RECYCLER</span>
-  <span class="nav-user" id="navName">&mdash;</span>
-  <span class="nav-id" id="navRecId"></span>
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
   <span class="nav-spacer"></span>
-  <a href="/" class="nav-link">&larr; Home</a>
-  <button class="nav-logout" onclick="handleLogout()">Log out</button>
+  <div class="nav-right">
+    <span class="nav-pill" style="background:#160d2e;color:#b388ff">RECYCLER</span>
+    <span class="nav-name" id="navName">&mdash;</span>
+    <span class="nav-id" id="navRecId"></span>
+    <a class="nav-link" href="/">Home</a>
+    <button class="nav-logout" onclick="handleLogout()">Log out</button>
+  </div>
 </nav>
 
 <!-- MAIN DASHBOARD -->
-<div class="main-wrap" id="dashboard" style="display:none">
+<div class="page" id="dashboard" style="display:none">
 
-  <!-- IDENTITY -->
-  <div>
-    <div class="identity-name" id="heroName">—</div>
-    <div style="display:flex;align-items:center;gap:6px;padding-bottom:20px;font-size:13px;color:var(--text-muted);">
-      <span id="heroEmail"></span>
-      <span>·</span>
-      <span id="heroRegion"></span>
-    </div>
-  </div>
-
-  <!-- VOLUME STRIP -->
-  <div class="vol-strip">
-    <div class="vol-card">
-      <div class="vol-label">Volume This Month (kg)</div>
-      <div><span class="vol-value" id="statTotalKg">&mdash;</span></div>
-      <div class="vol-sub">Total material purchased</div>
-    </div>
-    <div class="vol-card">
-      <div class="vol-label">Total Spent (GHS)</div>
-      <div><span class="vol-value" id="statSpentGhs">&mdash;</span></div>
-      <div class="vol-sub" id="statSpentUsd" style="font-size:13px;color:#8a8ab0"></div>
-    </div>
-    <div class="vol-card">
-      <div class="vol-label">Open Orders</div>
-      <div><span class="vol-value" id="statOpenOrders">&mdash;</span></div>
-      <div class="vol-sub">Awaiting fulfilment</div>
-    </div>
-  </div>
-
-  <!-- TOP PARTNERS — TWO PANELS SIDE-BY-SIDE -->
-  <div class="top-partners-grid">
-    <!-- PANEL 1: My Top Suppliers (Processors) -->
-    <div class="partners-card">
-      <div class="partners-header">
-        <h3>My Top Suppliers</h3>
-        <div class="ptoggle" id="top-suppliers-toggle">
-          <button class="ptoggle-btn active" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
-          <button class="ptoggle-btn" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
-        </div>
-        <a href="#" class="view-all-link">View all</a>
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-name" id="heroName">&mdash;</div>
+      <div class="hero-meta">
+        <span id="heroEmail"></span>
+        <span class="sep">&middot;</span>
+        <span id="heroRegion"></span>
+        <span class="badge">ACTIVE</span>
       </div>
-      <div id="top-suppliers-list"><div style="color:#8a8ab0;font-size:13px;padding:12px 0">Loading...</div></div>
     </div>
-    <!-- PANEL 2: My Top Buyers (Converters) -->
-    <div class="partners-card">
-      <div class="partners-header">
-        <h3>My Top Buyers</h3>
-        <div class="ptoggle" id="top-buyers-toggle">
-          <button class="ptoggle-btn active" data-period="month" onclick="switchTopBuyers('month')">Month</button>
-          <button class="ptoggle-btn" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats stats-3">
+    <div class="stat">
+      <div class="stat-label">Volume This Month</div>
+      <div class="stat-val"><span id="statTotalKg">&mdash;</span> <small>kg this month</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total Spent</div>
+      <div class="stat-val"><span id="statSpentGhs">&mdash;</span> <small id="statSpentUsd"></small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Open Orders</div>
+      <div class="stat-val" id="statOpenOrders">&mdash;</div>
+    </div>
+  </div>
+
+  <!-- TWO-COL: TOP SUPPLIERS & TOP BUYERS -->
+  <div class="two-col">
+    <!-- MY TOP SUPPLIERS -->
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">My top suppliers</div></div>
+        <div class="tabs" id="top-suppliers-toggle">
+          <button class="tab" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
+          <button class="tab on" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
         </div>
-        <a href="#" class="view-all-link">View all</a>
       </div>
-      <div id="top-buyers-list"><div style="color:#8a8ab0;font-size:13px;padding:12px 0">Loading...</div></div>
+      <div id="top-suppliers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+    </div>
+
+    <!-- MY TOP BUYERS -->
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">My top buyers</div></div>
+        <div class="tabs" id="top-buyers-toggle">
+          <button class="tab" data-period="month" onclick="switchTopBuyers('month')">Month</button>
+          <button class="tab on" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
+        </div>
+      </div>
+      <div id="top-buyers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
     </div>
   </div>
 
-  <!-- BUY PRICES -->
-  <div class="section-title">Buy Prices (GHS/kg)</div>
-  <div class="prices-grid" id="priceCards">
-    <!-- populated by loadProcessorPrices() -->
+  <!-- POST PURCHASE PRICES -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Post purchase prices</div>
+        <div class="section-sub">Current prices posted &middot; GHS/kg</div>
+      </div>
+    </div>
+    <div class="price-grid" id="priceCards">
+      <!-- populated by renderPriceCards() -->
+    </div>
   </div>
 
-  <!-- PURCHASE ORDER FORM -->
-  <div class="section-title">Place Purchase Order</div>
-  <div class="order-form">
-    <div class="form-row three">
+  <!-- PLACE PURCHASE ORDER -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Place purchase order</div></div>
+    </div>
+    <div class="form-grid">
       <div class="form-group">
-        <label>Material Type</label>
-        <select id="ord-material" onchange="calcOrderTotal()">
+        <label class="form-label">Material Type</label>
+        <select class="form-select" id="ord-material" onchange="calcOrderTotal()">
           <option value="">Select material...</option>
           <option value="PET">PET &mdash; Polyethylene terephthalate</option>
           <option value="HDPE">HDPE &mdash; High-density polyethylene</option>
@@ -281,75 +248,91 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
         </select>
       </div>
       <div class="form-group">
-        <label>Quantity (kg)</label>
-        <input type="number" id="ord-qty" placeholder="e.g. 500" min="1" oninput="calcOrderTotal()" />
+        <label class="form-label">Quantity (kg)</label>
+        <input class="form-input" type="number" id="ord-qty" placeholder="e.g. 500" min="1" oninput="calcOrderTotal()" />
       </div>
       <div class="form-group">
-        <label>Grade / Quality</label>
-        <select id="ord-colours">
+        <label class="form-label">Grade / Quality</label>
+        <select class="form-select" id="ord-colours">
           <option value="mixed">Mixed / Any</option>
           <option value="clear">Clear / Transparent</option>
           <option value="coloured">Coloured</option>
         </select>
       </div>
-    </div>
-    <div class="form-row">
       <div class="form-group">
-        <label>Contamination level</label>
-        <select id="ord-contam">
+        <label class="form-label">Contamination Level</label>
+        <select class="form-select" id="ord-contam">
           <option value="low">Low (&lt;5%)</option>
           <option value="medium">Medium (5&ndash;15%)</option>
           <option value="any">Any</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Exclusions (optional)</label>
-        <input type="text" id="ord-excl" placeholder="e.g. No black plastic" />
+        <label class="form-label">Exclusions</label>
+        <input class="form-input" type="text" id="ord-excl" placeholder="e.g. No black plastic" />
       </div>
-    </div>
-    <div class="form-group" style="margin-bottom:12px">
-      <label>Notes (optional)</label>
-      <textarea id="ord-notes" placeholder="Any other requirements..."></textarea>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <input class="form-input" type="text" id="ord-notes" placeholder="Any other requirements..." />
+      </div>
     </div>
     <input type="hidden" id="ord-price" value="" />
     <div class="order-total" id="ord-total-box" style="display:none">
-      Estimated total: <strong id="ord-total-ghs">&mdash;</strong> GHS
-      <span id="ord-total-usd" style="color:#8a8ab0;margin-left:8px"></span>
+      Estimated total: <strong id="ord-total-ghs">&mdash;</strong>
+      <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
     </div>
-    <div style="color:#ef4444;font-size:13px;margin-bottom:8px" id="ord-msg"></div>
-    <button class="btn-primary" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
+    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:8px" id="ord-msg"></div>
+    <button class="form-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
   </div>
 
-  <!-- INCOMING DELIVERIES (inbound from processors) -->
-  <div class="section-title">Incoming Deliveries</div>
-  <div class="deliveries-table">
-    <div class="queue-section">
-      <div class="table-header" style="padding:12px 20px;font-size:13px;font-weight:700;color:#ffc107">Pending</div>
-      <div id="recQueuePending" style="padding:0 16px 8px"><div style="color:#8a8ab0;font-size:13px;padding:12px 0">Loading...</div></div>
+  <!-- MY ORDERS -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">My orders</div></div>
     </div>
-    <div class="queue-section">
-      <div class="table-header" style="padding:12px 20px;font-size:13px;font-weight:700;color:#b388ff">Approved</div>
-      <div id="recQueueApproved" style="padding:0 16px 8px"><div style="color:#8a8ab0;font-size:13px;padding:12px 0">Loading...</div></div>
+    <div id="ordersList"><div class="empty">Loading...</div></div>
+  </div>
+
+  <!-- INCOMING DELIVERIES -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Incoming deliveries</div></div>
     </div>
-    <div class="queue-section">
-      <div class="table-header" style="padding:12px 20px;font-size:13px;font-weight:700;color:#42a5f5">Completed</div>
-      <div id="recQueueCompleted" style="padding:0 16px 8px"><div style="color:#8a8ab0;font-size:13px;padding:12px 0">Loading...</div></div>
+
+    <!-- PENDING -->
+    <div class="sub">
+      <div class="sub-title">Pending</div>
+      <div id="recQueuePending"><div class="sub-empty">Loading...</div></div>
+    </div>
+
+    <!-- APPROVED -->
+    <div class="sub">
+      <div class="sub-title">Approved</div>
+      <div id="recQueueApproved"><div class="sub-empty">Loading...</div></div>
+    </div>
+
+    <!-- COMPLETED -->
+    <div class="sub">
+      <div class="sub-title">Completed</div>
+      <div id="recQueueCompleted"><div class="sub-empty">Loading...</div></div>
     </div>
   </div>
 
-  <!-- OUTBOUND SALES (sell to converter) -->
-  <div class="section-title">Sell to Converter</div>
-  <div class="order-form" id="recSaleForm">
-    <div class="form-row three">
+  <!-- SELL TO CONVERTER -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Sell to converter</div></div>
+    </div>
+    <div class="form-grid" id="recSaleForm">
       <div class="form-group">
-        <label>Converter</label>
-        <select id="rec-sale-converter">
+        <label class="form-label">Converter</label>
+        <select class="form-select" id="rec-sale-converter">
           <option value="">Select converter...</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Material Type</label>
-        <select id="rec-sale-material">
+        <label class="form-label">Material Type</label>
+        <select class="form-select" id="rec-sale-material">
           <option value="">Select material...</option>
           <option value="PET">PET</option>
           <option value="HDPE">HDPE</option>
@@ -360,75 +343,72 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
         </select>
       </div>
       <div class="form-group">
-        <label>Quantity (kg)</label>
-        <input type="number" id="rec-sale-qty" placeholder="e.g. 500" min="1" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Price / kg (GHS)</label>
-        <input type="number" id="rec-sale-price" placeholder="e.g. 3.50" step="0.01" min="0" />
+        <label class="form-label">Quantity (kg)</label>
+        <input class="form-input" type="number" id="rec-sale-qty" placeholder="e.g. 500" min="1" />
       </div>
       <div class="form-group">
-        <label>&nbsp;</label>
-        <button class="btn-primary" onclick="submitRecSale()">Submit Sale</button>
+        <label class="form-label">Price / kg (GHS)</label>
+        <input class="form-input" type="number" id="rec-sale-price" placeholder="e.g. 3.50" step="0.01" min="0" />
       </div>
     </div>
-    <div style="color:#ef4444;font-size:13px;margin-top:8px" id="rec-sale-msg"></div>
+    <div style="color:#ef4444;font-size:0.8rem;margin-top:8px;margin-bottom:8px" id="rec-sale-msg"></div>
+    <button class="form-submit" onclick="submitRecSale()">Submit Sale</button>
   </div>
 
-  <div class="section-title" style="margin-top:24px">My Sales</div>
-  <div class="deliveries-table">
-    <div id="recSalesList" style="padding:12px 16px"><div style="color:#8a8ab0;font-size:13px;padding:12px 0">Loading...</div></div>
-  </div>
-
-  <!-- BOTTOM TABS -->
-  <div class="tabs-bar">
-    <button class="tab tab-btn active" onclick="showTab('supply', this)">Supply Chain</button>
-    <button class="tab tab-btn" onclick="showTab('prices', this)">Available Material</button>
-    <button class="tab tab-btn" onclick="showTab('certs', this)">Traceability</button>
-    <button class="tab tab-btn" onclick="showTab('ratings', this)">Ratings</button>
-  </div>
-
-  <!-- SUPPLY CHAIN TAB -->
-  <div class="tab-panel active" id="tab-supply">
-    <div class="card">
-      <table class="data-table">
-        <thead><tr>
-          <th>DATE</th><th>PROCESSOR</th><th>MATERIAL</th><th>WEIGHT</th><th>PRICE/KG</th><th>AMOUNT</th><th>STATUS</th>
-        </tr></thead>
-        <tbody id="supplyBody"><tr><td colspan="7" style="color:#8a8ab0;padding:20px;text-align:center">Loading...</td></tr></tbody>
-      </table>
+  <!-- MY SALES -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">My sales</div></div>
     </div>
+    <div id="recSalesList"><div class="empty">Loading...</div></div>
   </div>
 
-  <!-- AVAILABLE MATERIAL TAB -->
-  <div class="tab-panel" id="tab-prices">
-    <div class="card">
+  <!-- SUPPLY CHAIN (bottom tabs) -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Supply chain</div></div>
+      <div class="tabs">
+        <button class="tab on" onclick="showTab('supply', this)">Supply Chain</button>
+        <button class="tab" onclick="showTab('prices', this)">Available Material</button>
+        <button class="tab" onclick="showTab('certs', this)">Traceability</button>
+        <button class="tab" onclick="showTab('ratings', this)">Ratings</button>
+      </div>
+    </div>
+
+    <!-- SUPPLY CHAIN TAB -->
+    <div class="tab-panel active" id="tab-supply">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Processor</th><th>Material</th><th>Weight</th><th>Price/KG</th><th>Amount</th><th>Status</th>
+          </tr></thead>
+          <tbody id="supplyBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AVAILABLE MATERIAL TAB -->
+    <div class="tab-panel" id="tab-prices">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <span style="font-size:14px;color:#8a8ab0">Prices in</span>
-        <span id="priceCity" style="font-size:14px;font-weight:700;color:#b388ff">Accra</span>
+        <span style="font-size:0.85rem;color:var(--text-2)">Prices in</span>
+        <span id="priceCity" style="font-size:0.85rem;font-weight:700;color:#b388ff">Accra</span>
       </div>
-      <div id="processorPrices"><div style="color:#8a8ab0;font-size:13px">Loading...</div></div>
+      <div id="processorPrices"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
     </div>
-  </div>
 
-  <!-- TRACEABILITY TAB -->
-  <div class="tab-panel" id="tab-certs">
-    <div class="card">
-      <div id="txnCerts"><div style="color:#8a8ab0;font-size:13px">Loading...</div></div>
+    <!-- TRACEABILITY TAB -->
+    <div class="tab-panel" id="tab-certs">
+      <div id="txnCerts"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
     </div>
-  </div>
 
-  <!-- RATINGS TAB -->
-  <div class="tab-panel" id="tab-ratings">
-    <div class="card">
-      <div id="processorRatingsList"><div style="color:#8a8ab0;font-size:13px">Loading...</div></div>
+    <!-- RATINGS TAB -->
+    <div class="tab-panel" id="tab-ratings">
+      <div id="processorRatingsList"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
       <div id="ratingsReceived"></div>
     </div>
   </div>
 
-</div><!-- /.main-wrap -->
+</div><!-- /.page -->
 
 <!-- RATE PROCESSOR MODAL -->
 <div class="modal-overlay" id="rateProcessorModal">
@@ -438,22 +418,20 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
     <div class="stars-row" id="rateProcessorStars"></div>
     <div class="modal-section-label">What went well or not?</div>
     <div class="rating-tags" id="rec-rating-tags"></div>
-    <div style="color:#ef4444;font-size:13px;margin-bottom:12px" id="rateProcessorMsg"></div>
+    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:12px" id="rateProcessorMsg"></div>
     <textarea class="modal-note" id="rec-rating-note" placeholder="Add a note (optional)..."></textarea>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="this.closest('.modal-overlay').style.display='none'">Cancel</button>
-      <button class="btn-primary" onclick="submitRecRating()">Submit Rating</button>
+      <button class="btn" onclick="this.closest('.modal-overlay').style.display='none'">Cancel</button>
+      <button class="btn-green" onclick="submitRecRating()">Submit Rating</button>
     </div>
   </div>
 </div>
 
 <!-- TOAST -->
-<div id="recToast" style="position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#160d2e;color:#b388ff;border:1px solid #b388ff;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:600;z-index:9999;display:none;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;"></div>
+<div id="recToast"></div>
 
 <!-- ARRIVAL FORM CONTAINER -->
 <div id="rec-arrival-form"></div>
-
-</body>
 
 <script src="/shared/roles.js"></script>
 <script>
@@ -462,7 +440,7 @@ var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var orders = [];
 
-/* ── 503 retry wrapper ── */
+/* -- 503 retry wrapper -- */
 function apiFetch(url, opts) {
   return fetch(url, opts || {}).then(function(r) {
     if (r.status === 503) {
@@ -525,7 +503,7 @@ function showDashboard() {
     loadAll();
     // Populate identity area
     var heroEl = document.getElementById('heroName');
-    if (heroEl) heroEl.textContent = op.company || op.name || '—';
+    if (heroEl) heroEl.textContent = op.company || op.name || '\u2014';
     var emailEl = document.getElementById('heroEmail');
     if (emailEl) emailEl.textContent = op.email || '';
     if (op.token) {
@@ -579,8 +557,8 @@ function handleLogout() {
 }
 
 function showTab(tab, el) {
-    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-    el.classList.add('active');
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('on'); });
+    el.classList.add('on');
     document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'prices') loadProcessorPrices();
@@ -610,7 +588,7 @@ function loadAll() {
     loadConverterDropdown();
 }
 
-// ── PURCHASE ORDERS ────────────────────────────────────────────────────────────
+// -- PURCHASE ORDERS --
 
 function calcOrderTotal() {
     var q = parseFloat(document.getElementById('ord-qty').value);
@@ -639,9 +617,9 @@ function submitOrder() {
     var notes    = document.getElementById('ord-notes').value.trim();
 
     msgEl.textContent = '';
-    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = 'var(--red)'; return; }
-    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = 'var(--red)'; return; }
-    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = '#ef4444'; return; }
+    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = '#ef4444'; return; }
+    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = '#ef4444'; return; }
 
     btn.disabled = true; btn.textContent = 'Placing...';
     fetch('/api/orders', {
@@ -673,10 +651,10 @@ function submitOrder() {
             loadOrders();
         } else {
             msgEl.textContent = data.message || 'Error placing order.';
-            msgEl.style.color = 'var(--red)';
+            msgEl.style.color = '#ef4444';
         }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; })
     .finally(function() { btn.disabled = false; btn.textContent = 'Place Order'; });
 }
 
@@ -710,17 +688,17 @@ function renderOrders() {
         var specsHtml = specs.length ? '<div class="order-specs">' + specs.map(function(s) {
             return '<div class="order-spec-item"><span class="order-spec-label">' + esc(s.label) + '</span><span class="order-spec-val">' + esc(s.val) + '</span></div>';
         }).join('') + '</div>' : '';
-        var notesHtml = o.notes ? '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:5px">' + esc(o.notes) + '</div>' : '';
+        var notesHtml = o.notes ? '<div style="font-size:0.8rem;color:var(--text-2);margin-top:5px">' + esc(o.notes) + '</div>' : '';
         return '<div class="order-card">' +
             '<div class="order-header">' +
             '<span class="badge badge-blue">' + esc(o.material_type) + '</span>' +
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
             '<span class="order-meta">GH\u20B5 ' + fmt(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-muted)">\u2248 $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-2)">\u2248 $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
-            '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
+            '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
             '</div>';
     }).join('');
 }
@@ -733,7 +711,7 @@ function buildOrderStatusBadge(status) {
     return '<span class="badge badge-gray">' + esc(status) + '</span>';
 }
 
-// ── INCOMING DELIVERIES (from processors) ──────────────────────────────────────
+// -- INCOMING DELIVERIES (from processors) --
 
 function loadRecyclerQueue() {
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
@@ -749,19 +727,19 @@ function loadRecyclerQueue() {
             return ['arrived', 'completed', 'dispatch_rejected'].indexOf(d.status) !== -1;
         }).slice(0, 10);
 
-        document.getElementById('recQueuePending').innerHTML  = pending.length  ? pending.map(buildRecPendingCard).join('')   : '<div class="empty">No deliveries awaiting review.</div>';
-        document.getElementById('recQueueApproved').innerHTML = approved.length ? approved.map(buildRecApprovedCard).join('') : '<div class="empty">No deliveries awaiting arrival confirmation.</div>';
+        document.getElementById('recQueuePending').innerHTML  = pending.length  ? pending.map(buildRecPendingCard).join('')   : '<div class="sub-empty">No deliveries awaiting review.</div>';
+        document.getElementById('recQueueApproved').innerHTML = approved.length ? approved.map(buildRecApprovedCard).join('') : '<div class="sub-empty">No deliveries awaiting arrival confirmation.</div>';
         if (!completed.length) {
-            document.getElementById('recQueueCompleted').innerHTML = '<div class="empty">No completed or rejected deliveries yet.</div>';
+            document.getElementById('recQueueCompleted').innerHTML = '<div class="sub-empty">No completed or rejected deliveries yet.</div>';
         } else {
             document.getElementById('recQueueCompleted').innerHTML =
-                '<div style="overflow-x:auto"><table><thead><tr>' +
+                '<div class="table-wrap"><table><thead><tr>' +
                 '<th>Processor</th><th>Material</th><th>Weight</th><th>Total (GHS)</th><th>Total (USD)</th><th>Status</th><th>Date</th>' +
                 '</tr></thead><tbody>' + completed.map(buildRecCompletedRow).join('') + '</tbody></table></div>';
         }
     })
     .catch(function() {
-        document.getElementById('recQueuePending').innerHTML = '<div class="empty">Could not load deliveries.</div>';
+        document.getElementById('recQueuePending').innerHTML = '<div class="sub-empty">Could not load deliveries.</div>';
     });
 }
 
@@ -773,7 +751,7 @@ function buildRecPendingCard(pt) {
         ? '<span class="badge badge-green">\u2713 ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
         : '<span class="badge badge-amber">\u26A0 No photos</span>';
     var photoWarn = !hasPhotos
-        ? '<div style="font-size:0.8rem;padding:7px 10px;background:var(--amber-bg);color:#92400e;border-radius:6px;margin-top:8px">Photos required on all processor\u2192recycler deliveries. Approve for demo \u2014 real uploads coming.</div>'
+        ? '<div style="font-size:0.8rem;padding:7px 10px;background:rgba(255,215,64,0.08);color:#ffd740;border-radius:var(--r-sm);margin-top:8px">Photos required on all processor\u2192recycler deliveries. Approve for demo \u2014 real uploads coming.</div>'
         : '';
     return '<div class="del-card" id="recdc-' + pt.id + '">' +
         '<div class="del-row">' +
@@ -781,7 +759,7 @@ function buildRecPendingCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-muted)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -803,7 +781,7 @@ function buildRecApprovedCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-muted)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-approve" onclick="openRecArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
@@ -815,17 +793,17 @@ function buildRecCompletedRow(pt) {
     var procName = esc(pt.processor_company || pt.processor_name || '\u2014');
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
     var statusBadge = (pt.status === 'arrived' || pt.status === 'completed')
-        ? '<span class="badge badge-green">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
-        : '<span class="badge" style="background:#fee2e2;color:#991b1b">Rejected</span>';
+        ? '<span class="pill pill-paid">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
+        : '<span class="pill" style="background:rgba(239,68,68,0.15);color:#ef4444">Rejected</span>';
     var rejNote = (pt.status === 'dispatch_rejected' && pt.rejection_reason)
-        ? '<div style="font-size:0.74rem;color:#991b1b;margin-top:2px">\u2717 ' + esc(pt.rejection_reason) + '</div>'
+        ? '<div style="font-size:0.74rem;color:#ef4444;margin-top:2px">\u2717 ' + esc(pt.rejection_reason) + '</div>'
         : '';
     return '<tr>' +
-        '<td>' + procName + '</td>' +
-        '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
+        '<td class="td-name">' + procName + '</td>' +
+        '<td><span class="pill pill-' + (pt.material_type || '').toLowerCase() + '">' + esc(pt.material_type) + '</span></td>' +
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
-        '<td>GH\u20B5 ' + fmt(total) + '</td>' +
-        '<td>$' + (total * 0.067).toFixed(0) + '</td>' +
+        '<td class="td-green">GH\u20B5 ' + fmt(total) + '</td>' +
+        '<td class="td-green">$' + (total * 0.067).toFixed(0) + '</td>' +
         '<td>' + statusBadge + (rejNote ? '<br>' + rejNote : '') + '</td>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
         '</tr>';
@@ -854,7 +832,7 @@ function openRecDispatchForm(ptId, type) {
             '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
             '<textarea class="di-textarea" id="recreject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:var(--red)" onclick="submitRecDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm" style="background:#ef4444" onclick="submitRecDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelRecDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="recdisp-msg-' + ptId + '"></div></div>';
     }
@@ -873,7 +851,7 @@ function submitRecDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('recreject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = 'var(--red)'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef4444'; return; }
         body.rejection_reason = reason;
     }
     fetch('/api/pending-transactions/' + ptId + '/recycler-dispatch-decision', {
@@ -884,9 +862,9 @@ function submitRecDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeRecDispatchId = null; loadRecyclerQueue(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
 }
 
 function openRecArrivalForm(ptId) {
@@ -906,7 +884,7 @@ function openRecArrivalForm(ptId) {
         '<div style="margin-bottom:12px"><label class="di-label">Actual weight received (kg)</label>' +
         '<input type="number" class="di-input" id="recarr-weight-' + ptId + '" value="' + esc(String(origWeight)) + '" min="0.1" step="0.1" style="max-width:220px;margin-bottom:0"></div>' +
         '<div style="margin-bottom:12px"><label class="di-label">Grade</label>' +
-        '<select class="di-input" id="recarr-grade-' + ptId + '" style="max-width:220px;padding:8px 12px;background:#0a0a1a;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:inherit">' +
+        '<select class="di-input" id="recarr-grade-' + ptId + '" style="max-width:220px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;font-family:var(--font)">' +
         '<option value="A">A</option><option value="B">B</option><option value="C">C</option></select></div>' +
         '<div class="di-actions">' +
         '<button class="di-confirm" onclick="submitRecArrival(' + ptId + ')">Confirm Arrival</button>' +
@@ -927,7 +905,7 @@ function submitRecArrival(ptId) {
     var msgEl = document.getElementById('recarr-msg-' + ptId);
     var weight = document.getElementById('recarr-weight-' + ptId).value;
     var grade = document.getElementById('recarr-grade-' + ptId).value;
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef4444'; return; }
     fetch('/api/pending-transactions/' + ptId + '/recycler-arrival', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -936,12 +914,12 @@ function submitRecArrival(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeRecArrivalId = null; loadRecyclerQueue(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
 }
 
-// ── OUTBOUND SALES (sell to converter) ─────────────────────────────────────────
+// -- OUTBOUND SALES (sell to converter) --
 
 function loadConverterDropdown() {
     fetch('/api/converters')
@@ -1010,28 +988,24 @@ function loadRecSales() {
     .then(function(data) {
         var el = document.getElementById('recSalesList');
         var sales = data.sales || data.pending_transactions || [];
-        if (!sales.length) { el.innerHTML = '<div class="empty" style="color:#8a8ab0;font-size:13px;padding:12px 0">No sales yet.</div>'; return; }
-        el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>' +
-            '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border)">Converter</th>' +
-            '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border)">Material</th>' +
-            '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border)">Weight</th>' +
-            '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border)">Price/kg</th>' +
-            '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border)">Status</th>' +
+        if (!sales.length) { el.innerHTML = '<div class="empty">No sales yet.</div>'; return; }
+        el.innerHTML = '<div class="table-wrap"><table><thead><tr>' +
+            '<th>Converter</th><th>Material</th><th>Weight</th><th>Price/kg</th><th>Status</th>' +
             '</tr></thead><tbody>' +
             sales.map(function(s) {
                 var statusCls = s.status === 'completed' ? 'status-completed' : (s.status === 'pending' ? 'status-pending' : 'status-approved');
                 return '<tr>' +
-                    '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">' + esc(s.converter_company || s.converter_name || '\u2014') + '</td>' +
-                    '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">' + esc(s.material_type || '\u2014') + '</td>' +
-                    '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">' + fmt(s.gross_weight_kg || 0) + ' kg</td>' +
-                    '<td style="padding:10px 12px;border-bottom:1px solid var(--border)">GH\u20B5 ' + fmt(s.price_per_kg || 0) + '</td>' +
-                    '<td style="padding:10px 12px;border-bottom:1px solid var(--border)"><span class="status-badge ' + statusCls + '">' + esc(s.status || 'pending') + '</span></td>' +
+                    '<td class="td-name">' + esc(s.converter_company || s.converter_name || '\u2014') + '</td>' +
+                    '<td>' + esc(s.material_type || '\u2014') + '</td>' +
+                    '<td>' + fmt(s.gross_weight_kg || 0) + ' kg</td>' +
+                    '<td class="td-green">GH\u20B5 ' + fmt(s.price_per_kg || 0) + '</td>' +
+                    '<td><span class="status-badge ' + statusCls + '">' + esc(s.status || 'pending') + '</span></td>' +
                     '</tr>';
             }).join('') +
             '</tbody></table></div>';
     })
     .catch(function() {
-        document.getElementById('recSalesList').innerHTML = '<div class="empty" style="color:#8a8ab0;font-size:13px;padding:12px 0">Could not load sales.</div>';
+        document.getElementById('recSalesList').innerHTML = '<div class="empty">Could not load sales.</div>';
     });
 }
 
@@ -1055,7 +1029,7 @@ function timeAgo(iso) {
     return Math.floor(hrs / 24) + 'd ago';
 }
 
-// ── TABS FUNCTIONS ─────────────────────────────────────────────────────────────
+// -- TABS FUNCTIONS --
 
 function loadTxns() {
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
@@ -1066,8 +1040,9 @@ function loadTxns() {
             var txns = data.pending_transactions || [];
             if (!txns.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = txns.map(function(t) {
-                var statusBadge = '<span class="status-badge status-' + (t.status === 'dispatch_approved' ? 'approved' : t.status === 'arrived' || t.status === 'completed' ? 'completed' : t.status === 'dispatch_rejected' ? 'rejected' : 'pending') + '">' + esc(t.status) + '</span>';
-                return '<tr><td>' + fmtDate(t.created_at) + '</td><td class="td-name">' + esc(t.processor_company || t.processor_name || '\u2014') + '</td><td><span class="badge badge-blue">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td>' + fmt(t.price_per_kg || 0) + '</td><td class="td-amount">GHS ' + fmt(t.total_price || 0) + '</td><td>' + statusBadge + '</td></tr>';
+                var statusCls = t.status === 'dispatch_approved' ? 'status-approved' : t.status === 'arrived' || t.status === 'completed' ? 'status-completed' : t.status === 'dispatch_rejected' ? 'status-rejected' : 'status-pending';
+                var statusBadge = '<span class="status-badge ' + statusCls + '">' + esc(t.status) + '</span>';
+                return '<tr><td>' + fmtDate(t.created_at) + '</td><td class="td-name">' + esc(t.processor_company || t.processor_name || '\u2014') + '</td><td><span class="pill pill-' + (t.material_type || '').toLowerCase() + '">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td class="td-green">GH\u20B5 ' + fmt(t.price_per_kg || 0) + '/kg</td><td class="td-green">GH\u20B5 ' + fmt(t.total_price || 0) + '</td><td>' + statusBadge + '</td></tr>';
             }).join('');
         })
         .catch(function() {
@@ -1084,22 +1059,18 @@ function loadProcessorPrices() {
             var el = document.getElementById('processorPrices');
             var all = data.all_prices || [];
             if (!all.length) { el.innerHTML = '<div class="empty">No processor prices posted yet</div>'; return; }
-            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Material</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Price</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Processor</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">City</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Actual avg</th>' +
+            el.innerHTML = '<div class="table-wrap"><table><thead><tr>' +
+                '<th>Material</th><th>Price</th><th>Processor</th><th>City</th><th>Actual avg</th>' +
                 '</tr></thead><tbody>' +
                 all.map(function(p) {
                     var ghsLine = p.price_per_kg_ghs ? 'GH\u20B5 ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : '\u2014';
-                    var usdLine = p.price_per_kg_ghs ? '<div style="font-size:0.72rem;color:var(--text-muted)">\u2248 $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD</div>' : '';
+                    var usdLine = p.price_per_kg_ghs ? '<div style="font-size:0.72rem;color:var(--text-3)">\u2248 $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD</div>' : '';
                     return '<tr>' +
-                        '<td style="padding:10px 0;font-weight:600">' + p.material_type + '</td>' +
-                        '<td style="padding:10px 0;color:var(--accent);font-weight:600">' + ghsLine + usdLine + '</td>' +
-                        '<td style="padding:10px 0">' + esc(p.operator_name || '\u2014') + '</td>' +
-                        '<td style="padding:10px 0">' + esc(p.city || '\u2014') + '</td>' +
-                        '<td style="padding:10px 0;color:var(--text-muted)">' + (p.actual_avg_price_30d ? 'GH\u20B5 ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '\u2014') + '</td>' +
+                        '<td style="font-weight:600">' + p.material_type + '</td>' +
+                        '<td class="td-green">' + ghsLine + usdLine + '</td>' +
+                        '<td>' + esc(p.operator_name || '\u2014') + '</td>' +
+                        '<td>' + esc(p.city || '\u2014') + '</td>' +
+                        '<td style="color:var(--text-3)">' + (p.actual_avg_price_30d ? 'GH\u20B5 ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '\u2014') + '</td>' +
                         '</tr>';
                 }).join('') + '</tbody></table></div>';
         });
@@ -1113,14 +1084,11 @@ function loadTxnCerts() {
             var el = document.getElementById('txnCerts');
             var txns = (data.pending_transactions || []).filter(function(t) { return t.status === 'arrived' || t.status === 'completed'; });
             if (!txns.length) { el.innerHTML = '<div class="empty">No completed transactions yet</div>'; return; }
-            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Date</th>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Material</th>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">kg</th>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">Grade</th>' +
+            el.innerHTML = '<div class="table-wrap"><table><thead><tr>' +
+                '<th>Date</th><th>Material</th><th>kg</th><th>Grade</th>' +
                 '</tr></thead><tbody>' +
                 txns.map(function(t) {
-                    return '<tr><td style="padding:10px 0">' + fmtDate(t.created_at) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + esc(t.material_type) + '</span></td><td style="padding:10px 0">' + fmt(t.gross_weight_kg) + ' kg</td><td style="padding:10px 0">' + (t.grade || '\u2014') + '</td></tr>';
+                    return '<tr><td>' + fmtDate(t.created_at) + '</td><td><span class="pill pill-' + (t.material_type || '').toLowerCase() + '">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td>' + (t.grade || '\u2014') + '</td></tr>';
                 }).join('') + '</tbody></table></div>';
         });
 }
@@ -1138,7 +1106,7 @@ function loadRatings() {
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--accent);color:#0a0a1a;border:none;border-radius:6px;font-family:\'Plus Jakarta Sans\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></div>';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-green" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
             }).join('');
         });
     fetch('/api/ratings/operator/' + state.operator.id)
@@ -1146,7 +1114,7 @@ function loadRatings() {
         .then(function(data) {
             var el = document.getElementById('ratingsReceived');
             if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
-            el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--accent);margin-bottom:12px">\u2B50 ' + (data.summary.avg_rating || '\u2014') + ' <span style="font-size:0.85rem;color:var(--text-muted);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
+            el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--accent);margin-bottom:12px">\u2B50 ' + (data.summary.avg_rating || '\u2014') + ' <span style="font-size:0.85rem;color:var(--text-2);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
         });
 }
 
@@ -1223,12 +1191,13 @@ function renderPriceCards(prices) {
         var current = p && p.price_per_kg_ghs ? 'GH\u20B5 ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : 'Not set';
         var usdLine = p && p.price_per_kg_ghs ? '\u2248 $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD' : '';
         return '<div class="price-card">' +
-            '<div class="price-card-mat">' + mat + '</div>' +
-            '<div class="price-card-current">' + current + '</div>' +
-            '<div class="price-card-usd">' + usdLine + '</div>' +
-            '<div class="price-input-row">' +
-            '<input type="number" class="price-input" id="price-ghs-' + mat + '" placeholder="GH\u20B5 / kg" step="0.01" min="0">' +
-            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '<div class="pc-label">Material</div>' +
+            '<div class="pc-name">' + mat + '</div>' +
+            '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
+            (usdLine ? '<div style="font-size:0.75rem;color:var(--text-3)">' + usdLine + '</div>' : '') +
+            '<div class="pc-inline">' +
+            '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH\u20B5 / kg" step="0.01" min="0">' +
+            '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
 }
@@ -1259,13 +1228,13 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s || ''
 checkAuth();
 
 
-// ── TOP SUPPLIERS (processors) ───────────────────────────────────
+// -- TOP SUPPLIERS (processors) --
 let _recTopSupplierPeriod = "month";
 
 function switchTopSuppliers(period) {
   _recTopSupplierPeriod = period;
-  document.querySelectorAll("#top-suppliers-toggle .ptoggle-btn").forEach(function(b) {
-    b.classList.toggle("active", b.dataset.period === period);
+  document.querySelectorAll("#top-suppliers-toggle .tab").forEach(function(b) {
+    b.classList.toggle("on", b.dataset.period === period);
   });
   loadTopSuppliers(period);
 }
@@ -1273,24 +1242,24 @@ function switchTopSuppliers(period) {
 function loadTopSuppliers(period) {
   var el = document.getElementById("top-suppliers-list");
   if (!el) return;
-  el.innerHTML = "<div style=\"color:#8a8ab0;font-size:13px;padding:12px 0\">Loading...</div>";
+  el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div>';
   fetch("/api/recycler/top-suppliers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = "<div style=\"color:#8a8ab0;font-size:13px;padding:12px 0\">No data yet</div>"; return; }
+      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
-          "<div class=\"partner-row\">",
-          "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-          "  <span class=\"partner-name\">" + (p.name || p.processor_name || "Unknown") + "</span>",
-          "  <span class=\"partner-vol\">" + recFmtVol(p.volume || p.total_volume || 0) + " kg</span>",
-          "  <div class=\"partner-price-block\">",
-          "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
-          "    <span class=\"partner-price-val\">GHS " + recFmtPrice(p.avg_price || p.avg_price_paid || 0) + "/kg</span>",
-          "    <span class=\"partner-price-note\">avg over last 10</span>",
-          "  </div>",
-          "</div>"
+          '<div class="partner-row">',
+          '  <span class="partner-rank">' + (i+1) + '</span>',
+          '  <span class="partner-name">' + (p.name || p.processor_name || "Unknown") + '</span>',
+          '  <span class="partner-vol">' + recFmtVol(p.volume || p.total_volume || 0) + ' kg</span>',
+          '  <div class="partner-price-block">',
+          '    <span class="partner-price-label">AVG PRICE PAID</span>',
+          '    <span class="partner-price-val">GHS ' + recFmtPrice(p.avg_price || p.avg_price_paid || 0) + '/kg</span>',
+          '    <span class="partner-price-note">avg over last 10</span>',
+          '  </div>',
+          '</div>'
         ].join("");
       }).join("");
     })
@@ -1307,27 +1276,27 @@ function recRenderDemoSuppliers() {
   ];
   return demo.map(function(p, i) {
     return [
-      "<div class=\"partner-row\">",
-      "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-      "  <span class=\"partner-name\">" + p.name + "</span>",
-      "  <span class=\"partner-vol\">" + recFmtVol(p.volume) + " kg</span>",
-      "  <div class=\"partner-price-block\">",
-      "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
-      "    <span class=\"partner-price-val\">GHS " + p.avg.toFixed(2) + "/kg</span>",
-      "    <span class=\"partner-price-note\">avg over last 10</span>",
-      "  </div>",
-      "</div>"
+      '<div class="partner-row">',
+      '  <span class="partner-rank">' + (i+1) + '</span>',
+      '  <span class="partner-name">' + p.name + '</span>',
+      '  <span class="partner-vol">' + recFmtVol(p.volume) + ' kg</span>',
+      '  <div class="partner-price-block">',
+      '    <span class="partner-price-label">AVG PRICE PAID</span>',
+      '    <span class="partner-price-val">GHS ' + p.avg.toFixed(2) + '/kg</span>',
+      '    <span class="partner-price-note">avg over last 10</span>',
+      '  </div>',
+      '</div>'
     ].join("");
   }).join("");
 }
 
-// ── TOP BUYERS (converters) ──────────────────────────────────────
+// -- TOP BUYERS (converters) --
 let _recTopBuyerPeriod = "month";
 
 function switchTopBuyers(period) {
   _recTopBuyerPeriod = period;
-  document.querySelectorAll("#top-buyers-toggle .ptoggle-btn").forEach(function(b) {
-    b.classList.toggle("active", b.dataset.period === period);
+  document.querySelectorAll("#top-buyers-toggle .tab").forEach(function(b) {
+    b.classList.toggle("on", b.dataset.period === period);
   });
   loadTopBuyers(period);
 }
@@ -1335,24 +1304,24 @@ function switchTopBuyers(period) {
 function loadTopBuyers(period) {
   var el = document.getElementById("top-buyers-list");
   if (!el) return;
-  el.innerHTML = "<div style=\"color:#8a8ab0;font-size:13px;padding:12px 0\">Loading...</div>";
+  el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div>';
   fetch("/api/recycler/top-buyers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);
-      if (!items.length) { el.innerHTML = "<div style=\"color:#8a8ab0;font-size:13px;padding:12px 0\">No data yet</div>"; return; }
+      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
-          "<div class=\"partner-row\">",
-          "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-          "  <span class=\"partner-name\">" + (p.name || p.converter_name || "Unknown") + "</span>",
-          "  <span class=\"partner-vol\">" + recFmtVol(p.volume || p.total_volume || 0) + " kg</span>",
-          "  <div class=\"partner-price-block\">",
-          "    <span class=\"partner-price-label\">AVG PRICE SOLD</span>",
-          "    <span class=\"partner-price-val\">GHS " + recFmtPrice(p.avg_price || p.avg_price_sold || 0) + "/kg</span>",
-          "    <span class=\"partner-price-note\">avg over last 10</span>",
-          "  </div>",
-          "</div>"
+          '<div class="partner-row">',
+          '  <span class="partner-rank">' + (i+1) + '</span>',
+          '  <span class="partner-name">' + (p.name || p.converter_name || "Unknown") + '</span>',
+          '  <span class="partner-vol">' + recFmtVol(p.volume || p.total_volume || 0) + ' kg</span>',
+          '  <div class="partner-price-block">',
+          '    <span class="partner-price-label">AVG PRICE SOLD</span>',
+          '    <span class="partner-price-val">GHS ' + recFmtPrice(p.avg_price || p.avg_price_sold || 0) + '/kg</span>',
+          '    <span class="partner-price-note">avg over last 10</span>',
+          '  </div>',
+          '</div>'
         ].join("");
       }).join("");
     })
@@ -1369,16 +1338,16 @@ function recRenderDemoBuyers() {
   ];
   return demo.map(function(p, i) {
     return [
-      "<div class=\"partner-row\">",
-      "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-      "  <span class=\"partner-name\">" + p.name + "</span>",
-      "  <span class=\"partner-vol\">" + recFmtVol(p.volume) + " kg</span>",
-      "  <div class=\"partner-price-block\">",
-      "    <span class=\"partner-price-label\">AVG PRICE SOLD</span>",
-      "    <span class=\"partner-price-val\">GHS " + p.avg.toFixed(2) + "/kg</span>",
-      "    <span class=\"partner-price-note\">avg over last 10</span>",
-      "  </div>",
-      "</div>"
+      '<div class="partner-row">',
+      '  <span class="partner-rank">' + (i+1) + '</span>',
+      '  <span class="partner-name">' + p.name + '</span>',
+      '  <span class="partner-vol">' + recFmtVol(p.volume) + ' kg</span>',
+      '  <div class="partner-price-block">',
+      '    <span class="partner-price-label">AVG PRICE SOLD</span>',
+      '    <span class="partner-price-val">GHS ' + p.avg.toFixed(2) + '/kg</span>',
+      '    <span class="partner-price-note">avg over last 10</span>',
+      '  </div>',
+      '</div>'
     ].join("");
   }).join("");
 }
@@ -1392,7 +1361,7 @@ function recFmtPrice(n) {
   return parseFloat(n || 0).toFixed(2);
 }
 
-// ── ATTRIBUTE TAGS FOR PROCESSOR RATING ──────────────────────────
+// -- ATTRIBUTE TAGS FOR PROCESSOR RATING --
 var REC_RATING_TAGS = [
   { label: "Consistent quality", type: "positive" },
   { label: "Accurate batch weight", type: "positive" },
@@ -1421,11 +1390,11 @@ function renderRecRatingTags() {
   if (!container) return;
   _recSelectedTags = [];
   container.innerHTML = REC_RATING_TAGS.map(function(t) {
-    return "<span class=\"rtag " + t.type + "\" onclick=\"recToggleTag(this,'" + t.label + "')\">" + t.label + "</span>";
+    return '<span class="rtag ' + t.type + '" onclick="recToggleTag(this,\'' + t.label + '\')">' + t.label + '</span>';
   }).join("");
 }
 
-// ── INIT ─────────────────────────────────────────────────────────
+// -- INIT --
 document.addEventListener("DOMContentLoaded", function() {
   setTimeout(function() {
     loadTopSuppliers("month");
