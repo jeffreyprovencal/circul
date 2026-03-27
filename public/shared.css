@@ -186,3 +186,14 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 
 /* ── LOGIN OVERLAY (defensive fallback) ── */
 .login-overlay.hidden{display:none}
+
+/* ── RESPONSIVE — Narrow phones ≤ 480px ── */
+@media(max-width:480px){
+  .price-grid{grid-template-columns:1fr}
+  .demo-grid{grid-template-columns:1fr}
+  .stats-3,.stats-4{gap:8px}
+  .card{padding:12px}
+}
+
+/* ── Safety-net: horizontal scroll for any overflowing table ── */
+table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
