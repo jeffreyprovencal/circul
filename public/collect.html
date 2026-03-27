@@ -1,487 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Log a Sale — Circul</title>
-  <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log a Sale — Circul</title>
+<link rel="stylesheet" href="/shared.css">
 <style>
-    :root {
-      --deep:       #1a2e1a;
-      --forest:     #2d6a4f;
-      --mint:       #a7f3d0;
-      --light-mint: #f0fdf4;
-      --white:      #ffffff;
-      --bg:         #f3f6f3;
-      --text:       #1a2e1a;
-      --muted:      #6b7280;
-      --border:     #e5e7eb;
-      --radius:     16px;
-      --radius-sm:  10px;
-    }
+/* ── COLLECT PAGE ── */
+.collect-nav{display:flex;align-items:center;gap:16px;padding:12px 24px;background:var(--nav-bg);border-bottom:1px solid var(--border-nav)}
+.collect-nav .nav-logo{flex-shrink:0}
+.collect-back{font-size:0.85rem;color:var(--text-2)}
+.collect-back:hover{color:var(--text-1)}
+.collect-page-title{font-size:0.9rem;font-weight:700;margin-left:auto}
+.collect-user{font-size:0.85rem;color:var(--text-2);margin-left:16px}
+.collect-form{max-width:600px;margin:0 auto}
+.sale-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:10px}
+.sale-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sale-material{font-weight:700;font-size:0.85rem}
+.sale-weight{font-size:0.85rem;color:var(--text-2)}
+.sale-detail{font-size:0.75rem;color:var(--text-3);margin-bottom:4px}
+.sale-status{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.sale-amount{color:var(--accent);font-weight:700;font-size:0.9rem}
+.sale-note{font-size:0.7rem;color:var(--text-3);font-style:italic}
 
-    body {
-      font-family: var(--font-primary);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-    }
-    h1, h2, h3, h4 { font-family: var(--font-primary); }
+/* ── Error msg ── */
+.error-msg{display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--r-sm);padding:10px 14px;font-size:0.8rem;color:#f87171;margin-bottom:16px}
+.error-msg.visible{display:block}
 
-    /* ── HEADER ── */
-    .header { background: var(--deep); }
+/* ── Loading state ── */
+.loading-state{text-align:center;padding:32px 20px;color:var(--text-3);font-size:0.85rem}
 
-    .header-inner {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 20px 24px 28px;
-    }
+/* ── Success state ── */
+.success-state{text-align:center;padding:32px 20px;display:none}
+.success-state.visible{display:block}
+.success-icon{font-size:2rem;margin-bottom:12px}
+.success-title{font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:6px}
+.success-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:20px;line-height:1.5}
+.btn-log-another{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:0.85rem;font-weight:700;cursor:pointer;margin-right:10px}
+.btn-log-another:hover{background:var(--accent-hover)}
+.btn-back-dash{color:var(--accent);font-weight:600;font-size:0.85rem}
 
-    .header-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 24px;
-    }
+/* ── Sales list ── */
+.sales-empty{text-align:center;padding:20px;color:var(--text-3);font-size:0.85rem}
 
-    .brand {
-      font-size: 1rem;
-      font-weight: 800;
-      color: var(--white);
-      text-decoration: none;
-      letter-spacing: -0.3px;
-    }
+/* ── Badge overrides for sale items ── */
+.badge-pending{background:rgba(255,152,0,0.15);color:#ffb74d}
+.badge-confirmed,.badge-completed{background:rgba(0,230,118,0.15);color:#00e676}
+.badge-rejected{background:rgba(239,68,68,0.15);color:#f87171}
+.badge-cancelled{background:rgba(122,154,122,0.15);color:var(--text-3)}
+.badge-grade-a{background:rgba(0,230,118,0.15);color:#00e676}
+.badge-grade-b{background:rgba(66,165,245,0.15);color:#42a5f5}
+.badge-grade-c{background:rgba(255,215,64,0.15);color:#ffd740}
 
-    .header-back {
-      font-size: 0.82rem;
-      color: rgba(255,255,255,0.55);
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-    .header-back:hover { color: var(--white); }
+.sale-final-price{font-size:0.75rem;color:var(--accent);font-weight:600;margin-top:5px}
+.sale-final-note{font-size:0.7rem;color:var(--text-3);margin-top:2px}
+.sale-reject-reason{font-size:0.75rem;color:#f87171;margin-top:5px;line-height:1.4}
 
-    .header-title {
-      font-size: clamp(1.5rem, 4vw, 2rem);
-      font-weight: 800;
-      color: var(--white);
-      letter-spacing: -0.8px;
-      line-height: 1.1;
-    }
-
-    .header-sub {
-      font-size: 0.86rem;
-      color: rgba(255,255,255,0.55);
-      margin-top: 6px;
-    }
-
-    /* ── MAIN ── */
-    .main {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 28px 24px 64px;
-    }
-
-    /* ── FORM CARD ── */
-    .form-card {
-      background: var(--white);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      overflow: hidden;
-      margin-bottom: 24px;
-    }
-
-    .form-card-body { padding: 28px 24px; }
-
-    /* ── FORM ── */
-    .form-group { margin-bottom: 22px; }
-
-    .form-label {
-      display: block;
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-
-    .form-label .optional {
-      font-weight: 400;
-      text-transform: none;
-      letter-spacing: 0;
-      font-size: 0.78rem;
-    }
-
-    .form-select,
-    .form-input {
-      width: 100%;
-      padding: 13px 16px;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: 1rem;
-      color: var(--text);
-      background: var(--white);
-      transition: border-color 0.15s;
-      outline: none;
-      -webkit-appearance: none;
-    }
-    .form-select:focus,
-    .form-input:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(45,106,79,0.08); }
-
-    /* ── SUBMIT ── */
-    .btn-submit {
-      width: 100%;
-      padding: 15px 28px;
-      background: var(--mint);
-      color: var(--deep);
-      border: none;
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: -0.2px;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-    }
-    .btn-submit:hover:not(:disabled) { background: #86efcc; transform: translateY(-1px); }
-    .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
-
-    /* ── ERROR ── */
-    .error-msg {
-      padding: 12px 16px;
-      background: #fef2f2;
-      border: 1px solid rgba(239,68,68,0.25);
-      border-radius: var(--radius-sm);
-      color: #dc2626;
-      font-size: 0.875rem;
-      margin-bottom: 20px;
-      display: none;
-    }
-    .error-msg.visible { display: block; }
-
-    /* ── LOADING ── */
-    .loading-state {
-      text-align: center;
-      padding: 48px 24px;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    /* ── SUCCESS ── */
-    .success-state {
-      text-align: center;
-      padding: 48px 24px;
-      display: none;
-    }
-    .success-state.visible { display: block; }
-
-    .success-icon { font-size: 2.8rem; margin-bottom: 16px; }
-
-    .success-title {
-      font-size: 1.4rem;
-      font-weight: 800;
-      color: var(--deep);
-      letter-spacing: -0.5px;
-      margin-bottom: 8px;
-    }
-
-    .success-sub {
-      font-size: 0.9rem;
-      color: var(--muted);
-      margin-bottom: 28px;
-      line-height: 1.5;
-    }
-
-    .btn-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 12px 24px;
-      background: transparent;
-      border: 1.5px solid var(--forest);
-      color: var(--forest);
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      font-size: 0.9rem;
-      font-weight: 700;
-      transition: background 0.15s, color 0.15s;
-    }
-    .btn-back:hover { background: var(--forest); color: var(--white); }
-
-    .btn-log-another {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 10px 20px;
-      background: var(--mint);
-      color: var(--deep);
-      border: none;
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      margin-right: 12px;
-      margin-bottom: 12px;
-      transition: background 0.15s;
-    }
-    .btn-log-another:hover { background: #86efcc; }
-
-    /* ── PENDING CARD ── */
-    .pending-card {
-      background: var(--white);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-
-    .pending-card-header {
-      padding: 16px 24px;
-      background: var(--deep);
-      font-family: var(--font-primary);
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: var(--mint);
-      letter-spacing: 0.3px;
-    }
-
-    .pending-card-body { padding: 0; }
-
-    .pending-empty {
-      padding: 28px 24px;
-      text-align: center;
-      font-size: 0.88rem;
-      color: var(--muted);
-    }
-
-    .pending-row {
-      display: grid;
-      grid-template-columns: 80px 60px 70px 1fr auto;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 24px;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.85rem;
-    }
-    .pending-row:last-child { border-bottom: none; }
-
-    .pending-row-date  { color: var(--muted); font-size: 0.78rem; }
-    .pending-row-mat   { font-weight: 700; color: var(--forest); }
-    .pending-row-kg    { color: var(--text); }
-    .pending-row-agg   { color: var(--muted); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    .badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-    }
-    .badge-pending   { background: #fef9c3; color: #854d0e; }
-    .badge-confirmed { background: #dcfce7; color: #166534; }
-    .badge-rejected  { background: #fee2e2; color: #991b1b; }
-    .badge-cancelled { background: #f3f4f6; color: #4b5563; }
-
-    /* ── MY SALES CARD ── */
-    .my-sales-card {
-      background: var(--white);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      overflow: hidden;
-      margin-top: 24px;
-    }
-
-    .my-sales-header {
-      padding: 14px 24px;
-      background: var(--deep);
-      font-family: var(--font-primary);
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: var(--mint);
-      letter-spacing: 0.3px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .my-sales-header-refresh {
-      font-size: 0.78rem;
-      font-weight: 500;
-      color: rgba(167,243,208,0.7);
-      cursor: pointer;
-      background: none;
-      border: none;
-      font-family: inherit;
-      padding: 0;
-    }
-    .my-sales-header-refresh:hover { color: var(--mint); }
-
-    .sale-item {
-      padding: 16px 24px;
-      border-bottom: 1px solid var(--border);
-    }
-    .sale-item:last-child { border-bottom: none; }
-
-    .sale-top {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .sale-mat {
-      font-family: var(--font-primary);
-      font-weight: 700;
-      font-size: 0.9rem;
-      color: var(--forest);
-    }
-
-    .sale-weight {
-      font-size: 0.85rem;
-      color: var(--text);
-      font-weight: 600;
-    }
-
-    .sale-price-ask {
-      font-size: 0.82rem;
-      color: var(--muted);
-    }
-
-    .sale-agg {
-      font-size: 0.82rem;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
-
-    .sale-time {
-      font-size: 0.75rem;
-      color: var(--muted);
-    }
-
-    .sale-status-row {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    .sale-total {
-      font-family: var(--font-primary);
-      font-size: 0.9rem;
-      font-weight: 700;
-      color: var(--deep);
-      margin-left: auto;
-    }
-
-    .sale-final-price {
-      font-size: 0.8rem;
-      color: var(--forest);
-      font-weight: 600;
-      margin-top: 5px;
-    }
-
-    .sale-final-note {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    .sale-reject-reason {
-      font-size: 0.8rem;
-      color: #dc2626;
-      margin-top: 5px;
-      line-height: 1.4;
-    }
-
-    .badge-confirmed  { background: #dcfce7; color: #166534; }
-    .badge-completed  { background: #dcfce7; color: #166534; }
-    .badge-grade-a    { background: #dcfce7; color: #166534; }
-    .badge-grade-b    { background: #dbeafe; color: #1e40af; }
-    .badge-grade-c    { background: #fef9c3; color: #854d0e; }
-
-    .sales-empty {
-      padding: 28px 24px;
-      text-align: center;
-      font-size: 0.88rem;
-      color: var(--muted);
-    }
-
-    @media (max-width: 480px) {
-      .header-inner { padding: 18px 16px 24px; }
-      .main         { padding: 20px 16px 52px; }
-      .pending-row  { grid-template-columns: 70px 52px 60px 1fr auto; gap: 8px; padding: 12px 16px; }
-      .form-card-body { padding: 24px 16px; }
-      .sale-item { padding: 14px 16px; }
-    }
-  </style>
+@media(max-width:768px){
+  .collect-nav{flex-wrap:wrap;gap:10px;padding:10px 16px}
+  .collect-page-title{margin-left:0;order:10;width:100%}
+  .collect-user{display:none}
+}
+</style>
 </head>
 <body>
 
-  <header class="header">
-    <div class="header-inner">
-      <div class="header-top">
-        <a href="/" class="brand">♻ Circul</a>
-        <a href="/collector-dashboard" class="header-back">← Dashboard</a>
-      </div>
-      <div class="header-title">Log a Sale</div>
-      <div class="header-sub" id="collectorSub">Loading…</div>
-    </div>
-  </header>
+<div class="collect-nav">
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <a class="collect-back" href="/collector-dashboard">← Dashboard</a>
+  <span class="collect-page-title">Log a Sale</span>
+  <span class="collect-user" id="collectorSub">Loading…</span>
+</div>
 
-  <main class="main">
+<div class="page">
+  <div class="collect-form">
 
-    <!-- ── FORM CARD ── -->
-    <div class="form-card">
-
+    <!-- LOG A SALE FORM -->
+    <div class="section">
       <!-- Loading -->
       <div class="loading-state" id="loadingState">Loading your account…</div>
 
       <!-- Form -->
-      <div class="form-card-body" id="formBody" style="display:none">
+      <div id="formBody" style="display:none">
+        <div class="section-title">Log a new sale</div>
+        <div class="section-sub" style="margin-bottom:16px">Record a material drop-off to an aggregator</div>
         <div class="error-msg" id="errorMsg"></div>
-
-        <div class="form-group">
-          <label class="form-label" for="materialSelect">Material type</label>
-          <select class="form-select" id="materialSelect">
-            <option value="">Select material…</option>
-            <option value="PET">PET Plastic</option>
-            <option value="HDPE">HDPE Plastic</option>
-            <option value="LDPE">LDPE Plastic</option>
-            <option value="PP">PP Plastic</option>
-          </select>
+        <div class="form-grid" style="grid-template-columns:1fr">
+          <div class="form-group">
+            <label class="form-label" for="materialSelect">Material type</label>
+            <select class="form-select" id="materialSelect">
+              <option value="">Select material…</option>
+              <option value="PET">PET Plastic</option>
+              <option value="HDPE">HDPE Plastic</option>
+              <option value="LDPE">LDPE Plastic</option>
+              <option value="PP">PP Plastic</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="weightInput">Weight (kg)</label>
+            <input type="number" class="form-input" id="weightInput"
+                   placeholder="0.0" min="0.1" max="500" step="0.1" inputmode="decimal">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="aggregatorSelect">Aggregator</label>
+            <select class="form-select" id="aggregatorSelect">
+              <option value="">Loading aggregators…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="priceInput">
+              Price (GH₵/kg) <span style="font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(optional — leave blank to use posted price)</span>
+            </label>
+            <input type="number" class="form-input" id="priceInput"
+                   placeholder="Leave blank to use posted price" min="0" step="0.01" inputmode="decimal">
+          </div>
         </div>
-
-        <div class="form-group">
-          <label class="form-label" for="weightInput">Weight (kg)</label>
-          <input type="number" class="form-input" id="weightInput"
-                 placeholder="0.0" min="0.1" max="500" step="0.1" inputmode="decimal">
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="aggregatorSelect">Aggregator</label>
-          <select class="form-select" id="aggregatorSelect">
-            <option value="">Loading aggregators…</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="priceInput">
-            Price (GH₵/kg) <span class="optional">(optional — leave blank to use posted price)</span>
-          </label>
-          <input type="number" class="form-input" id="priceInput"
-                 placeholder="Leave blank to use posted price" min="0" step="0.01" inputmode="decimal">
-        </div>
-
-        <button class="btn-submit" id="submitBtn" onclick="submitSale()">
-          Log Sale
-        </button>
+        <button class="form-submit" id="submitBtn" onclick="submitSale()">Log Sale</button>
       </div>
 
       <!-- Success -->
@@ -491,26 +125,34 @@
         <div class="success-sub" id="successSub">Sale logged — waiting for aggregator to confirm.</div>
         <div>
           <button class="btn-log-another" onclick="resetForm()">+ Log another</button>
-          <a href="/collector-dashboard" class="btn-back">← Back to dashboard</a>
+          <a href="/collector-dashboard" class="btn-back-dash">← Back to dashboard</a>
         </div>
       </div>
-
     </div>
 
-    <!-- ── MY SALES ── -->
-    <div class="my-sales-card" id="mySalesCard" style="display:none">
-      <div class="my-sales-header">
-        📋 My Sales
-        <button class="my-sales-header-refresh" onclick="loadMySales()">↻ Refresh</button>
+    <!-- MY SALES -->
+    <div class="section" id="mySalesCard" style="display:none">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My sales</div>
+          <div class="section-sub">Your recent drop-offs</div>
+        </div>
+        <button class="btn" onclick="loadMySales()">↻ Refresh</button>
       </div>
       <div id="mySalesList">
         <div class="sales-empty">Loading…</div>
       </div>
     </div>
 
-  </main>
+    <!-- Back link -->
+    <div style="text-align:center;margin-top:16px">
+      <a href="/collector-dashboard" style="color:var(--accent);font-weight:600;font-size:0.85rem">← Back to dashboard</a>
+    </div>
 
-  <script>
+  </div>
+</div>
+
+<script>
     var session     = null;
     var collectorId = null; // resolved collectors.id
 
@@ -707,19 +349,18 @@
         totalGhs = 'GH₵ ' + (parseFloat(pt.price_per_kg) * kg).toFixed(2);
       }
 
-      return '<div class="sale-item">' +
-        '<div class="sale-top">' +
-          '<span class="sale-mat">' + esc(pt.material_type) + '</span>' +
+      return '<div class="sale-card">' +
+        '<div class="sale-header">' +
+          '<span class="sale-material"><span class="pill pill-' + esc(pt.material_type).toLowerCase() + '">' + esc(pt.material_type) + '</span></span>' +
           '<span class="sale-weight">' + kg.toFixed(1) + ' kg</span>' +
-          '<span class="sale-price-ask">' + priceAsk + '</span>' +
         '</div>' +
-        '<div class="sale-agg">Aggregator: ' + aggName + '</div>' +
-        '<div class="sale-time">Submitted ' + submitted + '</div>' +
-        '<div class="sale-status-row">' +
+        '<div class="sale-detail">' + priceAsk + ' · Aggregator: ' + aggName + '</div>' +
+        '<div class="sale-detail">Submitted ' + submitted + '</div>' +
+        '<div class="sale-status">' +
           badgeHtml +
-          (totalGhs ? '<span class="sale-total">' + totalGhs + '</span>' : '') +
+          (totalGhs ? '<span class="sale-amount">' + totalGhs + '</span>' : '') +
         '</div>' +
-        extraHtml +
+        (extraHtml ? '<div class="sale-note">' + extraHtml + '</div>' : '') +
       '</div>';
     }
 
@@ -763,7 +404,7 @@
     function hideError() {
       document.getElementById('errorMsg').classList.remove('visible');
     }
-  </script>
+</script>
 
 </body>
 </html>

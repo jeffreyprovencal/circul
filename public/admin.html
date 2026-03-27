@@ -1,123 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin — Circul</title>
-  <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Circul</title>
+<link rel="stylesheet" href="/shared.css">
 <style>
-    body{
-      display:flex;flex-direction:column;
-    }
+/* ── ADMIN PAGE ── */
+.user-avatar{width:28px;height:28px;background:var(--accent-muted);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;color:var(--accent)}
+.role-filter{display:flex;gap:6px;flex-wrap:wrap}
 
-    /* NAV */
-    .nav{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:0 60px;height:64px;
-      background:rgba(10,26,15,0.95);backdrop-filter:blur(12px);
-      border-bottom:1px solid #1a2e1a;position:sticky;top:0;z-index:100;
-    }
-    .nav-left{display:flex;align-items:center;gap:16px;}
-    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:#e8f5e9;}
-    .nav-logo-icon{width:30px;height:30px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#000;font-weight:900;}
-    .nav-admin-badge{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#4a6a4a;border:1px solid #1a3a1a;padding:3px 10px;border-radius:4px;}
-    .nav-hint{font-size:12px;color:#2a4a2a;}
+/* ── Role chips ── */
+.chip{display:inline-block;font-size:0.7rem;font-weight:600;padding:3px 8px;border-radius:10px;white-space:nowrap}
+.chip-processor{background:rgba(66,165,245,0.15);color:#42a5f5}
+.chip-converter{background:rgba(244,143,177,0.15);color:#f48fb1}
 
-    /* CONTENT */
-    .content{flex:1;max-width:1000px;margin:0 auto;width:100%;padding:40px 24px 80px;}
+/* ── Actions ── */
+.actions{display:flex;gap:8px;align-items:center}
+.btn-approve{padding:6px 14px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-approve:hover{background:var(--accent-hover)}
+.btn-approve.done{background:var(--accent-muted);color:var(--accent);cursor:default;pointer-events:none}
+.btn-reject{padding:6px 10px;background:transparent;color:var(--text-3);border:1px solid var(--border);border-radius:var(--r-sm);font-family:var(--font);font-size:0.75rem;font-weight:700;cursor:pointer}
+.btn-reject:hover{border-color:#ef4444;color:#f87171}
+.btn-reject.hidden{display:none}
 
-    /* HEADING */
-    .page-heading{font-size:22px;font-weight:800;color:#e8f5e9;margin-bottom:6px;}
-    .page-sub{font-size:14px;color:#4a6a4a;margin-bottom:32px;}
+/* ── Name+company cell ── */
+.cell-name{font-weight:600}
+.cell-company{font-size:0.7rem;color:var(--text-3);margin-top:2px}
 
-    /* TABLE WRAPPER */
-    .table-wrap{border:1px solid #1a3a1a;border-radius:12px;overflow:hidden;margin-bottom:32px;}
-    table{width:100%;border-collapse:collapse;}
-    th{
-      padding:12px 16px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-      color:#4a6a4a;background:#0c1e0e;text-align:left;border-bottom:1px solid #1a3a1a;
-    }
-    td{padding:14px 16px;font-size:14px;color:#e8f5e9;border-bottom:1px solid #0f2814;vertical-align:middle;}
-    tr:last-child td{border-bottom:none;}
-    tr.rejected{opacity:.3;transition:opacity .4s;}
+/* ── Rejected row ── */
+tr.rejected{opacity:0.3;transition:opacity 0.4s}
 
-    /* Role chips */
-    .chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:4px;}
-    .chip-processor{background:rgba(0,230,118,.12);color:#00e676;}
-    .chip-converter{background:rgba(168,85,247,.12);color:#a855f7;}
+/* ── Skeleton ── */
+.skeleton{background:var(--border);border-radius:4px;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 
-    /* Actions */
-    .actions{display:flex;gap:8px;align-items:center;}
-    .btn-approve{
-      padding:6px 14px;background:#00e676;color:#0a1a0f;
-      border:none;border-radius:6px;font-size:12px;font-weight:700;
-      cursor:pointer;transition:background .15s;white-space:nowrap;
-    }
-    .btn-approve:hover{background:#33eb8e;}
-    .btn-approve.done{background:#0f2a14;color:#00e676;cursor:default;pointer-events:none;}
-    .btn-reject{
-      padding:6px 10px;background:transparent;color:#4a6a4a;
-      border:1px solid #1a3a1a;border-radius:6px;font-size:12px;font-weight:700;
-      cursor:pointer;transition:all .15s;
-    }
-    .btn-reject:hover{border-color:#ef4444;color:#f87171;}
-    .btn-reject.hidden{display:none;}
-
-    /* Name+company cell */
-    .cell-name{font-weight:600;color:#e8f5e9;}
-    .cell-company{font-size:12px;color:#4a6a4a;margin-top:2px;}
-
-    /* Empty state */
-    .empty-state{
-      text-align:center;padding:60px 20px;
-    }
-    .empty-state-icon{font-size:32px;margin-bottom:12px;opacity:.3;}
-    .empty-state p{font-size:14px;color:#4a6a4a;}
-
-    /* STATS STRIP */
-    .stats-strip{display:flex;gap:12px;flex-wrap:wrap;}
-    .stat-card{
-      background:#0c1e0e;border:1px solid #1a3a1a;border-radius:10px;
-      padding:16px 20px;flex:1;min-width:120px;
-    }
-    .stat-value{font-size:26px;font-weight:800;margin-bottom:4px;}
-    .stat-label{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
-    .stat-green{color:#00e676;}
-    .stat-purple{color:#a855f7;}
-    .stat-amber{color:#f59e0b;}
-
-    /* Loading skeleton */
-    .skeleton{background:#1a3a1a;border-radius:4px;animation:pulse 1.4s ease-in-out infinite;}
-    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
-
-    @media(max-width:700px){
-      .nav{padding:0 16px;}
-      .content{padding:24px 16px 60px;}
-      .table-wrap{border-radius:8px;}
-      th,td{padding:10px 12px;}
-    }
-  </style>
+/* ── Stats strip (pending / role counts) ── */
+.stats-strip{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:var(--gap)}
+.stats-strip .stat{flex:1;min-width:120px}
+</style>
 </head>
 <body>
 
-  <!-- NAV -->
-  <nav class="nav">
-    <div class="nav-left">
-      <a href="/" class="nav-logo">
-        <div class="nav-logo-icon">◎</div>
-        circul
-      </a>
-      <span class="nav-admin-badge">Admin</span>
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <span class="nav-spacer"></span>
+  <div class="nav-right">
+    <span class="nav-pill" style="background:#1a1a2e;color:#e0e0e0">ADMIN</span>
+    <span class="nav-name">Admin</span>
+    <a class="nav-link" href="/">Dashboard</a>
+    <a class="nav-link" href="/admin.html">Users</a>
+    <button class="nav-logout" onclick="window.location.href='/login.html'">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-name">Admin dashboard</div>
+      <div class="hero-meta">
+        Pending access requests <span class="sep">·</span> Approve or reject processor and converter access
+      </div>
     </div>
-    <span class="nav-hint">Hidden · /admin</span>
-  </nav>
+  </div>
 
-  <!-- CONTENT -->
-  <div class="content">
-    <h1 class="page-heading">Pending Access Requests</h1>
-    <p class="page-sub">Approve or reject processor and converter access requests.</p>
+  <!-- STATS STRIP -->
+  <div class="stats-strip" id="stats-strip">
+    <div class="stat"><div class="stat-val skeleton" style="width:40px;height:28px;display:inline-block"></div><div class="stat-label" style="margin-top:4px">Loading…</div></div>
+  </div>
 
-    <!-- TABLE -->
+  <!-- PENDING REQUESTS TABLE -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Pending access requests</div>
+        <div class="section-sub">Users awaiting account activation</div>
+      </div>
+    </div>
     <div class="table-wrap">
       <table id="pending-table">
         <thead>
@@ -134,14 +95,11 @@
         </tbody>
       </table>
     </div>
-
-    <!-- STATS STRIP -->
-    <div class="stats-strip" id="stats-strip">
-      <div class="stat-card"><div class="stat-value stat-green skeleton" style="width:40px;height:32px;"></div><div class="stat-label" style="margin-top:4px;">Loading…</div></div>
-    </div>
   </div>
 
-  <script>
+</div>
+
+<script>
     /* ── Relative time ─────────────────── */
     function relTime(dateStr) {
       var diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -155,7 +113,7 @@
     function renderPending(rows) {
       var tbody = document.getElementById('pending-body');
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">✓</div><p>No pending requests.</p></div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><div class="empty-icon">✓</div>No pending requests.</div></td></tr>';
         return;
       }
       tbody.innerHTML = '';
@@ -224,11 +182,11 @@
     function renderStats(stats) {
       var strip = document.getElementById('stats-strip');
       strip.innerHTML = [
-        '<div class="stat-card"><div class="stat-value stat-green">' + (stats.collectors||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Collectors</div></div>',
-        '<div class="stat-card"><div class="stat-value stat-green">' + (stats.aggregators||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Aggregators</div></div>',
-        '<div class="stat-card"><div class="stat-value stat-green">' + (stats.processors||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Processors</div></div>',
-        '<div class="stat-card"><div class="stat-value stat-purple">' + (stats.converters||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Converters</div></div>',
-        '<div class="stat-card"><div class="stat-value stat-amber">' + (stats.pending||0) + '</div><div class="stat-label" style="color:#4a6a4a;">Pending</div></div>'
+        '<div class="stat"><div class="stat-val" style="color:#00e676">' + (stats.collectors||0) + '</div><div class="stat-label">Collectors</div></div>',
+        '<div class="stat"><div class="stat-val" style="color:#26c6da">' + (stats.aggregators||0) + '</div><div class="stat-label">Aggregators</div></div>',
+        '<div class="stat"><div class="stat-val" style="color:#42a5f5">' + (stats.processors||0) + '</div><div class="stat-label">Processors</div></div>',
+        '<div class="stat"><div class="stat-val" style="color:#b388ff">' + (stats.converters||0) + '</div><div class="stat-label">Converters</div></div>',
+        '<div class="stat"><div class="stat-val" style="color:#ffb74d">' + (stats.pending||0) + '</div><div class="stat-label">Pending</div></div>'
       ].join('');
     }
 
@@ -241,8 +199,8 @@
     fetch('/api/admin/stats')
       .then(function(r){ return r.json(); })
       .then(function(data){ renderStats(data); })
-      .catch(function(){ document.getElementById('stats-strip').innerHTML = '<p style="color:#4a6a4a;font-size:13px;">Stats unavailable.</p>'; });
-  </script>
+      .catch(function(){ document.getElementById('stats-strip').innerHTML = '<p style="color:var(--text-3);font-size:0.8rem;">Stats unavailable.</p>'; });
+</script>
 
 </body>
 </html>

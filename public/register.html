@@ -1,294 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account — Circul</title>
-  <meta name="description" content="Create your free Circul account.">
-  <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Account — Circul</title>
+<meta name="description" content="Create your free Circul account.">
+<link rel="stylesheet" href="/shared.css">
 <style>
-    body{
-      display:flex;flex-direction:column;
-    }
+/* ── REGISTER PAGE ── */
+.reg-wrap{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 41px);padding:24px}
+.reg-card{width:100%;max-width:520px}
+.reg-title{text-align:center;font-size:1.1rem;font-weight:700;margin-bottom:4px}
+.reg-subtitle{text-align:center;font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
+.role-grid{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:24px}
+.role-card{border-radius:20px;padding:8px 16px;text-align:center;cursor:pointer;border:2px solid transparent;transition:opacity 0.15s}
+.role-card:hover{opacity:0.85}
+.role-card.on{border-color:rgba(255,255,255,0.2)}
+.role-name{font-size:0.7rem;font-weight:700;letter-spacing:0.04em}
+.role-tier{font-size:0.6rem;font-weight:600;opacity:0.8;margin-top:1px}
+.reg-group{margin-bottom:14px}
+.reg-label{display:block;font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px}
+.reg-label small{font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0}
+.reg-input{width:100%;padding:10px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.85rem}
+.reg-input::placeholder{color:var(--text-3)}
+.reg-input:focus{outline:none;border-color:var(--accent)}
+.phone-row{display:flex;gap:8px;align-items:center}
+.phone-prefix{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;color:var(--text-2);font-size:0.85rem;font-weight:600;white-space:nowrap}
+.phone-row .reg-input{flex:1}
+.pin-row{display:flex;gap:8px}
+.pin-box{width:48px;height:48px;text-align:center;font-size:1.2rem;font-weight:700;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font)}
+.pin-box:focus{outline:none;border-color:var(--accent)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+.reg-hint{font-size:0.7rem;color:var(--text-3);margin-top:4px}
+.reg-submit{width:100%;padding:12px;margin-top:18px;background:var(--accent);color:#000;font-family:var(--font);font-size:0.9rem;font-weight:700;border:none;border-radius:var(--r-md);cursor:pointer}
+.reg-submit:hover{background:var(--accent-hover)}
+.reg-submit.loading{pointer-events:none;opacity:.7}
+.reg-link{display:block;text-align:center;margin-top:16px;font-size:0.8rem;color:var(--text-3)}
+.reg-link a{color:var(--accent);font-weight:600}
+.reg-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:var(--nav-bg);border-bottom:1px solid var(--border-nav)}
+.reg-nav-links{display:flex;gap:16px}
+.reg-nav-link{font-size:0.85rem;color:var(--text-2);font-weight:500}
+.reg-nav-link:hover{color:var(--text-1)}
+.reg-footer{text-align:center;padding:16px;font-size:0.7rem;color:var(--text-3)}
 
-    /* NAV */
-    .nav{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:0 60px;height:64px;
-      background:rgba(10,26,15,0.95);backdrop-filter:blur(12px);
-      border-bottom:1px solid #1a2e1a;position:sticky;top:0;z-index:100;
-    }
-    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:#e8f5e9;}
-    .nav-logo-icon{width:30px;height:30px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#000;font-weight:900;}
-    .nav-right{display:flex;align-items:center;gap:16px;}
-    .nav-signin{color:#9ab8a0;font-size:15px;font-weight:500;transition:color .2s;}
-    .nav-signin:hover{color:#e8f5e9;}
-    .nav-demo{
-      display:inline-flex;align-items:center;background:#00e676;color:#0a1a0f;
-      padding:9px 20px;border-radius:20px;font-size:14px;font-weight:700;
-      transition:background .2s,transform .15s;
-    }
-    .nav-demo:hover{background:#33eb8e;transform:translateY(-1px);}
+/* ── Info box (request form) ── */
+.info-box{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:18px;font-size:0.8rem;color:var(--text-2);line-height:1.6}
 
-    /* MAIN */
-    .main{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:48px 20px 80px;}
-    .wrap{width:100%;max-width:480px;}
+/* ── Error msg ── */
+.error-msg{display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--r-sm);padding:10px 14px;font-size:0.8rem;color:#f87171;margin-bottom:16px}
+.error-msg.visible{display:block}
 
-    /* HEADING */
-    .page-heading{font-size:28px;font-weight:800;color:#e8f5e9;margin-bottom:8px;letter-spacing:-0.5px;}
-    .page-sub{font-size:15px;color:#9ab8a0;margin-bottom:32px;line-height:1.5;}
+/* ── Success msg ── */
+.success-msg{display:none;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:24px;text-align:center}
+.success-msg.visible{display:block}
+.success-msg h3{font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:8px}
+.success-msg p{font-size:0.85rem;color:var(--text-2);line-height:1.5}
 
-    /* ROLE GRID */
-    .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:32px;}
-    .role-tile{
-      background:#0c1e0e;border:2px solid #1a3a1a;border-radius:12px;
-      padding:18px 16px;cursor:pointer;transition:border-color .2s,background .2s;
-      position:relative;
-    }
-    .role-tile:hover{border-color:#4a8a4a;}
-    .role-tile.selected{border-color:#00e676;background:#0f2a14;}
-    .role-name{font-size:15px;font-weight:700;color:#e8f5e9;margin-bottom:6px;}
-    .role-badge{
-      display:inline-block;background:#00e676;color:#0a1a0f;
-      font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-      padding:3px 8px;border-radius:4px;
-    }
+#form-free,#form-request{display:none}
+#form-free.visible,#form-request.visible{display:block}
 
-    /* FORMS */
-    #form-free,#form-request{display:none;}
-    #form-free.visible,#form-request.visible{display:block;}
-
-    .form-group{margin-bottom:18px;}
-    label{display:block;font-size:13px;font-weight:600;color:#9ab8a0;margin-bottom:6px;letter-spacing:.02em;}
-    .input{
-      display:block;width:100%;padding:12px 14px;
-      background:#0c1e0e;border:1.5px solid #1a3a1a;border-radius:10px;
-      font-size:15px;color:#e8f5e9;outline:none;
-      transition:border-color .15s,box-shadow .15s;
-      appearance:none;
-    }
-    .input::placeholder{color:#4a6a4a;}
-    .input:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
-
-    /* Phone field with prefix */
-    .phone-wrap{display:flex;align-items:center;gap:0;}
-    .phone-prefix{
-      padding:12px 14px;background:#0f2a14;border:1.5px solid #1a3a1a;
-      border-right:none;border-radius:10px 0 0 10px;
-      font-size:15px;font-weight:600;color:#9ab8a0;white-space:nowrap;flex-shrink:0;
-    }
-    .phone-wrap .input{border-radius:0 10px 10px 0;}
-    .field-hint{font-size:12px;color:#4a6a4a;margin-top:5px;}
-
-    /* PIN boxes */
-    .pin-row{display:flex;gap:10px;}
-    .pin-digit{
-      flex:1;max-width:72px;text-align:center;
-      padding:14px 8px;font-size:22px;font-weight:700;
-      background:#0c1e0e;border:1.5px solid #1a3a1a;border-radius:10px;
-      color:#e8f5e9;outline:none;
-      -webkit-text-security:disc;
-      transition:border-color .15s,box-shadow .15s;
-      appearance:none;
-    }
-    .pin-digit:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
-
-    /* Info box */
-    .info-box{
-      background:#0f2a14;border:1px solid #1a3a1a;border-radius:10px;
-      padding:14px 16px;margin-bottom:18px;
-      font-size:13px;color:#9ab8a0;line-height:1.6;
-    }
-
-    /* Error */
-    .error-msg{
-      display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);
-      border-radius:8px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:16px;
-    }
-    .error-msg.visible{display:block;}
-
-    /* Submit button */
-    .btn-submit{
-      display:block;width:100%;padding:14px 20px;
-      background:#00e676;color:#0a1a0f;border:none;border-radius:10px;
-      font-size:15px;font-weight:700;cursor:pointer;
-      transition:background .15s,transform .1s;margin-top:8px;
-    }
-    .btn-submit:hover{background:#33eb8e;}
-    .btn-submit:active{transform:scale(.99);}
-    .btn-submit.loading{pointer-events:none;opacity:.7;}
-
-    /* Success state */
-    .success-msg{
-      display:none;background:#0f2a14;border:1px solid #1a3a1a;border-radius:12px;
-      padding:24px;text-align:center;
-    }
-    .success-msg.visible{display:block;}
-    .success-msg h3{font-size:18px;font-weight:700;color:#00e676;margin-bottom:8px;}
-    .success-msg p{font-size:14px;color:#9ab8a0;line-height:1.5;}
-
-    /* FOOTER */
-    .page-footer{
-      padding:24px 60px;border-top:1px solid #1a3a1a;
-      display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
-    }
-    .footer-logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;color:#e8f5e9;}
-    .footer-logo-icon{width:24px;height:24px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#000;font-weight:900;}
-    .footer-tagline{font-size:13px;color:#4a6a4a;}
-
-    @media(max-width:600px){
-      .nav{padding:0 20px;}
-      .main{padding:32px 16px 60px;}
-      .page-footer{padding:20px;}
-      .footer-tagline{display:none;}
-    }
-  </style>
+@media(max-width:768px){
+  .reg-wrap{padding:16px}
+  .reg-card{max-width:100%}
+  .role-grid{flex-wrap:wrap}
+  .pin-box{width:42px;height:42px;font-size:1rem}
+}
+</style>
 </head>
 <body>
 
-  <!-- NAV -->
-  <nav class="nav">
-    <a href="/" class="nav-logo">
-      <div class="nav-logo-icon">◎</div>
-      Circul
-    </a>
-    <div class="nav-right">
-      <a href="/login.html" class="nav-signin">Sign in</a>
-      <a href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&amp;body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo." class="nav-demo">Request a demo</a>
+<div class="reg-nav">
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <div class="reg-nav-links">
+    <a class="reg-nav-link" href="/login.html">Sign in</a>
+    <a class="reg-nav-link" href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&amp;body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo.">Request a demo</a>
+  </div>
+</div>
+
+<div class="reg-wrap">
+  <div class="reg-card">
+
+    <div class="reg-title">Create your account</div>
+    <div class="reg-subtitle">Free for collectors and aggregators. Processors and converters can request access.</div>
+
+    <!-- Role picker -->
+    <div class="role-grid" id="roleGrid">
+      <div class="role-card on" data-role="collector" style="background:#0f2a14;color:#00e676" onclick="selectRole('collector')">
+        <div class="role-name">Collector</div>
+        <div class="role-tier">Free forever</div>
+      </div>
+      <div class="role-card" data-role="aggregator" style="background:#0a2a28;color:#26c6da" onclick="selectRole('aggregator')">
+        <div class="role-name">Aggregator</div>
+        <div class="role-tier">Free forever</div>
+      </div>
+      <div class="role-card" data-role="processor" style="background:#0a1e2a;color:#42a5f5" onclick="selectRole('processor')">
+        <div class="role-name">Processor</div>
+        <div class="role-tier" style="opacity:0.5">Request access</div>
+      </div>
+      <div class="role-card" data-role="recycler" style="background:#1a0a2e;color:#b388ff" onclick="selectRole('recycler')">
+        <div class="role-name">Recycler</div>
+        <div class="role-tier" style="opacity:0.5">Request access</div>
+      </div>
+      <div class="role-card" data-role="converter" style="background:#2a0a1a;color:#f48fb1" onclick="selectRole('converter')">
+        <div class="role-name">Converter</div>
+        <div class="role-tier" style="opacity:0.5">Request access</div>
+      </div>
     </div>
-  </nav>
 
-  <!-- MAIN -->
-  <main class="main">
-    <div class="wrap">
-      <h1 class="page-heading">Create your account</h1>
-      <p class="page-sub">Free for collectors and aggregators. Processors and converters can request access.</p>
+    <!-- FREE FORM (collector / aggregator) -->
+    <div id="form-free" class="visible">
+      <div class="error-msg" id="error-free"></div>
 
-      <!-- Role selector -->
-      <div class="role-grid" id="roleGrid">
-        <div class="role-tile selected" data-role="collector" onclick="selectRole('collector')">
-          <div class="role-name">Collector</div>
-          <span class="role-badge">Free forever</span>
+      <div class="reg-group">
+        <label class="reg-label" for="free-name">Full name</label>
+        <input class="reg-input" type="text" id="free-name" placeholder="e.g. Ama Owusu" autocomplete="off" required>
+      </div>
+      <div class="reg-group">
+        <label class="reg-label" for="free-phone">Phone number <small>(your login ID)</small></label>
+        <div class="phone-row">
+          <span class="phone-prefix">+233</span>
+          <input class="reg-input" type="tel" id="free-phone" placeholder="24 000 0000" autocomplete="off" inputmode="tel">
         </div>
-        <div class="role-tile" data-role="aggregator" onclick="selectRole('aggregator')">
-          <div class="role-name">Aggregator</div>
-          <span class="role-badge">Free forever</span>
-        </div>
-        <div class="role-tile" data-role="processor" onclick="selectRole('processor')">
-          <div class="role-name">Processor</div>
-          <span class="role-badge">Request access</span>
-        </div>
-        <div class="role-tile" data-role="recycler" onclick="selectRole('recycler')">
-          <div class="role-name">Recycler</div>
-          <span class="role-badge">Request access</span>
-        </div>
-        <div class="role-tile" data-role="converter" onclick="selectRole('converter')">
-          <div class="role-name">Converter</div>
-          <span class="role-badge">Request access</span>
+        <div class="reg-hint">This is your login ID</div>
+      </div>
+      <div class="reg-group">
+        <label class="reg-label">Set a 4-digit PIN</label>
+        <div class="pin-row" id="pin-set-row">
+          <input class="pin-box" type="number" id="ps1" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 1">
+          <input class="pin-box" type="number" id="ps2" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 2">
+          <input class="pin-box" type="number" id="ps3" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 3">
+          <input class="pin-box" type="number" id="ps4" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 4">
         </div>
       </div>
-
-      <!-- FREE FORM (collector / aggregator) -->
-      <div id="form-free" class="visible">
-        <div class="error-msg" id="error-free"></div>
-
-        <div class="form-group">
-          <label for="free-name">Full name</label>
-          <input class="input" type="text" id="free-name" placeholder="e.g. Ama Owusu" autocomplete="off" required>
-        </div>
-
-        <div class="form-group">
-          <label for="free-phone">Phone number <span style="color:#4a6a4a;font-weight:400;">(your login ID)</span></label>
-          <div class="phone-wrap">
-            <div class="phone-prefix">+233</div>
-            <input class="input" type="tel" id="free-phone" placeholder="24 000 0000" autocomplete="off" inputmode="tel">
-          </div>
-          <p class="field-hint">This is your login ID</p>
-        </div>
-
-        <div class="form-group">
-          <label>Set a 4-digit PIN</label>
-          <div class="pin-row" id="pin-set-row">
-            <input class="pin-digit" type="number" id="ps1" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 1">
-            <input class="pin-digit" type="number" id="ps2" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 2">
-            <input class="pin-digit" type="number" id="ps3" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 3">
-            <input class="pin-digit" type="number" id="ps4" maxlength="1" min="0" max="9" autocomplete="off" aria-label="PIN digit 4">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Confirm PIN</label>
-          <div class="pin-row" id="pin-confirm-row">
-            <input class="pin-digit" type="number" id="pc1" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 1">
-            <input class="pin-digit" type="number" id="pc2" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 2">
-            <input class="pin-digit" type="number" id="pc3" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 3">
-            <input class="pin-digit" type="number" id="pc4" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 4">
-          </div>
-        </div>
-
-        <button type="button" class="btn-submit" id="btn-free" onclick="submitFree()">Create account →</button>
-      </div>
-
-      <!-- REQUEST FORM (processor / converter) -->
-      <div id="form-request">
-        <div class="info-box">
-          Your account will be reviewed before activation. We'll be in touch within 1 business day.
-        </div>
-        <div class="error-msg" id="error-request"></div>
-
-        <div class="success-msg" id="success-request">
-          <h3>Request received!</h3>
-          <p>Thanks! We'll be in touch within 1 business day.</p>
-        </div>
-
-        <div id="request-fields">
-          <div class="form-group">
-            <label for="req-name">Full name</label>
-            <input class="input" type="text" id="req-name" placeholder="e.g. Kofi Mensah" autocomplete="off" required>
-          </div>
-
-          <div class="form-group">
-            <label for="req-company">Company</label>
-            <input class="input" type="text" id="req-company" placeholder="Your company name" autocomplete="off" required>
-          </div>
-
-          <div class="form-group">
-            <label for="req-email">Work email</label>
-            <input class="input" type="email" id="req-email" placeholder="you@company.com" autocomplete="off" required>
-          </div>
-
-          <div class="form-group">
-            <label for="req-phone">Phone <span style="color:#4a6a4a;font-weight:400;">(optional)</span></label>
-            <div class="phone-wrap">
-              <div class="phone-prefix">+233</div>
-              <input class="input" type="tel" id="req-phone" placeholder="24 000 0000" autocomplete="off" inputmode="tel">
-            </div>
-          </div>
-
-          <button type="button" class="btn-submit" id="btn-request" onclick="submitRequest()">Request access →</button>
+      <div class="reg-group">
+        <label class="reg-label">Confirm PIN</label>
+        <div class="pin-row" id="pin-confirm-row">
+          <input class="pin-box" type="number" id="pc1" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 1">
+          <input class="pin-box" type="number" id="pc2" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 2">
+          <input class="pin-box" type="number" id="pc3" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 3">
+          <input class="pin-box" type="number" id="pc4" maxlength="1" min="0" max="9" autocomplete="off" aria-label="Confirm PIN digit 4">
         </div>
       </div>
-
+      <button type="button" class="reg-submit" id="btn-free" onclick="submitFree()">Create account →</button>
+      <div class="reg-link">Already have an account? <a href="/login.html">Sign in →</a></div>
     </div>
-  </main>
 
-  <!-- FOOTER -->
-  <footer class="page-footer">
-    <div class="footer-logo">
-      <div class="footer-logo-icon">◎</div>
-      circul
+    <!-- REQUEST FORM (processor / recycler / converter) -->
+    <div id="form-request">
+      <div class="info-box">
+        Your account will be reviewed before activation. We'll be in touch within 1 business day.
+      </div>
+      <div class="error-msg" id="error-request"></div>
+
+      <div class="success-msg" id="success-request">
+        <h3>Request received!</h3>
+        <p>Thanks! We'll be in touch within 1 business day.</p>
+      </div>
+
+      <div id="request-fields">
+        <div class="reg-group">
+          <label class="reg-label" for="req-name">Full name</label>
+          <input class="reg-input" type="text" id="req-name" placeholder="e.g. Kofi Mensah" autocomplete="off" required>
+        </div>
+        <div class="reg-group">
+          <label class="reg-label" for="req-company">Company</label>
+          <input class="reg-input" type="text" id="req-company" placeholder="Your company name" autocomplete="off" required>
+        </div>
+        <div class="reg-group">
+          <label class="reg-label" for="req-email">Work email</label>
+          <input class="reg-input" type="email" id="req-email" placeholder="you@company.com" autocomplete="off" required>
+        </div>
+        <div class="reg-group">
+          <label class="reg-label" for="req-phone">Phone <small>(optional)</small></label>
+          <div class="phone-row">
+            <span class="phone-prefix">+233</span>
+            <input class="reg-input" type="tel" id="req-phone" placeholder="24 000 0000" autocomplete="off" inputmode="tel">
+          </div>
+        </div>
+        <button type="button" class="reg-submit" id="btn-request" onclick="submitRequest()">Request access →</button>
+      </div>
     </div>
-    <span class="footer-tagline">Every gram tracked. Every tonne traceable.</span>
-  </footer>
 
-  <script src="/shared/roles.js"></script>
-  <script>
+  </div>
+</div>
+
+<div class="reg-footer">
+  <div style="font-weight:600;margin-bottom:4px;color:var(--text-2)">circul</div>
+  Every gram tracked. Every tonne traceable.
+</div>
+
+<script src="/shared/roles.js"></script>
+<script>
     var currentRole = 'collector';
 
     function selectRole(role) {
       currentRole = role;
-      document.querySelectorAll('.role-tile').forEach(function(t) {
-        t.classList.toggle('selected', t.dataset.role === role);
+      document.querySelectorAll('.role-card').forEach(function(t) {
+        t.classList.toggle('on', t.dataset.role === role);
       });
       var isFree = CirculRoles.ROLES[role] && CirculRoles.ROLES[role].isFree;
       document.getElementById('form-free').classList.toggle('visible', isFree);
@@ -419,7 +328,7 @@
           showError('error-request', 'Something went wrong. Please try again.');
         });
     }
-  </script>
+</script>
 
 </body>
 </html>

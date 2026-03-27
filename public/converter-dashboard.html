@@ -1,177 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Converter Dashboard - Circul</title>
-    <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Converter Dashboard - Circul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
 <style>
-/* ── CONVERTER DASHBOARD — DARK RESKIN ───────────────────────── */
-:root {
-  --bg:#0a1a0f;--surface:#0d2818;--surface2:#0a1a0f;--border:#1a3a20;--border2:#2a4a2f;
-  --text:#ffffff;--text-muted:#888888;--text-dim:#aaaaaa;--accent:#00e676;--accent-dark:#0a1a0f;
-  --amber:#ffc107;--amber-bg:#332200;--green-bg:#0a2a15;--red:#ef4444;--red-bg:#2a0a0a;
-  --radius:12px;--radius-sm:8px;
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-overlay.hidden{display:none}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-box h2{font-size:1.3rem;font-weight:700;margin-bottom:6px;color:var(--accent)}
+.login-box p{color:var(--text-2);font-size:0.85rem;margin-bottom:24px}
+.login-box label{font-size:0.8rem;color:var(--text-2);display:block;margin-bottom:5px}
+.login-box input{width:100%;padding:10px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.85rem;margin-bottom:16px;font-family:var(--font)}
+.login-box input::placeholder{color:var(--text-3)}
+.login-box input:focus{outline:none;border-color:var(--accent)}
+.login-box button{width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-size:0.9rem;font-weight:700;cursor:pointer;font-family:var(--font)}
+.login-box button:hover{background:var(--accent-hover)}
+.login-error{color:#ef4444;font-size:0.8rem;margin-top:8px}
+.login-error.visible{display:block}
+
+/* ── TOAST ── */
+#cvToast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px 24px;font-size:0.85rem;font-weight:600;z-index:9999;display:none;font-family:var(--font);white-space:nowrap}
+#cvToast.hidden{display:none}
+
+/* ── RATING MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:440px;max-width:95vw}
+.modal-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
+.modal-sub{font-size:0.8rem;color:var(--text-2);margin-bottom:20px}
+.stars-row{display:flex;gap:8px;margin-bottom:20px}
+.star-btn{font-size:1.6rem;cursor:pointer;color:var(--text-3);transition:color 0.15s;line-height:1}
+.star-btn.active{color:#ffd740}
+.modal-section-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:10px}
+.rating-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.rtag{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s}
+.rtag.positive{background:var(--accent-muted);color:var(--accent);border-color:var(--border)}
+.rtag.positive.selected{border-color:var(--accent)}
+.rtag.negative{background:rgba(255,215,64,0.1);color:#ffd740;border-color:rgba(255,215,64,0.2)}
+.rtag.negative.selected{border-color:#ffd740}
+.modal-note{width:100%;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:20px}
+.modal-note::placeholder{color:var(--text-3)}
+.modal-note:focus{outline:none;border-color:var(--accent)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end}
+.btn-secondary{background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
+.btn-secondary:hover{border-color:var(--text-3);color:var(--text-1)}
+
+/* ── DELIVERY / QUEUE CARDS ── */
+.del-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
+.del-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.del-title{font-weight:600;font-size:0.85rem}
+.del-meta{font-size:0.75rem;color:var(--text-3)}
+.del-price{font-size:0.85rem;font-weight:600;color:var(--accent)}
+.del-actions{display:flex;gap:8px;margin-top:10px}
+.btn-approve{background:var(--accent-muted);color:var(--accent);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
+.btn-approve:hover{border-color:var(--accent)}
+.btn-decline{background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
+.btn-decline:hover{border-color:#ef4444}
+.btn-log-arrival{background:var(--accent-muted);color:var(--accent);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
+.btn-log-arrival:hover{border-color:var(--accent)}
+
+/* ── INLINE FORMS (dispatch/arrival) ── */
+.del-inline-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:10px}
+.di-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px;display:block}
+.di-textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:12px}
+.di-textarea::placeholder{color:var(--text-3)}
+.di-textarea:focus{outline:none;border-color:var(--accent)}
+.di-input{width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;margin-bottom:12px}
+.di-input:focus{outline:none;border-color:var(--accent)}
+.di-actions{display:flex;gap:8px;margin-top:8px}
+.di-confirm{background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
+.di-confirm:hover{background:var(--accent-hover)}
+.di-cancel{background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
+.di-cancel:hover{border-color:var(--text-3);color:var(--text-1)}
+.di-msg{font-size:0.8rem;margin-top:8px}
+
+/* ── TAB PANELS ── */
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── ORDER CARD (rendered by JS) ── */
+.order-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
+.order-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.order-title{font-weight:600;font-size:0.85rem}
+.order-meta{font-size:0.75rem;color:var(--text-3)}
+.order-price{font-size:0.85rem;font-weight:600;color:var(--accent)}
+.order-specs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.order-spec-item{font-size:0.75rem;color:var(--text-2)}
+.order-spec-label{color:var(--text-3);margin-right:4px}
+.order-spec-val{color:var(--text-1)}
+
+/* ── TIER SELECTOR ── */
+.tier-selector{display:flex;gap:8px;margin-bottom:16px}
+.tier-btn{border-radius:20px;padding:6px 16px;font-size:0.75rem;font-weight:700;cursor:pointer;font-family:var(--font);border:1px solid var(--border);background:transparent;color:var(--text-2)}
+
+/* ── AVAILABLE MATERIAL GRID ── */
+.avail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.avail-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px}
+.avail-mat{font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:4px}
+.avail-vol{font-size:1.2rem;font-weight:800;color:var(--accent)}
+.avail-unit{font-size:0.75rem;color:var(--text-3)}
+
+/* ── HIDDEN UTILITY ── */
+.hidden{display:none!important}
+
+/* ── ORDER TOTAL BOX ── */
+.order-total{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;font-size:0.85rem;color:var(--text-2)}
+.order-total strong{color:var(--accent)}
+
+/* ── BADGE (JS-generated, supplement shared.css .badge) ── */
+.badge-blue{background:rgba(0,150,255,0.15);color:#4fc3f7}
+.badge-green{background:var(--accent-muted);color:var(--accent)}
+.badge-amber{background:rgba(255,215,64,0.1);color:#ffd740}
+.badge-gray{background:rgba(255,255,255,0.08);color:var(--text-3)}
+
+/* ── RESPONSIVE SUPPLEMENT ── */
+@media(max-width:768px){
+  .tier-selector{flex-wrap:wrap}
+  .avail-grid{grid-template-columns:1fr 1fr}
 }
-body { font-family:var(--font-primary);background:var(--bg);color:var(--text-primary);min-height:100vh; }
-.identity-name { font-size:26px;font-weight:700;color:var(--text-primary);padding:20px 0 6px; }
-.data-table { width:100%;border-collapse:collapse; }
-.data-table th { padding:10px 16px;background:var(--surface);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
-.data-table td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
-.data-table tr:last-child td { border-bottom:none; }
-.data-table .td-name { color:var(--text-primary);font-weight:500; }
-.data-table .td-amount { color:var(--accent);font-weight:600; }
-.login-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500; }
-.login-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:95vw; }
-.login-box h2 { font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent); }
-.login-box p { color:var(--text-muted);font-size:14px;margin-bottom:24px; }
-.login-box label { font-size:13px;color:var(--text-dim);display:block;margin-bottom:5px; }
-.login-box input { width:100%;padding:10px 12px;background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;margin-bottom:16px;font-family:inherit; }
-.login-box button { width:100%;padding:12px;background:var(--accent);color:#0a1a0f;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit; }
-.login-error { color:#ef4444;font-size:13px;margin-top:8px; }
-/* NAV */
-.top-nav { background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100; }
-.nav-brand { font-size:18px;font-weight:800;color:var(--accent);letter-spacing:-0.5px; }
-.nav-role-pill { background:#2a0a1a;color:#f48fb1;border:1px solid #f48fb1;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase; }
-.nav-user { font-size:13px;color:var(--text-dim); }
-.nav-id { font-size:11px;color:var(--text-muted);margin-left:2px; }
-.nav-spacer { flex:1; }
-.nav-link { color:var(--text-muted);font-size:13px;text-decoration:none;padding:6px 10px;border-radius:6px;transition:color 0.2s; }
-.nav-link:hover { color:var(--accent); }
-.nav-logout { background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text-muted);font-size:13px;padding:6px 12px;cursor:pointer;font-family:inherit;transition:all 0.2s; }
-.nav-logout:hover { border-color:var(--accent);color:var(--accent); }
-/* LAYOUT */
-.main-wrap { max-width:1200px;margin:0 auto;padding:24px 20px; }
-.section-title { font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:16px; }
-.card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
-/* VOLUME STRIP */
-.vol-strip { display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px; }
-.vol-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
-.vol-label { font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px; }
-.vol-value { font-size:26px;font-weight:800;color:var(--accent); }
-.vol-unit { font-size:13px;color:var(--text-muted);margin-left:4px; }
-.vol-sub { font-size:12px;color:var(--text-muted);margin-top:4px; }
-/* TOP PARTNERS */
-.top-partners-grid { display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:24px; }
-.partners-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px; }
-.partners-header { display:flex;align-items:center;gap:12px;margin-bottom:16px; }
-.partners-header h3 { font-size:15px;font-weight:700;flex:1; }
-.ptoggle { display:flex;background:#0a1a0f;border:1px solid var(--border2);border-radius:20px;overflow:hidden; }
-.ptoggle-btn { padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;border:none;color:var(--text-muted);font-family:inherit;transition:all 0.2s; }
-.ptoggle-btn.active { background:var(--accent);color:#0a1a0f; }
-.view-all-link { font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap; }
-.partner-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border); }
-.partner-row:last-child { border-bottom:none; }
-.partner-rank { width:22px;height:22px;border-radius:50%;background:#1a3a20;color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
-.partner-name { flex:1;font-size:14px;font-weight:600; }
-.partner-vol { font-size:13px;color:var(--text-dim);white-space:nowrap; }
-.partner-price-block { text-align:right; }
-.partner-price-label { display:block;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px; }
-.partner-price-val { display:block;font-size:14px;font-weight:700;color:var(--accent); }
-.partner-price-note { display:block;font-size:10px;color:var(--text-muted); }
-/* PRICE CARDS */
-.prices-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:24px; }
-.price-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px; }
-.price-card-mat { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:6px; }
-.price-card-val { font-size:22px;font-weight:800;color:var(--accent); }
-.price-card-unit { font-size:12px;color:var(--text-muted);margin-left:2px; }
-.price-card-sub { font-size:11px;color:var(--text-muted);margin-top:4px; }
-/* ORDER FORM */
-.order-form { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px; }
-.form-row { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px; }
-.form-row.three { grid-template-columns:2fr 1fr 1fr; }
-.form-group { display:flex;flex-direction:column;gap:6px; }
-.form-group label { font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px; }
-.form-group input, .form-group select, .form-group textarea { background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;padding:10px 12px;font-family:inherit; }
-.form-group select { appearance:none; }
-.form-group textarea { resize:vertical;min-height:70px; }
-.order-total { background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:14px;color:var(--text-dim); }
-.order-total strong { color:var(--accent); }
-.btn-primary { background:var(--accent);color:#0a1a0f;border:none;border-radius:var(--radius-sm);padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit; }
-.btn-primary:hover { opacity:0.9; }
-.btn-secondary { background:transparent;color:var(--text-muted);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px 20px;font-size:14px;cursor:pointer;font-family:inherit; }
-/* DELIVERIES TABLE */
-.deliveries-table { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px; }
-.table-header { padding:16px 20px;border-bottom:1px solid var(--border);font-size:15px;font-weight:700; }
-.dtable { width:100%;border-collapse:collapse; }
-.dtable th { padding:10px 16px;background:#0a1a0f;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
-.dtable td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
-.dtable tr:last-child td { border-bottom:none; }
-.dtable tr:hover td { background:rgba(0,230,118,0.03); }
-.status-badge { display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700; }
-.status-pending { background:#332200;color:#ffc107; }
-.status-approved { background:#1a3a20;color:#00e676; }
-.status-completed { background:#0d1a2a;color:#42a5f5; }
-.status-rejected { background:#2a0a0a;color:#ef4444; }
-/* BOTTOM TABS */
-.tabs-bar { display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px; }
-.tab-btn { background:transparent;border:none;border-bottom:2px solid transparent;padding:10px 18px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;transition:all 0.2s;margin-bottom:-1px; }
-.tab-btn.active { border-bottom-color:var(--accent);color:var(--accent); }
-.tab-btn:hover { color:var(--text-primary); }
-.tab-panel { display:none; }
-.tab-panel.active { display:block; }
-/* SUPPLY CHAIN TABLE */
-.sc-table { width:100%;border-collapse:collapse; }
-.sc-table th { padding:10px 16px;background:#0a1a0f;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border); }
-.sc-table td { padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle; }
-.sc-table tr:last-child td { border-bottom:none; }
-/* RATING MODAL */
-.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200; }
-.modal-overlay.open { display:flex; }
-.modal-box { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:440px;max-width:95vw; }
-.modal-box h3 { font-size:17px;font-weight:700;margin-bottom:4px; }
-.modal-sub { font-size:13px;color:var(--text-muted);margin-bottom:20px; }
-.stars-row { display:flex;gap:8px;margin-bottom:20px; }
-.star-btn { font-size:28px;cursor:pointer;color:var(--border2);transition:color 0.15s;line-height:1; }
-.star-btn.active { color:var(--amber); }
-.modal-section-label { font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:10px; }
-.rating-tags { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px; }
-.rtag { padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s; }
-.rtag.positive { background:#0a2a15;color:#00e676;border-color:#1a3a20; }
-.rtag.positive.selected { background:#1a3a20;border-color:#00e676; }
-.rtag.negative { background:#2a1a00;color:#ffc107;border-color:#3a2a00; }
-.rtag.negative.selected { background:#3a2a00;border-color:#ffc107; }
-.modal-note { width:100%;background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;padding:10px 12px;font-family:inherit;resize:vertical;min-height:60px;margin-bottom:20px; }
-.modal-actions { display:flex;gap:10px;justify-content:flex-end; }
-/* QUEUE CARDS */
-.queue-section { margin-bottom:20px; }
-.queue-section-title { font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px; }
-.queue-card { background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px; }
-.queue-card-header { display:flex;align-items:center;gap:8px;margin-bottom:8px; }
-.queue-card-name { font-size:14px;font-weight:700;flex:1; }
-.queue-card-meta { font-size:12px;color:var(--text-muted); }
-.queue-card-actions { display:flex;gap:8px;margin-top:10px; }
-.btn-approve { background:#1a3a20;color:#00e676;border:1px solid #2a4a2f;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit; }
-.btn-reject { background:#2a0a0a;color:#ef4444;border:1px solid #3a1a1a;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit; }
-.arrive-form { background:#0a2a15;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-top:8px; }
-/* AVAILABLE MATERIAL */
-.avail-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px; }
-.avail-card { background:#0a1a0f;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px; }
-.avail-mat { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:6px; }
-.avail-vol { font-size:20px;font-weight:800;color:var(--accent); }
-.avail-unit { font-size:12px;color:var(--text-muted); }
-/* CERTS */
-.cert-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border); }
-.cert-row:last-child { border-bottom:none; }
-.cert-icon { width:32px;height:32px;border-radius:8px;background:#1a3a20;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0; }
-.cert-name { flex:1;font-size:13px;font-weight:600; }
-.cert-date { font-size:12px;color:var(--text-muted); }
-.cert-dl { background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text-muted);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit; }
-/* SUPPLY CHAIN VIZ */
-/* RESPONSIVE */
-@media(max-width:768px) {
-  .vol-strip { grid-template-columns:1fr 1fr; }
-  .prices-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .form-row, .form-row.three { grid-template-columns:1fr; }
-  .top-nav { padding:0 12px; }
-}
-.login-overlay.hidden { display: none; }
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN OVERLAY (existing JS uses: loginOverlay, conv-email, conv-password, loginBtn, loginError) -->
+<!-- LOGIN OVERLAY -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
     <h2>Circul</h2>
@@ -185,94 +141,103 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
   </div>
 </div>
 
-<!-- TOP NAV -->
-<nav class="top-nav">
-  <a class="nav-logo" href="/">
-    <div class="nav-logo-icon">◎</div>
-    Circul
-  </a>
-  <span class="nav-role-pill" style="background:#2a0a1a;color:#f48fb1">CONVERTER</span>
-  <span class="nav-user" id="navName">—</span>
-  <span class="nav-id" id="navConvId"></span>
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
   <span class="nav-spacer"></span>
-  <a href="/" class="nav-link">&larr; Home</a>
-  <button class="nav-logout" onclick="handleLogout()">Log out</button>
+  <div class="nav-right">
+    <span class="nav-pill" style="background:#2a0a1a;color:#f48fb1">CONVERTER</span>
+    <span class="nav-name" id="navName">—</span>
+    <span class="nav-id" id="navConvId"></span>
+    <a class="nav-link" id="switch-role-btn" href="/processor-dashboard.html" style="display:none">Switch to Processor</a>
+    <a class="nav-link" href="/">Home</a>
+    <button class="nav-logout" onclick="handleLogout()">Log out</button>
+  </div>
 </nav>
 
-<!-- MAIN DASHBOARD (existing JS uses id="dashboard") -->
-<div class="main-wrap" id="dashboard" style="display:none">
+<!-- MAIN DASHBOARD -->
+<div class="page" id="dashboard" style="display:none">
 
-  <!-- IDENTITY -->
-  <div>
-    <div class="identity-name" id="heroName">—</div>
-    <div style="display:flex;align-items:center;gap:6px;padding-bottom:20px;font-size:13px;color:var(--text-muted);">
-      <span id="heroEmail"></span>
-      <span>·</span>
-      <span id="heroRegion"></span>
-    </div>
-  </div>
-
-  <!-- VOLUME STRIP (new — uses statTotalKg, statSpentGhs, statSpentUsd from loadAll) -->
-  <div class="vol-strip">
-    <div class="vol-card">
-      <div class="vol-label">Volume This Month (kg)</div>
-      <div><span class="vol-value" id="statTotalKg">—</span></div>
-      <div class="vol-sub">Total material purchased</div>
-    </div>
-    <div class="vol-card">
-      <div class="vol-label">Total Spent (GHS)</div>
-      <div><span class="vol-value" id="statSpentGhs">—</span></div>
-      <div class="vol-sub" id="statSpentUsd" style="font-size:13px;color:#8aab90"></div>
-    </div>
-    <div class="vol-card">
-      <div class="vol-label">Open Orders</div>
-      <div><span class="vol-value" id="statOpenOrders">—</span></div>
-      <div class="vol-sub">Awaiting fulfilment</div>
-    </div>
-  </div>
-
-  <!-- TOP SUPPLIERS (multi-tier, handled by new JS) -->
-  <div class="top-partners-grid">
-    <div class="partners-card">
-      <div class="partners-header">
-        <h3>My Top Suppliers (All Tiers)</h3>
-        <div class="ptoggle" id="top-suppliers-toggle">
-          <button class="ptoggle-btn active" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
-          <button class="ptoggle-btn" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
-        </div>
-        <a href="#" class="view-all-link">View all</a>
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-name" id="heroName">—</div>
+      <div class="hero-meta">
+        <span id="heroEmail"></span>
+        <span class="sep">·</span>
+        <span id="heroRegion"></span>
       </div>
-      <div id="top-suppliers-list"><div style="color:#8aab90;font-size:13px;padding:12px 0">Loading...</div></div>
     </div>
   </div>
 
-  <!-- BUY PRICES (existing JS uses: priceCards — loadProcessorPrices renders into it) -->
-  <div class="section-title">Buy Prices (GHS/kg)</div>
-  <div class="prices-grid" id="priceCards">
-    <!-- populated by loadProcessorPrices() -->
+  <!-- STATS -->
+  <div class="stats stats-3">
+    <div class="stat">
+      <div class="stat-label">Volume This Month</div>
+      <div class="stat-val"><span id="statTotalKg">—</span> <small>kg this month</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total Spent</div>
+      <div class="stat-val">GH¢ <span id="statSpentGhs">—</span></div>
+      <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px" id="statSpentUsd"></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Open Orders</div>
+      <div class="stat-val" id="statOpenOrders">—</div>
+    </div>
   </div>
 
-  <!-- PURCHASE ORDER FORM -->
-  <!-- existing JS uses: ord-material, ord-qty, ord-price, ord-colours, ord-excl, ord-contam, ord-notes, ord-total-box, ord-total-ghs, ord-total-usd, ord-msg, ord-submit-btn -->
-  <div class="section-title">Place Purchase Order</div>
-  <div class="order-form">
-    <div class="tier-selector" style="display:flex;gap:8px;margin-bottom:16px">
-      <button class="tier-btn active" data-tier="recycler" onclick="selectOrderTier('recycler')" style="background:#1a0d2a;color:#b388ff;border:1px solid #b388ff;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Recycler</button>
-      <button class="tier-btn" data-tier="processor" onclick="selectOrderTier('processor')" style="background:transparent;color:#42a5f5;border:1px solid #333;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Processor</button>
-      <button class="tier-btn" data-tier="aggregator" onclick="selectOrderTier('aggregator')" style="background:transparent;color:#26c6da;border:1px solid #333;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Aggregator</button>
-      <button class="tier-btn" data-tier="collector" onclick="selectOrderTier('collector')" style="background:transparent;color:#00e676;border:1px solid #333;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Collector</button>
+  <!-- MY TOP SUPPLIERS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">My top suppliers</div>
+        <div class="section-sub">Processors who supply to you · last 10 transactions</div>
+      </div>
+      <div class="tabs" id="top-suppliers-toggle">
+        <button class="tab" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
+        <button class="tab on" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
+      </div>
     </div>
-    <div class="form-row three">
+    <div class="table-wrap">
+      <div id="top-suppliers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- POST PURCHASE PRICES -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Post purchase prices</div>
+        <div class="section-sub">Current prices posted · GHS/kg</div>
+      </div>
+    </div>
+    <div class="price-grid" id="priceCards">
+      <!-- populated by renderPriceCards() -->
+    </div>
+  </div>
+
+  <!-- PLACE PURCHASE ORDER -->
+  <div class="section">
+    <div class="section-title">Place purchase order</div>
+    <div class="section-sub" style="margin-bottom:14px">Request material from your suppliers</div>
+    <div class="tier-selector">
+      <button class="tier-btn active" data-tier="recycler" onclick="selectOrderTier('recycler')" style="background:#1a0d2a;color:#b388ff;border-color:#b388ff">Recycler</button>
+      <button class="tier-btn" data-tier="processor" onclick="selectOrderTier('processor')" style="color:#42a5f5">Processor</button>
+      <button class="tier-btn" data-tier="aggregator" onclick="selectOrderTier('aggregator')" style="color:#26c6da">Aggregator</button>
+      <button class="tier-btn" data-tier="collector" onclick="selectOrderTier('collector')" style="color:#00e676">Collector</button>
+    </div>
+    <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr">
       <div class="form-group">
-        <label>Supplier</label>
-        <select id="ord-supplier">
+        <label class="form-label">Supplier</label>
+        <select class="form-select" id="ord-supplier">
           <option value="">Select supplier...</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Material Type</label>
-        <select id="ord-material" onchange="calcOrderTotal()">
-          <option value="">Select material…</option>
+        <label class="form-label">Material Type</label>
+        <select class="form-select" id="ord-material" onchange="calcOrderTotal()">
+          <option value="">Select material...</option>
           <option value="PET">PET</option>
           <option value="HDPE">HDPE</option>
           <option value="PP">PP</option>
@@ -280,104 +245,114 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
         </select>
       </div>
       <div class="form-group">
-        <label>Quantity (kg)</label>
-        <input type="number" id="ord-qty" placeholder="e.g. 500" min="1" oninput="calcOrderTotal()" />
+        <label class="form-label">Quantity (kg)</label>
+        <input type="number" class="form-input" id="ord-qty" placeholder="e.g. 500" min="1" oninput="calcOrderTotal()" />
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-grid">
       <div class="form-group">
-        <label>Contamination level</label>
-        <select id="ord-contam">
+        <label class="form-label">Contamination Level</label>
+        <select class="form-select" id="ord-contam">
           <option value="low">Low (&lt;5%)</option>
-          <option value="medium">Medium (5–15%)</option>
+          <option value="medium">Medium (5-15%)</option>
           <option value="any">Any</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Exclusions (optional)</label>
-        <input type="text" id="ord-excl" placeholder="e.g. No black plastic" />
+        <label class="form-label">Exclusions</label>
+        <input type="text" class="form-input" id="ord-excl" placeholder="e.g. No black plastic" />
       </div>
     </div>
-    <div class="form-group" style="margin-bottom:12px">
-      <label>Notes (optional)</label>
-      <textarea id="ord-notes" placeholder="Any other requirements…"></textarea>
+    <div class="form-grid" style="grid-template-columns:1fr">
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <input type="text" class="form-input" id="ord-notes" placeholder="Additional notes" />
+      </div>
     </div>
-    <!-- hidden price field for calcOrderTotal -->
     <input type="hidden" id="ord-price" value="" />
     <div class="order-total" id="ord-total-box" style="display:none">
       Estimated total: <strong id="ord-total-ghs">—</strong> GHS
-      <span id="ord-total-usd" style="color:#8aab90;margin-left:8px"></span>
+      <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
     </div>
-    <div style="color:#ef4444;font-size:13px;margin-bottom:8px" id="ord-msg"></div>
-    <button class="btn-primary" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
+    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:8px" id="ord-msg"></div>
+    <button class="form-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
   </div>
 
-  <!-- INCOMING DELIVERIES (existing JS uses: cvQueuePending, cvQueueApproved, cvQueueCompleted) -->
-  <div class="section-title">Incoming Deliveries</div>
-  <div class="deliveries-table">
-    <div class="queue-section">
-      <div class="table-header" style="padding:12px 20px;font-size:13px;font-weight:700;color:#ffc107">Pending</div>
-      <div id="cvQueuePending" style="padding:0 16px 8px"><div style="color:#8aab90;font-size:13px;padding:12px 0">Loading...</div></div>
-    </div>
-    <div class="queue-section">
-      <div class="table-header" style="padding:12px 20px;font-size:13px;font-weight:700;color:#00e676">Approved</div>
-      <div id="cvQueueApproved" style="padding:0 16px 8px"><div style="color:#8aab90;font-size:13px;padding:12px 0">Loading...</div></div>
-    </div>
-    <div class="queue-section">
-      <div class="table-header" style="padding:12px 20px;font-size:13px;font-weight:700;color:#42a5f5">Completed</div>
-      <div id="cvQueueCompleted" style="padding:0 16px 8px"><div style="color:#8aab90;font-size:13px;padding:12px 0">Loading...</div></div>
-    </div>
-  </div>
+  <!-- INCOMING DELIVERIES -->
+  <div class="section">
+    <div class="section-title">Incoming deliveries</div>
+    <div class="section-sub" style="margin-bottom:14px">Track material arriving from your suppliers</div>
 
-  <!-- BOTTOM TABS (existing JS uses showTab(tab, el) with tab-supply, tab-prices, tab-certs, tab-ratings) -->
-  <div class="tabs-bar">
-    <button class="tab tab-btn active" onclick="showTab('supply', this)">Supply Chain</button>
-    <button class="tab tab-btn" onclick="showTab('prices', this)">Available Material</button>
-    <button class="tab tab-btn" onclick="showTab('certs', this)">Traceability</button>
-    <button class="tab tab-btn" onclick="showTab('ratings', this)">Ratings</button>
-  </div>
+    <div class="sub">
+      <div class="sub-title">Pending</div>
+      <div id="cvQueuePending"><div class="sub-empty">Loading...</div></div>
+    </div>
 
-  <!-- SUPPLY CHAIN TAB (existing JS: supplyBody) -->
-  <div class="tab-panel active" id="tab-supply">
-    <div class="card">
-      <table class="data-table">
-        <thead><tr>
-          <th>DATE</th><th>SUPPLIER</th><th>MATERIAL</th><th>WEIGHT</th><th>PRICE/KG</th><th>AMOUNT</th><th>STATUS</th>
-        </tr></thead>
-        <tbody id="supplyBody"><tr><td colspan="7" style="color:#8aab90;padding:20px;text-align:center">Loading...</td></tr></tbody>
-      </table>
+    <div class="sub">
+      <div class="sub-title">Approved</div>
+      <div id="cvQueueApproved"><div class="sub-empty">Loading...</div></div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-title">Completed</div>
+      <div id="cvQueueCompleted"><div class="sub-empty">Loading...</div></div>
     </div>
   </div>
 
-  <!-- AVAILABLE MATERIAL TAB (existing JS: processorPrices, priceCity) -->
-  <div class="tab-panel" id="tab-prices">
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <span style="font-size:14px;color:#8aab90">Prices in</span>
-        <span id="priceCity" style="font-size:14px;font-weight:700;color:#00e676">Accra</span>
+  <!-- SUPPLY CHAIN SECTION WITH TABS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Supply chain</div>
+        <div class="section-sub">Trace all materials from processor intake</div>
       </div>
-      <div id="processorPrices"><div style="color:#8aab90;font-size:13px">Loading...</div></div>
+      <div class="tabs">
+        <button class="tab on" onclick="showTab('supply', this)">Supply Chain</button>
+        <button class="tab" onclick="showTab('prices', this)">Available Material</button>
+        <button class="tab" onclick="showTab('certs', this)">Traceability</button>
+        <button class="tab" onclick="showTab('ratings', this)">Ratings</button>
+      </div>
     </div>
-  </div>
 
-  <!-- TRACEABILITY TAB (existing JS: txnCerts) -->
-  <div class="tab-panel" id="tab-certs">
-    <div class="card">
-      <div id="txnCerts"><div style="color:#8aab90;font-size:13px">Loading...</div></div>
+    <!-- SUPPLY CHAIN TAB -->
+    <div class="tab-panel active" id="tab-supply">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Supplier</th><th>Material</th><th>Weight</th><th>Price/KG</th><th>Amount</th><th>Status</th>
+          </tr></thead>
+          <tbody id="supplyBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading...</td></tr></tbody>
+        </table>
+      </div>
     </div>
-  </div>
 
-  <!-- RATINGS TAB (existing JS: processorRatingsList, ratingsReceived) -->
-  <div class="tab-panel" id="tab-ratings">
-    <div class="card">
-      <div id="processorRatingsList"><div style="color:#8aab90;font-size:13px">Loading...</div></div>
+    <!-- AVAILABLE MATERIAL TAB -->
+    <div class="tab-panel" id="tab-prices">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <span style="font-size:0.85rem;color:var(--text-3)">Prices in</span>
+        <span id="priceCity" style="font-size:0.85rem;font-weight:700;color:var(--accent)">Accra</span>
+      </div>
+      <div id="processorPrices"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+    </div>
+
+    <!-- TRACEABILITY TAB -->
+    <div class="tab-panel" id="tab-certs">
+      <div id="txnCerts"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+    </div>
+
+    <!-- RATINGS TAB -->
+    <div class="tab-panel" id="tab-ratings">
+      <div id="processorRatingsList"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
       <div id="ratingsReceived"></div>
     </div>
   </div>
 
-</div><!-- /.main-wrap -->
+  <!-- ORDERS LIST (rendered by JS) -->
+  <div id="ordersList"></div>
 
-<!-- RATE PROCESSOR MODAL (existing JS: rateProcessorModal, rateProcessorName, rateProcessorMsg, rateProcessorStars) -->
+</div><!-- /.page -->
+
+<!-- RATE PROCESSOR MODAL -->
 <div class="modal-overlay" id="rateProcessorModal">
   <div class="modal-box">
     <h3 id="rateProcessorName">Rate Processor</h3>
@@ -385,8 +360,8 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
     <div class="stars-row" id="rateProcessorStars"></div>
     <div class="modal-section-label">What went well or not?</div>
     <div class="rating-tags" id="cv-rating-tags"></div>
-    <div style="color:#ef4444;font-size:13px;margin-bottom:12px" id="rateProcessorMsg"></div>
-    <textarea class="modal-note" id="cv-rating-note" placeholder="Add a note (optional)…"></textarea>
+    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:12px" id="rateProcessorMsg"></div>
+    <textarea class="modal-note" id="cv-rating-note" placeholder="Add a note (optional)..."></textarea>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="this.closest('.modal-overlay').style.display='none'">Cancel</button>
       <button class="btn-primary" onclick="submitCvRating()">Submit Rating</button>
@@ -394,8 +369,8 @@ body { font-family:var(--font-primary);background:var(--bg);color:var(--text-pri
   </div>
 </div>
 
-<!-- TOAST (existing JS uses: cvToast) -->
-<div id="cvToast" style="position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#0d2818;color:#00e676;border:1px solid #00e676;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:600;z-index:9999;display:none;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;"></div>
+<!-- TOAST -->
+<div id="cvToast"></div>
 
 <!-- ARRIVAL FORM CONTAINER -->
 <div id="conv-arrival-form"></div>
@@ -527,8 +502,8 @@ function handleLogout() {
 }
 
 function showTab(tab, el) {
-    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-    el.classList.add('active');
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('on'); });
+    el.classList.add('on');
     document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'prices') loadProcessorPrices();
@@ -586,9 +561,9 @@ function submitOrder() {
     var notes    = document.getElementById('ord-notes').value.trim();
 
     msgEl.textContent = '';
-    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = 'var(--red)'; return; }
-    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = 'var(--red)'; return; }
-    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = '#ef4444'; return; }
+    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = '#ef4444'; return; }
+    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = '#ef4444'; return; }
 
     btn.disabled = true; btn.textContent = 'Placing…';
     fetch('/api/orders', {
@@ -622,10 +597,10 @@ function submitOrder() {
             loadOrders();
         } else {
             msgEl.textContent = data.message || 'Error placing order.';
-            msgEl.style.color = 'var(--red)';
+            msgEl.style.color = '#ef4444';
         }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; })
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; })
     .finally(function() { btn.disabled = false; btn.textContent = 'Place Order'; });
 }
 
@@ -660,17 +635,17 @@ function renderOrders() {
         var specsHtml = specs.length ? '<div class="order-specs">' + specs.map(function(s) {
             return '<div class="order-spec-item"><span class="order-spec-label">' + esc(s.label) + '</span><span class="order-spec-val">' + esc(s.val) + '</span></div>';
         }).join('') + '</div>' : '';
-        var notesHtml = o.notes ? '<div style="font-size:0.8rem;color:var(--slate-light);margin-top:5px">' + esc(o.notes) + '</div>' : '';
+        var notesHtml = o.notes ? '<div style="font-size:0.8rem;color:var(--text-3);margin-top:5px">' + esc(o.notes) + '</div>' : '';
         return '<div class="order-card">' +
             '<div class="order-header">' +
             '<span class="badge badge-blue">' + esc(o.material_type) + '</span>' +
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
             '<span class="order-meta">GH₵ ' + fmt(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
-            '<div style="font-size:0.75rem;color:var(--slate-light);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
+            '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
             '</div>';
     }).join('');
 }
@@ -699,19 +674,19 @@ function loadConverterQueue() {
             return ['arrived', 'completed', 'dispatch_rejected'].indexOf(d.status) !== -1;
         }).slice(0, 10);
 
-        document.getElementById('cvQueuePending').innerHTML  = pending.length  ? pending.map(buildConvPendingCard).join('')   : '<div class="empty">No deliveries awaiting review.</div>';
-        document.getElementById('cvQueueApproved').innerHTML = approved.length ? approved.map(buildConvApprovedCard).join('') : '<div class="empty">No deliveries awaiting arrival confirmation.</div>';
+        document.getElementById('cvQueuePending').innerHTML  = pending.length  ? pending.map(buildConvPendingCard).join('')   : '<div class="sub-empty">No deliveries awaiting review.</div>';
+        document.getElementById('cvQueueApproved').innerHTML = approved.length ? approved.map(buildConvApprovedCard).join('') : '<div class="sub-empty">No deliveries awaiting arrival confirmation.</div>';
         if (!completed.length) {
-            document.getElementById('cvQueueCompleted').innerHTML = '<div class="empty">No completed or rejected deliveries yet.</div>';
+            document.getElementById('cvQueueCompleted').innerHTML = '<div class="sub-empty">No completed or rejected deliveries yet.</div>';
         } else {
             document.getElementById('cvQueueCompleted').innerHTML =
-                '<div style="overflow-x:auto"><table><thead><tr>' +
+                '<div class="table-wrap"><table><thead><tr>' +
                 '<th>Supplier</th><th>Tier</th><th>Material</th><th>Weight</th><th>Total (GHS)</th><th>Total (USD)</th><th>Status</th><th>Date</th>' +
                 '</tr></thead><tbody>' + completed.map(buildConvCompletedRow).join('') + '</tbody></table></div>';
         }
     })
     .catch(function() {
-        document.getElementById('cvQueuePending').innerHTML = '<div class="empty">Could not load deliveries.</div>';
+        document.getElementById('cvQueuePending').innerHTML = '<div class="sub-empty">Could not load deliveries.</div>';
     });
 }
 
@@ -721,10 +696,10 @@ function buildConvPendingCard(pt) {
     var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
     var tierHtml = deliveryTierBadge(pt);
     var photoHtml = hasPhotos
-        ? '<span class="badge badge-green">✓ ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
-        : '<span class="badge badge-amber">⚠ No photos</span>';
+        ? '<span class="badge badge-green">' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
+        : '<span class="badge badge-amber">No photos</span>';
     var photoWarn = !hasPhotos
-        ? '<div style="font-size:0.8rem;padding:7px 10px;background:var(--amber-light);color:#92400e;border-radius:6px;margin-top:8px">Photos required on all processor→converter deliveries. Approve for demo — real uploads coming.</div>'
+        ? '<div style="font-size:0.8rem;padding:7px 10px;background:rgba(255,215,64,0.1);color:#ffd740;border-radius:var(--r-sm);margin-top:8px">Photos required on all processor to converter deliveries. Approve for demo.</div>'
         : '';
     return '<div class="del-card" id="cvdc-' + pt.id + '">' +
         '<div class="del-row">' +
@@ -733,7 +708,7 @@ function buildConvPendingCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -751,13 +726,13 @@ function buildConvApprovedCard(pt) {
     var tierHtml = deliveryTierBadge(pt);
     return '<div class="del-card" id="cvdc-arr-' + pt.id + '">' +
         '<div class="del-row">' +
-        '<span class="badge badge-green">✓ Approved</span>' +
+        '<span class="badge badge-green">Approved</span>' +
         '<span class="badge badge-blue">' + esc(pt.material_type) + '</span>' +
         tierHtml +
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--slate-light)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-log-arrival" onclick="openConvArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
@@ -770,9 +745,9 @@ function buildConvCompletedRow(pt) {
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
     var statusBadge = (pt.status === 'arrived' || pt.status === 'completed')
         ? '<span class="badge badge-green">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
-        : '<span class="badge" style="background:#fee2e2;color:#991b1b">Rejected</span>';
+        : '<span class="badge" style="background:rgba(239,68,68,0.15);color:#ef4444">Rejected</span>';
     var rejNote = (pt.status === 'dispatch_rejected' && pt.rejection_reason)
-        ? '<div style="font-size:0.74rem;color:#991b1b;margin-top:2px">✗ ' + esc(pt.rejection_reason) + '</div>'
+        ? '<div style="font-size:0.74rem;color:#ef4444;margin-top:2px">' + esc(pt.rejection_reason) + '</div>'
         : '';
     return '<tr>' +
         '<td>' + procName + '</td>' +
@@ -801,15 +776,15 @@ function openConvDispatchForm(ptId, type) {
     if (type === 'approve') {
         formEl.innerHTML = '<div class="del-inline-form">' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" onclick="submitConvDispatchDecision(' + ptId + ',\'approve\')">✓ Confirm Dispatch Approval</button>' +
+            '<button class="di-confirm" onclick="submitConvDispatchDecision(' + ptId + ',\'approve\')">Confirm Dispatch Approval</button>' +
             '<button class="di-cancel" onclick="cancelConvDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
     } else {
         formEl.innerHTML = '<div class="del-inline-form">' +
             '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
-            '<textarea class="di-textarea" id="cvreject-reason-' + ptId + '" placeholder="Describe the issue…" rows="2"></textarea>' +
+            '<textarea class="di-textarea" id="cvreject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:var(--red)" onclick="submitConvDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm" style="background:#ef4444" onclick="submitConvDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelConvDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
     }
@@ -828,7 +803,7 @@ function submitConvDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('cvreject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = 'var(--red)'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef4444'; return; }
         body.rejection_reason = reason;
     }
     fetch('/api/pending-transactions/' + ptId + '/converter-dispatch-decision', {
@@ -839,9 +814,9 @@ function submitConvDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeConvDispatchId = null; loadConverterQueue(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
 }
 
 function openConvArrivalForm(ptId) {
@@ -878,7 +853,7 @@ function submitConvArrival(ptId) {
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var msgEl = document.getElementById('cvarr-msg-' + ptId);
     var weight = document.getElementById('cvarr-weight-' + ptId).value;
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = 'var(--red)'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef4444'; return; }
     fetch('/api/pending-transactions/' + ptId + '/converter-arrival', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -887,18 +862,19 @@ function submitConvArrival(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeConvArrivalId = null; loadConverterQueue(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = 'var(--red)'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = 'var(--red)'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
 }
 
 function showCvToast(msg) {
     var el = document.getElementById('cvToast');
     if (!el) return;
     el.textContent = msg;
+    el.style.display = '';
     el.classList.remove('hidden');
     if (cvToastTimer) clearTimeout(cvToastTimer);
-    cvToastTimer = setTimeout(function() { el.classList.add('hidden'); }, 3500);
+    cvToastTimer = setTimeout(function() { el.style.display = 'none'; }, 3500);
 }
 
 function timeAgo(iso) {
@@ -923,7 +899,9 @@ function loadTxns() {
             tbody.innerHTML = data.transactions.map(function(t) {
                 var supplier = esc(t.processor_company || t.processor_name || t.seller_name || '—');
                 var priceKg = t.price_per_kg ? fmt(t.price_per_kg) : '—';
-                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="badge badge-blue">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + priceKg + '</td><td class="td-amount">' + (t.total_price ? 'GHS ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
+                var matLower = (t.material_type || '').toLowerCase();
+                var pillClass = 'pill pill-' + matLower;
+                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (priceKg !== '—' ? 'GH¢ ' + priceKg + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? 'GH¢ ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
             }).join('');
         });
 }
@@ -937,22 +915,23 @@ function loadProcessorPrices() {
             var el = document.getElementById('processorPrices');
             var all = data.all_prices || [];
             if (!all.length) { el.innerHTML = '<div class="empty">No processor prices posted yet</div>'; return; }
-            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Price</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Supplier</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">City</th>' +
-                '<th style="padding:10px 0;border-bottom:1px solid var(--border);color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actual avg</th>' +
+            el.innerHTML = '<div class="table-wrap"><table>' +
+                '<thead><tr>' +
+                '<th>Material</th>' +
+                '<th>Price</th>' +
+                '<th>Supplier</th>' +
+                '<th>City</th>' +
+                '<th>Actual avg</th>' +
                 '</tr></thead><tbody>' +
                 all.map(function(p) {
                     var ghsLine = p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : '—';
-                    var usdLine = p.price_per_kg_ghs ? '<div style="font-size:0.72rem;color:var(--slate-light)">≈ $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD</div>' : '';
+                    var usdLine = p.price_per_kg_ghs ? '<div style="font-size:0.72rem;color:var(--text-3)">≈ $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD</div>' : '';
                     return '<tr>' +
-                        '<td style="padding:10px 0;font-weight:600">' + p.material_type + '</td>' +
-                        '<td style="padding:10px 0;color:var(--green-primary);font-weight:600">' + ghsLine + usdLine + '</td>' +
-                        '<td style="padding:10px 0">' + esc(p.operator_name || '—') + '</td>' +
-                        '<td style="padding:10px 0">' + esc(p.city || '—') + '</td>' +
-                        '<td style="padding:10px 0;color:var(--slate-light)">' + (p.actual_avg_price_30d ? 'GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td>' +
+                        '<td class="td-name">' + p.material_type + '</td>' +
+                        '<td class="td-green">' + ghsLine + usdLine + '</td>' +
+                        '<td>' + esc(p.operator_name || '—') + '</td>' +
+                        '<td>' + esc(p.city || '—') + '</td>' +
+                        '<td style="color:var(--text-3)">' + (p.actual_avg_price_30d ? 'GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td>' +
                         '</tr>';
                 }).join('') + '</tbody></table></div>';
         });
@@ -964,14 +943,17 @@ function loadTxnCerts() {
         .then(function(data) {
             var el = document.getElementById('txnCerts');
             if (!data.success || !data.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet</div>'; return; }
-            el.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Date</th>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Material</th>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">kg</th>' +
-                '<th style="padding:8px 0;border-bottom:1px solid var(--border);text-align:left;color:var(--slate-light);font-size:0.75rem;text-transform:uppercase">Actions</th>' +
+            el.innerHTML = '<div class="table-wrap"><table>' +
+                '<thead><tr>' +
+                '<th>Date</th>' +
+                '<th>Material</th>' +
+                '<th>kg</th>' +
+                '<th>Actions</th>' +
                 '</tr></thead><tbody>' +
                 data.transactions.map(function(t) {
-                    return '<tr><td style="padding:10px 0">' + fmtDate(t.transaction_date) + '</td><td style="padding:10px 0"><span class="badge badge-blue">' + t.material_type + '</span></td><td style="padding:10px 0">' + fmt(t.net_weight_kg) + ' kg</td><td style="padding:10px 0"><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--green-primary);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
+                    var matLower = (t.material_type || '').toLowerCase();
+                    var pillClass = 'pill pill-' + matLower;
+                    return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--accent);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
                 }).join('') + '</tbody></table></div>';
         });
 }
@@ -987,7 +969,7 @@ function loadRatings() {
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" style="padding:6px 14px;background:var(--green-primary);color:white;border:none;border-radius:6px;font-family:\'Plus Jakarta Sans\',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer">Rate</button></div>';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-green" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
             }).join('');
         });
     fetch('/api/ratings/operator/' + state.operator.id)
@@ -995,7 +977,7 @@ function loadRatings() {
         .then(function(data) {
             var el = document.getElementById('ratingsReceived');
             if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
-            el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--green-deep);margin-bottom:12px">⭐ ' + (data.summary.avg_rating || '—') + ' <span style="font-size:0.85rem;color:var(--slate-light);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
+            el.innerHTML = '<div style="font-size:1.2rem;font-weight:700;color:var(--accent);margin:12px 0">★ ' + (data.summary.avg_rating || '—') + ' <span style="font-size:0.85rem;color:var(--text-3);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
         });
 }
 
@@ -1006,7 +988,7 @@ function rateProcessor(processorId, processorName) {
     _rateProcessorId = processorId;
     _rateProcessorScore = null;
     document.getElementById('rateProcessorName').textContent = processorName || 'Your processor';
-    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.style.color = '#ccc'; });
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.style.color = 'var(--text-3)'; });
     document.getElementById('rateProcessorMsg').style.display = 'none';
     var modal = document.getElementById('rateProcessorModal');
     modal.style.display = 'flex';
@@ -1015,7 +997,7 @@ function rateProcessor(processorId, processorName) {
 function selectProcessorStar(val) {
     _rateProcessorScore = val;
     document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) {
-        b.style.color = parseInt(b.dataset.val) <= val ? '#f5a623' : '#ccc';
+        b.style.color = parseInt(b.dataset.val) <= val ? '#ffd740' : 'var(--text-3)';
     });
 }
 
@@ -1040,7 +1022,7 @@ async function submitProcessorRating() {
         var data = await r.json();
         if (data.success) {
             closeRateProcessorModal();
-            showToast('Rating submitted!');
+            showCvToast('Rating submitted!');
         } else {
             var msg = document.getElementById('rateProcessorMsg');
             msg.textContent = data.message || 'Could not submit rating.';
@@ -1058,15 +1040,14 @@ function renderPriceCards(prices) {
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p && p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : 'Not set';
-        var usdLine = p && p.price_per_kg_ghs ? '≈ $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD' : '';
+        var current = p && p.price_per_kg_ghs ? 'GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : 'Not set';
         return '<div class="price-card">' +
-            '<div class="price-card-mat">' + mat + '</div>' +
-            '<div class="price-card-current">' + current + '</div>' +
-            '<div class="price-card-usd">' + usdLine + '</div>' +
-            '<div class="price-input-row">' +
-            '<input type="number" class="price-input" id="price-ghs-' + mat + '" placeholder="GH₵ / kg" step="0.01" min="0">' +
-            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '<div class="pc-label">Material</div>' +
+            '<div class="pc-name">' + mat + '</div>' +
+            '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
+            '<div class="pc-inline">' +
+            '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH¢/kg" step="0.01" min="0">' +
+            '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
 }
@@ -1086,9 +1067,9 @@ function downloadCompliance(e) {
 }
 
 function paymentBadge(ps) {
-    if (ps === 'paid') return '<span class="badge badge-green">Paid ✓</span>';
-    if (ps === 'payment_sent') return '<span class="badge badge-amber">Payment Sent</span>';
-    return '<span class="badge badge-gray">' + (ps || 'Unpaid') + '</span>';
+    if (ps === 'paid') return '<span class="pill pill-paid">Paid</span>';
+    if (ps === 'payment_sent') return '<span class="pill pill-sent">Payment Sent</span>';
+    return '<span class="pill pill-pending">' + (ps || 'Unpaid') + '</span>';
 }
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
 function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
@@ -1100,13 +1081,13 @@ checkAuth();
 // ── TIER BADGE HELPERS ────────────────────────────────────────────
 function tierBadge(tier) {
     var colors = {
-        collector:  { bg: '#1a3a20', color: '#00e676' },
-        aggregator: { bg: '#0d2a2a', color: '#26c6da' },
-        processor:  { bg: '#0d1a2a', color: '#42a5f5' },
-        recycler:   { bg: '#1a0d2a', color: '#b388ff' }
+        collector:  { bg: 'rgba(0,230,118,0.15)', color: '#00e676' },
+        aggregator: { bg: 'rgba(38,198,218,0.15)', color: '#26c6da' },
+        processor:  { bg: 'rgba(66,165,245,0.15)', color: '#42a5f5' },
+        recycler:   { bg: 'rgba(179,136,255,0.15)', color: '#b388ff' }
     };
     var c = colors[tier] || colors.processor;
-    return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;background:' + c.bg + ';color:' + c.color + ';border:1px solid ' + c.color + '">' + (tier || 'unknown') + '</span>';
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;background:' + c.bg + ';color:' + c.color + '">' + (tier || 'unknown') + '</span>';
 }
 
 function deliveryTierBadge(pt) {
@@ -1127,7 +1108,7 @@ function selectOrderTier(tier) {
         var colors = { recycler: '#b388ff', processor: '#42a5f5', aggregator: '#26c6da', collector: '#00e676' };
         var bgs = { recycler: '#1a0d2a', processor: '#0d1a2a', aggregator: '#0d2a2a', collector: '#1a3a20' };
         b.style.background = active ? bgs[b.dataset.tier] : 'transparent';
-        b.style.borderColor = active ? colors[b.dataset.tier] : '#333';
+        b.style.borderColor = active ? colors[b.dataset.tier] : 'var(--border)';
     });
     loadSupplierDropdown(tier);
 }
@@ -1162,13 +1143,13 @@ function renderSupplierOptions(tier, list) {
     });
 }
 
-// ── TOP SUPPLIERS (multi-tier) — NEW ─────────────────────────────
+// ── TOP SUPPLIERS (multi-tier) ─────────────────────────────────
 var _convTopPeriod = 'month';
 
 function switchTopSuppliers(period) {
   _convTopPeriod = period;
-  document.querySelectorAll("#top-suppliers-toggle .ptoggle-btn").forEach(function(b) {
-    b.classList.toggle("active", b.dataset.period === period);
+  document.querySelectorAll("#top-suppliers-toggle .tab").forEach(function(b) {
+    b.classList.toggle("on", b.dataset.period === period);
   });
   loadTopSuppliers(period);
 }
@@ -1176,27 +1157,23 @@ function switchTopSuppliers(period) {
 function loadTopSuppliers(period) {
   var el = document.getElementById("top-suppliers-list");
   if (!el) return;
-  el.innerHTML = "<div style=\"color:#8aab90;font-size:13px;padding:12px 0\">Loading...</div>";
+  el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div>';
   fetch("/api/converter/top-suppliers?" + "period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = "<div style=\"color:#8aab90;font-size:13px;padding:12px 0\">No data yet</div>"; return; }
-      el.innerHTML = items.slice(0,3).map(function(p, i) {
-        var badge = p.tier ? ' ' + tierBadge(p.tier) : '';
-        return [
-          "<div class=\"partner-row\">",
-          "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-          "  <span class=\"partner-name\">" + (p.name || p.processor_name || "Unknown") + badge + "</span>",
-          "  <span class=\"partner-vol\">" + cvFmtVol(p.volume || p.total_volume || 0) + " kg</span>",
-          "  <div class=\"partner-price-block\">",
-          "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
-          "    <span class=\"partner-price-val\">GHS " + cvFmtPrice(p.avg_price || p.avg_price_paid || 0) + "/kg</span>",
-          "    <span class=\"partner-price-note\">avg over last 10</span>",
-          "  </div>",
-          "</div>"
-        ].join("");
-      }).join("");
+      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
+      el.innerHTML = '<table><thead><tr><th>#</th><th>Supplier</th><th>Volume</th><th>Avg Paid</th><th>Tier</th></tr></thead><tbody>' +
+        items.slice(0,10).map(function(p, i) {
+          var tierHtml = p.tier ? tierBadge(p.tier) : '';
+          return '<tr>' +
+            '<td style="color:var(--accent);font-weight:700">' + (i+1) + '</td>' +
+            '<td class="td-name">' + esc(p.name || p.processor_name || 'Unknown') + '</td>' +
+            '<td>' + cvFmtVol(p.volume || p.total_volume || 0) + ' kg</td>' +
+            '<td class="td-green">GHS ' + cvFmtPrice(p.avg_price || p.avg_price_paid || 0) + '/kg</td>' +
+            '<td>' + tierHtml + '</td>' +
+            '</tr>';
+        }).join('') + '</tbody></table>';
     })
     .catch(function() {
       el.innerHTML = cvRenderDemoSuppliers();
@@ -1209,20 +1186,16 @@ function cvRenderDemoSuppliers() {
     { name: "rePATRN Processing", volume: 3800, avg: 2.38, tier: "processor" },
     { name: "Green Collect GH", volume: 2100, avg: 2.52, tier: "aggregator" }
   ];
-  return demo.map(function(p, i) {
-    return [
-      "<div class=\"partner-row\">",
-      "  <span class=\"partner-rank\">" + (i+1) + "</span>",
-      "  <span class=\"partner-name\">" + p.name + " " + tierBadge(p.tier) + "</span>",
-      "  <span class=\"partner-vol\">" + cvFmtVol(p.volume) + " kg</span>",
-      "  <div class=\"partner-price-block\">",
-      "    <span class=\"partner-price-label\">AVG PRICE PAID</span>",
-      "    <span class=\"partner-price-val\">GHS " + p.avg.toFixed(2) + "/kg</span>",
-      "    <span class=\"partner-price-note\">avg over last 10</span>",
-      "  </div>",
-      "</div>"
-    ].join("");
-  }).join("");
+  return '<table><thead><tr><th>#</th><th>Supplier</th><th>Volume</th><th>Avg Paid</th><th>Tier</th></tr></thead><tbody>' +
+    demo.map(function(p, i) {
+      return '<tr>' +
+        '<td style="color:var(--accent);font-weight:700">' + (i+1) + '</td>' +
+        '<td class="td-name">' + p.name + '</td>' +
+        '<td>' + cvFmtVol(p.volume) + ' kg</td>' +
+        '<td class="td-green">GHS ' + p.avg.toFixed(2) + '/kg</td>' +
+        '<td>' + tierBadge(p.tier) + '</td>' +
+        '</tr>';
+    }).join('') + '</tbody></table>';
 }
 
 function cvFmtVol(n) {
@@ -1235,8 +1208,6 @@ function cvFmtPrice(n) {
 }
 
 // ── ATTRIBUTE TAGS FOR PROCESSOR RATING ──────────────────────────
-// Tags: Consistent quality · Accurate batch weight · On-time delivery · Good communication (green)
-//       Contaminated batch · Wrong material grade · Late delivery (orange)
 var CV_RATING_TAGS = [
   { label: "Consistent quality", type: "positive" },
   { label: "Accurate batch weight", type: "positive" },

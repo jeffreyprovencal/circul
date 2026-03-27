@@ -1,254 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aggregator Dashboard — Circul</title>
-  <link rel="stylesheet" href="/shared.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aggregator Dashboard — Circul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
 <style>
-    :root {
-      --bg:           #0a1a0f;
-      --surface:      #0d2818;
-      --surface2:     #0a1a0f;
-      --border:       #1a3a20;
-      --border2:      #2a4a2f;
-      --text:         #ffffff;
-      --text-muted:   #888888;
-      --text-dim:     #aaaaaa;
-      --accent:       #00e676;
-      --accent-dark:  #0a1a0f;
-      --amber:        #ffc107;
-      --amber-bg:     #332200;
-      --green-bg:     #0a2a15;
-      --red:          #ef4444;
-      --red-bg:       #2a0a0a;
-      --radius:       12px;
-      --radius-sm:    8px;
-    }
-
-    body { font-family: var(--font-primary); background: var(--bg); color: var(--text); min-height: 100vh; }
-
-    /* ── NAV ── */
-    .top-nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
-    .nav-role-pill { border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-    .nav-user { font-size: 13px; color: var(--text-dim); }
-    .nav-id { font-size: 11px; color: var(--text-muted); margin-left: 2px; }
-    .nav-spacer { flex: 1; }
-    .nav-link { color: var(--text-muted); font-size: 13px; text-decoration: none; padding: 6px 10px; border-radius: 6px; }
-    .nav-link:hover { color: var(--accent); }
-    .nav-logout { background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--text-muted); font-size: 13px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
-    .nav-logout:hover { border-color: var(--accent); color: var(--accent); }
-
-    /* ── LOGIN OVERLAY ── */
-    .login-overlay {
-      position: fixed; inset: 0; background: var(--bg);
-      display: flex; align-items: center; justify-content: center; z-index: 500;
-    }
-    .login-box {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 40px; width: 380px; max-width: 95vw;
-    }
-    .login-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-    .login-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
-    .login-error { color: var(--red); font-size: 13px; margin-bottom: 12px; display: none; }
-    .form-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px; font-weight: 600; }
-    .form-input {
-      width: 100%; box-sizing: border-box;
-      background: var(--surface2); border: 1px solid var(--border2);
-      border-radius: var(--radius-sm); padding: 11px 14px;
-      color: var(--text); font-size: 14px; font-family: inherit; margin-bottom: 16px;
-    }
-    .form-input:focus { outline: none; border-color: var(--accent); }
-    .btn-primary {
-      width: 100%; background: var(--accent); color: var(--accent-dark);
-      border: none; padding: 12px; border-radius: var(--radius-sm);
-      font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .btn-primary:hover { opacity: 0.9; }
-
-    /* ── NAV ── */
-    .nav {
-      background: var(--surface); border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 100;
-    }
-    .nav-inner {
-      max-width: 1200px; margin: 0 auto; padding: 0 24px;
-      display: flex; align-items: center; justify-content: space-between;
-      height: 56px;
-    }
-    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-size: 18px; font-weight: 700; }
-    .brand-icon { width: 28px; height: 28px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--accent-dark); }
-    .nav-right { display: flex; align-items: center; gap: 12px; }
-    .role-pill { background: #0d2a2a; color: #26c6da; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; letter-spacing: 1px; }
-    .nav-name { color: #e0e0e0; font-weight: 600; font-size: 14px; }
-    .nav-id { color: var(--text-muted); font-size: 13px; }
-    .nav-home { color: var(--text-muted); font-size: 13px; text-decoration: none; }
-    .btn-signout { background: var(--accent); color: var(--accent-dark); border: none; padding: 8px 18px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px; }
-
-    /* ── MAIN ── */
-    .main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: flex; flex-direction: column; gap: 20px; }
-
-    /* ── IDENTITY HERO ── */
-    .identity-name { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-    .identity-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--text-muted); }
-    .identity-rating span { font-weight: 600; color: var(--text); }
-    .identity-status { background: #1a3a20; color: var(--accent); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: 1px; }
-
-    /* ── VOLUME STRIP ── */
-    .vol-strip { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-radius: var(--radius); overflow: hidden; }
-    .vol-cell { background: var(--surface); padding: 18px 22px; }
-    .vol-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
-    .vol-value { font-size: 24px; font-weight: 700; color: var(--text); }
-    .vol-value span { font-size: 14px; font-weight: 400; color: var(--text-dim); }
-    .vol-value.amber { color: var(--amber); }
-    .vol-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-
-    /* ── SECTION CARD ── */
-    .section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
-    .section-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
-    .section-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
-    .section-sub { font-size: 12px; color: var(--text-muted); }
-    .toggle-group { display: flex; gap: 6px; align-items: center; }
-    .toggle-btn { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-muted); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
-    .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-dark); font-weight: 700; }
-    .toggle-sep { color: var(--border2); margin: 0 2px; }
-    .view-all { color: var(--accent); font-size: 12px; text-decoration: none; cursor: pointer; }
-
-    /* ── TOP PARTNERS GRID ── */
-    .partners-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-
-    /* ── PRICE CARDS ── */
-    .price-cards-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-    .price-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; min-width: 0; }
-    .price-card-mat { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
-    .price-card-val { font-size: 22px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
-    .price-card-date { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
-    .price-input-row { display: flex; gap: 8px; }
-    .price-input { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: inherit; }
-    .btn-update { background: var(--accent); color: var(--accent-dark); border: none; padding: 7px 12px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; white-space: nowrap; font-family: inherit; }
-
-    /* ── TODAY'S WORK / INCOMING ── */
-    .today-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 32px 0; }
-    .incoming-item { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 12px; }
-    .incoming-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .incoming-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
-    .incoming-sub { font-size: 12px; color: var(--text-muted); }
-    .grade-row { display: flex; gap: 8px; margin-bottom: 12px; }
-    .grade-btn { background: var(--surface); border: 1px solid var(--border2); color: var(--text-muted); padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit; }
-    .grade-btn.selected { border-color: var(--accent); color: var(--accent); font-weight: 700; }
-    .price-preview { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
-    .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    /* ── DISPATCH FORM ── */
-    .dispatch-form { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px; }
-    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .form-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-select { background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 13px; font-family: inherit; }
-    .form-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
-    .photo-area { border: 1px dashed var(--border2); border-radius: 6px; padding: 12px; text-align: center; font-size: 12px; color: var(--text-muted); cursor: pointer; }
-    .photo-warning { font-size: 11px; color: var(--amber); margin-top: 6px; display: none; }
-
-    /* ── MY COLLECTORS TABLE ── */
-    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .data-table thead tr { background: var(--surface2); }
-    .data-table th { padding: 10px 14px; text-align: left; color: var(--text-muted); font-weight: 600; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
-    .data-table td { padding: 12px 14px; border-top: 1px solid var(--border); color: var(--text-dim); }
-    .data-table .td-name { color: var(--text); font-weight: 500; }
-    .data-table .td-amount { color: var(--accent); font-weight: 600; }
-    .table-wrap { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-    .table-empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center; }
-    .table-note { font-size: 11px; color: #555; margin-top: 10px; }
-
-    /* ── MATERIAL TAGS ── */
-    .tag-mat { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; }
-    .tag-pet  { background: #1a3a20; color: #00e676; }
-    .tag-hdpe { background: #0d2a2a; color: #26c6da; }
-    .tag-ldpe { background: #1a2a3a; color: #42a5f5; }
-    .tag-pp   { background: #2a1a3a; color: #ce93d8; }
-
-    /* ── STATUS BADGES ── */
-    .badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
-    .badge-paid    { background: var(--green-bg); color: var(--accent); }
-    .badge-pending { background: var(--amber-bg); color: var(--amber); }
-    .badge-sent    { background: var(--amber-bg); color: var(--amber); }
-    .badge-unpaid  { background: var(--amber-bg); color: var(--amber); }
-    .badge-active  { background: #1a3a20; color: var(--accent); }
-    .badge-arrived { background: #0d2a2a; color: #26c6da; }
-
-    /* ── ACTION BUTTONS ── */
-    .btn-action { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
-    .btn-action:hover { border-color: var(--accent); color: var(--accent); }
-    .btn-accept { background: var(--accent); color: var(--accent-dark); border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px; }
-    .btn-decline { background: transparent; border: 1px solid var(--border2); color: var(--text-muted); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; }
-    .btn-secondary { background: transparent; border: 1px solid var(--border2); color: var(--text-muted); padding: 7px 16px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 600; }
-
-    /* ── P&L ── */
-    .pl-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .pl-col-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; font-weight: 600; }
-    .pl-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .pl-row:last-child { border-bottom: none; }
-    .pl-row-label { color: var(--text-dim); }
-    .pl-row-val { font-weight: 600; color: var(--accent); }
-    .pl-row-val.cost { color: var(--text-dim); }
-    .pl-row-val.negative { color: var(--red); }
-    .pl-total { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; justify-content: space-between; margin-top: 10px; font-size: 14px; }
-    .pl-total-label { color: var(--text); font-weight: 600; }
-    .pl-total-val { font-size: 18px; font-weight: 700; color: var(--accent); }
-    .btn-add-cost { width: 100%; background: transparent; border: 1px dashed var(--border2); color: var(--text-muted); padding: 10px; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit; margin-top: 8px; }
-    .btn-add-cost:hover { border-color: var(--accent); color: var(--accent); }
-    .add-cost-form { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-top: 10px; display: none; }
-    .suggest-category-link { color: var(--accent); font-size: 12px; cursor: pointer; text-decoration: underline; }
-
-    /* ── PAYMENT FORM ── */
-    .pay-form { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-top: 10px; display: none; }
-    .momo-field { margin-top: 10px; }
-
-    /* ── RATING MODAL ── */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
-    .modal-overlay.open { display: flex; }
-    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; width: 480px; max-width: 95vw; }
-    .modal-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
-    .stars-row { display: flex; gap: 8px; margin-bottom: 18px; }
-    .star { font-size: 28px; color: #444; cursor: pointer; transition: color 0.1s; }
-    .star.lit { color: var(--amber); }
-    .tags-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-    .tag-chip { padding: 6px 14px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid transparent; }
-    .tag-chip.pos { background: #1a3a20; color: var(--accent); border-color: #00e67640; }
-    .tag-chip.neg { background: var(--amber-bg); color: var(--amber); border-color: #ffc10740; }
-    .tag-chip.sel-pos { background: var(--accent); color: var(--accent-dark); font-weight: 700; }
-    .tag-chip.sel-neg { background: var(--amber); color: #1a0a00; font-weight: 700; }
-    .rating-note-input { width: 100%; box-sizing: border-box; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 13px; font-family: inherit; height: 80px; resize: vertical; margin-bottom: 16px; }
-    .modal-actions { display: flex; gap: 10px; }
-    .btn-submit { background: var(--accent); color: var(--accent-dark); border: none; padding: 10px 24px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-size: 14px; font-family: inherit; }
-    .btn-cancel { background: transparent; border: 1px solid var(--border2); color: var(--text-muted); padding: 10px 20px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; font-size: 14px; font-family: inherit; }
-
-    /* ── SUGGEST CATEGORY MODAL ── */
-    .suggest-modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; width: 400px; max-width: 95vw; }
-
-    /* ── TOAST ── */
-    #toast { position: fixed; bottom: 24px; right: 24px; z-index: 300; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 14px 20px; color: var(--text); font-size: 14px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transform: translateY(80px); opacity: 0; transition: transform 0.3s ease, opacity 0.3s ease; pointer-events: none; }
-    #toast.show { transform: translateY(0); opacity: 1; }
-
-    /* ── REJECT BLOCK ── */
-    .reject-block { margin-top: 10px; display: none; }
-    .reject-textarea { width: 100%; box-sizing: border-box; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 12px; color: var(--text); font-family: inherit; font-size: 13px; height: 64px; resize: vertical; }
-
-    /* ── BATCH SALE ITEM ── */
-    .batch-item { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 10px; }
-    .batch-item-head { display: flex; justify-content: space-between; align-items: flex-start; }
-    .batch-item-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
-    .batch-item-sub { font-size: 12px; color: var(--text-muted); }
-
-    /* ── RESPONSIVE ── */
-    @media (max-width: 900px) { .partners-grid { grid-template-columns: 1fr; } .form-grid-4 { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 768px) { .price-cards-grid { grid-template-columns: repeat(2, 1fr); } .vol-strip { grid-template-columns: 1fr; } .pl-layout { grid-template-columns: 1fr; } }
-    @media (max-width: 480px) { .form-grid-2 { grid-template-columns: 1fr; } }
-    .login-overlay.hidden { display: none; }
-  </style>
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
+.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
+.login-error{color:#ef4444;font-size:0.8rem;margin-bottom:12px;display:none}
+.login-error.visible{display:block}
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-sm);padding:14px 20px;color:var(--text-1);font-size:0.85rem;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.4);transform:translateY(80px);opacity:0;transition:transform 0.3s ease,opacity 0.3s ease;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1;pointer-events:auto}
+.toast-error{border-color:#ef4444}
+/* ── RATING MODAL ── */
+.rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
+.rating-overlay.open{display:flex}
+.rating-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:480px;max-width:95vw}
+.rating-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
+.rating-sub{font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
+.stars-row{display:flex;gap:8px;margin-bottom:20px}
+.star{font-size:1.6rem;cursor:pointer;color:var(--border);transition:color 0.15s;line-height:1}
+.star.lit{color:#ffd740}
+.tags-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.tag-chip{padding:6px 14px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:var(--font)}
+.tag-chip.pos{background:rgba(0,230,118,0.1);color:var(--accent);border-color:rgba(0,230,118,0.2)}
+.tag-chip.neg{background:rgba(255,193,7,0.1);color:#ffd740;border-color:rgba(255,193,7,0.2)}
+.tag-chip.sel-pos,.tag-chip.selected-pos{background:var(--accent);color:#000;font-weight:700}
+.tag-chip.sel-neg,.tag-chip.selected-neg{background:#ffd740;color:#1a0a00;font-weight:700}
+.rating-note-input{width:100%;box-sizing:border-box;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;color:var(--text-1);font-size:0.8rem;font-family:var(--font);height:80px;resize:vertical;margin-bottom:16px}
+.modal-actions{display:flex;gap:10px}
+/* ── SUGGEST CATEGORY MODAL ── */
+.suggest-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
+.suggest-overlay.open{display:flex}
+.suggest-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:400px;max-width:95vw}
+/* ── INCOMING / REVIEW PANELS ── */
+.incoming-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
+.incoming-item-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.incoming-item-name{font-weight:600;font-size:0.85rem}
+.incoming-item-detail{font-size:0.8rem;color:var(--text-2)}
+.btn-review{background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:var(--r-sm);font-weight:600;font-size:0.8rem;cursor:pointer;font-family:var(--font);margin-left:auto}
+.btn-review.active{background:var(--accent-hover)}
+.review-panel{margin-top:12px}
+.review-section-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;margin-bottom:8px}
+.grade-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.grade-btn{background:var(--surface);border:1px solid var(--border);color:var(--text-2);padding:8px 14px;border-radius:var(--r-sm);font-size:0.8rem;cursor:pointer;font-family:var(--font);text-align:left}
+.grade-btn.sel-a{border-color:var(--accent);color:var(--accent);font-weight:700}
+.grade-btn.sel-b{border-color:var(--accent);color:var(--accent);font-weight:700}
+.grade-btn.sel-c{border-color:#ef4444;color:#ef4444;font-weight:700}
+.price-preview{font-size:0.8rem;color:var(--text-2);margin-bottom:10px}
+.review-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.review-field-label{font-size:0.65rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px}
+.review-input{width:100%;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;box-sizing:border-box}
+.review-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn-reject-toggle{background:transparent;border:1px solid var(--border);color:var(--text-2);padding:6px 14px;border-radius:var(--r-sm);font-weight:600;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
+.btn-cancel-review{background:transparent;border:1px solid var(--border);color:var(--text-3);padding:6px 14px;border-radius:var(--r-sm);font-size:0.8rem;cursor:pointer;font-family:var(--font)}
+.btn-confirm-reject{background:#ef4444;color:#fff;border:none;padding:6px 14px;border-radius:var(--r-sm);font-weight:600;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
+.reject-block{display:none}
+.review-textarea{width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;color:var(--text-1);font-family:var(--font);font-size:0.8rem;height:64px;resize:vertical}
+/* ── REGISTER FORM ── */
+.photo-area{border:1px dashed var(--border);border-radius:var(--r-sm);padding:12px;text-align:center;font-size:0.8rem;color:var(--text-3);cursor:pointer;margin-bottom:8px}
+.photo-area.photo-required{border-color:#ffb74d}
+.photo-warning{font-size:0.75rem;color:#ffb74d;margin-top:6px;display:none}
+/* ── PAYMENT INLINE ── */
+.btn-pay{background:var(--accent);color:#000;border:none;padding:5px 12px;border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
+/* ── BATCH SALE STATUS BADGES ── */
+.pill-status-pending{background:rgba(255,152,0,0.15);color:#ffb74d}
+.pill-status-dispatch-approved{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-status-dispatch-rejected{background:rgba(239,68,68,0.15);color:#ef4444}
+.pill-status-arrived{background:rgba(0,150,255,0.15);color:#4fc3f7}
+.pill-status-grade-c{background:rgba(255,152,0,0.15);color:#ffb74d}
+.pill-status-completed{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-grade-a{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-grade-b{background:rgba(0,150,255,0.15);color:#4fc3f7}
+.pill-grade-c-val{background:rgba(239,68,68,0.15);color:#ef4444}
+/* ── BATCH SALE ITEMS ── */
+.bs-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:8px}
+.bs-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:0.8rem}
+.bs-proc{font-weight:600}
+.bs-meta{color:var(--text-2)}
+.bs-status-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.bs-photo-ok{font-size:0.75rem;color:var(--accent)}
+.bs-photo-warn{font-size:0.75rem;color:#ffb74d}
+.bs-reject-reason{font-size:0.8rem;color:#ef4444;margin-top:6px;padding:8px;background:rgba(239,68,68,0.08);border-radius:var(--r-sm)}
+/* ── SPINNER ── */
+.spinner{width:18px;height:18px;border:2px solid rgba(0,0,0,0.2);border-top-color:#000;border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ── SUGGEST LINK ── */
+.suggest-category-link{color:var(--accent);font-size:0.8rem;cursor:pointer;text-decoration:underline}
+</style>
 </head>
-
 <body>
 
 <!-- LOGIN OVERLAY -->
@@ -258,10 +104,10 @@
     <div class="login-sub">Aggregator access</div>
     <div class="login-error" id="loginError"></div>
     <label class="form-label">Phone number</label>
-    <input class="form-input" id="loginPhone" type="tel" placeholder="0300 000 000" />
+    <input class="form-input" id="loginPhone" type="tel" placeholder="0300 000 000" style="margin-bottom:16px" />
     <label class="form-label">4-digit PIN</label>
-    <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" />
-    <button class="btn-primary" id="loginBtn" onclick="handleLogin()">Sign in</button>
+    <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" style="margin-bottom:16px" />
+    <button class="btn-primary" id="loginBtn" onclick="handleLogin(event)" style="width:100%">Sign in</button>
   </div>
 </div>
 
@@ -269,214 +115,205 @@
 <div id="dashboard" style="display:none">
 
   <!-- NAV -->
-  <nav class="top-nav">
-    <a class="nav-logo" href="/">
-      <div class="nav-logo-icon">◎</div>
-      Circul
-    </a>
-    <span class="nav-role-pill" style="background:#0a1e2e;color:#26c6da">AGGREGATOR</span>
-    <span class="nav-user" id="navName">—</span>
-    <span class="nav-id" id="navAggId"></span>
+  <nav>
+    <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
     <span class="nav-spacer"></span>
-    <a class="nav-link" href="/">← Home</a>
-    <button class="nav-logout" onclick="handleLogout()">Log out</button>
+    <div class="nav-right">
+      <span class="nav-pill" style="background:#0a2a28;color:#26c6da">AGGREGATOR</span>
+      <span class="nav-name" id="navName">—</span>
+      <span class="nav-id" id="navAggId"></span>
+      <a class="nav-link" href="/">Home</a>
+      <button class="nav-logout" onclick="handleLogout()">Log out</button>
+    </div>
   </nav>
 
-  <!-- MAIN -->
-  <div class="main">
+  <div class="page">
 
-    <!-- IDENTITY HERO -->
-    <div>
-      <div class="identity-name" id="heroName">—</div>
-      <div class="identity-meta">
-        <span id="heroLocation" style="color:var(--text-muted)"></span>
-        <span style="color:var(--border2)">·</span>
-        <span class="identity-rating">⭐ <span id="heroRating">—</span></span>
-        <span style="color:var(--border2)">·</span>
-        <span class="identity-status">ACTIVE</span>
+    <!-- HERO -->
+    <div class="hero">
+      <div class="hero-info">
+        <div class="hero-name" id="heroName">—</div>
+        <div class="hero-meta">
+          <span id="heroPhone"></span>
+          <span class="sep">·</span>
+          <span id="heroLocation"></span>
+          <span class="stars">★</span> <span id="heroRating">—</span>
+          <span class="badge">ACTIVE</span>
+        </div>
       </div>
     </div>
 
-    <!-- VOLUME STRIP -->
-    <div class="vol-strip">
-      <div class="vol-cell">
-        <div class="vol-label">VOLUME PURCHASED</div>
-        <div class="vol-value" id="statMonthKg">— <span>kg this month</span></div>
-        <div class="vol-sub" id="volMonthSub"></div>
+    <!-- STATS -->
+    <div class="stats stats-3">
+      <div class="stat">
+        <div class="stat-label">Volume Purchased</div>
+        <div class="stat-val"><span id="statMonthKg">—</span> <small>kg this month</small></div>
       </div>
-      <div class="vol-cell">
-        <div class="vol-label">VOLUME — YEAR TO DATE</div>
-        <div class="vol-value" id="statTotalKg">— <span>kg since Jan</span></div>
-        <div class="vol-sub" id="volYTDSub"></div>
+      <div class="stat">
+        <div class="stat-label">Volume — Year to Date</div>
+        <div class="stat-val"><span id="statTotalKg">—</span> <small>kg since Jan</small></div>
       </div>
-      <div class="vol-cell">
-        <div class="vol-label">OUTSTANDING PAYMENTS</div>
-        <div class="vol-value amber" id="statPendingVal">GH¢ 0 <span>owed to collectors</span></div>
-        <div class="vol-sub" id="volOutstandingSub">All collectors paid up to date</div>
+      <div class="stat">
+        <div class="stat-label">Outstanding Payments</div>
+        <div class="stat-val" id="statPendingVal">GH¢ 0.00</div>
       </div>
     </div>
-
-    <!-- TOP PARTNERS (2-col: suppliers left, buyers right) -->
-    <div class="partners-grid">
-
-      <!-- Top suppliers (collectors) -->
-      <div class="section-card">
-        <div class="section-head">
-          <div>
-            <div class="section-title">My top suppliers</div>
-            <div class="section-sub">Collectors · avg price paid · last 10 txns</div>
-          </div>
-          <div class="toggle-group">
-            <button class="toggle-btn" id="suppMonthBtn" onclick="switchTopSuppliers('month')">Mar</button>
-            <button class="toggle-btn active" id="suppYTDBtn" onclick="switchTopSuppliers('ytd')">YTD</button>
-            <span class="toggle-sep">|</span>
-            <a class="view-all" href="#">All</a>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>#</th><th>COLLECTOR</th><th>VOLUME YTD</th><th>AVERAGE PAID</th><th>TRANSACTIONS</th></tr></thead>
-            <tbody id="topSuppliersBody"><tr><td colspan="5" class="table-empty">Loading…</td></tr></tbody>
-          </table>
-        </div>
-        <p class="table-note">* avg over last 10 transactions per supplier</p>
-      </div>
-
-      <!-- Top buyers (processors) -->
-      <div class="section-card">
-        <div class="section-head">
-          <div>
-            <div class="section-title">My top buyers</div>
-            <div class="section-sub">Processors · average price received · last 10 transactions</div>
-          </div>
-          <div class="toggle-group">
-            <button class="toggle-btn" id="buyMonthBtn" onclick="switchTopBuyers('month')">Mar</button>
-            <button class="toggle-btn active" id="buyYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
-            <span class="toggle-sep">|</span>
-            <a class="view-all" href="#">All</a>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>#</th><th>PROCESSOR</th><th>VOLUME YTD</th><th>AVERAGE RECEIVED</th><th>TRANSACTIONS</th></tr></thead>
-            <tbody id="topBuyersBody"><tr><td colspan="5" class="table-empty">Loading…</td></tr></tbody>
-          </table>
-        </div>
-        <p class="table-note">* avg over last 10 transactions per buyer</p>
-      </div>
-
-    </div><!-- /.partners-grid -->
 
     <!-- TODAY'S WORK -->
-    <div class="section-card" id="incomingCard">
+    <div class="section" id="incomingCard">
       <div class="section-head">
         <div>
           <div class="section-title">Today's work</div>
-          <div class="section-sub">Collectors waiting, sales to log, payments to send</div>
         </div>
-        <button class="btn-accept" onclick="toggleRegisterForm()">+ Register purchase</button>
+        <button class="btn-primary" onclick="toggleRegisterForm()">+ Register purchase</button>
       </div>
-      <div id="incomingList"><div class="today-empty">✓<br>Nothing pending right now. When a collector logs a sale to you, it appears here to review.</div></div>
+      <div id="incomingList">
+        <div class="empty">
+          <div class="empty-icon">○</div>
+          <div>No pending collections — collectors will appear here when they log a sale.</div>
+        </div>
+      </div>
 
       <!-- Register purchase form (inline, hidden by default) -->
       <div id="registerForm" style="display:none;margin-top:16px;">
-        <div class="dispatch-form">
-          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px;">Register a purchase from collector</div>
-          <div class="form-grid-2" style="margin-bottom:12px;">
-            <div class="form-group">
-              <label class="form-label">COLLECTOR</label>
-              <select class="form-select" id="regCollector"><option value="">Select collector…</option></select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">MATERIAL</label>
-              <select class="form-select" id="regMaterial">
-                <option value="PET">PET</option><option value="HDPE">HDPE</option>
-                <option value="LDPE">LDPE</option><option value="PP">PP</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-grid-2" style="margin-bottom:12px;">
-            <div class="form-group">
-              <label class="form-label">WEIGHT (KG)</label>
-              <input class="form-input" id="regWeight" type="number" min="0" step="0.1" placeholder="0" style="margin-bottom:0;" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">PRICE (GH¢/KG)</label>
-              <input class="form-input" id="regPrice" type="number" min="0" step="0.01" placeholder="0.00" style="margin-bottom:0;" />
-            </div>
-          </div>
-          <div id="photoArea" class="photo-area" onclick="document.getElementById('photoUpload').click()">📷 Tap to add photos (required for batches over 500 kg)</div>
-          <input type="file" id="photoUpload" accept="image/*" multiple style="display:none" />
-          <div class="photo-warning" id="photoWarning">Photos required for batches over 500 kg</div>
-          <div id="registerMsg" style="font-size:13px;margin-top:10px;color:var(--text-muted);"></div>
-          <div style="display:flex;gap:8px;margin-top:14px;">
-            <button class="btn-accept" onclick="submitAggregatorPurchase()">Register purchase</button>
-            <button class="btn-secondary" onclick="toggleRegisterForm()">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- YOUR BUY PRICES -->
-    <div class="section-card">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Your buy prices</div>
-          <div class="section-sub">GH¢/kg · active through end of month · shown to collectors near you</div>
-        </div>
-      </div>
-      <div class="price-cards-grid" id="priceCards">
-        <div class="price-card"><div class="price-card-mat">PET</div><div class="price-card-val">—</div></div>
-        <div class="price-card"><div class="price-card-mat">HDPE</div><div class="price-card-val">—</div></div>
-        <div class="price-card"><div class="price-card-mat">LDPE</div><div class="price-card-val">—</div></div>
-        <div class="price-card"><div class="price-card-mat">PP</div><div class="price-card-val">—</div></div>
-      </div>
-    </div>
-
-    <!-- SEND A BATCH TO PROCESSOR -->
-    <div class="section-card" id="sellCard">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Send a batch to processor</div>
-          <div class="section-sub">Log when you dispatch material to a processor or converter</div>
-        </div>
-      </div>
-      <div class="dispatch-form">
-        <div class="form-grid-4">
+        <div style="font-size:0.9rem;font-weight:600;margin-bottom:14px;">Register a purchase from collector</div>
+        <div class="form-grid" style="margin-bottom:12px;">
           <div class="form-group">
-            <label class="form-label">MATERIAL</label>
-            <select class="form-select" id="sellMaterial">
+            <label class="form-label">Collector</label>
+            <select class="form-select" id="regCollector"><option value="">Select collector…</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Material</label>
+            <select class="form-select" id="regMaterial">
               <option value="">Select material…</option>
               <option value="PET">PET</option><option value="HDPE">HDPE</option>
               <option value="LDPE">LDPE</option><option value="PP">PP</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">PROCESSOR</label>
-            <select class="form-select" id="sellProcessor"><option value="">Select buyer…</option></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">WEIGHT (KG)</label>
-            <input class="form-input" id="sellWeight" type="number" min="0" step="0.1" placeholder="0" style="margin-bottom:0;" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">PRICE (GH¢/KG)</label>
-            <input class="form-input" id="sellPrice" type="number" min="0" step="0.01" placeholder="0.00" style="margin-bottom:0;" />
-          </div>
-          <button class="btn-accept" onclick="submitAggregatorSale()" style="height:40px;">Log dispatch</button>
         </div>
-        <div id="sellNotes" style="display:none;margin-top:12px;">
-          <label class="form-label">NOTES (OPTIONAL)</label>
-          <input class="form-input" type="text" placeholder="e.g. delivery notes" style="margin-bottom:0;" />
+        <div class="form-grid" style="margin-bottom:12px;">
+          <div class="form-group">
+            <label class="form-label">Weight (kg)</label>
+            <input class="form-input" id="regWeight" type="number" min="0" step="0.1" placeholder="0" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price (GH¢/kg)</label>
+            <input class="form-input" id="regPrice" type="number" min="0" step="0.01" placeholder="0.00" />
+          </div>
         </div>
-        <div class="photo-warning" id="photoWarning2">Photos required for batches over 500 kg</div>
-        <div id="sellMsg" style="font-size:13px;margin-top:10px;color:var(--text-muted);"></div>
-        <p class="form-note">Photos required for batches over 500 kg</p>
+        <div id="photoArea" class="photo-area" onclick="document.getElementById('photoUpload').click()">📷 Tap to add photos (required for batches over 500 kg)</div>
+        <input type="file" id="photoUpload" accept="image/*" multiple style="display:none" />
+        <div class="photo-warning" id="photoWarning">Photos required for batches over 500 kg</div>
+        <div id="registerMsg" style="font-size:0.8rem;margin-top:10px;color:var(--text-3);"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="btn-green btn" onclick="submitAggregatorPurchase()">Register purchase</button>
+          <button class="btn" onclick="toggleRegisterForm()">Cancel</button>
+        </div>
       </div>
     </div>
 
+    <!-- TWO-COL: MY TOP SUPPLIERS & MY TOP BUYERS -->
+    <div class="two-col">
+
+      <!-- MY TOP SUPPLIERS -->
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-title">My top suppliers</div>
+          </div>
+          <div class="tabs">
+            <button class="tab" id="suppMonthBtn" onclick="switchTopSuppliers('month')">Month</button>
+            <button class="tab on" id="suppYTDBtn" onclick="switchTopSuppliers('ytd')">YTD</button>
+            <span class="view-all">View all</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Collector</th><th>Volume YTD</th><th>Avg Paid</th><th>Transactions</th>
+            </tr></thead>
+            <tbody id="topSuppliersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MY TOP BUYERS -->
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-title">My top buyers</div>
+          </div>
+          <div class="tabs">
+            <button class="tab" id="buyMonthBtn" onclick="switchTopBuyers('month')">Month</button>
+            <button class="tab on" id="buyYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
+            <span class="view-all">View all</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Processor</th><th>Volume YTD</th><th>Avg Received</th><th>Transactions</th>
+            </tr></thead>
+            <tbody id="topBuyersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- POST PURCHASE PRICES -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Post purchase prices</div>
+          <div class="section-sub">Current prices posted · GHS/kg</div>
+        </div>
+      </div>
+      <div class="price-grid" id="priceCards">
+        <!-- Rendered by renderPriceCards() -->
+      </div>
+    </div>
+
+    <!-- SEND BATCH TO A PROCESSOR -->
+    <div class="section" id="sellCard">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Send batch to a processor</div>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Processor</label>
+          <select class="form-select" id="sellProcessor"><option value="">Select a processor...</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Material Type</label>
+          <select class="form-select" id="sellMaterial" onchange="prefillPriceFromBuyer()">
+            <option value="">Select material…</option>
+            <option value="PET">PET</option><option value="HDPE">HDPE</option>
+            <option value="LDPE">LDPE</option><option value="PP">PP</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity kg</label>
+          <input class="form-input" id="sellWeight" type="number" min="0" step="0.1" placeholder="0" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price/kg</label>
+          <input class="form-input" id="sellPrice" type="number" min="0" step="0.01" placeholder="0.00" />
+        </div>
+      </div>
+      <div id="sellNotes" style="display:none;margin-top:12px;">
+        <label class="form-label">Notes (optional)</label>
+        <input class="form-input" type="text" placeholder="e.g. delivery notes" />
+      </div>
+      <div class="photo-warning" id="photoWarning2">Photos required for batches over 500 kg</div>
+      <div id="sellMsg" style="font-size:0.8rem;margin-top:10px;color:var(--text-3);"></div>
+      <button class="form-submit" onclick="submitAggregatorSale()">Submit Sale</button>
+    </div>
+
     <!-- MY COLLECTORS -->
-    <div class="section-card">
+    <div class="section">
       <div class="section-head">
         <div>
           <div class="section-title">My collectors</div>
@@ -484,104 +321,97 @@
         </div>
       </div>
       <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>NAME</th><th>LOCATION</th><th>VOLUME</th><th>TRANSACTIONS</th><th>RATING</th><th></th></tr></thead>
-          <tbody id="collectorsBody"><tr><td colspan="7" class="table-empty">Loading…</td></tr></tbody>
+        <table>
+          <thead><tr><th>Name</th><th>Location</th><th>Volume</th><th>Transactions</th><th>Rating</th><th></th></tr></thead>
+          <tbody id="collectorsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
         </table>
       </div>
-      <!-- Payment form (rendered inline per-row) -->
       <div id="pendingBody"></div>
     </div>
 
     <!-- MY P&L -->
-    <div class="section-card">
+    <div class="section">
       <div class="section-head">
         <div>
           <div class="section-title">My P&amp;L</div>
-          <div class="section-sub">Revenue vs. costs — your actual business result</div>
         </div>
-        <div class="toggle-group">
-          <button class="toggle-btn" id="plMonthBtn" onclick="switchPLView('month')">Mar 2026</button>
-          <button class="toggle-btn active" id="plYTDBtn" onclick="switchPLView('ytd')">YTD 2026</button>
+        <div class="tabs">
+          <button class="tab" id="plMonthBtn" onclick="switchPLView('month')">Month</button>
+          <button class="tab on" id="plYTDBtn" onclick="switchPLView('ytd')">YTD</button>
         </div>
       </div>
-      <div id="plSummary" class="pl-layout">
-        <!-- Rendered by renderPL() -->
-        <div><div class="pl-col-label">REVENUE</div><div class="table-empty">Loading…</div></div>
-        <div><div class="pl-col-label">COSTS</div><div class="table-empty">Loading…</div></div>
+      <div id="plSummary" class="pl-grid">
+        <div><div class="pl-col-title">Bought</div><div class="empty">Loading…</div></div>
+        <div><div class="pl-col-title">Sold</div><div class="empty">Loading…</div></div>
       </div>
     </div>
 
     <!-- SALES HISTORY -->
-    <div class="section-card" id="myBatchSalesCard">
+    <div class="section" id="myBatchSalesCard">
       <div class="section-head">
         <div>
           <div class="section-title">Sales history</div>
-          <div class="section-sub">To processors</div>
         </div>
       </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>DATE</th><th>MATERIAL</th><th>PROCESSOR</th><th>WEIGHT</th><th>TOTAL</th><th>STATUS</th><th>PAYMENT</th></tr></thead>
-          <tbody id="myBatchSalesList"><tr><td colspan="7" class="table-empty">No sales yet</td></tr></tbody>
-        </table>
+      <div id="myBatchSalesList">
+        <div class="empty">No sales yet</div>
       </div>
     </div>
 
-    <!-- RATINGS RECEIVED -->
-    <div class="section-card">
+    <!-- RATINGS FROM COLLECTORS -->
+    <div class="section">
       <div class="section-head">
         <div>
           <div class="section-title">Ratings from collectors</div>
-          <div class="section-sub">What collectors say about working with you</div>
         </div>
       </div>
-      <div id="ratingsGiven"><div class="table-empty">No ratings yet</div></div>
+      <div id="ratingsGiven"><div class="empty">No ratings yet</div></div>
+      <div id="ratingsReceivedList"></div>
     </div>
 
-  </div><!-- /.main -->
+  </div><!-- /.page -->
 
 </div><!-- /#dashboard -->
 
 <!-- RATING MODAL -->
-<div class="modal-overlay" id="ratingModal">
-  <div class="modal">
-    <div class="modal-title">Rate collector</div>
-    <div class="modal-sub" id="ratingCollectorName"></div>
+<div class="rating-overlay" id="ratingModal">
+  <div class="rating-box">
+    <h3>Rate collector</h3>
+    <div class="rating-sub" id="ratingCollectorName"></div>
     <div class="stars-row" id="starsRow">
-      <span class="star" onclick="setStar(1)">★</span>
-      <span class="star" onclick="setStar(2)">★</span>
-      <span class="star" onclick="setStar(3)">★</span>
-      <span class="star" onclick="setStar(4)">★</span>
-      <span class="star" onclick="setStar(5)">★</span>
+      <span class="star" data-r="1" onclick="setStar(1)">★</span>
+      <span class="star" data-r="2" onclick="setStar(2)">★</span>
+      <span class="star" data-r="3" onclick="setStar(3)">★</span>
+      <span class="star" data-r="4" onclick="setStar(4)">★</span>
+      <span class="star" data-r="5" onclick="setStar(5)">★</span>
     </div>
     <div class="tags-row" id="tagsRow">
-      <span class="tag-chip pos" data-tag="Reliable">Reliable</span>
-      <span class="tag-chip pos" data-tag="Good sorter">Good sorter</span>
-      <span class="tag-chip pos" data-tag="Consistent volume">Consistent volume</span>
-      <span class="tag-chip pos" data-tag="Punctual">Punctual</span>
-      <span class="tag-chip neg" data-tag="Poor sorting">Poor sorting</span>
-      <span class="tag-chip neg" data-tag="Inconsistent">Inconsistent</span>
-      <span class="tag-chip neg" data-tag="No-show">No-show</span>
+      <span class="tag-chip pos" data-tag="Reliable" data-type="pos" onclick="toggleTag(this)">Reliable</span>
+      <span class="tag-chip pos" data-tag="Good sorter" data-type="pos" onclick="toggleTag(this)">Good sorter</span>
+      <span class="tag-chip pos" data-tag="Consistent volume" data-type="pos" onclick="toggleTag(this)">Consistent volume</span>
+      <span class="tag-chip pos" data-tag="Punctual" data-type="pos" onclick="toggleTag(this)">Punctual</span>
+      <span class="tag-chip neg" data-tag="Poor sorting" data-type="neg" onclick="toggleTag(this)">Poor sorting</span>
+      <span class="tag-chip neg" data-tag="Inconsistent" data-type="neg" onclick="toggleTag(this)">Inconsistent</span>
+      <span class="tag-chip neg" data-tag="No-show" data-type="neg" onclick="toggleTag(this)">No-show</span>
     </div>
     <textarea class="rating-note-input" id="ratingNote" placeholder="Optional note…"></textarea>
     <div class="modal-actions">
-      <button class="btn-submit" id="submitRatingBtn" onclick="submitRating()">Submit rating</button>
-      <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
+      <button class="btn-green btn" id="submitRatingBtn" onclick="submitRating()">Submit rating</button>
+      <button class="btn" onclick="closeRatingModal()">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- SUGGEST CATEGORY MODAL -->
-<div class="modal-overlay" id="suggestModal">
-  <div class="suggest-modal">
-    <div class="modal-title" style="margin-bottom:6px;">Suggest a cost category</div>
-    <div class="modal-sub">We'll review your suggestion within 24h and let you know if it's approved.</div>
-    <label class="form-label">CATEGORY NAME</label>
-    <input class="form-input" id="suggestCategoryInput" type="text" placeholder="e.g. Motorbike maintenance" />
+<div class="suggest-overlay" id="suggestModal">
+  <div class="suggest-box">
+    <h3 style="margin-bottom:6px;">Suggest a cost category</h3>
+    <div class="rating-sub">We'll review your suggestion within 24h and let you know if it's approved.</div>
+    <label class="form-label">Category name</label>
+    <input class="form-input" id="suggestCategoryInput" type="text" placeholder="e.g. Motorbike maintenance" style="margin-bottom:16px" />
     <div class="modal-actions">
-      <button class="btn-submit" onclick="submitSuggestCategory()">Submit suggestion</button>
-      <button class="btn-cancel" onclick="closeSuggestModal()">Cancel</button>
+      <button class="btn-green btn" onclick="submitSuggestCategory()">Submit suggestion</button>
+      <button class="btn" onclick="closeSuggestModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -642,12 +472,16 @@ function showDashboard() {
     // Populate identity hero
     var heroEl = document.getElementById('heroName');
     if (heroEl) heroEl.textContent = op.name + (op.company ? ' · ' + op.company : '');
+    var heroPhone = document.getElementById('heroPhone');
+    if (heroPhone && op.phone) heroPhone.textContent = op.phone;
+    var heroLoc = document.getElementById('heroLocation');
+    if (heroLoc && op.city) heroLoc.textContent = op.city;
     loadAll();
     refreshTimer = setInterval(loadAll, 30000);
 }
 
 function handleLogin(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     var phone = document.getElementById('loginPhone').value.trim();
     var pin = document.getElementById('loginPin').value.trim();
     if (!phone || !pin) return;
@@ -681,7 +515,7 @@ function handleLogin(e) {
         el.textContent = 'Connection error. Please try again.';
         el.classList.add('visible');
     })
-    .finally(function() { btn.disabled = false; btn.textContent = 'Log In'; });
+    .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
 }
 
 function handleLogout() {
@@ -702,7 +536,7 @@ function loadAll() {
             var el;
             el = document.getElementById('statCollectors'); if (el) el.textContent = s.active_collectors;
             el = document.getElementById('statPending'); if (el) el.textContent = s.pending_payments.count;
-            el = document.getElementById('statPendingVal'); if (el) el.textContent = 'GHS ' + fmt(s.pending_payments.value);
+            el = document.getElementById('statPendingVal'); if (el) el.textContent = 'GH¢ ' + fmt(s.pending_payments.value);
             el = document.getElementById('statMonthKg'); if (el) el.textContent = fmt(s.this_month.month_kg);
             el = document.getElementById('statTotalKg'); if (el) el.textContent = fmt(s.totals.total_kg);
             renderPriceCards(s.posted_prices);
@@ -719,24 +553,20 @@ function loadAll() {
 }
 
 function renderPriceCards(prices) {
-    // Store posted prices so review panels can pre-fill them
     postedPriceMap = {};
     (prices || []).forEach(function(p) { if (p.price_per_kg_ghs) postedPriceMap[p.material_type] = p.price_per_kg_ghs; });
     var priceMap = {};
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     var html = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p && p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : 'Not set';
-        var actual = p && p.actual_avg_price_30d ? 'Actual avg (30d): GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : 'No actual data yet';
-        var updated = p ? 'Updated ' + fmtDate(p.posted_at) : '';
+        var current = p && p.price_per_kg_ghs ? 'GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg' : 'Not set';
         return '<div class="price-card">' +
-            '<div class="price-card-mat">' + mat + '</div>' +
-            '<div class="price-card-current">' + current + '</div>' +
-            '<div class="price-card-sub">' + updated + '</div>' +
-            '<div class="price-card-actual">' + actual + '</div>' +
-            '<div class="price-input-row">' +
-            '<input type="number" class="price-input" id="price-ghs-' + mat + '" placeholder="GH₵ / kg" step="0.01" min="0">' +
-            '<button class="price-post-btn" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '<div class="pc-label">Material</div>' +
+            '<div class="pc-name">' + mat + '</div>' +
+            '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
+            '<div class="pc-inline">' +
+            '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH¢/kg" step="0.01" min="0">' +
+            '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
     document.getElementById('priceCards').innerHTML = html;
@@ -744,7 +574,7 @@ function renderPriceCards(prices) {
 
 function postPrice(mat) {
     var ghs = document.getElementById('price-ghs-' + mat).value;
-    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
+    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH¢ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ poster_type: 'aggregator', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
@@ -759,22 +589,22 @@ function renderCollectors(collectors) {
     if (!collectors || !collectors.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No collectors yet</td></tr>'; return; }
     tbody.innerHTML = collectors.map(function(c) {
         var name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.display_name;
-        var rating = c.average_rating ? '⭐ ' + parseFloat(c.average_rating).toFixed(1) : '—';
+        var rating = c.average_rating ? '★ ' + parseFloat(c.average_rating).toFixed(1) : '—';
         return '<tr>' +
             '<td class="td-name">' + esc(name) + '</td>' +
             '<td>' + esc(c.city || '—') + '</td>' +
-            '<td class="td-amount">' + fmt(c.total_kg) + ' kg</td>' +
+            '<td class="td-green">' + fmt(c.total_kg) + ' kg</td>' +
             '<td>' + c.txns + '</td>' +
             '<td>' + rating + '</td>' +
-            '<td><button class="btn-pay" onclick="openRatingModal(' + c.id + ',\'' + esc(name) + '\')">Rate</button></td>' +
+            '<td><button class="btn" onclick="openRatingModal(' + c.id + ',\'' + esc(name) + '\')">Rate</button></td>' +
             '</tr>';
     }).join('');
 }
 
 function paymentBadge(ps) {
-    if (ps === 'paid')         return '<span class="badge badge-green">Paid ✓</span>';
-    if (ps === 'payment_sent') return '<span class="badge badge-amber">Payment Sent</span>';
-    return '<span class="badge badge-gray">Unpaid</span>';
+    if (ps === 'paid')         return '<span class="pill pill-paid">Paid</span>';
+    if (ps === 'payment_sent') return '<span class="pill pill-sent">Payment Sent</span>';
+    return '<span class="pill pill-pending">Unpaid</span>';
 }
 
 function loadPendingTxns() {
@@ -784,7 +614,7 @@ function loadPendingTxns() {
             if (!data.success) return;
             var txns = (data.transactions || []).filter(function(t) { return t.payment_status === 'unpaid' || t.payment_status === 'payment_sent'; });
             var tbody = document.getElementById('pendingBody');
-            if (!txns.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pending payments</td></tr>'; return; }
+            if (!txns.length) { tbody.innerHTML = ''; return; }
             tbody.innerHTML = txns.map(function(t) {
                 var name = ((t.collector_first_name || '') + ' ' + (t.collector_last_name || '')).trim() || t.collector_display_name;
                 var action = '';
@@ -796,21 +626,23 @@ function loadPendingTxns() {
                             '<input type="radio" name="pm-' + t.id + '" value="mobile_money" onchange="toggleMoMo(\'txn\',' + t.id + ')"> Mobile Money' +
                         '</label>' +
                         '<div id="momo-field-txn-' + t.id + '" style="display:none;margin-bottom:6px">' +
-                            '<input type="text" id="momo-ref-txn-' + t.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit">' +
+                            '<input type="text" id="momo-ref-txn-' + t.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:0.82rem;font-family:inherit;background:var(--surface);color:var(--text-1)">' +
                         '</div>' +
                         '<button class="btn-pay" style="font-size:0.78rem" onclick="submitPaymentInitiate(\'txn\',' + t.id + ')">Confirm Payment</button>' +
                         '</div>';
                 } else if (t.payment_status === 'payment_sent') {
-                    action = '<span style="font-size:0.8rem;color:var(--slate-light)">Awaiting confirmation</span>';
+                    action = '<span style="font-size:0.8rem;color:var(--text-3)">Awaiting confirmation</span>';
                 }
-                return '<tr>' +
-                    '<td>' + fmtDate(t.transaction_date) + '</td>' +
-                    '<td>' + esc(name) + '</td>' +
-                    '<td><span class="badge badge-green">' + t.material_type + '</span></td>' +
-                    '<td>' + fmt(t.net_weight_kg) + '</td>' +
-                    '<td>GHS ' + fmt(t.total_price) + '</td>' +
-                    '<td>' + paymentBadge(t.payment_status) + '<div style="margin-top:6px">' + action + '</div></td>' +
-                    '</tr>';
+                return '<div class="bs-item">' +
+                    '<div class="bs-top">' +
+                    '<span class="pill pill-' + t.material_type.toLowerCase() + '">' + t.material_type + '</span>' +
+                    '<span class="bs-proc">' + esc(name) + '</span>' +
+                    '<span class="bs-meta">' + fmt(t.net_weight_kg) + ' kg</span>' +
+                    '<span class="bs-meta">GH¢ ' + fmt(t.total_price) + '</span>' +
+                    '<span class="bs-meta" style="margin-left:auto">' + fmtDate(t.transaction_date) + '</span>' +
+                    '</div>' +
+                    '<div class="bs-status-row">' + paymentBadge(t.payment_status) + '<div style="margin-left:auto">' + action + '</div></div>' +
+                    '</div>';
             }).join('');
         });
 }
@@ -869,19 +701,28 @@ function submitPaymentConfirm(table, id) {
 }
 
 function renderPL(s) {
+    var el = document.getElementById('plSummary');
+    if (!el) return;
     var paid = (s.payment_history || []).filter(function(p) { return p.status === 'success'; }).reduce(function(acc, p) { return acc + parseFloat(p.amount || 0); }, 0);
-    document.getElementById('plSummary').innerHTML =
-        '<div class="stat-card"><div class="stat-label">Total purchased (GHS)</div><div class="stat-value">' + fmt(s.totals.total_value) + '</div></div>' +
-        '<div class="stat-card"><div class="stat-label">Total paid out (GHS)</div><div class="stat-value">' + fmt(paid) + '</div></div>' +
-        '<div class="stat-card"><div class="stat-label">Outstanding (GHS)</div><div class="stat-value warn">' + fmt(s.pending_payments.value) + '</div></div>' +
-        '<div class="stat-card"><div class="stat-label">This month (GHS)</div><div class="stat-value">' + fmt(s.this_month.month_value) + '</div></div>';
+    el.innerHTML =
+        '<div>' +
+            '<div class="pl-col-title">Bought</div>' +
+            '<div class="pl-row"><span>Total purchased (GH¢)</span><span>' + fmt(s.totals.total_value) + '</span></div>' +
+            '<div class="pl-row"><span>Total paid out (GH¢)</span><span>' + fmt(paid) + '</span></div>' +
+            '<div class="pl-total"><span>Outstanding</span><span class="pl-total-val">' + fmt(s.pending_payments.value) + '</span></div>' +
+        '</div>' +
+        '<div>' +
+            '<div class="pl-col-title">Sold</div>' +
+            '<div class="pl-row"><span>This month (GH¢)</span><span>' + fmt(s.this_month.month_value) + '</span></div>' +
+            '<div class="pl-total"><span>Total</span><span class="pl-total-val">' + fmt(s.totals.total_value) + '</span></div>' +
+        '</div>';
 }
 
 function renderRatingsReceived(ratings) {
     var el = document.getElementById('ratingsReceivedList');
     if (!el) return;
     if (!ratings || !ratings.avg_rating) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
-    el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--green-deep)">⭐ ' + ratings.avg_rating + ' <span style="font-size:0.85rem;color:var(--slate-light);font-weight:400">from ' + ratings.count + ' ratings</span></div>';
+    el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--accent)">★ ' + ratings.avg_rating + ' <span style="font-size:0.85rem;color:var(--text-2);font-weight:400">from ' + ratings.count + ' ratings</span></div>';
 }
 
 // RATING MODAL
@@ -950,7 +791,7 @@ function loadIncomingCollections() {
             pendingMap = {};
             rows.forEach(function(pt) { pendingMap[pt.id] = pt; });
             if (!rows.length) {
-                list.innerHTML = '<div class="empty">No pending collections — collectors will appear here when they log a sale.</div>';
+                list.innerHTML = '<div class="empty"><div class="empty-icon">○</div><div>No pending collections — collectors will appear here when they log a sale.</div></div>';
                 return;
             }
             list.innerHTML = rows.map(function(pt) {
@@ -959,11 +800,11 @@ function loadIncomingCollections() {
                 var date = fmtDate(pt.created_at);
                 return '<div class="incoming-item" id="pt-item-' + pt.id + '">' +
                     '<div class="incoming-item-row">' +
-                    '<span class="badge badge-green">' + esc(pt.material_type) + '</span>' +
+                    '<span class="pill pill-' + (pt.material_type || '').toLowerCase() + '">' + esc(pt.material_type) + '</span>' +
                     '<span class="incoming-item-name">' + esc(name) + '</span>' +
                     '<span class="incoming-item-detail">' + kg + ' kg</span>' +
                     '<span class="incoming-item-detail">' + date + '</span>' +
-                    (pt.price_per_kg ? '<span class="incoming-item-detail">GH₵ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg offered</span>' : '') +
+                    (pt.price_per_kg ? '<span class="incoming-item-detail">GH¢ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg offered</span>' : '') +
                     '<button class="btn-review" id="review-btn-' + pt.id + '" onclick="openReview(' + pt.id + ')">Review</button>' +
                     '</div>' +
                     '<div class="review-panel" id="review-panel-' + pt.id + '" style="display:none"></div>' +
@@ -1016,8 +857,8 @@ function buildReviewPanel(ptId, pt, basePrice) {
         '<div id="price-preview-' + ptId + '" class="price-preview" style="display:none"></div>' +
         '<div class="review-fields">' +
         '<div>' +
-        '<label class="review-field-label">Price (GH₵/kg)</label>' +
-        '<input type="number" class="review-input" id="rev-price-' + ptId + '" value="' + esc(String(basePrice)) + '" placeholder="GH₵/kg" step="0.01" min="0" oninput="updatePricePreview(' + ptId + ')">' +
+        '<label class="review-field-label">Price (GH¢/kg)</label>' +
+        '<input type="number" class="review-input" id="rev-price-' + ptId + '" value="' + esc(String(basePrice)) + '" placeholder="GH¢/kg" step="0.01" min="0" oninput="updatePricePreview(' + ptId + ')">' +
         '</div>' +
         '<div>' +
         '<label class="review-field-label">Grade notes <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>' +
@@ -1025,7 +866,7 @@ function buildReviewPanel(ptId, pt, basePrice) {
         '</div>' +
         '</div>' +
         '<div class="review-actions">' +
-        '<button class="btn-accept" id="accept-btn-' + ptId + '" onclick="submitReview(' + ptId + ',\'accept\')" disabled>Accept</button>' +
+        '<button class="btn-green btn" id="accept-btn-' + ptId + '" onclick="submitReview(' + ptId + ',\'accept\')" disabled>Accept</button>' +
         '<button class="btn-reject-toggle" onclick="toggleRejectBlock(' + ptId + ')">Reject</button>' +
         '<button class="btn-cancel-review" onclick="openReview(' + ptId + ')">Cancel</button>' +
         '</div>' +
@@ -1040,8 +881,6 @@ function selectGrade(ptId, grade) {
     if (!reviewStateMap[ptId]) reviewStateMap[ptId] = {};
     reviewStateMap[ptId].grade = grade;
     ['A','B','C'].forEach(function(g) {
-        var btn = document.getElementById('gbA-'.replace('A', g) + ptId);
-        // Rebuild id based on grade letter
         var b = document.getElementById('gb' + g + '-' + ptId);
         if (b) b.className = 'grade-btn' + (g === grade ? ' sel-' + g.toLowerCase() : '');
     });
@@ -1060,7 +899,7 @@ function updatePricePreview(ptId) {
     var mult       = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
     var final      = parseFloat((basePrice * mult).toFixed(2));
     var total      = parseFloat((final * parseFloat(pt.gross_weight_kg)).toFixed(2));
-    preview.textContent = 'Final price: GH₵ ' + final.toFixed(2) + '/kg — Total: GH₵ ' + total.toFixed(2) + ' (' + parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg)';
+    preview.textContent = 'Final price: GH¢ ' + final.toFixed(2) + '/kg — Total: GH¢ ' + total.toFixed(2) + ' (' + parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg)';
     preview.style.display = '';
 }
 
@@ -1101,13 +940,13 @@ function submitReview(ptId, action) {
                     if (item.parentNode) item.parentNode.removeChild(item);
                     var list = document.getElementById('incomingList');
                     if (list && !list.querySelector('.incoming-item')) {
-                        list.innerHTML = '<div class="empty">No pending collections.</div>';
+                        list.innerHTML = '<div class="empty"><div class="empty-icon">○</div><div>No pending collections.</div></div>';
                     }
                 }, 300);
             }
             if (activeReviewId === ptId) activeReviewId = null;
             showToast(action === 'accept'
-                ? '✓ Sale accepted — transaction recorded'
+                ? 'Sale accepted — transaction recorded'
                 : 'Sale rejected');
             loadAll();
         } else {
@@ -1152,7 +991,7 @@ function submitAggregatorPurchase() {
 
     if (!collectorId || !material || !weight || parseFloat(weight) <= 0) {
         msg.textContent = 'Collector, material, and weight are required.';
-        msg.style.color = 'var(--red)';
+        msg.style.color = '#ef4444';
         msg.style.display = '';
         return;
     }
@@ -1173,8 +1012,8 @@ function submitAggregatorPurchase() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
-            msg.textContent = '✓ Purchase registered — waiting for collector to confirm.';
-            msg.style.color = 'var(--green-primary)';
+            msg.textContent = 'Purchase registered — waiting for collector to confirm.';
+            msg.style.color = 'var(--accent)';
             msg.style.display = '';
             document.getElementById('regCollector').value = '';
             document.getElementById('regMaterial').value  = '';
@@ -1182,13 +1021,13 @@ function submitAggregatorPurchase() {
             document.getElementById('regPrice').value     = '';
         } else {
             msg.textContent = data.message || 'Error registering purchase.';
-            msg.style.color = 'var(--red)';
+            msg.style.color = '#ef4444';
             msg.style.display = '';
         }
     })
     .catch(function() {
         msg.textContent = 'Connection error. Please try again.';
-        msg.style.color = 'var(--red)';
+        msg.style.color = '#ef4444';
         msg.style.display = '';
     });
 }
@@ -1218,7 +1057,6 @@ function loadProcessors() {
                 return '<option value="' + b.id + '" data-type="' + b.type + '">' + b.label + '</option>';
               }).join('')
             : '<option value="">No buyers found</option>';
-        // Store buyer posted prices for autofill (poster_id returned as aggregator_id field from pr8)
         var allPrices = (results[2].all_prices || results[2].near_prices || []);
         window._processorPrices = allPrices
             .filter(function(p) { return p.operator_role === 'processor' || p.operator_role === 'converter'; })
@@ -1249,11 +1087,11 @@ function updatePhotoWarning() {
     var area   = document.getElementById('photoArea');
     var warn   = document.getElementById('photoWarning');
     if (weight > 500) {
-        area.classList.add('photo-required');
-        warn.style.display = '';
+        if (area) area.classList.add('photo-required');
+        if (warn) warn.style.display = '';
     } else {
-        area.classList.remove('photo-required');
-        warn.style.display = 'none';
+        if (area) area.classList.remove('photo-required');
+        if (warn) warn.style.display = 'none';
     }
 }
 
@@ -1262,12 +1100,13 @@ function submitAggregatorSale() {
     var processorId = document.getElementById('sellProcessor').value;
     var weight      = document.getElementById('sellWeight').value;
     var price       = document.getElementById('sellPrice').value;
-    var notes       = document.getElementById('sellNotes').value.trim();
+    var notesEl     = document.getElementById('sellNotes');
+    var notes       = notesEl ? (notesEl.querySelector('input') ? notesEl.querySelector('input').value.trim() : '') : '';
     var msg         = document.getElementById('sellMsg');
 
     if (!material || !processorId || !weight || parseFloat(weight) <= 0 || !price || parseFloat(price) <= 0) {
         msg.textContent = 'Material, processor, weight, and price are all required.';
-        msg.style.color = 'var(--red)';
+        msg.style.color = '#ef4444';
         msg.style.display = '';
         return;
     }
@@ -1299,26 +1138,27 @@ function submitAggregatorSale() {
     .then(function(data) {
         if (data.success) {
             msg.textContent = data.photos_required
-                ? '✓ Sale logged — submit photos for processor approval before dispatching.'
-                : '✓ Sale logged — processor has been notified.';
-            msg.style.color = 'var(--green-primary)';
+                ? 'Sale logged — submit photos for processor approval before dispatching.'
+                : 'Sale logged — processor has been notified.';
+            msg.style.color = 'var(--accent)';
             msg.style.display = '';
             document.getElementById('sellMaterial').value  = '';
             document.getElementById('sellProcessor').value = '';
             document.getElementById('sellWeight').value    = '';
             document.getElementById('sellPrice').value     = '';
-            document.getElementById('sellNotes').value     = '';
+            var notesEl2 = document.getElementById('sellNotes');
+            if (notesEl2 && notesEl2.querySelector('input')) notesEl2.querySelector('input').value = '';
             updatePhotoWarning();
             loadMyBatchSales();
         } else {
             msg.textContent = data.message || 'Error logging sale.';
-            msg.style.color = 'var(--red)';
+            msg.style.color = '#ef4444';
             msg.style.display = '';
         }
     })
     .catch(function() {
         msg.textContent = 'Connection error. Please try again.';
-        msg.style.color = 'var(--red)';
+        msg.style.color = '#ef4444';
         msg.style.display = '';
     });
 }
@@ -1352,34 +1192,29 @@ function renderBatchSaleItem(pt) {
         : total.toFixed(2);
     var date  = fmtDate(pt.created_at);
 
-    // Status badge
     var statusBadge = buildBatchSaleStatusBadge(pt.status);
 
-    // Grade badge (shown when grade is set and status reflects grading)
     var gradeBadge = '';
     if (pt.grade && ['arrived', 'grade_c_flagged', 'completed'].indexOf(pt.status) !== -1) {
-        var gc = pt.grade === 'A' ? 'badge-grade-a' : pt.grade === 'B' ? 'badge-grade-b' : 'badge-grade-c-val';
-        gradeBadge = '<span class="badge ' + gc + '">Grade ' + esc(pt.grade) + '</span>';
+        var gc = pt.grade === 'A' ? 'pill-grade-a' : pt.grade === 'B' ? 'pill-grade-b' : 'pill-grade-c-val';
+        gradeBadge = '<span class="pill ' + gc + '">Grade ' + esc(pt.grade) + '</span>';
     }
 
-    // Photo indicator — photo_urls is JSONB, node-pg parses it as a JS array
     var photoUrls = pt.photo_urls;
     var hasPhotos = Array.isArray(photoUrls) ? photoUrls.length > 0
                   : (typeof photoUrls === 'string' && photoUrls !== '[]' && photoUrls !== 'null' && photoUrls !== '');
     var photoHtml = '';
     if (hasPhotos) {
-        photoHtml = '<span class="bs-photo-ok">✓ Photos attached</span>';
+        photoHtml = '<span class="bs-photo-ok">Photos attached</span>';
     } else if (parseFloat(pt.gross_weight_kg || 0) > 500) {
-        photoHtml = '<span class="bs-photo-warn">⚠ No photos (&gt;500 kg)</span>';
+        photoHtml = '<span class="bs-photo-warn">No photos (&gt;500 kg)</span>';
     }
 
-    // Rejection reason
     var rejectHtml = '';
     if (pt.status === 'dispatch_rejected' && pt.rejection_reason) {
         rejectHtml = '<div class="bs-reject-reason">Reason: ' + esc(pt.rejection_reason) + '</div>';
     }
 
-    // Payment row (aggregator is receiver — shows Confirm Receipt when payment_sent)
     var payHtml = '';
     var ps = pt.payment_status || 'unpaid';
     if (ps === 'payment_sent') {
@@ -1390,11 +1225,11 @@ function renderBatchSaleItem(pt) {
 
     return '<div class="bs-item">' +
         '<div class="bs-top">' +
-            '<span class="badge badge-green">' + esc(pt.material_type || '—') + '</span>' +
+            '<span class="pill pill-' + (pt.material_type || '').toLowerCase() + '">' + esc(pt.material_type || '—') + '</span>' +
             '<span class="bs-proc">' + esc(fromLabel) + ' → ' + esc(proc) + '</span>' +
             '<span class="bs-meta">' + kg + ' kg</span>' +
-            '<span class="bs-meta">GH₵ ' + price + '/kg</span>' +
-            '<span class="bs-meta">GH₵ ' + totalFmt + ' total</span>' +
+            '<span class="bs-meta">GH¢ ' + price + '/kg</span>' +
+            '<span class="bs-meta">GH¢ ' + totalFmt + ' total</span>' +
             '<span class="bs-meta" style="margin-left:auto">' + date + '</span>' +
         '</div>' +
         '<div class="bs-status-row">' +
@@ -1409,13 +1244,13 @@ function renderBatchSaleItem(pt) {
 
 function buildBatchSaleStatusBadge(status) {
     switch (status) {
-        case 'pending':           return '<span class="badge badge-status-pending">⏳ Awaiting Approval</span>';
-        case 'dispatch_approved': return '<span class="badge badge-status-dispatch-approved">✓ Dispatch Approved</span>';
-        case 'dispatch_rejected': return '<span class="badge badge-status-dispatch-rejected">✗ Dispatch Rejected</span>';
-        case 'arrived':           return '<span class="badge badge-status-arrived">✓ Arrived</span>';
-        case 'grade_c_flagged':   return '<span class="badge badge-status-grade-c">⚠ Grade C Flagged</span>';
-        case 'completed':         return '<span class="badge badge-status-completed">✓ Completed</span>';
-        default:                  return '<span class="badge badge-gray">' + esc(status || '—') + '</span>';
+        case 'pending':           return '<span class="pill pill-status-pending">Awaiting Approval</span>';
+        case 'dispatch_approved': return '<span class="pill pill-status-dispatch-approved">Dispatch Approved</span>';
+        case 'dispatch_rejected': return '<span class="pill pill-status-dispatch-rejected">Dispatch Rejected</span>';
+        case 'arrived':           return '<span class="pill pill-status-arrived">Arrived</span>';
+        case 'grade_c_flagged':   return '<span class="pill pill-status-grade-c">Grade C Flagged</span>';
+        case 'completed':         return '<span class="pill pill-status-completed">Completed</span>';
+        default:                  return '<span class="pill pill-pending">' + esc(status || '—') + '</span>';
     }
 }
 
@@ -1425,7 +1260,6 @@ function showToast(message, isError) {
     var toast = document.getElementById('toast');
     toast.textContent = message;
     toast.className = 'toast' + (isError ? ' toast-error' : '');
-    // Force reflow then show
     toast.offsetHeight;
     toast.classList.add('show');
     if (toastTimer) clearTimeout(toastTimer);
@@ -1464,7 +1298,7 @@ async function loadTopSuppliers(period) {
     var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
     var data = await apiFetch("/api/aggregator/top-suppliers?period=" + period, opts).then(function(r){return r.json();});
     renderTopTable(tbody, data, "collector_name", 5);
-  } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"table-empty\">No data yet</td></tr>"; }
+  } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"empty\">No data yet</td></tr>"; }
 }
 
 async function loadTopBuyers(period) {
@@ -1476,43 +1310,42 @@ async function loadTopBuyers(period) {
     var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
     var data = await apiFetch("/api/aggregator/top-buyers?period=" + period, opts).then(function(r){return r.json();});
     renderTopTable(tbody, data, "processor_name", 5);
-  } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"table-empty\">No data yet</td></tr>"; }
+  } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"empty\">No data yet</td></tr>"; }
 }
 
 function renderTopTable(tbody, rows, nameKey, cols) {
   if (!rows || !Array.isArray(rows) || !rows.length) {
-    tbody.innerHTML = "<tr><td colspan=\"" + cols + "\" class=\"table-empty\">No data yet</td></tr>";
+    tbody.innerHTML = "<tr><td colspan=\"" + cols + "\" class=\"empty\">No data yet</td></tr>";
     return;
   }
   tbody.innerHTML = rows.slice(0,3).map(function(r,i) {
-    var color = i === 0 ? "#00e676" : "#555";
     var name = esc(r[nameKey] || r.name || "—");
     var vol = Math.round(r.ytd_kg || r.total_kg || 0) + " kg";
     var avg = r.avg_price ? "GH¢ " + parseFloat(r.avg_price).toFixed(2) + "/kg" : "—";
     var txns = r.transaction_count || r.count || 0;
-    return "<tr><td style=\"color:" + color + ";font-weight:700;font-size:15px;\">" + (i+1) + "</td>" +
+    return "<tr><td style=\"color:var(--accent);font-weight:700\">" + (i+1) + "</td>" +
            "<td class=\"td-name\">" + name + "</td>" +
-           "<td style=\"font-weight:600;\">" + vol + "</td>" +
-           "<td style=\"color:#00e676;font-weight:600;\">" + avg + "</td>" +
+           "<td>" + vol + "</td>" +
+           "<td class=\"td-green\">" + avg + "</td>" +
            "<td>" + txns + "</td></tr>";
   }).join("");
 }
 
 function switchTopSuppliers(period) {
-  document.getElementById("suppMonthBtn").classList.toggle("active", period==="month");
-  document.getElementById("suppYTDBtn").classList.toggle("active", period==="ytd");
+  document.getElementById("suppMonthBtn").className = "tab" + (period==="month" ? " on" : "");
+  document.getElementById("suppYTDBtn").className = "tab" + (period==="ytd" ? " on" : "");
   loadTopSuppliers(period);
 }
 function switchTopBuyers(period) {
-  document.getElementById("buyMonthBtn").classList.toggle("active", period==="month");
-  document.getElementById("buyYTDBtn").classList.toggle("active", period==="ytd");
+  document.getElementById("buyMonthBtn").className = "tab" + (period==="month" ? " on" : "");
+  document.getElementById("buyYTDBtn").className = "tab" + (period==="ytd" ? " on" : "");
   loadTopBuyers(period);
 }
 
 /* P&L TOGGLE */
 function switchPLView(mode) {
-  document.getElementById("plMonthBtn").classList.toggle("active", mode==="month");
-  document.getElementById("plYTDBtn").classList.toggle("active", mode==="ytd");
+  document.getElementById("plMonthBtn").className = "tab" + (mode==="month" ? " on" : "");
+  document.getElementById("plYTDBtn").className = "tab" + (mode==="ytd" ? " on" : "");
   renderPL(mode);
 }
 
@@ -1532,7 +1365,7 @@ async function submitSuggestCategory() {
       body: JSON.stringify({ category_name: name, aggregator_id: window._aggId })
     });
     closeSuggestModal();
-    showToast('\u2713 Suggestion submitted \u2014 we\'ll review within 24h');
+    showToast('Suggestion submitted \u2014 we\'ll review within 24h');
   } catch(e) { showToast("Error submitting suggestion"); }
 }
 

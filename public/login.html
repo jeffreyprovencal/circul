@@ -5,280 +5,165 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — Circul</title>
   <meta name="description" content="Sign in to your Circul account.">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared.css">
 <style>
-    body{
-      display:flex;flex-direction:column;
-    }
+/* ── LOGIN PAGE ── */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 41px);padding:24px}
+.login-card{width:100%;max-width:420px}
+.login-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px}
+.login-logo-icon{width:40px;height:40px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#000;font-size:17px;font-weight:900}
+.login-logo-text{font-size:1.4rem;font-weight:800;color:var(--text-1)}
+.login-title{text-align:center;font-size:1.1rem;font-weight:700;margin-bottom:20px}
+.demo-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:24px;text-align:center}
+.demo-bar.hidden{display:none}
+.demo-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px}
+.demo-btns{display:flex;flex-direction:column;gap:8px;align-items:center}
+.demo-btn{padding:7px 14px;border-radius:20px;font-size:0.7rem;font-weight:700;letter-spacing:0.04em;border:none;cursor:pointer;font-family:var(--font);transition:opacity 0.15s}
+.demo-btn:hover{opacity:0.85}
+.auth-tabs{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+.auth-tab{flex:1;padding:10px;text-align:center;font-size:0.8rem;font-weight:600;background:transparent;border:none;color:var(--text-3);cursor:pointer;font-family:var(--font)}
+.auth-tab.on{background:var(--accent);color:#000}
+.login-group{margin-bottom:14px}
+.login-label{display:block;font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px}
+.login-input{width:100%;padding:10px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.85rem}
+.login-input::placeholder{color:var(--text-3)}
+.login-input:focus{outline:none;border-color:var(--accent)}
+.pin-row{display:flex;gap:8px}
+.pin-box{width:48px;height:48px;text-align:center;font-size:1.2rem;font-weight:700;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);-moz-appearance:textfield}
+.pin-box::-webkit-outer-spin-button,.pin-box::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.pin-box:focus{outline:none;border-color:var(--accent)}
+.login-forgot{display:block;text-align:right;font-size:0.75rem;color:var(--text-3);margin-top:6px}
+.login-forgot:hover{color:var(--accent)}
+.login-submit{width:100%;padding:12px;margin-top:18px;background:var(--accent);color:#000;font-family:var(--font);font-size:0.9rem;font-weight:700;border:none;border-radius:var(--r-md);cursor:pointer}
+.login-submit:hover{background:var(--accent-hover)}
+.login-submit.loading{pointer-events:none;opacity:0.7}
+.login-link{display:block;text-align:center;margin-top:16px;font-size:0.8rem;color:var(--text-3)}
+.login-link a{color:var(--accent);font-weight:600}
+.login-footer{text-align:center;padding:16px;font-size:0.7rem;color:var(--text-3);position:fixed;bottom:0;left:0;right:0}
+.login-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:var(--nav-bg);border-bottom:1px solid var(--border-nav)}
+.login-nav-links{display:flex;gap:16px}
+.login-nav-link{font-size:0.85rem;color:var(--text-2);font-weight:500}
+.login-nav-link:hover{color:var(--text-1)}
 
-    /* NAV */
-    .nav{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:0 60px;height:64px;
-      background:rgba(10,26,15,0.95);backdrop-filter:blur(12px);
-      border-bottom:1px solid #1a2e1a;position:sticky;top:0;z-index:100;
-    }
-    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:#e8f5e9;}
-    .nav-logo-icon{width:30px;height:30px;background:#00e676;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#000;font-weight:900;}
-    .nav-right{display:flex;align-items:center;gap:16px;}
-    .nav-ghost{
-      color:#9ab8a0;font-size:14px;font-weight:600;
-      padding:8px 16px;border:1.5px solid #1a3a1a;border-radius:20px;
-      transition:border-color .2s,color .2s;
-    }
-    .nav-ghost:hover{border-color:#4a8a4a;color:#e8f5e9;}
-    .nav-demo{
-      display:inline-flex;align-items:center;background:#00e676;color:#0a1a0f;
-      padding:9px 20px;border-radius:20px;font-size:14px;font-weight:700;
-      transition:background .2s,transform .15s;
-    }
-    .nav-demo:hover{background:#33eb8e;transform:translateY(-1px);}
-    .nav-signin {
-      color: #9ab8a0;
-      font-size: 15px;
-      font-weight: 500;
-      transition: color 0.2s;
-      text-decoration: none;
-    }
-    .nav-signin:hover {
-      color: #e8f5e9;
-    }
+/* Tab panels */
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 
-    /* MAIN */
-    .main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 20px;}
+/* Error */
+.error-msg{display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:var(--r-sm);padding:10px 14px;font-size:0.8rem;color:#f87171;margin-bottom:14px}
+.error-msg.visible{display:block}
 
-    .card-wrap{width:100%;max-width:420px;}
+/* Role selector */
+.role-selector{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;padding:24px}
+.role-selector.visible{display:flex}
+.role-selector-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:16px;padding:40px 32px 32px;width:100%;max-width:360px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.role-selector-heading{font-size:1.1rem;font-weight:700;color:var(--text-1);margin-bottom:8px}
+.role-selector-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:28px}
+.role-selector-btns{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+.role-btn{display:block;width:100%;padding:14px 20px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text-1);font-size:0.9rem;font-weight:600;cursor:pointer;text-align:left;font-family:var(--font);transition:border-color 0.15s,background 0.15s}
+.role-btn:hover{border-color:var(--accent);background:var(--surface-alt)}
+.role-btn-sub{display:block;font-size:0.75rem;font-weight:400;color:var(--text-2);margin-top:2px}
+.role-selector-cancel{background:none;border:none;color:var(--text-3);font-size:0.8rem;cursor:pointer;text-decoration:underline;padding:4px;font-family:var(--font)}
+.role-selector-cancel:hover{color:var(--text-2)}
 
-    /* Demo banner */
-    .demo-banner{
-      display:none;background:#0f2a14;border:1px solid #1a3a1a;border-radius:12px 12px 0 0;
-      padding:16px 20px;text-align:center;
-    }
-    .demo-banner.visible{display:block;}
-    .demo-banner-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9ab8a0;margin-bottom:10px;}
-    .demo-buttons{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
-    .demo-btn{
-      padding:6px 14px;background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.2);
-      border-radius:8px;font-size:13px;font-weight:600;color:#9ab8a0;cursor:pointer;
-      transition:background .15s,border-color .15s;
-    }
-    .demo-btn:hover{background:rgba(0,230,118,.15);border-color:rgba(0,230,118,.4);color:#e8f5e9;}
-
-    /* Card */
-    .card{
-      background:#0c1e0e;border:1px solid #1a3a1a;border-radius:12px;
-      padding:40px 36px 36px;
-    }
-    .demo-banner.visible + .card{border-radius:0 0 12px 12px;}
-
-    .card-heading{font-size:22px;font-weight:800;color:#e8f5e9;margin-bottom:28px;letter-spacing:-.3px;}
-
-    /* Tabs */
-    .tabs{display:flex;background:#0a1a0f;border:1px solid #1a3a1a;border-radius:8px;padding:3px;margin-bottom:28px;}
-    .tab{
-      flex:1;padding:9px;text-align:center;border-radius:6px;cursor:pointer;
-      font-size:13px;font-weight:600;color:#9ab8a0;border:none;background:none;
-      transition:background .15s,color .15s;
-    }
-    .tab.active{background:#1a3a1a;color:#e8f5e9;}
-    .tab:hover:not(.active){color:#e8f5e9;}
-
-    /* Tab panels */
-    .tab-panel{display:none;}
-    .tab-panel.active{display:block;}
-
-    /* Form */
-    .form-group{margin-bottom:18px;}
-    label{display:block;font-size:13px;font-weight:600;color:#9ab8a0;margin-bottom:6px;}
-    .input{
-      display:block;width:100%;padding:12px 14px;
-      background:#0a1a0f;border:1.5px solid #1a3a1a;border-radius:10px;
-      font-size:15px;color:#e8f5e9;outline:none;
-      transition:border-color .15s,box-shadow .15s;appearance:none;
-    }
-    .input::placeholder{color:#4a6a4a;}
-    .input:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
-
-    /* PIN boxes */
-    .pin-row{display:flex;gap:10px;}
-    .pin-digit{
-      flex:1;max-width:72px;text-align:center;
-      padding:14px 8px;font-size:22px;font-weight:700;
-      background:#0a1a0f;border:1.5px solid #1a3a1a;border-radius:10px;
-      color:#e8f5e9;outline:none;
-      -webkit-text-security:disc;
-      transition:border-color .15s,box-shadow .15s;appearance:none;
-    }
-    .pin-digit:focus{border-color:#00e676;box-shadow:0 0 0 3px rgba(0,230,118,.1);}
-
-    .forgot-link{display:inline-block;font-size:12px;color:#4a6a4a;margin-top:6px;transition:color .15s;}
-    .forgot-link:hover{color:#9ab8a0;}
-
-    /* Error */
-    .error-msg{
-      display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);
-      border-radius:8px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:16px;
-    }
-    .error-msg.visible{display:block;}
-
-    /* Submit button */
-    .btn-submit{
-      display:block;width:100%;padding:13px 20px;
-      background:#00e676;color:#0a1a0f;border:none;border-radius:10px;
-      font-size:15px;font-weight:700;cursor:pointer;
-      transition:background .15s,transform .1s;margin-top:24px;
-    }
-    .btn-submit:hover{background:#33eb8e;}
-    .btn-submit:active{transform:scale(.99);}
-    .btn-submit.loading{pointer-events:none;opacity:.7;}
-
-    /* Divider + no-account */
-    .or-divider{display:flex;align-items:center;gap:12px;margin:20px 0 16px;color:#2a4a2a;font-size:12px;}
-    .or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:#1a3a1a;}
-    .no-account-link{display:block;text-align:center;font-size:13px;color:#9ab8a0;}
-    .no-account-link strong{color:#00e676;font-weight:700;}
-    .no-account-link:hover strong{text-decoration:underline;}
-
-    /* Role selector */
-    .role-selector{
-      display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
-      backdrop-filter:blur(4px);z-index:200;
-      align-items:center;justify-content:center;padding:24px;
-    }
-    .role-selector.visible{display:flex;}
-    .role-selector-card{
-      background:#0c1e0e;border:1px solid #1a3a1a;border-radius:16px;
-      padding:40px 32px 32px;width:100%;max-width:360px;text-align:center;
-      box-shadow:0 20px 60px rgba(0,0,0,.5);
-    }
-    .role-selector-heading{font-size:20px;font-weight:700;color:#e8f5e9;margin-bottom:8px;}
-    .role-selector-sub{font-size:14px;color:#9ab8a0;margin-bottom:28px;}
-    .role-selector-btns{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
-    .role-btn{
-      display:block;width:100%;padding:14px 20px;
-      border:1.5px solid #1a3a1a;border-radius:10px;
-      background:#0a1a0f;color:#e8f5e9;font-size:15px;font-weight:600;
-      cursor:pointer;text-align:left;
-      transition:border-color .15s,background .15s;
-    }
-    .role-btn:hover{border-color:#00e676;background:#0f2a14;}
-    .role-btn-sub{display:block;font-size:12px;font-weight:400;color:#9ab8a0;margin-top:2px;}
-    .role-selector-cancel{
-      background:none;border:none;color:#4a6a4a;font-size:13px;cursor:pointer;
-      text-decoration:underline;padding:4px;
-    }
-    .role-selector-cancel:hover{color:#9ab8a0;}
-
-    /* FOOTER */
-    .page-footer{padding:24px;text-align:center;flex-shrink:0;}
-    .page-footer p{font-size:12px;color:#2a4a2a;}
-
-    @media(max-width:480px){
-      .nav{padding:0 16px;}
-      .card{padding:32px 20px 28px;}
-      .card-wrap{padding:0;}
-      .main{padding:32px 16px;}
-    }
-  </style>
+@media(max-width:768px){
+  .login-wrap{padding:16px}
+  .login-card{max-width:100%}
+  .demo-btns{flex-direction:column;align-items:center}
+  .pin-box{width:42px;height:42px;font-size:1rem}
+}
+</style>
 </head>
 <body>
 
-  <!-- NAV -->
-  <nav class="nav">
-    <a href="/" class="nav-logo">
-      <div class="nav-logo-icon">◎</div>
-      Circul
-    </a>
-    <div class="nav-right">
-      <a href="/register.html" class="nav-ghost">Create account</a>
-      <a href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&amp;body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo." class="nav-demo">Request a demo</a>
-    </div>
-  </nav>
+<!-- Simple nav: logo + links -->
+<div class="login-nav">
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <div class="login-nav-links">
+    <a class="login-nav-link" href="/register.html">Create account</a>
+    <a class="login-nav-link" href="mailto:jeffrey@thebolderstudio.com?subject=Demo%20request%20%E2%80%94%20Circul&amp;body=Hi%20Jeffrey%2C%0A%0AI%27d%20like%20to%20book%20a%20demo.">Request a demo</a>
+  </div>
+</div>
 
-  <!-- MAIN -->
-  <main class="main">
-    <div class="card-wrap">
+<div class="login-wrap">
+  <div class="login-card">
 
-      <!-- Demo banner (shown when ?demo=1) -->
-      <div class="demo-banner" id="demoBanner">
-        <div class="demo-banner-label">◉ Try a demo account</div>
-        <div class="demo-buttons">
-          <button class="demo-btn" onclick="fillDemo('0241000001','0000')">Collector</button>
-          <button class="demo-btn" onclick="fillDemo('0300000002','2222')">Aggregator</button>
-          <button class="demo-btn" onclick="fillDemoEmail('jeffrey@circul.demo','demo1234')">Processor</button>
-          <button class="demo-btn" onclick="fillDemoEmail('poly@circul.demo','demo1234')">Recycler</button>
-          <button class="demo-btn" onclick="fillDemoEmail('miniplast@circul.demo','demo1234')">Converter</button>
+    <!-- Demo quick-access -->
+    <div class="demo-bar hidden" id="demoBanner">
+      <div class="demo-label">◉ Try a demo account</div>
+      <div class="demo-btns">
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button class="demo-btn" style="background:#0f2a14;color:#00e676" onclick="fillDemo('0241000001','0000')">Collector</button>
+          <button class="demo-btn" style="background:#0a2a28;color:#26c6da" onclick="fillDemo('0300000002','2222')">Aggregator</button>
         </div>
-      </div>
-
-      <!-- Card -->
-      <div class="card">
-        <h1 class="card-heading">Sign in to Circul</h1>
-
-        <!-- Tabs -->
-        <div class="tabs" role="tablist">
-          <button class="tab active" id="tab-phone" role="tab" aria-selected="true" onclick="switchTab('phone')">Phone + PIN</button>
-          <button class="tab" id="tab-email" role="tab" aria-selected="false" onclick="switchTab('email')">Email + Password</button>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button class="demo-btn" style="background:#0a1e2a;color:#42a5f5" onclick="fillDemoEmail('jeffrey@circul.demo','demo1234')">Processor</button>
+          <button class="demo-btn" style="background:#160d2e;color:#b388ff" onclick="fillDemoEmail('poly@circul.demo','demo1234')">Recycler</button>
+          <button class="demo-btn" style="background:#2a0a1a;color:#f48fb1" onclick="fillDemoEmail('miniplast@circul.demo','demo1234')">Converter</button>
         </div>
-
-        <!-- Phone + PIN panel -->
-        <div class="tab-panel active" id="panel-phone" role="tabpanel">
-          <div class="error-msg" id="error-phone" role="alert" aria-live="polite"></div>
-          <div class="form-group">
-            <label for="phone-input">Phone number</label>
-            <input class="input" type="tel" id="phone-input" placeholder="0244 000 000" autocomplete="off" inputmode="tel">
-          </div>
-          <div class="form-group" style="margin-bottom:4px;">
-            <label>4-digit PIN</label>
-            <div class="pin-row">
-              <input class="pin-digit" type="text" id="pin1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 1">
-              <input class="pin-digit" type="text" id="pin2" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 2">
-              <input class="pin-digit" type="text" id="pin3" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 3">
-              <input class="pin-digit" type="text" id="pin4" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 4">
-            </div>
-          </div>
-          <a href="mailto:jeffrey@thebolderstudio.com?subject=Forgot%20PIN%20%E2%80%94%20Circul" class="forgot-link">Forgot your PIN?</a>
-          <button type="button" class="btn-submit" id="btn-phone" onclick="submitPhone()">Sign in</button>
-          <div class="or-divider">or</div>
-          <a href="/register.html" class="no-account-link">No account yet? <strong>Create one free →</strong></a>
-        </div>
-
-        <!-- Email + Password panel -->
-        <div class="tab-panel" id="panel-email" role="tabpanel">
-          <div class="error-msg" id="error-email" role="alert" aria-live="polite"></div>
-          <div class="form-group">
-            <label for="email-input">Email</label>
-            <input class="input" type="email" id="email-input" placeholder="you@company.com" autocomplete="off">
-          </div>
-          <div class="form-group" style="margin-bottom:4px;">
-            <label for="password-input">Password</label>
-            <input class="input" type="password" id="password-input" placeholder="Your password" autocomplete="off">
-          </div>
-          <a href="mailto:jeffrey@thebolderstudio.com?subject=Forgot%20password%20%E2%80%94%20Circul" class="forgot-link">Forgot your password?</a>
-          <button type="button" class="btn-submit" id="btn-email" onclick="submitEmail()">Sign in</button>
-          <div class="or-divider">or</div>
-          <a href="/register.html" class="no-account-link">No account yet? <strong>Create one free →</strong></a>
-        </div>
-
       </div>
     </div>
 
-    <!-- Role selector (shown when account has multiple roles) -->
-    <div class="role-selector" id="roleSelector" aria-hidden="true">
-      <div class="role-selector-card">
-        <h2 class="role-selector-heading">Continue as…</h2>
-        <p class="role-selector-sub">This account has access to multiple dashboards.</p>
-        <div class="role-selector-btns" id="roleSelectorBtns"></div>
-        <button class="role-selector-cancel" onclick="cancelRoleSelector()">← Back</button>
-      </div>
+    <div class="login-title">Sign in to Circul</div>
+
+    <!-- Auth tabs -->
+    <div class="auth-tabs">
+      <button class="auth-tab on" id="tab-phone" onclick="switchTab('phone')">Phone + PIN</button>
+      <button class="auth-tab" id="tab-email" onclick="switchTab('email')">Email + Password</button>
     </div>
 
-  </main>
+    <!-- Phone + PIN panel -->
+    <div class="tab-panel active" id="panel-phone">
+      <div class="error-msg" id="error-phone" role="alert" aria-live="polite"></div>
+      <div class="login-group">
+        <label class="login-label" for="phone-input">Phone number</label>
+        <input class="login-input" type="tel" id="phone-input" placeholder="0244 000 000" autocomplete="off" inputmode="tel">
+      </div>
+      <div class="login-group">
+        <label class="login-label">4-digit PIN</label>
+        <div class="pin-row">
+          <input class="pin-box" type="text" id="pin1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 1">
+          <input class="pin-box" type="text" id="pin2" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 2">
+          <input class="pin-box" type="text" id="pin3" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 3">
+          <input class="pin-box" type="text" id="pin4" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="PIN digit 4">
+        </div>
+      </div>
+      <a class="login-forgot" href="mailto:jeffrey@thebolderstudio.com?subject=Forgot%20PIN%20%E2%80%94%20Circul">Forgot your PIN?</a>
+      <button type="button" class="login-submit" id="btn-phone" onclick="submitPhone()">Sign in</button>
+      <div class="login-link">No account yet? <a href="/register.html">Create one free →</a></div>
+    </div>
 
-  <!-- FOOTER -->
-  <footer class="page-footer">
-    <p>© 2026 Circul — The Waste-to-Resource Operating System · Built in Accra</p>
-  </footer>
+    <!-- Email + Password panel -->
+    <div class="tab-panel" id="panel-email">
+      <div class="error-msg" id="error-email" role="alert" aria-live="polite"></div>
+      <div class="login-group">
+        <label class="login-label" for="email-input">Email</label>
+        <input class="login-input" type="email" id="email-input" placeholder="you@company.com" autocomplete="off">
+      </div>
+      <div class="login-group">
+        <label class="login-label" for="password-input">Password</label>
+        <input class="login-input" type="password" id="password-input" placeholder="Your password" autocomplete="off">
+      </div>
+      <a class="login-forgot" href="mailto:jeffrey@thebolderstudio.com?subject=Forgot%20password%20%E2%80%94%20Circul">Forgot your password?</a>
+      <button type="button" class="login-submit" id="btn-email" onclick="submitEmail()">Sign in</button>
+      <div class="login-link">No account yet? <a href="/register.html">Create one free →</a></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Role selector (shown when account has multiple roles) -->
+<div class="role-selector" id="roleSelector" aria-hidden="true">
+  <div class="role-selector-card">
+    <h2 class="role-selector-heading">Continue as…</h2>
+    <p class="role-selector-sub">This account has access to multiple dashboards.</p>
+    <div class="role-selector-btns" id="roleSelectorBtns"></div>
+    <button class="role-selector-cancel" onclick="cancelRoleSelector()">← Back</button>
+  </div>
+</div>
+
+<div class="login-footer">© 2026 Circul — The Waste-to-Resource Operating System · Built in Accra</div>
 
   <script src="/shared/roles.js"></script>
   <script>
@@ -289,8 +174,8 @@
 
     /* ── Tabs ──────────────────────────────── */
     function switchTab(tab) {
-      document.getElementById('tab-phone').classList.toggle('active', tab === 'phone');
-      document.getElementById('tab-email').classList.toggle('active', tab === 'email');
+      document.getElementById('tab-phone').classList.toggle('on', tab === 'phone');
+      document.getElementById('tab-email').classList.toggle('on', tab === 'email');
       document.getElementById('panel-phone').classList.toggle('active', tab === 'phone');
       document.getElementById('panel-email').classList.toggle('active', tab === 'email');
       clearErrors();
@@ -418,7 +303,7 @@
 
     /* ── Demo banner ──────────────────────── */
     if (new URLSearchParams(window.location.search).get('demo') === '1') {
-      document.getElementById('demoBanner').classList.add('visible');
+      document.getElementById('demoBanner').classList.remove('hidden');
     }
 
     /* ── Role selector ─────────────────── */
