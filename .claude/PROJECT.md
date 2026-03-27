@@ -162,6 +162,20 @@ Every dashboard's `apiFetch` function (or equivalent) must include retry logic f
 
 ---
 
+### PR Verification Checklist
+
+**Before marking any PR ready:**
+
+1. For every INSERT/UPDATE, verify each column's type from `migrations/*.js` — no assumptions.
+2. For every string literal in a constrained column, verify it against the CHECK constraint.
+3. Run a curl smoke test against each modified endpoint on the local server (or staging).
+4. For seed SQL, validate column count and types match the table schema before committing.
+5. Never call a fix "done" without a passing API call response in the terminal output.
+
+This won't catch everything, but it would have caught all five issues in PR9 before they shipped.
+
+---
+
 ## Known Issues & Patterns
 
 - **`/api/collector/prices` returns 500** — fix is in PR #19 (pending deploy). Uses a ratings subquery to replace non-existent `aggregators.average_rating` column.
