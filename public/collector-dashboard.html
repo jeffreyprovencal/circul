@@ -65,7 +65,7 @@
       <div class="hero-name" id="collectorNameHero">—</div>
       <div class="hero-meta">
         <span id="collectorPhone"></span>
-        <span class="sep" id="metaSep1" style="display:none">·</span>
+        <span class="sep hidden" id="metaSep1">·</span>
         <span id="collectorRegion"></span>
         <span class="stars">★</span> <span id="collectorRating">—</span>
         <span class="badge">ACTIVE</span>
@@ -128,7 +128,7 @@
         <thead><tr>
           <th>#</th><th>Aggregator</th><th>Volume YTD</th><th>Avg Price (last 10)</th><th>Transactions</th>
         </tr></thead>
-        <tbody id="topBuyersBody"><tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">Loading…</td></tr></tbody>
+        <tbody id="topBuyersBody"><tr><td colspan="5" class="placeholder-cell">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -193,12 +193,12 @@
       </div>
     </div>
     <div class="price-grid" id="pricesGrid">
-      <div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-3)">Loading…</div>
+      <div class="placeholder-cell" style="grid-column:1/-1">Loading…</div>
     </div>
   </div>
 
   <!-- PENDING PURCHASES -->
-  <div class="section" id="pendAggCard" style="display:none">
+  <div class="section hidden" id="pendAggCard">
     <div class="section-title">Pending purchases from aggregators</div>
     <div class="section-sub" style="margin-bottom:14px">Review and accept or decline</div>
     <div id="pendAggList"></div>
@@ -217,7 +217,7 @@
         <thead><tr>
           <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Earned</th><th>Payment</th><th>Action</th>
         </tr></thead>
-        <tbody id="txnBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading…</td></tr></tbody>
+        <tbody id="txnBody"><tr><td colspan="7" class="placeholder-cell">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -299,7 +299,7 @@ function handleCollectorLogin() {
   var btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';
   var errEl = document.getElementById('loginError');
-  errEl.style.display = 'none';
+  errEl.classList.add('hidden');
   fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, pin: pin }) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -315,10 +315,10 @@ function handleCollectorLogin() {
         showDashboard();
       } else {
         errEl.textContent = data.message || 'Invalid phone or PIN';
-        errEl.style.display = 'block';
+        errEl.classList.remove('hidden');
       }
     })
-    .catch(function() { errEl.textContent = 'Connection error.'; errEl.style.display = 'block'; })
+    .catch(function() { errEl.textContent = 'Connection error.'; errEl.classList.remove('hidden'); })
     .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
 }
 
@@ -404,7 +404,7 @@ function populateProfile(me) {
 
   const phoneEl = document.getElementById('collectorPhone');
   const sep1 = document.getElementById('metaSep1');
-  if (phoneEl) { phoneEl.textContent = phone; if (sep1) sep1.style.display = phone ? '' : 'none'; }
+  if (phoneEl) { phoneEl.textContent = phone; if (sep1) sep1.classList.toggle('hidden', !phone); }
   const regionEl = document.getElementById('collectorRegion');
   if (regionEl) regionEl.textContent = region;
   const ratingEl = document.getElementById('collectorRating');
@@ -486,14 +486,14 @@ async function populateTopBuyers() {
     renderTopBuyers(data);
   } catch(e) {
     const tbody = document.getElementById('topBuyersBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">No data yet</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="placeholder-cell">No data yet</td></tr>';
   }
 }
 function renderTopBuyers(rows) {
   const tbody = document.getElementById('topBuyersBody');
   if (!tbody) return;
   if (!rows || !rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">No transactions yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="placeholder-cell">No transactions yet</td></tr>';
     return;
   }
   tbody.innerHTML = rows.slice(0,5).map((r,i) => `
@@ -521,7 +521,7 @@ async function populateTxns() {
     const tbody = document.getElementById('txnBody');
     if (!tbody) return;
     if (!txns || !txns.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">No transactions yet</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="placeholder-cell">No transactions yet</td></tr>';
       return;
     }
     tbody.innerHTML = txns.map(t => {
@@ -565,7 +565,7 @@ async function populatePrices() {
     const grid = document.getElementById('pricesGrid');
     if (!grid) return;
     if (!prices || !prices.length) {
-      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-3)">No prices posted near you yet</div>';
+      grid.innerHTML = '<div class="placeholder-cell" style="grid-column:1/-1">No prices posted near you yet</div>';
       return;
     }
     const sorted = [...prices].sort((a,b) => {
@@ -604,8 +604,8 @@ async function loadPendingFromAgg() {
     const card = document.getElementById('pendAggCard');
     const list = document.getElementById('pendAggList');
     if (!card || !list) return;
-    if (!pending || !pending.length) { card.style.display = 'none'; return; }
-    card.style.display = '';
+    if (!pending || !pending.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
     list.innerHTML = pending.map(p => `
       <div class="pend-item">
         <div class="pend-item-head">
