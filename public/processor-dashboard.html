@@ -9,33 +9,20 @@
 <style>
 /* ── LOGIN OVERLAY ── */
 .login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
-.login-overlay.hidden{display:none}
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
 .login-title{font-size:1.3rem;font-weight:700;color:var(--text-1);margin-bottom:6px}
 .login-subtitle{font-size:0.8rem;color:var(--text-3);margin-bottom:28px}
-.login-error{color:#ef5350;font-size:0.8rem;margin-bottom:12px;display:none}
-.login-error.visible{display:block}
+.login-error{margin-bottom:12px}
 .login-field{margin-bottom:16px}
 
-/* ── TOAST ── */
-.proc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px 24px;color:var(--text-1);font-size:0.85rem;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.4);opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap}
-.proc-toast.show{opacity:1}
+/* ── TOAST (local overrides) ── */
+.toast-error{background:#7f1d1d;color:#fca5a5;border-color:#ef5350}
 
-/* ── RATING MODAL ── */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:480px;max-width:95vw}
-.modal-title{font-size:1.1rem;font-weight:700;color:var(--text-1);margin-bottom:4px}
-.modal-sub{font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
-.star-btn{font-size:1.6rem;color:var(--text-3);cursor:pointer;transition:color 0.1s}
-.star-btn.active{color:#ffd740}
-.stars-row{display:flex;gap:8px;margin-bottom:18px}
-.rtag{display:inline-block;padding:6px 14px;border-radius:20px;font-size:0.75rem;cursor:pointer;border:1px solid transparent;margin:0 4px 6px 0}
+/* ── RATING (local overrides) ── */
 .rtag.positive{background:var(--accent-muted);color:var(--accent);border-color:rgba(0,230,118,0.25)}
 .rtag.negative{background:rgba(255,193,7,0.1);color:#ffd740;border-color:rgba(255,193,7,0.25)}
 .rtag.positive.selected{background:var(--accent);color:#000;font-weight:700}
 .rtag.negative.selected{background:#ffd740;color:#1a0a00;font-weight:700}
-.rating-note-input{width:100%;box-sizing:border-box;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;color:var(--text-1);font-family:var(--font);font-size:0.8rem;height:80px;resize:vertical;margin-bottom:16px}
-.modal-actions{display:flex;gap:10px}
 
 /* ── DELIVERY CARDS ── */
 .delivery-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px}
@@ -73,8 +60,6 @@
 .btn-decline{background:transparent;border:1px solid #ef5350;color:#ef5350;padding:8px 16px;border-radius:var(--r-sm);font-weight:600;cursor:pointer;font-family:var(--font);font-size:0.8rem}
 .btn-log-arrival{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:var(--r-sm);font-weight:700;cursor:pointer;font-family:var(--font);font-size:0.8rem}
 
-/* ── EMPTY STATE ── */
-.empty{text-align:center;padding:32px 20px;color:var(--text-3);font-size:0.85rem}
 </style>
 </head>
 
@@ -99,7 +84,7 @@
   <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
   <span class="nav-spacer"></span>
   <div class="nav-right">
-    <span class="nav-pill" style="background:#0a1e2a;color:#42a5f5">PROCESSOR</span>
+    <span class="nav-pill nav-pill-processor">PROCESSOR</span>
     <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="navProcId"></span>
     <a class="nav-link" href="/">Home</a>
@@ -114,6 +99,8 @@
     <div class="hero-info">
       <div class="hero-name" id="navTitle">—</div>
       <div class="hero-meta">
+        <span id="heroEmail"></span>
+        <span class="sep">·</span>
         <span id="heroLocation"></span>
         <span class="sep">·</span>
         <span>⭐ <span id="heroRating" style="font-weight:600">—</span></span>
@@ -313,21 +300,21 @@
 </div>
 
 <!-- RATING MODAL -->
-<div class="modal-overlay" id="rating-modal">
-  <div class="modal">
-    <div class="modal-title" id="rating-modal-title">Rate aggregator</div>
-    <div class="modal-sub" id="ratingModalSub"></div>
+<div class="rating-overlay" id="rating-modal">
+  <div class="rating-box">
+    <h3 id="rating-modal-title">Rate aggregator</h3>
+    <div class="sub" id="ratingModalSub"></div>
     <div class="stars-row" id="rating-stars"></div>
     <div id="rating-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:18px"></div>
-    <textarea class="rating-note-input" id="rating-note" placeholder="Optional note..."></textarea>
+    <textarea class="rating-note" id="rating-note" placeholder="Optional note..."></textarea>
     <div class="modal-actions">
-      <button class="btn-green btn" onclick="submitRating()">Submit rating</button>
-      <button class="btn" onclick="closeRatingModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitRating()">Submit rating</button>
+      <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
     </div>
   </div>
 </div>
 
-<div class="proc-toast" id="proc-toast"></div>
+<div class="toast" id="proc-toast"></div>
 
 <script src="/shared/roles.js"></script>
 <script>
@@ -381,6 +368,12 @@ function showDashboard() {
     // Populate identity hero
     var heroEl = document.getElementById('navTitle');
     if (heroEl) heroEl.textContent = op.company || op.name || '—';
+    var heroEmail = document.getElementById('heroEmail');
+    if (heroEmail) heroEmail.textContent = op.email || '';
+    var heroLoc = document.getElementById('heroLocation');
+    if (heroLoc) heroLoc.textContent = op.location || op.city || '';
+    var heroRat = document.getElementById('heroRating');
+    if (heroRat) heroRat.textContent = op.avg_rating ? Number(op.avg_rating).toFixed(1) : '—';
     loadAll();
     if (op.token) {
         var opId = op.id;
@@ -388,9 +381,13 @@ function showDashboard() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.processor) {
-                    var name = data.processor.company || data.processor.name || op.name || '';
+                    var p = data.processor;
+                    var name = p.company || p.name || op.name || '';
                     document.getElementById('navName').textContent = name;
                     if (heroEl) heroEl.textContent = name;
+                    if (heroEmail && p.email) heroEmail.textContent = p.email;
+                    if (heroLoc && (p.location || p.city)) heroLoc.textContent = p.location || p.city;
+                    if (heroRat && p.avg_rating) heroRat.textContent = Number(p.avg_rating).toFixed(1);
                 }
             })
             .catch(function() {});
@@ -715,10 +712,10 @@ function buildCompletedRow(pt) {
     var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
     var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
     var statusBadge = pt.status === 'arrived'
-        ? '<span class="pill pill-paid">Arrived</span>'
+        ? '<span class="pill pill-arrived">Arrived</span>'
         : pt.status === 'grade_c_flagged'
         ? '<span class="pill pill-pending">Flagged</span>'
-        : '<span class="pill" style="background:rgba(239,83,80,0.15);color:#ef5350">Rejected</span>';
+        : '<span class="pill pill-rejected">Rejected</span>';
     var total = pt.total_price ? 'GH¢ ' + fmt(pt.total_price) : '—';
     var ps = pt.payment_status || 'unpaid';
     var payCell = ps === 'paid'
@@ -1044,9 +1041,9 @@ function renderProcessorSales() {
 function buildProcSaleStatusBadge(status) {
     if (status === 'pending')           return '<span class="pill pill-pending">Pending</span>';
     if (status === 'dispatch_approved') return '<span class="pill pill-sent">Dispatch Approved</span>';
-    if (status === 'dispatch_rejected') return '<span class="pill" style="background:rgba(239,83,80,0.15);color:#ef5350">Rejected</span>';
-    if (status === 'arrived')           return '<span class="pill pill-paid">Arrived</span>';
-    if (status === 'completed')         return '<span class="pill pill-paid">Completed</span>';
+    if (status === 'dispatch_rejected') return '<span class="pill pill-rejected">Rejected</span>';
+    if (status === 'arrived')           return '<span class="pill pill-arrived">Arrived</span>';
+    if (status === 'completed')         return '<span class="pill pill-completed">Completed</span>';
     if (status === 'grade_c_flagged')   return '<span class="pill pill-pending">Flagged</span>';
     return '<span class="pill pill-pending">' + esc(status) + '</span>';
 }
@@ -1056,15 +1053,14 @@ function showProcToast(msg, isError) {
   if (!t) {
     t = document.createElement("div");
     t.id = "proc-toast";
-    t.className = "proc-toast";
+    t.className = "toast";
     document.body.appendChild(t);
   }
-  t.style.background = isError ? "#7f1d1d" : "var(--surface)";
-  t.style.color = isError ? "#fca5a5" : "var(--accent)";
-  t.style.borderColor = isError ? "#ef5350" : "var(--accent)";
+  if (isError) t.classList.add("toast-error"); else t.classList.remove("toast-error");
   t.textContent = msg;
-  t.style.opacity = "1";
-  setTimeout(function() { t.style.opacity = "0"; }, 3000);
+  t.classList.add("show");
+  clearTimeout(procToastTimer);
+  procToastTimer = setTimeout(function() { t.classList.remove("show"); }, 3000);
 }
 
 checkAuth();
@@ -1094,6 +1090,8 @@ function loadTopSuppliers(period) {
   var el = document.getElementById("top-suppliers-list");
   if (!el) return;
   el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>Loading...</div>";
+  var tbody = document.getElementById("topSuppliersBody");
+  if (tbody) tbody.innerHTML = "";
   fetch("/api/processor/top-suppliers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -1117,6 +1115,8 @@ function loadTopBuyers(period) {
   var el = document.getElementById("top-buyers-list");
   if (!el) return;
   el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>Loading...</div>";
+  var tbody = document.getElementById("topBuyersBody");
+  if (tbody) tbody.innerHTML = "";
   fetch("/api/processor/top-buyers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -1203,12 +1203,12 @@ function openRatingModal(aggregatorId, aggregatorName) {
   renderStars(0);
   renderTagsUI();
   document.getElementById("rating-note").value = "";
-  modal.style.display = "flex";
+  modal.classList.add("show");
 }
 
 function closeRatingModal() {
   var modal = document.getElementById("rating-modal");
-  if (modal) modal.style.display = "none";
+  if (modal) modal.classList.remove("show");
 }
 
 function setStar(n) {
