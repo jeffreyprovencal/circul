@@ -689,18 +689,22 @@ function submitPaymentConfirm(table, id) {
 function renderPL(s) {
     var el = document.getElementById('plSummary');
     if (!el) return;
-    var paid = (s.payment_history || []).filter(function(p) { return p.status === 'success'; }).reduce(function(acc, p) { return acc + parseFloat(p.amount || 0); }, 0);
+    var totalPurchased = parseFloat(s.totals.total_value) || 0;
+    var outstanding = parseFloat(s.pending_payments.value) || 0;
+    var paid = totalPurchased - outstanding;
+    var totalSold = parseFloat((s.sales || {}).total_sold) || 0;
+    var monthSold = parseFloat((s.sales || {}).month_sold) || 0;
     el.innerHTML =
         '<div>' +
             '<div class="pl-col-title">Bought</div>' +
-            '<div class="pl-row"><span>Total purchased (GH¢)</span><span>' + fmt(s.totals.total_value) + '</span></div>' +
+            '<div class="pl-row"><span>Total purchased (GH¢)</span><span>' + fmt(totalPurchased) + '</span></div>' +
             '<div class="pl-row"><span>Total paid out (GH¢)</span><span>' + fmt(paid) + '</span></div>' +
-            '<div class="pl-total"><span>Outstanding</span><span class="pl-total-val">' + fmt(s.pending_payments.value) + '</span></div>' +
+            '<div class="pl-total"><span>Outstanding</span><span class="pl-total-val">' + fmt(outstanding) + '</span></div>' +
         '</div>' +
         '<div>' +
             '<div class="pl-col-title">Sold</div>' +
-            '<div class="pl-row"><span>This month (GH¢)</span><span>' + fmt(s.this_month.month_value) + '</span></div>' +
-            '<div class="pl-total"><span>Total</span><span class="pl-total-val">' + fmt(s.totals.total_value) + '</span></div>' +
+            '<div class="pl-row"><span>This month (GH¢)</span><span>' + fmt(monthSold) + '</span></div>' +
+            '<div class="pl-total"><span>Total</span><span class="pl-total-val">' + fmt(totalSold) + '</span></div>' +
         '</div>';
 }
 

@@ -540,7 +540,7 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
     const aggregator = agg.rows[0];
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
 
-    const [totals, monthlyTotals, pending, activeCollectors, byMaterial, topCollectors, postedPrices, ratings] = await Promise.all([
+    const [totals, monthlyTotals, pending, activeCollectors, byMaterial, topCollectors, postedPrices, ratings, sales] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM transactions WHERE aggregator_id=$1`, [id]),
       pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM transactions WHERE aggregator_id=$1 AND transaction_date>=$2`, [id, thisMonth.toISOString()]),
       pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM transactions WHERE aggregator_id=$1 AND payment_status='unpaid' AND total_price>0`, [id]),
@@ -548,7 +548,8 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       pool.query(`SELECT material_type, SUM(net_weight_kg) as kg, COUNT(*) as txns FROM transactions WHERE aggregator_id=$1 GROUP BY material_type ORDER BY kg DESC`, [id]),
       pool.query(`SELECT c.id, c.first_name, c.last_name, c.phone, c.average_rating, c.city, 'C-' || LPAD(c.id::text, 4, '0') AS display_name, SUM(t.net_weight_kg) as total_kg, COUNT(t.id) as txns FROM collectors c JOIN transactions t ON t.collector_id=c.id WHERE t.aggregator_id=$1 GROUP BY c.id ORDER BY total_kg DESC LIMIT 20`, [id]),
       pool.query(`SELECT * FROM posted_prices WHERE poster_type='aggregator' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
-      pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_type='aggregator' AND rated_id=$1`, [id]).catch(() => ({ rows: [{ avg_rating: null, count: 0 }] }))
+      pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_type='aggregator' AND rated_id=$1`, [id]).catch(() => ({ rows: [{ avg_rating: null, count: 0 }] })),
+      pool.query(`SELECT COALESCE(SUM(total_price),0) as total_sold, COALESCE(SUM(CASE WHEN created_at >= $2 THEN total_price ELSE 0 END),0) as month_sold FROM pending_transactions WHERE aggregator_id=$1 AND transaction_type='aggregator_sale' AND status IN ('dispatch_approved','arrived','completed')`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ total_sold: 0, month_sold: 0 }] }))
     ]);
 
     res.json({
@@ -558,7 +559,8 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
         totals: totals.rows[0], this_month: monthlyTotals.rows[0],
         pending_payments: pending.rows[0], active_collectors: activeCollectors.rows[0].count,
         by_material: byMaterial.rows, top_collectors: topCollectors.rows,
-        posted_prices: postedPrices.rows, ratings: ratings.rows[0]
+        posted_prices: postedPrices.rows, ratings: ratings.rows[0],
+        sales: sales.rows[0]
       }
     });
   } catch (err) {
