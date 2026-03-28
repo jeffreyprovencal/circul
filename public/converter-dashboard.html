@@ -83,14 +83,14 @@
     <span class="nav-pill nav-pill-converter">CONVERTER</span>
     <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="navConvId"></span>
-    <a class="nav-link" id="switch-role-btn" href="/processor-dashboard.html" style="display:none">Switch to Processor</a>
+    <a class="nav-link hidden" id="switch-role-btn" href="/processor-dashboard.html">Switch to Processor</a>
     <a class="nav-link" href="/">Home</a>
     <button class="nav-logout" onclick="handleLogout()">Log out</button>
   </div>
 </nav>
 
 <!-- MAIN DASHBOARD -->
-<div class="page" id="dashboard" style="display:none">
+<div class="page hidden" id="dashboard">
 
   <!-- HERO -->
   <div class="hero">
@@ -117,7 +117,7 @@
     <div class="stat">
       <div class="stat-label">Total Spent</div>
       <div class="stat-val">GH¢ <span id="statSpentGhs">—</span></div>
-      <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px" id="statSpentUsd"></div>
+      <div class="price-sub" style="margin-top:2px" id="statSpentUsd"></div>
     </div>
     <div class="stat">
       <div class="stat-label">Open Orders</div>
@@ -138,7 +138,7 @@
       </div>
     </div>
     <div class="table-wrap">
-      <div id="top-suppliers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
     </div>
   </div>
 
@@ -213,11 +213,11 @@
       </div>
     </div>
     <input type="hidden" id="ord-price" value="" />
-    <div class="order-total" id="ord-total-box" style="display:none">
+    <div class="order-total hidden" id="ord-total-box">
       Estimated total: <strong id="ord-total-ghs">—</strong> GHS
       <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
     </div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:8px" id="ord-msg"></div>
+    <div class="msg-error" style="margin-bottom:8px" id="ord-msg"></div>
   </div>
 
   <!-- INCOMING DELIVERIES -->
@@ -263,7 +263,7 @@
           <thead><tr>
             <th>Date</th><th>Supplier</th><th>Material</th><th>Weight</th><th>Price/KG</th><th>Amount</th><th>Status</th>
           </tr></thead>
-          <tbody id="supplyBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading...</td></tr></tbody>
+          <tbody id="supplyBody"><tr><td colspan="7" class="placeholder-cell">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -274,17 +274,17 @@
         <span style="font-size:0.85rem;color:var(--text-3)">Prices in</span>
         <span id="priceCity" style="font-size:0.85rem;font-weight:700;color:var(--accent)">Accra</span>
       </div>
-      <div id="processorPrices"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorPrices"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- TRACEABILITY TAB -->
     <div class="tab-panel" id="tab-certs">
-      <div id="txnCerts"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="txnCerts"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- RATINGS TAB -->
     <div class="tab-panel" id="tab-ratings">
-      <div id="processorRatingsList"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorRatingsList"><div class="placeholder-cell">Loading...</div></div>
       <div id="ratingsReceived"></div>
     </div>
   </div>
@@ -307,7 +307,7 @@
       <button class="star-btn" onclick="setStars(5)">&#9733;</button>
     </div>
     <div id="cv-rating-tags"></div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:12px" id="rateProcessorMsg"></div>
+    <div class="msg-error hidden" style="margin-bottom:12px" id="rateProcessorMsg"></div>
     <textarea class="rating-note" id="cv-rating-note" placeholder="Add a note (optional)..."></textarea>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeRateProcessorModal()">Cancel</button>
@@ -374,7 +374,7 @@ function checkDualRole() {
                 try {
                     var p = JSON.parse(atob(parts[i]));
                     if (p && p.roles && p.roles.indexOf('processor') !== -1) {
-                        var srb = document.getElementById('switch-role-btn'); if (srb) srb.style.display = 'inline-block';
+                        var srb = document.getElementById('switch-role-btn'); if (srb) srb.classList.remove('hidden');
                         return;
                     }
                 } catch(e) {}
@@ -385,7 +385,7 @@ function checkDualRole() {
 
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('dashboard').style.display = '';
+    document.getElementById('dashboard').classList.remove('hidden');
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
     var navConvId = document.getElementById('navConvId');
@@ -494,9 +494,9 @@ function calcOrderTotal() {
         var total = q * p;
         document.getElementById('ord-total-ghs').textContent = 'Est. GH₵ ' + fmt(total) + ' total value';
         document.getElementById('ord-total-usd').textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
-        box.style.display = '';
+        box.classList.remove('hidden');
     } else {
-        box.style.display = 'none';
+        box.classList.add('hidden');
     }
 }
 
@@ -514,9 +514,10 @@ function submitOrder() {
     var notes    = document.getElementById('ord-notes').value.trim();
 
     msgEl.textContent = '';
-    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = '#ef4444'; return; }
-    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = '#ef4444'; return; }
-    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = '#ef4444'; return; }
+    msgEl.className = 'msg-error';
+    if (!material)           { msgEl.textContent = 'Material type is required.'; return; }
+    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; return; }
+    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; return; }
 
     btn.disabled = true; btn.textContent = 'Placing…';
     fetch('/api/orders', {
@@ -544,16 +545,15 @@ function submitOrder() {
             document.getElementById('ord-excl').value     = '';
             document.getElementById('ord-contam').value   = '';
             document.getElementById('ord-notes').value    = '';
-            document.getElementById('ord-total-box').style.display = 'none';
+            document.getElementById('ord-total-box').classList.add('hidden');
             msgEl.textContent = '';
             showCvToast('Order placed successfully');
             loadOrders();
         } else {
             msgEl.textContent = data.message || 'Error placing order.';
-            msgEl.style.color = '#ef4444';
         }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; })
+    .catch(function() { msgEl.textContent = 'Connection error.'; })
     .finally(function() { btn.disabled = false; btn.textContent = 'Place Order'; });
 }
 
@@ -595,7 +595,7 @@ function renderOrders() {
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
             '<span class="order-meta">GH₵ ' + fmt(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span class="price-sub">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
             '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
@@ -661,7 +661,7 @@ function buildConvPendingCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -670,7 +670,7 @@ function buildConvPendingCard(pt) {
         '<button class="btn-approve" onclick="openConvDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openConvDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
-        '<div id="cvdispatch-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="cvdispatch-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
@@ -685,11 +685,11 @@ function buildConvApprovedCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-log-arrival" onclick="openConvArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
-        '<div id="cvarr-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="cvarr-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
@@ -718,12 +718,12 @@ function buildConvCompletedRow(pt) {
 
 function openConvDispatchForm(ptId, type) {
     var formEl = document.getElementById('cvdispatch-form-' + ptId);
-    if (activeConvDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeConvDispatchId = null; return;
+    if (activeConvDispatchId === ptId && formEl.dataset.formType === type && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeConvDispatchId = null; return;
     }
     if (activeConvDispatchId && activeConvDispatchId !== ptId) {
         var prev = document.getElementById('cvdispatch-form-' + activeConvDispatchId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeConvDispatchId = ptId;
     formEl.dataset.formType = type;
@@ -736,19 +736,19 @@ function openConvDispatchForm(ptId, type) {
             '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
     } else {
         formEl.innerHTML = '<div class="del-inline-form">' +
-            '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
+            '<label class="di-label">Reason for rejection <span class="label-hint">(required)</span></label>' +
             '<textarea class="di-textarea" id="cvreject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:#ef4444" onclick="submitConvDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm-danger" onclick="submitConvDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelConvDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
     }
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelConvDispatchForm(ptId) {
     var f = document.getElementById('cvdispatch-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeConvDispatchId === ptId) activeConvDispatchId = null;
 }
 
@@ -758,7 +758,7 @@ function submitConvDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('cvreject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef4444'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.className = 'di-msg msg-error'; return; }
         body.rejection_reason = reason;
     }
     fetch('/api/pending-transactions/' + ptId + '/converter-dispatch-decision', {
@@ -769,19 +769,19 @@ function submitConvDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeConvDispatchId = null; loadConverterQueue(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 function openConvArrivalForm(ptId) {
     var formEl = document.getElementById('cvarr-form-' + ptId);
-    if (activeConvArrivalId === ptId && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeConvArrivalId = null; return;
+    if (activeConvArrivalId === ptId && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeConvArrivalId = null; return;
     }
     if (activeConvArrivalId && activeConvArrivalId !== ptId) {
         var prev = document.getElementById('cvarr-form-' + activeConvArrivalId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeConvArrivalId = ptId;
     var pt = converterDeliveries.find(function(d) { return d.id === ptId; });
@@ -795,12 +795,12 @@ function openConvArrivalForm(ptId) {
         '<button class="di-cancel" onclick="cancelConvArrivalForm(' + ptId + ')">Cancel</button>' +
         '</div><div class="di-msg" id="cvarr-msg-' + ptId + '"></div>' +
         '</div>';
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelConvArrivalForm(ptId) {
     var f = document.getElementById('cvarr-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeConvArrivalId === ptId) activeConvArrivalId = null;
 }
 
@@ -808,7 +808,7 @@ function submitConvArrival(ptId) {
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var msgEl = document.getElementById('cvarr-msg-' + ptId);
     var weight = document.getElementById('cvarr-weight-' + ptId).value;
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef4444'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.className = 'di-msg msg-error'; return; }
     fetch('/api/pending-transactions/' + ptId + '/converter-arrival', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -817,9 +817,9 @@ function submitConvArrival(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeConvArrivalId = null; loadConverterQueue(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 function showCvToast(msg) {
@@ -943,7 +943,7 @@ function rateProcessor(processorId, processorName) {
     _rateProcessorScore = null;
     document.getElementById('rateProcessorName').textContent = processorName || 'Your processor';
     document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.getElementById('rateProcessorMsg').style.display = 'none';
+    document.getElementById('rateProcessorMsg').classList.add('hidden');
     document.getElementById('cv-rating-note').value = '';
     renderCvRatingTags();
     document.getElementById('rateProcessorModal').classList.add('show');
@@ -964,7 +964,7 @@ function submitCvRating() {
     if (!_rateProcessorScore) {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Please select a star rating.';
-        msg.style.display = 'block';
+        msg.classList.remove('hidden');
         return;
     }
     var token = localStorage.getItem('circul_token');
@@ -982,13 +982,13 @@ function submitCvRating() {
         } else {
             var msg = document.getElementById('rateProcessorMsg');
             msg.textContent = data.message || 'Could not submit rating.';
-            msg.style.display = 'block';
+            msg.classList.remove('hidden');
         }
     })
     .catch(function() {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Network error. Please try again.';
-        msg.style.display = 'block';
+        msg.classList.remove('hidden');
     });
 }
 
