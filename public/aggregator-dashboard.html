@@ -12,29 +12,9 @@
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
 .login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
 .login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
-.login-error{color:#ef4444;font-size:0.8rem;margin-bottom:12px;display:none}
-.login-error.visible{display:block}
-/* ── TOAST ── */
-.toast{position:fixed;bottom:24px;right:24px;z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-sm);padding:14px 20px;color:var(--text-1);font-size:0.85rem;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.4);transform:translateY(80px);opacity:0;transition:transform 0.3s ease,opacity 0.3s ease;pointer-events:none}
-.toast.show{transform:translateY(0);opacity:1;pointer-events:auto}
+.login-error{margin-bottom:12px}
+/* ── TOAST ERROR VARIANT ── */
 .toast-error{border-color:#ef4444}
-/* ── RATING MODAL ── */
-.rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.rating-overlay.open{display:flex}
-.rating-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:480px;max-width:95vw}
-.rating-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
-.rating-sub{font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
-.stars-row{display:flex;gap:8px;margin-bottom:20px}
-.star{font-size:1.6rem;cursor:pointer;color:var(--border);transition:color 0.15s;line-height:1}
-.star.lit{color:#ffd740}
-.tags-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
-.tag-chip{padding:6px 14px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:var(--font)}
-.tag-chip.pos{background:rgba(0,230,118,0.1);color:var(--accent);border-color:rgba(0,230,118,0.2)}
-.tag-chip.neg{background:rgba(255,193,7,0.1);color:#ffd740;border-color:rgba(255,193,7,0.2)}
-.tag-chip.sel-pos,.tag-chip.selected-pos{background:var(--accent);color:#000;font-weight:700}
-.tag-chip.sel-neg,.tag-chip.selected-neg{background:#ffd740;color:#1a0a00;font-weight:700}
-.rating-note-input{width:100%;box-sizing:border-box;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;color:var(--text-1);font-size:0.8rem;font-family:var(--font);height:80px;resize:vertical;margin-bottom:16px}
-.modal-actions{display:flex;gap:10px}
 /* ── SUGGEST CATEGORY MODAL ── */
 .suggest-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
 .suggest-overlay.open{display:flex}
@@ -88,9 +68,6 @@
 .bs-photo-ok{font-size:0.75rem;color:var(--accent)}
 .bs-photo-warn{font-size:0.75rem;color:#ffb74d}
 .bs-reject-reason{font-size:0.8rem;color:#ef4444;margin-top:6px;padding:8px;background:rgba(239,68,68,0.08);border-radius:var(--r-sm)}
-/* ── SPINNER ── */
-.spinner{width:18px;height:18px;border:2px solid rgba(0,0,0,0.2);border-top-color:#000;border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto}
-@keyframes spin{to{transform:rotate(360deg)}}
 /* ── SUGGEST LINK ── */
 .suggest-category-link{color:var(--accent);font-size:0.8rem;cursor:pointer;text-decoration:underline}
 </style>
@@ -119,7 +96,7 @@
     <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
     <span class="nav-spacer"></span>
     <div class="nav-right">
-      <span class="nav-pill" style="background:#0a2a28;color:#26c6da">AGGREGATOR</span>
+      <span class="nav-pill nav-pill-aggregator">AGGREGATOR</span>
       <span class="nav-name" id="navName">—</span>
       <span class="nav-id" id="navAggId"></span>
       <a class="nav-link" href="/">Home</a>
@@ -280,6 +257,7 @@
         <div>
           <div class="section-title">Send batch to a processor</div>
         </div>
+        <button class="btn-submit" onclick="submitAggregatorSale()">Submit Sale</button>
       </div>
       <div class="form-grid">
         <div class="form-group">
@@ -309,15 +287,14 @@
       </div>
       <div class="photo-warning" id="photoWarning2">Photos required for batches over 500 kg</div>
       <div id="sellMsg" style="font-size:0.8rem;margin-top:10px;color:var(--text-3);"></div>
-      <button class="form-submit" onclick="submitAggregatorSale()">Submit Sale</button>
     </div>
 
     <!-- MY COLLECTORS -->
     <div class="section">
       <div class="section-head">
-        <div>
+        <div style="display:flex;align-items:center;gap:10px">
           <div class="section-title">My collectors</div>
-          <div class="section-sub" id="statCollectors">0 active</div>
+          <span class="counter-badge" id="collectorCount"></span>
         </div>
       </div>
       <div class="table-wrap">
@@ -377,27 +354,27 @@
 <div class="rating-overlay" id="ratingModal">
   <div class="rating-box">
     <h3>Rate collector</h3>
-    <div class="rating-sub" id="ratingCollectorName"></div>
+    <div class="sub" id="ratingCollectorName"></div>
     <div class="stars-row" id="starsRow">
-      <span class="star" data-r="1" onclick="setStar(1)">★</span>
-      <span class="star" data-r="2" onclick="setStar(2)">★</span>
-      <span class="star" data-r="3" onclick="setStar(3)">★</span>
-      <span class="star" data-r="4" onclick="setStar(4)">★</span>
-      <span class="star" data-r="5" onclick="setStar(5)">★</span>
+      <button class="star-btn" data-r="1" onclick="setStar(1)">★</button>
+      <button class="star-btn" data-r="2" onclick="setStar(2)">★</button>
+      <button class="star-btn" data-r="3" onclick="setStar(3)">★</button>
+      <button class="star-btn" data-r="4" onclick="setStar(4)">★</button>
+      <button class="star-btn" data-r="5" onclick="setStar(5)">★</button>
     </div>
-    <div class="tags-row" id="tagsRow">
-      <span class="tag-chip pos" data-tag="Reliable" data-type="pos" onclick="toggleTag(this)">Reliable</span>
-      <span class="tag-chip pos" data-tag="Good sorter" data-type="pos" onclick="toggleTag(this)">Good sorter</span>
-      <span class="tag-chip pos" data-tag="Consistent volume" data-type="pos" onclick="toggleTag(this)">Consistent volume</span>
-      <span class="tag-chip pos" data-tag="Punctual" data-type="pos" onclick="toggleTag(this)">Punctual</span>
-      <span class="tag-chip neg" data-tag="Poor sorting" data-type="neg" onclick="toggleTag(this)">Poor sorting</span>
-      <span class="tag-chip neg" data-tag="Inconsistent" data-type="neg" onclick="toggleTag(this)">Inconsistent</span>
-      <span class="tag-chip neg" data-tag="No-show" data-type="neg" onclick="toggleTag(this)">No-show</span>
+    <div id="tagsRow">
+      <span class="rtag" data-tag="Reliable" data-type="pos" onclick="toggleTag(this)">Reliable</span>
+      <span class="rtag" data-tag="Good sorter" data-type="pos" onclick="toggleTag(this)">Good sorter</span>
+      <span class="rtag" data-tag="Consistent volume" data-type="pos" onclick="toggleTag(this)">Consistent volume</span>
+      <span class="rtag" data-tag="Punctual" data-type="pos" onclick="toggleTag(this)">Punctual</span>
+      <span class="rtag negative" data-tag="Poor sorting" data-type="neg" onclick="toggleTag(this)">Poor sorting</span>
+      <span class="rtag negative" data-tag="Inconsistent" data-type="neg" onclick="toggleTag(this)">Inconsistent</span>
+      <span class="rtag negative" data-tag="No-show" data-type="neg" onclick="toggleTag(this)">No-show</span>
     </div>
-    <textarea class="rating-note-input" id="ratingNote" placeholder="Optional note…"></textarea>
+    <textarea class="rating-note" id="ratingNote" placeholder="Optional note…"></textarea>
     <div class="modal-actions">
-      <button class="btn-green btn" id="submitRatingBtn" onclick="submitRating()">Submit rating</button>
-      <button class="btn" onclick="closeRatingModal()">Cancel</button>
+      <button class="btn-submit" id="submitRatingBtn" onclick="submitRating()">Submit rating</button>
+      <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -417,7 +394,7 @@
 </div>
 
 <!-- TOAST -->
-<div id="toast"></div>
+<div class="toast" id="toast"></div>
 
 
 <script src="/shared/roles.js"></script>
@@ -534,7 +511,7 @@ function loadAll() {
             if (!data.success) return;
             var s = data.stats;
             var el;
-            el = document.getElementById('statCollectors'); if (el) el.textContent = s.active_collectors;
+            el = document.getElementById('collectorCount'); if (el) el.innerHTML = '<strong>' + s.active_collectors + '</strong> active';
             el = document.getElementById('statPending'); if (el) el.textContent = s.pending_payments.count;
             el = document.getElementById('statPendingVal'); if (el) el.textContent = 'GH¢ ' + fmt(s.pending_payments.value);
             el = document.getElementById('statMonthKg'); if (el) el.textContent = fmt(s.this_month.month_kg);
@@ -731,29 +708,28 @@ function openRatingModal(collectorId, name) {
     state.currentRatingStar = 0;
     state.selectedTags = [];
     document.getElementById('ratingCollectorName').textContent = name;
-    document.querySelectorAll('.star').forEach(function(s) { s.classList.remove('lit'); });
-    document.querySelectorAll('.tag-chip').forEach(function(c) { c.classList.remove('selected-pos', 'selected-neg'); });
+    document.querySelectorAll('.star-btn').forEach(function(s) { s.classList.remove('active'); });
+    document.querySelectorAll('#tagsRow .rtag').forEach(function(c) { c.classList.remove('selected'); });
     document.getElementById('ratingNote').value = '';
     document.getElementById('submitRatingBtn').disabled = true;
-    document.getElementById('ratingModal').classList.add('open');
+    document.getElementById('ratingModal').classList.add('show');
 }
 
-function closeRatingModal() { document.getElementById('ratingModal').classList.remove('open'); }
+function closeRatingModal() { document.getElementById('ratingModal').classList.remove('show'); }
 
 function setStar(n) {
     state.currentRatingStar = n;
-    document.querySelectorAll('.star').forEach(function(s) {
-        s.classList.toggle('lit', parseInt(s.getAttribute('data-r')) <= n);
+    document.querySelectorAll('.star-btn').forEach(function(s) {
+        s.classList.toggle('active', parseInt(s.getAttribute('data-r')) <= n);
     });
     document.getElementById('submitRatingBtn').disabled = false;
 }
 
 function toggleTag(chip) {
     var tag = chip.getAttribute('data-tag');
-    var type = chip.getAttribute('data-type');
     var idx = state.selectedTags.indexOf(tag);
-    if (idx >= 0) { state.selectedTags.splice(idx, 1); chip.classList.remove('selected-pos', 'selected-neg'); }
-    else { state.selectedTags.push(tag); chip.classList.add(type === 'pos' ? 'selected-pos' : 'selected-neg'); }
+    if (idx >= 0) { state.selectedTags.splice(idx, 1); chip.classList.remove('selected'); }
+    else { state.selectedTags.push(tag); chip.classList.add('selected'); }
 }
 
 function submitRating() {
@@ -778,6 +754,7 @@ function submitRating() {
 document.getElementById('ratingModal').addEventListener('click', function(e) {
     if (e.target === this) closeRatingModal();
 });
+
 
 // ── INCOMING COLLECTIONS ──────────────────────────────────────────────────────
 
