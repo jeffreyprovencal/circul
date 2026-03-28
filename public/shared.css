@@ -406,3 +406,21 @@ table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:1
 
 /* Log expense button */
 .log-expense-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:12px;padding:10px;background:rgba(0,230,118,.1);border:1px dashed var(--accent);border-radius:var(--r-sm);color:var(--accent);font-family:var(--font);font-size:.78rem;font-weight:600;cursor:pointer}
+
+/* ── Log expense form ──────────────────── */
+.pl-log-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:12px}
+.pl-log-form-title{font-size:.8rem;font-weight:700;margin-bottom:10px}
+.pl-form-row{display:flex;gap:10px}
+.pl-form-field{margin-bottom:10px;flex:1}
+.pl-form-field label{display:block;font-size:.72rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.pl-form-field select,.pl-form-field input,.pl-form-field textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:.82rem;padding:8px 10px;box-sizing:border-box}
+.pl-form-field input[type="date"]{color-scheme:dark}
+
+/* Photo receipt */
+.pl-photo-btn{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg);border:1px dashed var(--border);border-radius:var(--r-sm);color:var(--text-2);font-family:var(--font);font-size:.78rem;cursor:pointer;width:100%}
+.pl-photo-btn:hover{border-color:var(--text-3)}
+.pl-photo-preview{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);font-size:.75rem;color:var(--text-2)}
+.pl-photo-preview .remove{margin-left:auto;font-size:.65rem;color:var(--text-3);cursor:pointer;background:none;border:none}
+
+/* Suggest category note */
+.pl-suggest-note{font-size:.72rem;color:var(--text-3);margin-bottom:10px;line-height:1.4}

@@ -13,10 +13,6 @@
 .login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
 .login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
 .login-error{margin-bottom:12px}
-/* ── SUGGEST CATEGORY MODAL ── */
-.suggest-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.suggest-overlay.open{display:flex}
-.suggest-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:400px;max-width:95vw}
 /* ── INCOMING / REVIEW PANELS ── */
 .incoming-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
 .incoming-item-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -66,8 +62,6 @@
 .bs-photo-ok{font-size:0.75rem;color:var(--accent)}
 .bs-photo-warn{font-size:0.75rem;color:#ffb74d}
 .bs-reject-reason{font-size:0.8rem;color:#ef4444;margin-top:6px;padding:8px;background:rgba(239,68,68,0.08);border-radius:var(--r-sm)}
-/* ── SUGGEST LINK ── */
-.suggest-category-link{color:var(--accent);font-size:0.8rem;cursor:pointer;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -327,6 +321,68 @@
       </div>
 
       <button id="plLogExpenseBtn" class="log-expense-btn hidden" onclick="openLogExpense()">+ Log Expense</button>
+
+      <!-- Log Expense Form -->
+      <div id="plLogForm" class="pl-log-form hidden">
+        <div class="pl-log-form-title" id="plFormTitle">Log Expense</div>
+
+        <!-- Main form fields -->
+        <div id="plFormFields">
+          <div class="pl-form-row">
+            <div class="pl-form-field">
+              <label for="plCategory">Category</label>
+              <select id="plCategory">
+                <option value="">Select…</option>
+                <option disabled>──────────</option>
+                <option value="suggest">+ Suggest new category</option>
+              </select>
+            </div>
+            <div class="pl-form-field" style="max-width:140px">
+              <label for="plDate">Date</label>
+              <input type="date" id="plDate">
+            </div>
+          </div>
+
+          <div class="pl-form-row">
+            <div class="pl-form-field" style="max-width:130px">
+              <label for="plAmount">Amount (GH¢)</label>
+              <input type="number" id="plAmount" placeholder="0.00" step="0.01" min="0">
+            </div>
+            <div class="pl-form-field">
+              <label for="plNote">Note (optional)</label>
+              <input type="text" id="plNote" placeholder="e.g. Accra to Tema round trip">
+            </div>
+          </div>
+
+          <div class="pl-form-field">
+            <label>Receipt photo (optional)</label>
+            <div id="plPhotoArea">
+              <label class="pl-photo-btn" id="plPhotoBtnLabel">
+                📷 Tap to attach receipt
+                <input type="file" id="plReceiptFile" accept="image/jpeg,image/png,image/webp" capture="environment" style="display:none">
+              </label>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn-submit" onclick="submitExpense()">Save</button>
+            <button class="btn-cancel" onclick="closeLogExpense()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Suggest category sub-form -->
+        <div id="plSuggestFields" class="hidden">
+          <p class="pl-suggest-note">New categories must be approved by an admin before they appear in the dropdown. You'll be notified when your suggestion is reviewed.</p>
+          <div class="pl-form-field">
+            <label for="plSuggestName">Category name</label>
+            <input type="text" id="plSuggestName" placeholder="e.g. Sorting labour">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn-submit" onclick="submitSuggestion()">Submit for Approval</button>
+            <button class="btn-cancel" onclick="backToExpenseForm()">Back</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- SALES HISTORY -->
@@ -381,20 +437,6 @@
     <div class="modal-actions">
       <button class="btn-submit" id="submitRatingBtn" onclick="submitRating()">Submit rating</button>
       <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- SUGGEST CATEGORY MODAL -->
-<div class="suggest-overlay" id="suggestModal">
-  <div class="suggest-box">
-    <h3 style="margin-bottom:6px;">Suggest a cost category</h3>
-    <div class="rating-sub">We'll review your suggestion within 24h and let you know if it's approved.</div>
-    <label class="form-label">Category name</label>
-    <input class="form-input" id="suggestCategoryInput" type="text" placeholder="e.g. Motorbike maintenance" style="margin-bottom:16px" />
-    <div class="modal-actions">
-      <button class="btn-green btn" onclick="submitSuggestCategory()">Submit suggestion</button>
-      <button class="btn" onclick="closeSuggestModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -535,6 +577,7 @@ function loadAll() {
             }
         });
     loadPL('month');
+    loadCategories();
     loadPendingTxns();
     loadIncomingCollections();
     loadMyBatchSales();
@@ -901,9 +944,176 @@ async function confirmDeleteExpense(eid) {
   }
 }
 
-// Placeholder for log expense (will be built in next prompt)
+/* ── Log Expense Form ──────────────────── */
+var plCategories = [];
+var selectedReceiptFile = null;
+
+async function loadCategories() {
+  try {
+    var res = await apiFetch('/api/expense-categories');
+    if (!res.ok) throw new Error(res.status);
+    plCategories = await res.json();
+    populateCategoryDropdown();
+  } catch (err) {
+    console.error('loadCategories error:', err);
+  }
+}
+
+function populateCategoryDropdown() {
+  var sel = document.getElementById('plCategory');
+  // Remove all options between first ("Select…") and last two (separator + suggest)
+  while (sel.options.length > 3) sel.remove(1);
+  // Insert categories before the separator (index sel.options.length - 2)
+  for (var i = 0; i < plCategories.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = plCategories[i].id;
+    opt.textContent = plCategories[i].name;
+    sel.insertBefore(opt, sel.options[sel.options.length - 2]);
+  }
+}
+
 function openLogExpense() {
-  console.log('openLogExpense — modal coming in next prompt');
+  var form = document.getElementById('plLogForm');
+  var btn = document.getElementById('plLogExpenseBtn');
+
+  // Set date default to today
+  var today = new Date().toISOString().slice(0, 10);
+  document.getElementById('plDate').value = today;
+  document.getElementById('plDate').max = today;
+
+  // Reset fields
+  document.getElementById('plAmount').value = '';
+  document.getElementById('plNote').value = '';
+  document.getElementById('plCategory').value = '';
+  clearReceiptPhoto();
+
+  // Show main form, hide suggest
+  document.getElementById('plFormFields').classList.remove('hidden');
+  document.getElementById('plSuggestFields').classList.add('hidden');
+  document.getElementById('plFormTitle').textContent = 'Log Expense';
+
+  form.classList.remove('hidden');
+  btn.classList.add('hidden');
+
+  loadCategories();
+}
+
+function closeLogExpense() {
+  document.getElementById('plLogForm').classList.add('hidden');
+  document.getElementById('plLogExpenseBtn').classList.remove('hidden');
+}
+
+// Category dropdown change — switch to suggest form if needed
+document.getElementById('plCategory').addEventListener('change', function() {
+  if (this.value === 'suggest') {
+    document.getElementById('plFormFields').classList.add('hidden');
+    document.getElementById('plSuggestFields').classList.remove('hidden');
+    document.getElementById('plFormTitle').textContent = 'Suggest New Category';
+    document.getElementById('plSuggestName').value = '';
+    document.getElementById('plSuggestName').focus();
+  }
+});
+
+function backToExpenseForm() {
+  document.getElementById('plFormFields').classList.remove('hidden');
+  document.getElementById('plSuggestFields').classList.add('hidden');
+  document.getElementById('plFormTitle').textContent = 'Log Expense';
+  document.getElementById('plCategory').value = '';
+}
+
+// Photo receipt handling
+function attachReceiptListener() {
+  var fileInput = document.getElementById('plReceiptFile');
+  if (!fileInput) return;
+  fileInput.addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+      selectedReceiptFile = this.files[0];
+      var area = document.getElementById('plPhotoArea');
+      area.innerHTML = '<div class="pl-photo-preview">' +
+        '<span>📷</span>' +
+        '<span>' + esc(selectedReceiptFile.name) + '</span>' +
+        '<button class="remove" onclick="clearReceiptPhoto()" title="Remove">\u2715</button>' +
+      '</div>';
+    }
+  });
+}
+attachReceiptListener();
+
+function clearReceiptPhoto() {
+  selectedReceiptFile = null;
+  var area = document.getElementById('plPhotoArea');
+  area.innerHTML = '<label class="pl-photo-btn" id="plPhotoBtnLabel">' +
+    '📷 Tap to attach receipt' +
+    '<input type="file" id="plReceiptFile" accept="image/jpeg,image/png,image/webp" capture="environment" style="display:none">' +
+  '</label>';
+  attachReceiptListener();
+}
+
+// Submit expense
+async function submitExpense() {
+  var category_id = document.getElementById('plCategory').value;
+  var amount = document.getElementById('plAmount').value;
+  var note = document.getElementById('plNote').value;
+  var expense_date = document.getElementById('plDate').value;
+
+  if (!category_id || category_id === 'suggest') {
+    return showToast('Please select a category', true);
+  }
+  if (!amount || parseFloat(amount) <= 0) {
+    return showToast('Please enter an amount', true);
+  }
+
+  var formData = new FormData();
+  formData.append('category_id', category_id);
+  formData.append('amount', amount);
+  formData.append('expense_date', expense_date);
+  if (note) formData.append('note', note);
+  if (selectedReceiptFile) formData.append('receipt', selectedReceiptFile);
+
+  try {
+    var resp = await fetch('/api/aggregators/' + state.operator.id + '/expenses', {
+      method: 'POST',
+      body: formData
+    });
+    if (!resp.ok) throw new Error('Failed to save');
+    await resp.json();
+
+    showToast('Expense logged');
+    closeLogExpense();
+    var activeRange = document.querySelector('[data-pl-range].active');
+    await loadPL(activeRange ? activeRange.dataset.plRange : 'month');
+  } catch (err) {
+    if (!navigator.onLine) {
+      showToast('Saved offline \u2014 will sync when reconnected');
+      closeLogExpense();
+      return;
+    }
+    console.error('submitExpense error:', err);
+    showToast('Failed to save expense', true);
+  }
+}
+
+// Submit category suggestion
+async function submitSuggestion() {
+  var name = document.getElementById('plSuggestName').value.trim();
+  if (!name) {
+    return showToast('Please enter a category name', true);
+  }
+
+  try {
+    var res = await apiFetch('/api/expense-categories/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, aggregator_id: state.operator.id })
+    });
+    if (!res.ok) throw new Error(res.status);
+    showToast('Category submitted for approval');
+    backToExpenseForm();
+    loadCategories();
+  } catch (err) {
+    console.error('submitSuggestion error:', err);
+    showToast('Failed to submit suggestion', true);
+  }
 }
 
 function renderRatingsReceived(ratings) {
@@ -1554,26 +1764,6 @@ document.querySelectorAll('[data-pl-range]').forEach(function(btn) {
     loadPL(btn.dataset.plRange);
   });
 });
-
-/* SUGGEST COST CATEGORY */
-function openSuggestModal() { document.getElementById("suggestModal").classList.add("open"); }
-function closeSuggestModal() {
-  document.getElementById("suggestModal").classList.remove("open");
-  document.getElementById("suggestCategoryInput").value = "";
-}
-async function submitSuggestCategory() {
-  var name = document.getElementById("suggestCategoryInput").value.trim();
-  if (!name) { showToast("Please enter a category name"); return; }
-  try {
-    await fetch("/api/aggregator/suggest-cost-category", {
-      method: "POST", credentials: "include",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ category_name: name, aggregator_id: window._aggId })
-    });
-    closeSuggestModal();
-    showToast('Suggestion submitted \u2014 we\'ll review within 24h');
-  } catch(e) { showToast("Error submitting suggestion"); }
-}
 
 /* HOOK: load top partners when dashboard shows */
 document.addEventListener("DOMContentLoaded", function() {
