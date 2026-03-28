@@ -333,3 +333,76 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 
 /* ── Safety-net: horizontal scroll for any overflowing table ── */
 table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+
+/* ── Value colour helpers ── */
+.val-pos{color:var(--accent)}
+.val-neg{color:#ef5350}
+
+/* ── Tab toggle (Month/YTD) ── */
+.tab-toggle{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+.tab-toggle-btn{padding:5px 12px;font-family:var(--font);font-size:.72rem;font-weight:600;background:transparent;border:none;color:var(--text-3);cursor:pointer}
+.tab-toggle-btn.active{background:var(--accent);color:var(--bg)}
+
+/* ── P&L accordion ───────────────────── */
+.pl-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+.pl-row{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-top:1px solid var(--border);cursor:pointer;transition:background .15s}
+.pl-row:first-child{border-top:none}
+.pl-row:hover{background:rgba(255,255,255,.02)}
+.pl-row-label{font-size:.82rem;color:var(--text-1);display:flex;align-items:center;gap:6px}
+.pl-row-right{display:flex;align-items:center;gap:10px}
+.pl-row-val{font-size:.85rem;font-weight:600;font-variant-numeric:tabular-nums}
+.pl-chev{font-size:.6rem;color:var(--text-3);transition:transform .2s;display:inline-block}
+.pl-chev.open{transform:rotate(90deg)}
+.pl-row.divider{border-top:2px solid var(--border);cursor:default}
+.pl-row.divider .pl-row-label{font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px;color:var(--text-2)}
+.margin-pct{font-size:.72rem;color:var(--text-3);font-weight:500;font-variant-numeric:tabular-nums}
+.trend{font-size:.62rem;font-weight:600;padding:1px 5px;border-radius:4px;white-space:nowrap}
+.trend-up{background:rgba(0,230,118,.1);color:var(--accent)}
+.trend-down{background:rgba(239,83,80,.1);color:#ef5350}
+.trend-flat{background:rgba(255,255,255,.05);color:var(--text-3)}
+
+/* Level 2 — subcategories */
+.pl-sub{background:rgba(0,0,0,.15);border-top:1px solid var(--border)}
+.pl-sub-row{display:flex;justify-content:space-between;align-items:center;padding:8px 14px 8px 28px;font-size:.78rem;cursor:pointer;transition:background .15s}
+.pl-sub-row:hover{background:rgba(255,255,255,.02)}
+.pl-sub-label{color:var(--text-2);display:flex;align-items:center;gap:5px}
+.pl-sub-val{font-weight:600;font-variant-numeric:tabular-nums}
+.pl-sub-total{display:flex;justify-content:space-between;padding:8px 14px 10px 28px;font-size:.75rem;color:var(--text-3);border-top:1px dashed var(--border)}
+
+/* Level 3 — individual entries */
+.pl-txns{background:rgba(0,0,0,.1);border-top:1px solid rgba(255,255,255,.04)}
+.pl-txn{display:flex;justify-content:space-between;align-items:center;padding:6px 14px 6px 42px;font-size:.72rem}
+.pl-txn-info{color:var(--text-3)}
+.pl-txn-note{color:var(--text-2)}
+.pl-txn-amount{font-weight:600;font-variant-numeric:tabular-nums}
+.pl-txn-actions{display:flex;align-items:center;gap:8px}
+.pl-txn-del{font-size:.65rem;color:var(--text-3);background:none;border:none;cursor:pointer;padding:2px 4px;opacity:.5}
+.pl-txn-del:hover{opacity:1;color:#ef5350}
+
+/* Delete confirmation */
+.pl-del-confirm{background:rgba(239,83,80,.1);border-top:1px solid rgba(239,83,80,.15);padding:8px 14px 8px 42px;font-size:.72rem;display:flex;justify-content:space-between;align-items:center}
+.pl-del-confirm-text{color:#ef5350}
+.pl-del-confirm button{font-size:.68rem;font-family:var(--font);font-weight:600;padding:3px 10px;border-radius:4px;cursor:pointer;border:none}
+.pl-del-yes{background:#ef5350;color:#fff}
+.pl-del-no{background:transparent;color:var(--text-2);border:1px solid var(--border) !important}
+
+/* P&L header with export */
+.pl-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.pl-header-left{display:flex;align-items:center;gap:10px}
+.btn-export{font-size:.7rem;font-family:var(--font);font-weight:600;padding:4px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:transparent;color:var(--text-3);cursor:pointer;display:flex;align-items:center;gap:4px}
+.btn-export:hover{color:var(--text-1);border-color:var(--text-3)}
+
+/* Empty state */
+.pl-empty{text-align:center;padding:32px 20px}
+.pl-empty-icon{font-size:2rem;margin-bottom:12px;opacity:.4}
+.pl-empty-title{font-size:.85rem;font-weight:600;margin-bottom:6px}
+.pl-empty-text{font-size:.75rem;color:var(--text-3);line-height:1.5;max-width:280px;margin:0 auto 16px}
+.pl-empty-cta{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;background:var(--accent);color:var(--bg);border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:.82rem;font-weight:600;cursor:pointer}
+
+/* Offline indicator */
+.pl-offline-bar{display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 14px;background:rgba(255,183,77,.1);border-bottom:1px solid rgba(255,183,77,.15);font-size:.7rem;color:#ffb74d;font-weight:600}
+.pl-offline-dot{width:6px;height:6px;border-radius:50%;background:#ffb74d;display:inline-block}
+.pl-queued-badge{font-size:.6rem;font-weight:600;padding:1px 5px;border-radius:4px;background:rgba(255,183,77,.1);color:#ffb74d;margin-left:6px}
+
+/* Log expense button */
+.log-expense-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:12px;padding:10px;background:rgba(0,230,118,.1);border:1px dashed var(--accent);border-radius:var(--r-sm);color:var(--accent);font-family:var(--font);font-size:.78rem;font-weight:600;cursor:pointer}

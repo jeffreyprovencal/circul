@@ -306,19 +306,27 @@
 
     <!-- MY P&L -->
     <div class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">My P&amp;L</div>
+      <div class="pl-header">
+        <div class="pl-header-left">
+          <h3>My P&amp;L</h3>
+          <button class="btn-export" id="plExportBtn" title="Download as PDF">↓ PDF</button>
         </div>
-        <div class="tabs">
-          <button class="tab" id="plMonthBtn" onclick="switchPLView('month')">Month</button>
-          <button class="tab on" id="plYTDBtn" onclick="switchPLView('ytd')">YTD</button>
+        <div class="tab-toggle">
+          <button class="tab-toggle-btn active" data-pl-range="month">Month</button>
+          <button class="tab-toggle-btn" data-pl-range="ytd">YTD</button>
         </div>
       </div>
-      <div id="plSummary" class="pl-grid">
-        <div><div class="pl-col-title">Bought</div><div class="empty">Loading…</div></div>
-        <div><div class="pl-col-title">Sold</div><div class="empty">Loading…</div></div>
+
+      <div id="plOfflineBar" class="pl-offline-bar hidden">
+        <span class="pl-offline-dot"></span>
+        You're offline — expenses will sync when you reconnect
       </div>
+
+      <div id="plCard" class="pl-card">
+        <!-- Populated by renderPL() -->
+      </div>
+
+      <button id="plLogExpenseBtn" class="log-expense-btn hidden" onclick="openLogExpense()">+ Log Expense</button>
     </div>
 
     <!-- SALES HISTORY -->
@@ -525,8 +533,8 @@ function loadAll() {
                     heroRatingEl.textContent = 'New';
                 }
             }
-            renderPL(s);
         });
+    loadPL('month');
     loadPendingTxns();
     loadIncomingCollections();
     loadMyBatchSales();
@@ -686,26 +694,216 @@ function submitPaymentConfirm(table, id) {
     .catch(function() { alert('Connection error.'); });
 }
 
-function renderPL(s) {
-    var el = document.getElementById('plSummary');
-    if (!el) return;
-    var totalPurchased = parseFloat(s.totals.total_value) || 0;
-    var outstanding = parseFloat(s.pending_payments.value) || 0;
-    var paid = totalPurchased - outstanding;
-    var totalSold = parseFloat((s.sales || {}).total_sold) || 0;
-    var monthSold = parseFloat((s.sales || {}).month_sold) || 0;
-    el.innerHTML =
-        '<div>' +
-            '<div class="pl-col-title">Bought</div>' +
-            '<div class="pl-row"><span>Total purchased (GH¢)</span><span>' + fmt(totalPurchased) + '</span></div>' +
-            '<div class="pl-row"><span>Total paid out (GH¢)</span><span>' + fmt(paid) + '</span></div>' +
-            '<div class="pl-total"><span>Outstanding</span><span class="pl-total-val">' + fmt(outstanding) + '</span></div>' +
-        '</div>' +
-        '<div>' +
-            '<div class="pl-col-title">Sold</div>' +
-            '<div class="pl-row"><span>This month (GH¢)</span><span>' + fmt(monthSold) + '</span></div>' +
-            '<div class="pl-total"><span>Total</span><span class="pl-total-val">' + fmt(totalSold) + '</span></div>' +
-        '</div>';
+/* ── P&L Accordion ─────────────────────── */
+var plData = null;
+var plExpenses = null;
+var plExpandedRows = new Set();
+var plExpandedSubs = new Set();
+var plDeleteConfirm = null;
+
+async function loadPL(range) {
+  var id = state.operator.id;
+  try {
+    var statsRes = await apiFetch('/api/aggregators/' + id + '/stats');
+    if (!statsRes.ok) throw new Error(statsRes.status);
+    var statsData = await statsRes.json();
+    var pl = (statsData.stats || {}).pl;
+    plData = pl || { revenue:{amount:0,mom:0}, cogs:{amount:0,mom:0}, gross:{amount:0,mom:0,pct:0}, opex:{amount:0,mom:0}, net:{amount:0,mom:0,pct:0} };
+
+    var url = '/api/aggregators/' + id + '/expenses';
+    if (range === 'ytd') {
+      var jan1 = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10);
+      url += '?from=' + jan1;
+    }
+    var expRes = await apiFetch(url);
+    if (!expRes.ok) throw new Error(expRes.status);
+    plExpenses = await expRes.json();
+
+    renderPL();
+  } catch (err) {
+    console.error('loadPL error:', err);
+  }
+}
+
+function fmtGHS(n) {
+  return 'GH\u00a2 ' + Math.abs(n).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function trendHTML(mom) {
+  if (mom === 0) return '<span class="trend trend-flat">\u2014</span>';
+  var cls = mom > 0 ? 'trend-up' : 'trend-down';
+  var arrow = mom > 0 ? '\u25b2' : '\u25bc';
+  return '<span class="trend ' + cls + '">' + arrow + ' ' + Math.abs(mom) + '%</span>';
+}
+
+function renderPL() {
+  var card = document.getElementById('plCard');
+  var logBtn = document.getElementById('plLogExpenseBtn');
+  if (!plData) { card.innerHTML = '<div class="pl-empty"><div class="pl-empty-icon">📊</div><div class="pl-empty-title">Loading\u2026</div></div>'; return; }
+
+  var revenue = plData.revenue;
+  var cogs = plData.cogs;
+  var gross = plData.gross;
+  var opex = plData.opex;
+  var net = plData.net;
+  var isEmpty = revenue.amount === 0 && cogs.amount === 0 && opex.amount === 0;
+
+  var html = '';
+
+  // Revenue row
+  html += plRowHTML('revenue', 'Revenue', revenue.amount, 'val-pos', revenue.mom);
+  if (plExpandedRows.has('revenue')) {
+    html += renderRevenueBreakdown();
+  }
+
+  // COGS row
+  html += plRowHTML('cogs', 'Cost of Goods Sold', cogs.amount, 'val-neg', cogs.mom);
+
+  // Gross Margin divider
+  html += '<div class="pl-row divider">' +
+    '<span class="pl-row-label">Gross Margin</span>' +
+    '<span class="pl-row-right">' +
+      '<span class="margin-pct">' + gross.pct + '%</span>' +
+      trendHTML(gross.mom) +
+      '<span class="pl-row-val ' + (gross.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + fmtGHS(gross.amount) + '</span>' +
+    '</span></div>';
+
+  // OpEx row
+  html += plRowHTML('opex', 'Operating Expenses', opex.amount, 'val-neg', opex.mom);
+  if (plExpandedRows.has('opex') && plExpenses) {
+    html += renderOpExBreakdown();
+  }
+
+  // Net Margin divider
+  html += '<div class="pl-row divider">' +
+    '<span class="pl-row-label">Net Margin</span>' +
+    '<span class="pl-row-right">' +
+      '<span class="margin-pct">' + net.pct + '%</span>' +
+      trendHTML(net.mom) +
+      '<span class="pl-row-val ' + (net.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + fmtGHS(net.amount) + '</span>' +
+    '</span></div>';
+
+  // Empty state
+  if (isEmpty) {
+    html += '<div class="pl-empty">' +
+      '<div class="pl-empty-icon">📊</div>' +
+      '<div class="pl-empty-title">Your P&amp;L builds as you trade</div>' +
+      '<div class="pl-empty-text">Revenue and costs appear automatically from your purchases and sales. Log your first expense to start tracking profit.</div>' +
+      '<button class="pl-empty-cta" onclick="openLogExpense()">+ Log your first expense</button>' +
+    '</div>';
+  }
+
+  card.innerHTML = html;
+
+  // Show log button only when there is data
+  logBtn.classList.toggle('hidden', isEmpty);
+}
+
+function plRowHTML(key, label, amount, valClass, mom) {
+  var isOpen = plExpandedRows.has(key);
+  var chevron = '<span class="pl-chev ' + (isOpen ? 'open' : '') + '">\u25b6</span>';
+  return '<div class="pl-row" onclick="togglePLRow(\'' + key + '\')"' + (isOpen ? ' style="background:rgba(255,255,255,.02)"' : '') + '>' +
+    '<span class="pl-row-label">' + chevron + ' ' + label + '</span>' +
+    '<span class="pl-row-right">' +
+      trendHTML(mom) +
+      '<span class="pl-row-val ' + valClass + '">' + fmtGHS(amount) + '</span>' +
+    '</span></div>';
+}
+
+function togglePLRow(key) {
+  if (plExpandedRows.has(key)) plExpandedRows.delete(key);
+  else plExpandedRows.add(key);
+  renderPL();
+}
+
+function renderRevenueBreakdown() {
+  return '<div class="pl-sub">' +
+    '<div class="pl-sub-total"><span>Tap for detailed sales breakdown (coming soon)</span><span></span></div>' +
+  '</div>';
+}
+
+function renderOpExBreakdown() {
+  if (!plExpenses || !plExpenses.categories || plExpenses.categories.length === 0) {
+    return '<div class="pl-sub"><div class="pl-sub-total"><span>No expenses logged this period</span><span></span></div></div>';
+  }
+
+  var html = '<div class="pl-sub">';
+  for (var ci = 0; ci < plExpenses.categories.length; ci++) {
+    var cat = plExpenses.categories[ci];
+    var subKey = 'opex-' + cat.category_id;
+    var isOpen = plExpandedSubs.has(subKey);
+    var chevron = '<span class="pl-chev ' + (isOpen ? 'open' : '') + '" style="font-size:.55rem">\u25b6</span>';
+
+    html += '<div class="pl-sub-row" onclick="event.stopPropagation(); togglePLSub(\'' + subKey + '\')"' + (isOpen ? ' style="background:rgba(255,255,255,.02)"' : '') + '>' +
+      '<span class="pl-sub-label">' + chevron + ' ' + esc(cat.category_name) + '</span>' +
+      '<span class="pl-sub-val val-neg">' + fmtGHS(cat.total) + '</span>' +
+    '</div>';
+
+    // Level 3: individual entries
+    if (isOpen) {
+      html += '<div class="pl-txns">';
+      for (var ei = 0; ei < cat.entries.length; ei++) {
+        var e = cat.entries[ei];
+        var d = new Date(e.expense_date);
+        var dateStr = d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        var noteStr = e.note ? ' \u00b7 <span class="pl-txn-note">' + esc(e.note) + '</span>' : '';
+        var receiptIcon = e.receipt_url ? ' 📷' : '';
+        var queueBadge = e._queued ? '<span class="pl-queued-badge">queued</span>' : '';
+
+        if (plDeleteConfirm === e.id) {
+          html += '<div class="pl-del-confirm">' +
+            '<span class="pl-del-confirm-text">Delete "' + esc(e.note || 'this entry') + '" \u2014 ' + fmtGHS(e.amount) + '?</span>' +
+            '<span><button class="pl-del-yes" onclick="event.stopPropagation(); confirmDeleteExpense(' + e.id + ')">Delete</button> ' +
+            '<button class="pl-del-no" onclick="event.stopPropagation(); cancelDeleteExpense()">Keep</button></span>' +
+          '</div>';
+        } else {
+          html += '<div class="pl-txn">' +
+            '<span class="pl-txn-info">' + dateStr + noteStr + receiptIcon + ' ' + queueBadge + '</span>' +
+            '<span class="pl-txn-actions">' +
+              '<span class="pl-txn-amount val-neg">' + fmtGHS(e.amount) + '</span>' +
+              '<button class="pl-txn-del" onclick="event.stopPropagation(); promptDeleteExpense(' + e.id + ')" title="Delete">\u2715</button>' +
+            '</span></div>';
+        }
+      }
+      html += '</div>';
+    }
+  }
+
+  html += '<div class="pl-sub-total"><span>' + plExpenses.entry_count + ' entries across ' + plExpenses.categories.length + ' categories</span><span>' + fmtGHS(plExpenses.total) + '</span></div>';
+  html += '</div>';
+  return html;
+}
+
+function togglePLSub(key) {
+  if (plExpandedSubs.has(key)) plExpandedSubs.delete(key);
+  else plExpandedSubs.add(key);
+  renderPL();
+}
+
+// Delete flow
+function promptDeleteExpense(id) {
+  plDeleteConfirm = id;
+  renderPL();
+}
+function cancelDeleteExpense() {
+  plDeleteConfirm = null;
+  renderPL();
+}
+async function confirmDeleteExpense(eid) {
+  try {
+    var res = await apiFetch('/api/aggregators/' + state.operator.id + '/expenses/' + eid, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.status);
+    plDeleteConfirm = null;
+    var activeRange = document.querySelector('[data-pl-range].active');
+    await loadPL(activeRange ? activeRange.dataset.plRange : 'month');
+  } catch (err) {
+    console.error('Delete expense error:', err);
+  }
+}
+
+// Placeholder for log expense (will be built in next prompt)
+function openLogExpense() {
+  console.log('openLogExpense — modal coming in next prompt');
 }
 
 function renderRatingsReceived(ratings) {
@@ -1348,12 +1546,14 @@ function switchTopBuyers(period) {
   loadTopBuyers(period);
 }
 
-/* P&L TOGGLE */
-function switchPLView(mode) {
-  document.getElementById("plMonthBtn").className = "tab" + (mode==="month" ? " on" : "");
-  document.getElementById("plYTDBtn").className = "tab" + (mode==="ytd" ? " on" : "");
-  renderPL(mode);
-}
+/* P&L Month/YTD toggle */
+document.querySelectorAll('[data-pl-range]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('[data-pl-range]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    loadPL(btn.dataset.plRange);
+  });
+});
 
 /* SUGGEST COST CATEGORY */
 function openSuggestModal() { document.getElementById("suggestModal").classList.add("open"); }
