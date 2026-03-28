@@ -6,6 +6,7 @@
 <title>Aggregator Dashboard — Circul</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 /* ── LOGIN OVERLAY ── */
 .login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
@@ -1253,6 +1254,164 @@ async function submitSuggestion() {
     console.error('submitSuggestion error:', err);
     showToast('Failed to submit suggestion', true);
   }
+}
+
+/* ── PDF Export ────────────────────────── */
+document.getElementById('plExportBtn').addEventListener('click', exportPLtoPDF);
+
+function exportPLtoPDF() {
+  if (!plData) {
+    showToast('No P&L data to export', true);
+    return;
+  }
+
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  var pw = doc.internal.pageSize.getWidth();
+  var margin = 20;
+  var y = margin;
+
+  // Colors
+  var green = [0, 230, 118];
+  var dark = [10, 26, 15];
+  var gray = [154, 184, 160];
+  var white = [232, 245, 233];
+
+  // Header
+  doc.setFillColor(dark[0], dark[1], dark[2]);
+  doc.rect(0, 0, pw, 40, 'F');
+
+  doc.setTextColor(green[0], green[1], green[2]);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Circul', margin, 16);
+
+  doc.setTextColor(white[0], white[1], white[2]);
+  doc.setFontSize(14);
+  doc.text('Profit & Loss Statement', margin, 26);
+
+  doc.setTextColor(gray[0], gray[1], gray[2]);
+  doc.setFontSize(9);
+  var rangeBtn = document.querySelector('[data-pl-range].active');
+  var range = rangeBtn ? rangeBtn.dataset.plRange : 'month';
+  var now = new Date();
+  var periodLabel = range === 'ytd'
+    ? 'January \u2013 ' + now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    : now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  var opName = (state.operator && state.operator.name) ? state.operator.name : 'Aggregator';
+  doc.text(opName + ' \u00b7 ' + periodLabel, margin, 34);
+
+  y = 50;
+
+  // Helper: draw a P&L line
+  function plLine(label, amount, isBold, isGreen, indent) {
+    var x = margin + (indent || 0);
+    doc.setFontSize(isBold ? 10 : 9);
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    doc.setTextColor(60, 60, 60);
+    doc.text(label, x, y);
+
+    var valStr = 'GH\u00a2 ' + Math.abs(amount).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (isGreen) {
+      doc.setTextColor(0, 150, 80);
+    } else {
+      doc.setTextColor(180, 60, 60);
+    }
+    doc.text(valStr, pw - margin, y, { align: 'right' });
+
+    y += isBold ? 8 : 6;
+  }
+
+  function separator() {
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y - 2, pw - margin, y - 2);
+    y += 2;
+  }
+
+  var revenue = plData.revenue;
+  var cogs = plData.cogs;
+  var gross = plData.gross;
+  var opex = plData.opex;
+  var net = plData.net;
+
+  // Summary section
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(40, 40, 40);
+  doc.text('Summary', margin, y);
+  y += 8;
+
+  plLine('Revenue', revenue.amount, false, true);
+  plLine('Cost of Goods Sold', cogs.amount, false, false);
+  separator();
+  plLine('Gross Margin', gross.amount, true, gross.amount >= 0);
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text('(' + gross.pct + '% of revenue)', margin + 30, y - 5);
+  y += 2;
+
+  plLine('Operating Expenses', opex.amount, false, false);
+  separator();
+  plLine('Net Margin', net.amount, true, net.amount >= 0);
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text('(' + net.pct + '% of revenue)', margin + 26, y - 5);
+  y += 8;
+
+  // Expense breakdown
+  if (plExpenses && plExpenses.categories && plExpenses.categories.length > 0) {
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(40, 40, 40);
+    doc.text('Expense Breakdown', margin, y);
+    y += 8;
+
+    for (var ci = 0; ci < plExpenses.categories.length; ci++) {
+      var cat = plExpenses.categories[ci];
+      plLine(cat.category_name, cat.total, false, false, 4);
+
+      for (var ei = 0; ei < cat.entries.length; ei++) {
+        var e = cat.entries[ei];
+        if (e._queued) continue;
+        var d = new Date(e.expense_date);
+        var dateStr = d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        var noteStr = e.note ? ' \u2013 ' + e.note : '';
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(130, 130, 130);
+        doc.text(dateStr + noteStr, margin + 10, y);
+        doc.text(
+          'GH\u00a2 ' + e.amount.toLocaleString('en-GH', { minimumFractionDigits: 2 }),
+          pw - margin, y, { align: 'right' }
+        );
+        y += 5;
+
+        // Page break check
+        if (y > 270) {
+          doc.addPage();
+          y = margin;
+        }
+      }
+      y += 2;
+    }
+
+    separator();
+    plLine('Total Expenses', plExpenses.total, true, false);
+  }
+
+  // Footer
+  y = Math.max(y + 10, 260);
+  if (y > 270) { doc.addPage(); y = margin; }
+  doc.setFontSize(7);
+  doc.setTextColor(160, 160, 160);
+  doc.text('Generated by Circul \u00b7 ' + new Date().toLocaleDateString('en-GB'), margin, y);
+  doc.text('circul.polsia.app', pw - margin, y, { align: 'right' });
+
+  // Save
+  var safeName = opName.replace(/\s+/g, '-').toLowerCase();
+  var filename = 'circul-pl-' + safeName + '-' + now.toISOString().slice(0, 7) + '.pdf';
+  doc.save(filename);
+  showToast('PDF downloaded');
 }
 
 function renderRatingsReceived(ratings) {
