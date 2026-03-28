@@ -81,7 +81,7 @@
       <div class="loading-state" id="loadingState">Loading your account…</div>
 
       <!-- Form -->
-      <div id="formBody" style="display:none">
+      <div id="formBody" class="hidden">
         <div class="section-title">Log a new sale</div>
         <div class="section-sub" style="margin-bottom:16px">Record a material drop-off to an aggregator</div>
         <div class="error-msg" id="errorMsg"></div>
@@ -131,7 +131,7 @@
     </div>
 
     <!-- MY SALES -->
-    <div class="section" id="mySalesCard" style="display:none">
+    <div class="section hidden" id="mySalesCard">
       <div class="section-head">
         <div>
           <div class="section-title">My sales</div>
@@ -185,8 +185,8 @@
             return;
           }
           collectorId = row.id;
-          document.getElementById('loadingState').style.display = 'none';
-          document.getElementById('formBody').style.display = 'block';
+          document.getElementById('loadingState').classList.add('hidden');
+          document.getElementById('formBody').classList.remove('hidden');
           loadAggregators();
           loadMySales();
         })
@@ -265,7 +265,7 @@
             var kg = parseFloat(pt.gross_weight_kg).toFixed(1);
             document.getElementById('successSub').textContent =
               kg + ' kg of ' + pt.material_type + ' logged — waiting for aggregator to confirm.';
-            document.getElementById('formBody').style.display = 'none';
+            document.getElementById('formBody').classList.add('hidden');
             document.getElementById('successState').classList.add('visible');
             loadMySales();
           } else {
@@ -291,7 +291,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var rows = data.pending_transactions || [];
-          card.style.display = '';
+          card.classList.remove('hidden');
           if (!rows.length) {
             list.innerHTML = '<div class="sales-empty">No sales logged yet.</div>';
             return;
@@ -299,7 +299,7 @@
           list.innerHTML = rows.map(renderSaleItem).join('');
         })
         .catch(function () {
-          card.style.display = '';
+          card.classList.remove('hidden');
           list.innerHTML = '<div class="sales-empty">Could not load sales.</div>';
         });
     }
@@ -388,7 +388,7 @@
       document.getElementById('priceInput').value    = '';
       document.getElementById('aggregatorSelect').value = '';
       document.getElementById('successState').classList.remove('visible');
-      document.getElementById('formBody').style.display = 'block';
+      document.getElementById('formBody').classList.remove('hidden');
       var btn = document.getElementById('submitBtn');
       btn.disabled = false;
       btn.textContent = 'Log Sale';
