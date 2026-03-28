@@ -25,46 +25,13 @@
 .rtag.negative{background:rgba(255,215,64,0.1);color:#ffd740;border-color:rgba(255,215,64,0.2)}
 .rtag.negative.selected{border-color:#ffd740}
 
-/* ── DELIVERY / QUEUE CARDS ── */
-.del-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
-.del-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.del-title{font-weight:600;font-size:0.85rem}
-.del-meta{font-size:0.75rem;color:var(--text-3)}
-.del-price{font-size:0.85rem;font-weight:600;color:var(--accent)}
-.del-actions{display:flex;gap:8px;margin-top:10px}
+/* ── DELIVERY QUEUE (local: approve/decline buttons) ── */
 .btn-approve{background:var(--accent-muted);color:var(--accent);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
 .btn-approve:hover{border-color:var(--accent)}
 .btn-decline{background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
 .btn-decline:hover{border-color:#ef4444}
-.btn-log-arrival{background:var(--accent-muted);color:var(--accent);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
-.btn-log-arrival:hover{border-color:var(--accent)}
 
-/* ── INLINE FORMS (dispatch/arrival) ── */
-.del-inline-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:10px}
-.di-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px;display:block}
-.di-textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:12px}
-.di-textarea::placeholder{color:var(--text-3)}
-.di-textarea:focus{outline:none;border-color:var(--accent)}
-.di-input{width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;margin-bottom:12px}
-.di-input:focus{outline:none;border-color:var(--accent)}
-.di-actions{display:flex;gap:8px;margin-top:8px}
-.di-confirm{background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
-.di-confirm:hover{background:var(--accent-hover)}
-.di-cancel{background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
-.di-cancel:hover{border-color:var(--text-3);color:var(--text-1)}
-.di-msg{font-size:0.8rem;margin-top:8px}
-
-/* ── TAB PANELS ── */
-.tab-panel{display:none}
-.tab-panel.active{display:block}
-
-/* ── ORDER CARD (rendered by JS) ── */
-.order-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
-.order-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.order-title{font-weight:600;font-size:0.85rem}
-.order-meta{font-size:0.75rem;color:var(--text-3)}
-.order-price{font-size:0.85rem;font-weight:600;color:var(--accent)}
-.order-specs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+/* ── ORDER CARD (local: spec items) ── */
 .order-spec-item{font-size:0.75rem;color:var(--text-2)}
 .order-spec-label{color:var(--text-3);margin-right:4px}
 .order-spec-val{color:var(--text-1)}
@@ -83,12 +50,6 @@
 /* ── ORDER TOTAL BOX ── */
 .order-total{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;font-size:0.85rem;color:var(--text-2)}
 .order-total strong{color:var(--accent)}
-
-/* ── BADGE (JS-generated, supplement shared.css .badge) ── */
-.badge-blue{background:rgba(0,150,255,0.15);color:#4fc3f7}
-.badge-green{background:var(--accent-muted);color:var(--accent)}
-.badge-amber{background:rgba(255,215,64,0.1);color:#ffd740}
-.badge-gray{background:rgba(255,255,255,0.08);color:var(--text-3)}
 
 /* ── RESPONSIVE SUPPLEMENT ── */
 @media(max-width:768px){
