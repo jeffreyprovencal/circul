@@ -1049,6 +1049,136 @@ function clearReceiptPhoto() {
   attachReceiptListener();
 }
 
+/* ── Offline Expense Queue ─────────────── */
+var OFFLINE_QUEUE_KEY = 'circul_expense_queue';
+
+function getOfflineQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  } catch (e) { return []; }
+}
+
+function saveOfflineQueue(queue) {
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+}
+
+function queueExpenseOffline(expense) {
+  var queue = getOfflineQueue();
+  var tempId = 'q-' + Date.now();
+  queue.push({
+    category_id: expense.category_id,
+    amount: expense.amount,
+    note: expense.note || null,
+    expense_date: expense.expense_date,
+    _queued: true,
+    _queuedAt: new Date().toISOString(),
+    _tempId: tempId
+  });
+  saveOfflineQueue(queue);
+  updateOfflineUI();
+
+  // Merge queued entry into plExpenses for immediate display
+  if (plExpenses) {
+    var catMatch = null;
+    for (var i = 0; i < plExpenses.categories.length; i++) {
+      if (plExpenses.categories[i].category_id == expense.category_id) { catMatch = plExpenses.categories[i]; break; }
+    }
+    var catName = 'Unknown';
+    for (var j = 0; j < plCategories.length; j++) {
+      if (plCategories[j].id == expense.category_id) { catName = plCategories[j].name; break; }
+    }
+    var entry = {
+      id: tempId,
+      amount: parseFloat(expense.amount),
+      note: expense.note || null,
+      receipt_url: null,
+      expense_date: expense.expense_date,
+      _queued: true
+    };
+    if (catMatch) {
+      catMatch.entries.unshift(entry);
+      catMatch.total += entry.amount;
+    } else {
+      plExpenses.categories.push({
+        category_id: expense.category_id,
+        category_name: catName,
+        total: entry.amount,
+        entries: [entry]
+      });
+    }
+    plExpenses.total += entry.amount;
+    plExpenses.entry_count += 1;
+    renderPL();
+  }
+}
+
+async function syncOfflineQueue() {
+  var queue = getOfflineQueue();
+  if (queue.length === 0) return;
+
+  var remaining = [];
+  for (var i = 0; i < queue.length; i++) {
+    var expense = queue[i];
+    try {
+      var formData = new FormData();
+      formData.append('category_id', expense.category_id);
+      formData.append('amount', expense.amount);
+      formData.append('expense_date', expense.expense_date);
+      if (expense.note) formData.append('note', expense.note);
+
+      var resp = await fetch('/api/aggregators/' + state.operator.id + '/expenses', {
+        method: 'POST',
+        body: formData
+      });
+      if (!resp.ok) throw new Error('Sync failed');
+    } catch (err) {
+      remaining.push(expense);
+    }
+  }
+
+  saveOfflineQueue(remaining);
+
+  if (remaining.length === 0) {
+    showToast('All queued expenses synced');
+    var activeRange = document.querySelector('[data-pl-range].active');
+    await loadPL(activeRange ? activeRange.dataset.plRange : 'month');
+  } else {
+    showToast((queue.length - remaining.length) + ' synced, ' + remaining.length + ' still queued');
+  }
+  updateOfflineUI();
+}
+
+function updateOfflineUI() {
+  var bar = document.getElementById('plOfflineBar');
+  if (!bar) return;
+  var queue = getOfflineQueue();
+
+  if (!navigator.onLine) {
+    bar.classList.remove('hidden');
+    bar.innerHTML = '<span class="pl-offline-dot"></span> You\u2019re offline \u2014 expenses will sync when you reconnect';
+  } else if (queue.length > 0) {
+    bar.classList.remove('hidden');
+    bar.innerHTML = '<span class="pl-offline-dot" style="background:var(--accent)"></span> Syncing ' + queue.length + ' queued expense' + (queue.length > 1 ? 's' : '') + '\u2026';
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+window.addEventListener('online', function() {
+  updateOfflineUI();
+  syncOfflineQueue();
+});
+
+window.addEventListener('offline', function() {
+  updateOfflineUI();
+});
+
+// Sync any remaining queue on page load
+document.addEventListener('DOMContentLoaded', function() {
+  if (navigator.onLine) syncOfflineQueue();
+  updateOfflineUI();
+});
+
 // Submit expense
 async function submitExpense() {
   var category_id = document.getElementById('plCategory').value;
@@ -1061,6 +1191,14 @@ async function submitExpense() {
   }
   if (!amount || parseFloat(amount) <= 0) {
     return showToast('Please enter an amount', true);
+  }
+
+  // Proactive offline check — queue immediately
+  if (!navigator.onLine) {
+    queueExpenseOffline({ category_id: category_id, amount: amount, note: note, expense_date: expense_date });
+    showToast('Saved offline \u2014 will sync when reconnected');
+    closeLogExpense();
+    return;
   }
 
   var formData = new FormData();
@@ -1084,6 +1222,7 @@ async function submitExpense() {
     await loadPL(activeRange ? activeRange.dataset.plRange : 'month');
   } catch (err) {
     if (!navigator.onLine) {
+      queueExpenseOffline({ category_id: category_id, amount: amount, note: note, expense_date: expense_date });
       showToast('Saved offline \u2014 will sync when reconnected');
       closeLogExpense();
       return;
