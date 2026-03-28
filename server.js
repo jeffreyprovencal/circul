@@ -578,6 +578,89 @@ app.post('/api/aggregator/suggest-cost-category', async (req, res) => {
   } catch (err) { console.error('POST /api/aggregator/suggest-cost-category error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+// ============================================
+// EXPENSE CATEGORIES
+// ============================================
+
+app.get('/api/expense-categories', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, status FROM expense_categories WHERE status IN ('default','approved') ORDER BY name`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/expense-categories error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/expense-categories/suggest', async (req, res) => {
+  try {
+    const { name, aggregator_id } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, message: 'Category name is required' });
+    if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id is required' });
+    const { rows } = await pool.query(
+      `INSERT INTO expense_categories (name, status, suggested_by) VALUES ($1, 'pending', $2) RETURNING id, name, status`,
+      [name.trim(), aggregator_id]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/expense-categories/suggest error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/expense-categories/pending', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ec.id, ec.name, ec.status, ec.created_at, o.name AS suggested_by_name
+       FROM expense_categories ec
+       LEFT JOIN aggregators o ON o.id = ec.suggested_by
+       WHERE ec.status = 'pending'
+       ORDER BY ec.created_at DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/expense-categories/pending error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.patch('/api/expense-categories/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const newName = req.body.name;
+    const { rows } = await pool.query(
+      `UPDATE expense_categories SET status = 'approved', name = COALESCE($1, name), reviewed_at = NOW() WHERE id = $2 AND status = 'pending' RETURNING *`,
+      [newName || null, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Category not found or already reviewed' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PATCH /api/expense-categories/:id/approve error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.patch('/api/expense-categories/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rejection_reason } = req.body;
+    if (!rejection_reason || !rejection_reason.trim()) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE expense_categories SET status = 'rejected', rejection_reason = $1, reviewed_at = NOW() WHERE id = $2 AND status = 'pending' RETURNING *`,
+      [rejection_reason.trim(), id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Category not found or already reviewed' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PATCH /api/expense-categories/:id/reject error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.get('/api/aggregator/top-suppliers', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
