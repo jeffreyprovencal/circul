@@ -87,7 +87,7 @@
 </div>
 
 <!-- DASHBOARD -->
-<div id="dashboard" style="display:none">
+<div id="dashboard" class="hidden">
 
   <!-- NAV -->
   <nav>
@@ -150,7 +150,7 @@
       </div>
 
       <!-- Register purchase form (inline, hidden by default) -->
-      <div id="registerForm" style="display:none;margin-top:16px;">
+      <div id="registerForm" class="hidden" style="margin-top:16px;">
         <div style="font-size:0.9rem;font-weight:600;margin-bottom:14px;">Register a purchase from collector</div>
         <div class="form-grid" style="margin-bottom:12px;">
           <div class="form-group">
@@ -179,7 +179,7 @@
         <div id="photoArea" class="photo-area" onclick="document.getElementById('photoUpload').click()">📷 Tap to add photos (required for batches over 500 kg)</div>
         <input type="file" id="photoUpload" accept="image/*" multiple style="display:none" />
         <div class="photo-warning" id="photoWarning">Photos required for batches over 500 kg</div>
-        <div id="registerMsg" style="font-size:0.8rem;margin-top:10px;color:var(--text-3);"></div>
+        <div id="registerMsg" class="hidden" style="margin-top:10px;"></div>
         <div style="display:flex;gap:8px;margin-top:14px;">
           <button class="btn-green btn" onclick="submitAggregatorPurchase()">Register purchase</button>
           <button class="btn" onclick="toggleRegisterForm()">Cancel</button>
@@ -279,12 +279,12 @@
           <input class="form-input" id="sellPrice" type="number" min="0" step="0.01" placeholder="0.00" />
         </div>
       </div>
-      <div id="sellNotes" style="display:none;margin-top:12px;">
+      <div id="sellNotes" class="hidden" style="margin-top:12px;">
         <label class="form-label">Notes (optional)</label>
         <input class="form-input" type="text" placeholder="e.g. delivery notes" />
       </div>
       <div class="photo-warning" id="photoWarning2">Photos required for batches over 500 kg</div>
-      <div id="sellMsg" style="font-size:0.8rem;margin-top:10px;color:var(--text-3);"></div>
+      <div id="sellMsg" class="hidden" style="margin-top:10px;"></div>
     </div>
 
     <!-- MY COLLECTORS -->
@@ -440,7 +440,7 @@ function fmtAggId(id) {
 
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('dashboard').style.display = '';
+    document.getElementById('dashboard').classList.remove('hidden');
     var op = state.operator;
     document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
     document.getElementById('navAggId').textContent = fmtAggId(op.id);
@@ -625,14 +625,14 @@ function loadPendingTxns() {
 function openPaymentForm(table, id, btn) {
     var form = document.getElementById('pay-form-' + table + '-' + id);
     if (!form) return;
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    form.classList.toggle('hidden');
 }
 
 function toggleMoMo(table, id) {
     var cashRadio = document.querySelector('input[name="pm-' + id + '"][value="cash"]');
     var field = document.getElementById('momo-field-' + table + '-' + id);
     if (!field) return;
-    field.style.display = (cashRadio && cashRadio.checked) ? 'none' : 'block';
+    field.classList.toggle('hidden', !!(cashRadio && cashRadio.checked));
 }
 
 function submitPaymentInitiate(table, id) {
@@ -782,7 +782,7 @@ function loadIncomingCollections() {
                     (pt.price_per_kg ? '<span class="incoming-item-detail">GH¢ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg offered</span>' : '') +
                     '<button class="btn-review" id="review-btn-' + pt.id + '" onclick="openReview(' + pt.id + ')">Review</button>' +
                     '</div>' +
-                    '<div class="review-panel" id="review-panel-' + pt.id + '" style="display:none"></div>' +
+                    '<div class="review-panel hidden" id="review-panel-' + pt.id + '"></div>' +
                 '</div>';
             }).join('');
         })
@@ -794,18 +794,18 @@ function loadIncomingCollections() {
 function openReview(ptId) {
     var panel = document.getElementById('review-panel-' + ptId);
     var btn   = document.getElementById('review-btn-' + ptId);
-    var isOpen = panel.style.display !== 'none';
+    var isOpen = !panel.classList.contains('hidden');
 
     // Close any other open review
     if (activeReviewId && activeReviewId !== ptId) {
         var prevPanel = document.getElementById('review-panel-' + activeReviewId);
         var prevBtn   = document.getElementById('review-btn-' + activeReviewId);
-        if (prevPanel) prevPanel.style.display = 'none';
+        if (prevPanel) prevPanel.classList.add('hidden');
         if (prevBtn)   prevBtn.classList.remove('active');
     }
 
     if (isOpen) {
-        panel.style.display = 'none';
+        panel.classList.add('hidden');
         btn.classList.remove('active');
         activeReviewId = null;
         return;
@@ -817,7 +817,7 @@ function openReview(ptId) {
     var pt = pendingMap[ptId];
     var basePrice = postedPriceMap[pt.material_type] || (pt.price_per_kg ? parseFloat(pt.price_per_kg).toFixed(2) : '');
     panel.innerHTML = buildReviewPanel(ptId, pt, basePrice);
-    panel.style.display = '';
+    panel.classList.remove('hidden');
 }
 
 function buildReviewPanel(ptId, pt, basePrice) {
@@ -825,18 +825,18 @@ function buildReviewPanel(ptId, pt, basePrice) {
     return '<div>' +
         '<div class="review-section-label">Assign Grade</div>' +
         '<div class="grade-row">' +
-        '<button class="grade-btn" id="gbA-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.72rem;font-weight:400">&lt;5% contamination · +10%</span></button>' +
-        '<button class="grade-btn" id="gbB-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.72rem;font-weight:400">5–15% contamination · standard</span></button>' +
-        '<button class="grade-btn" id="gbC-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.72rem;font-weight:400">&gt;15% contamination · −25%</span></button>' +
+        '<button class="grade-btn" id="gbA-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'A\')">Grade A<br><span class="grade-sub">&lt;5% contamination · +10%</span></button>' +
+        '<button class="grade-btn" id="gbB-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'B\')">Grade B<br><span class="grade-sub">5–15% contamination · standard</span></button>' +
+        '<button class="grade-btn" id="gbC-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'C\')">Grade C<br><span class="grade-sub">&gt;15% contamination · −25%</span></button>' +
         '</div>' +
-        '<div id="price-preview-' + ptId + '" class="price-preview" style="display:none"></div>' +
+        '<div id="price-preview-' + ptId + '" class="price-preview" class="hidden"></div>' +
         '<div class="review-fields">' +
         '<div>' +
         '<label class="review-field-label">Price (GH¢/kg)</label>' +
         '<input type="number" class="review-input" id="rev-price-' + ptId + '" value="' + esc(String(basePrice)) + '" placeholder="GH¢/kg" step="0.01" min="0" oninput="updatePricePreview(' + ptId + ')">' +
         '</div>' +
         '<div>' +
-        '<label class="review-field-label">Grade notes <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>' +
+        '<label class="review-field-label">Grade notes <span class="label-hint">(optional)</span></label>' +
         '<input type="text" class="review-input" id="rev-notes-' + ptId + '" placeholder="Notes on condition…">' +
         '</div>' +
         '</div>' +
@@ -868,19 +868,19 @@ function updatePricePreview(ptId) {
     var priceEl   = document.getElementById('rev-price-' + ptId);
     var pt        = pendingMap[ptId];
     var grade     = reviewStateMap[ptId] && reviewStateMap[ptId].grade;
-    if (!preview || !priceEl || !pt || !grade) { if (preview) preview.style.display = 'none'; return; }
+    if (!preview || !priceEl || !pt || !grade) { if (preview) preview.classList.add('hidden'); return; }
     var basePrice = parseFloat(priceEl.value);
-    if (isNaN(basePrice) || basePrice <= 0) { preview.style.display = 'none'; return; }
+    if (isNaN(basePrice) || basePrice <= 0) { preview.classList.add('hidden'); return; }
     var mult       = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
     var final      = parseFloat((basePrice * mult).toFixed(2));
     var total      = parseFloat((final * parseFloat(pt.gross_weight_kg)).toFixed(2));
     preview.textContent = 'Final price: GH¢ ' + final.toFixed(2) + '/kg — Total: GH¢ ' + total.toFixed(2) + ' (' + parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg)';
-    preview.style.display = '';
+    preview.classList.remove('hidden');
 }
 
 function toggleRejectBlock(ptId) {
     var block = document.getElementById('reject-block-' + ptId);
-    if (block) block.style.display = block.style.display === 'none' ? '' : 'none';
+    if (block) block.classList.toggle('hidden');
 }
 
 function submitReview(ptId, action) {
@@ -909,8 +909,7 @@ function submitReview(ptId, action) {
         if (data.success) {
             var item = document.getElementById('pt-item-' + ptId);
             if (item) {
-                item.style.opacity = '0';
-                item.style.transition = 'opacity 0.3s';
+                item.classList.add('fade-out');
                 setTimeout(function() {
                     if (item.parentNode) item.parentNode.removeChild(item);
                     var list = document.getElementById('incomingList');
@@ -935,11 +934,11 @@ function submitReview(ptId, action) {
 
 function toggleRegisterForm() {
     var form = document.getElementById('registerForm');
-    var visible = form.style.display !== 'none';
-    form.style.display = visible ? 'none' : '';
+    var visible = !form.classList.contains('hidden');
+    form.classList.toggle('hidden', visible);
     if (!visible) {
         populateRegisterCollectors();
-        document.getElementById('registerMsg').style.display = 'none';
+        document.getElementById('registerMsg').classList.add('hidden');
         document.getElementById('regCollector').value = '';
         document.getElementById('regMaterial').value  = '';
         document.getElementById('regWeight').value    = '';
@@ -966,8 +965,8 @@ function submitAggregatorPurchase() {
 
     if (!collectorId || !material || !weight || parseFloat(weight) <= 0) {
         msg.textContent = 'Collector, material, and weight are required.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
         return;
     }
 
@@ -988,22 +987,22 @@ function submitAggregatorPurchase() {
     .then(function(data) {
         if (data.success) {
             msg.textContent = 'Purchase registered — waiting for collector to confirm.';
-            msg.style.color = 'var(--accent)';
-            msg.style.display = '';
+            msg.className = 'msg-success';
+            msg.classList.remove('hidden');
             document.getElementById('regCollector').value = '';
             document.getElementById('regMaterial').value  = '';
             document.getElementById('regWeight').value    = '';
             document.getElementById('regPrice').value     = '';
         } else {
             msg.textContent = data.message || 'Error registering purchase.';
-            msg.style.color = '#ef4444';
-            msg.style.display = '';
+            msg.className = 'msg-error';
+            msg.classList.remove('hidden');
         }
     })
     .catch(function() {
         msg.textContent = 'Connection error. Please try again.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
     });
 }
 
@@ -1063,10 +1062,10 @@ function updatePhotoWarning() {
     var warn   = document.getElementById('photoWarning');
     if (weight > 500) {
         if (area) area.classList.add('photo-required');
-        if (warn) warn.style.display = '';
+        if (warn) warn.classList.remove('hidden');
     } else {
         if (area) area.classList.remove('photo-required');
-        if (warn) warn.style.display = 'none';
+        if (warn) warn.classList.add('hidden');
     }
 }
 
@@ -1081,8 +1080,8 @@ function submitAggregatorSale() {
 
     if (!material || !processorId || !weight || parseFloat(weight) <= 0 || !price || parseFloat(price) <= 0) {
         msg.textContent = 'Material, processor, weight, and price are all required.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
         return;
     }
 
@@ -1115,8 +1114,8 @@ function submitAggregatorSale() {
             msg.textContent = data.photos_required
                 ? 'Sale logged — submit photos for processor approval before dispatching.'
                 : 'Sale logged — processor has been notified.';
-            msg.style.color = 'var(--accent)';
-            msg.style.display = '';
+            msg.className = 'msg-success';
+            msg.classList.remove('hidden');
             document.getElementById('sellMaterial').value  = '';
             document.getElementById('sellProcessor').value = '';
             document.getElementById('sellWeight').value    = '';
@@ -1127,14 +1126,14 @@ function submitAggregatorSale() {
             loadMyBatchSales();
         } else {
             msg.textContent = data.message || 'Error logging sale.';
-            msg.style.color = '#ef4444';
-            msg.style.display = '';
+            msg.className = 'msg-error';
+            msg.classList.remove('hidden');
         }
     })
     .catch(function() {
         msg.textContent = 'Connection error. Please try again.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
     });
 }
 
