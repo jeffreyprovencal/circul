@@ -3,9 +3,29 @@ const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const multer = require('multer');
 const CirculRoles = require('./shared/roles');
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Expense receipt uploads → public/uploads/receipts/
+const receiptDir = path.join(__dirname, 'public', 'uploads', 'receipts');
+if (!fs.existsSync(receiptDir)) fs.mkdirSync(receiptDir, { recursive: true });
+
+const receiptUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, receiptDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      cb(null, `receipt-${Date.now()}${ext}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp/;
+    cb(null, allowed.test(file.mimetype));
+  }
+});
 
 if (!process.env.DATABASE_URL) {
   console.error('ERROR: DATABASE_URL environment variable is equired');
@@ -552,6 +572,67 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       pool.query(`SELECT COALESCE(SUM(total_price),0) as total_sold, COALESCE(SUM(CASE WHEN created_at >= $2 THEN total_price ELSE 0 END),0) as month_sold FROM pending_transactions WHERE aggregator_id=$1 AND transaction_type='aggregator_sale' AND status IN ('dispatch_approved','arrived','completed')`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ total_sold: 0, month_sold: 0 }] }))
     ]);
 
+    // ── P&L data (month-over-month) ──────────────────────────
+    const now = new Date();
+    const plThisStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const plLastStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+    const plLastEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+    const plToday     = now.toISOString().slice(0, 10);
+
+    const [revThis, revLast, cogsLast, opexThis, opexLast] = await Promise.all([
+      // Revenue this month (aggregator sales to processors)
+      pool.query(
+        `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
+         WHERE aggregator_id=$1 AND transaction_type='aggregator_sale'
+           AND status IN ('dispatch_approved','arrived','completed')
+           AND created_at >= $2`,
+        [id, plThisStart]
+      ).catch(() => ({ rows: [{ total: 0 }] })),
+      // Revenue last month
+      pool.query(
+        `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
+         WHERE aggregator_id=$1 AND transaction_type='aggregator_sale'
+           AND status IN ('dispatch_approved','arrived','completed')
+           AND created_at >= $2 AND created_at < $3`,
+        [id, plLastStart, plThisStart]
+      ).catch(() => ({ rows: [{ total: 0 }] })),
+      // COGS last month (purchases from collectors)
+      pool.query(
+        `SELECT COALESCE(SUM(total_price),0) AS total FROM transactions
+         WHERE aggregator_id=$1
+           AND transaction_date >= $2 AND transaction_date < $3`,
+        [id, plLastStart, plThisStart]
+      ).catch(() => ({ rows: [{ total: 0 }] })),
+      // OpEx this month
+      pool.query(
+        `SELECT COALESCE(SUM(amount),0) AS total FROM expense_entries
+         WHERE aggregator_id=$1 AND expense_date >= $2 AND expense_date <= $3`,
+        [id, plThisStart, plToday]
+      ).catch(() => ({ rows: [{ total: 0 }] })),
+      // OpEx last month
+      pool.query(
+        `SELECT COALESCE(SUM(amount),0) AS total FROM expense_entries
+         WHERE aggregator_id=$1 AND expense_date >= $2 AND expense_date <= $3`,
+        [id, plLastStart, plLastEnd]
+      ).catch(() => ({ rows: [{ total: 0 }] }))
+    ]);
+
+    // Revenue & COGS this month already available from earlier queries
+    const revenue     = parseFloat(revThis.rows[0].total);
+    const revenuePrev = parseFloat(revLast.rows[0].total);
+    const cogs        = parseFloat(monthlyTotals.rows[0].month_value);
+    const cogsPrev    = parseFloat(cogsLast.rows[0].total);
+    const opex        = parseFloat(opexThis.rows[0].total);
+    const opexPrev    = parseFloat(opexLast.rows[0].total);
+
+    const gross     = revenue - cogs;
+    const grossPrev = revenuePrev - cogsPrev;
+    const net       = gross - opex;
+    const netPrev   = grossPrev - opexPrev;
+
+    const pct = (part, whole) => whole === 0 ? 0 : Math.round((part / whole) * 1000) / 10;
+    const mom = (curr, prev) => prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 1000) / 10;
+
     res.json({
       success: true,
       operator: { ...aggregator, role: 'aggregator' },
@@ -560,7 +641,15 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
         pending_payments: pending.rows[0], active_collectors: activeCollectors.rows[0].count,
         by_material: byMaterial.rows, top_collectors: topCollectors.rows,
         posted_prices: postedPrices.rows, ratings: ratings.rows[0],
-        sales: sales.rows[0]
+        sales: sales.rows[0],
+        pl: {
+          revenue: { amount: revenue, mom: mom(revenue, revenuePrev) },
+          cogs:    { amount: cogs,    mom: mom(cogs, cogsPrev) },
+          gross:   { amount: gross,   mom: mom(gross, grossPrev), pct: pct(gross, revenue) },
+          opex:    { amount: opex,    mom: mom(opex, opexPrev) },
+          net:     { amount: net,     mom: mom(net, netPrev),     pct: pct(net, revenue) },
+          period:  { from: plThisStart, to: plToday }
+        }
       }
     });
   } catch (err) {
@@ -658,6 +747,102 @@ app.patch('/api/expense-categories/:id/reject', async (req, res) => {
   } catch (err) {
     console.error('PATCH /api/expense-categories/:id/reject error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// EXPENSE ENTRIES
+// ============================================
+
+app.post('/api/aggregators/:id/expenses', receiptUpload.single('receipt'), async (req, res) => {
+  try {
+    const aggregator_id = parseInt(req.params.id);
+    const { category_id, amount, note, expense_date } = req.body;
+
+    if (!category_id || !amount || isNaN(parseFloat(amount))) {
+      return res.status(400).json({ error: 'category_id and amount are required' });
+    }
+
+    const receipt_url = req.file ? `/uploads/receipts/${req.file.filename}` : null;
+    const date = expense_date || new Date().toISOString().slice(0, 10);
+
+    const { rows } = await pool.query(
+      `INSERT INTO expense_entries (aggregator_id, category_id, amount, note, receipt_url, expense_date)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [aggregator_id, category_id, parseFloat(amount), note || null, receipt_url, date]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/aggregators/:id/expenses error:', err);
+    res.status(500).json({ error: 'Failed to log expense' });
+  }
+});
+
+app.get('/api/aggregators/:id/expenses', async (req, res) => {
+  try {
+    const aggregator_id = parseInt(req.params.id);
+    const { from, to } = req.query;
+
+    // Default: current month
+    const startDate = from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    const endDate = to || new Date().toISOString().slice(0, 10);
+
+    const { rows } = await pool.query(
+      `SELECT ee.id, ee.amount, ee.note, ee.receipt_url, ee.expense_date, ee.created_at,
+              ec.id AS category_id, ec.name AS category_name
+       FROM expense_entries ee
+       JOIN expense_categories ec ON ec.id = ee.category_id
+       WHERE ee.aggregator_id = $1
+         AND ee.expense_date BETWEEN $2 AND $3
+       ORDER BY ec.name, ee.expense_date DESC`,
+      [aggregator_id, startDate, endDate]
+    );
+
+    // Group by category
+    const grouped = {};
+    for (const row of rows) {
+      if (!grouped[row.category_name]) {
+        grouped[row.category_name] = { category_id: row.category_id, category_name: row.category_name, total: 0, entries: [] };
+      }
+      grouped[row.category_name].total += parseFloat(row.amount);
+      grouped[row.category_name].entries.push({
+        id: row.id, amount: parseFloat(row.amount), note: row.note,
+        receipt_url: row.receipt_url, expense_date: row.expense_date, created_at: row.created_at
+      });
+    }
+
+    res.json({
+      from: startDate, to: endDate,
+      total: rows.reduce((s, r) => s + parseFloat(r.amount), 0),
+      entry_count: rows.length,
+      categories: Object.values(grouped)
+    });
+  } catch (err) {
+    console.error('GET /api/aggregators/:id/expenses error:', err);
+    res.status(500).json({ error: 'Failed to fetch expenses' });
+  }
+});
+
+app.delete('/api/aggregators/:id/expenses/:eid', async (req, res) => {
+  try {
+    const { id, eid } = req.params;
+    const { rows } = await pool.query(
+      `DELETE FROM expense_entries WHERE id = $1 AND aggregator_id = $2 RETURNING *`,
+      [eid, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
+
+    // Clean up receipt file if it exists
+    if (rows[0].receipt_url) {
+      const filePath = path.join(__dirname, 'public', rows[0].receipt_url);
+      fs.unlink(filePath, () => {}); // best-effort delete
+    }
+
+    res.json({ deleted: rows[0] });
+  } catch (err) {
+    console.error('DELETE /api/aggregators/:id/expenses/:eid error:', err);
+    res.status(500).json({ error: 'Failed to delete expense' });
   }
 });
 
