@@ -517,6 +517,14 @@ function loadAll() {
             renderPriceCards(s.posted_prices);
             renderCollectors(s.top_collectors);
             renderRatingsReceived(s.ratings);
+            var heroRatingEl = document.getElementById('heroRating');
+            if (heroRatingEl) {
+                if (s.ratings && s.ratings.avg_rating) {
+                    heroRatingEl.textContent = parseFloat(s.ratings.avg_rating).toFixed(1);
+                } else {
+                    heroRatingEl.textContent = 'New';
+                }
+            }
             renderPL(s);
         });
     loadPendingTxns();
@@ -583,8 +591,11 @@ function paymentBadge(ps) {
 }
 
 function loadPendingTxns() {
-    fetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50&payment_status=unpaid,payment_sent')
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50&payment_status=unpaid,payment_sent')
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             if (!data.success) return;
             var txns = (data.transactions || []).filter(function(t) { return t.payment_status === 'unpaid' || t.payment_status === 'payment_sent'; });
@@ -758,8 +769,11 @@ document.getElementById('ratingModal').addEventListener('click', function(e) {
 
 function loadIncomingCollections() {
     var aggId = state.operator.id;
-    fetch('/api/pending-transactions?aggregator_id=' + aggId)
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/pending-transactions?aggregator_id=' + aggId)
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             var list = document.getElementById('incomingList');
             var rows = data.pending_transactions || [];
@@ -1010,9 +1024,18 @@ function submitAggregatorPurchase() {
 
 function loadProcessors() {
     Promise.all([
-        fetch('/api/processors').then(function(r) { return r.json(); }),
-        fetch('/api/converters?country=Ghana').then(function(r) { return r.json(); }),
-        fetch('/api/prices?role=aggregator').then(function(r) { return r.json(); }).catch(function() { return {}; })
+        apiFetch('/api/processors').then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).catch(function() { return { processors: [] }; }),
+        apiFetch('/api/converters?country=Ghana').then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).catch(function() { return { converters: [] }; }),
+        apiFetch('/api/prices?role=aggregator').then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).catch(function() { return {}; })
     ])
     .then(function(results) {
         var sel = document.getElementById('sellProcessor');
@@ -1036,7 +1059,8 @@ function loadProcessors() {
             .filter(function(p) { return p.operator_role === 'processor' || p.operator_role === 'converter'; })
             .map(function(p) { return { operator_id: p.aggregator_id, material_type: p.material_type, price_per_kg_ghs: p.price_per_kg_ghs }; });
     })
-    .catch(function() {
+    .catch(function(err) {
+        console.error('loadProcessors failed:', err);
         document.getElementById('sellProcessor').innerHTML = '<option value="">Could not load buyers</option>';
     });
 }
@@ -1139,8 +1163,11 @@ function submitAggregatorSale() {
 
 function loadMyBatchSales() {
     var aggId = state.operator.id;
-    fetch('/api/pending-transactions/aggregator-sales?aggregator_id=' + aggId)
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/pending-transactions/aggregator-sales?aggregator_id=' + aggId)
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             var list = document.getElementById('myBatchSalesList');
             var rows = data.pending_transactions || [];
@@ -1150,7 +1177,8 @@ function loadMyBatchSales() {
             }
             list.innerHTML = rows.map(renderBatchSaleItem).join('');
         })
-        .catch(function() {
+        .catch(function(err) {
+            console.error('loadMyBatchSales failed:', err);
             document.getElementById('myBatchSalesList').innerHTML = '<div class="empty">Could not load batch sales.</div>';
         });
 }
