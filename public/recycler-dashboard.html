@@ -100,7 +100,7 @@
 </nav>
 
 <!-- MAIN DASHBOARD -->
-<div class="page" id="dashboard" style="display:none">
+<div class="page hidden" id="dashboard">
 
   <!-- HERO -->
   <div class="hero">
@@ -146,7 +146,7 @@
           <span class="view-all">View all</span>
         </div>
       </div>
-      <div id="top-suppliers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- MY TOP BUYERS -->
@@ -159,7 +159,7 @@
           <span class="view-all">View all</span>
         </div>
       </div>
-      <div id="top-buyers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+      <div id="top-buyers-list"><div class="placeholder-cell">Loading...</div></div>
     </div>
   </div>
 
@@ -228,11 +228,11 @@
       </div>
     </div>
     <input type="hidden" id="ord-price" value="" />
-    <div class="order-total" id="ord-total-box" style="display:none">
+    <div class="order-total hidden" id="ord-total-box">
       Estimated total: <strong id="ord-total-ghs">&mdash;</strong>
       <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
     </div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:8px" id="ord-msg"></div>
+    <div class="msg-error" style="margin-bottom:8px" id="ord-msg"></div>
   </div>
 
   <!-- MY ORDERS -->
@@ -305,7 +305,7 @@
         <input class="form-input" type="number" id="rec-sale-price" placeholder="e.g. 3.50" step="0.01" min="0" />
       </div>
     </div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-top:8px;margin-bottom:8px" id="rec-sale-msg"></div>
+    <div class="msg-error" style="margin-top:8px;margin-bottom:8px" id="rec-sale-msg"></div>
   </div>
 
   <!-- MY SALES -->
@@ -335,7 +335,7 @@
           <thead><tr>
             <th>Date</th><th>Processor</th><th>Material</th><th>Weight</th><th>Price/KG</th><th>Amount</th><th>Status</th>
           </tr></thead>
-          <tbody id="supplyBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading...</td></tr></tbody>
+          <tbody id="supplyBody"><tr><td colspan="7" class="placeholder-cell">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -346,17 +346,17 @@
         <span style="font-size:0.85rem;color:var(--text-2)">Prices in</span>
         <span id="priceCity" style="font-size:0.85rem;font-weight:700;color:#b388ff">Accra</span>
       </div>
-      <div id="processorPrices"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorPrices"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- TRACEABILITY TAB -->
     <div class="tab-panel" id="tab-certs">
-      <div id="txnCerts"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="txnCerts"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- RATINGS TAB -->
     <div class="tab-panel" id="tab-ratings">
-      <div id="processorRatingsList"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorRatingsList"><div class="placeholder-cell">Loading...</div></div>
       <div id="ratingsReceived"></div>
     </div>
   </div>
@@ -376,7 +376,7 @@
       <button class="star-btn" onclick="setStars(5)">&#9733;</button>
     </div>
     <div id="rec-rating-tags"></div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:12px" id="rateProcessorMsg"></div>
+    <div class="msg-error hidden" style="margin-bottom:12px" id="rateProcessorMsg"></div>
     <textarea class="rating-note" id="rec-rating-note" placeholder="Add a note (optional)..."></textarea>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeRateProcessorModal()">Cancel</button>
@@ -441,7 +441,7 @@ function checkDualRole() {
                     var p = JSON.parse(atob(parts[i]));
                     if (p && p.roles && p.roles.indexOf('converter') !== -1) {
                         var btn = document.getElementById('switch-role-btn');
-                        if (btn) btn.style.display = 'inline-block';
+                        if (btn) btn.classList.remove('hidden');
                         return;
                     }
                 } catch(e) {}
@@ -452,7 +452,7 @@ function checkDualRole() {
 
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('dashboard').style.display = '';
+    document.getElementById('dashboard').classList.remove('hidden');
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
     var navId = document.getElementById('navRecId');
@@ -560,9 +560,9 @@ function calcOrderTotal() {
         var total = q * p;
         document.getElementById('ord-total-ghs').textContent = 'Est. GH\u20B5 ' + fmt(total) + ' total value';
         document.getElementById('ord-total-usd').textContent = '\u2248 $' + (total * 0.067).toFixed(2) + ' USD';
-        box.style.display = '';
+        box.classList.remove('hidden');
     } else {
-        box.style.display = 'none';
+        box.classList.add('hidden');
     }
 }
 
@@ -578,10 +578,10 @@ function submitOrder() {
     var contam   = document.getElementById('ord-contam').value;
     var notes    = document.getElementById('ord-notes').value.trim();
 
-    msgEl.textContent = '';
-    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = '#ef4444'; return; }
-    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = '#ef4444'; return; }
-    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = '#ef4444'; return; }
+    msgEl.textContent = ''; msgEl.className = 'msg-error';
+    if (!material)           { msgEl.textContent = 'Material type is required.'; return; }
+    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; return; }
+    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; return; }
 
     btn.disabled = true; btn.textContent = 'Placing...';
     fetch('/api/orders', {
@@ -607,16 +607,15 @@ function submitOrder() {
             document.getElementById('ord-excl').value     = '';
             document.getElementById('ord-contam').value   = '';
             document.getElementById('ord-notes').value    = '';
-            document.getElementById('ord-total-box').style.display = 'none';
+            document.getElementById('ord-total-box').classList.add('hidden');
             msgEl.textContent = '';
             showRecToast('Order placed successfully');
             loadOrders();
         } else {
             msgEl.textContent = data.message || 'Error placing order.';
-            msgEl.style.color = '#ef4444';
         }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; })
+    .catch(function() { msgEl.textContent = 'Connection error.'; })
     .finally(function() { btn.disabled = false; btn.textContent = 'Place Order'; });
 }
 
@@ -657,7 +656,7 @@ function renderOrders() {
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
             '<span class="order-meta">GH\u20B5 ' + fmt(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-2)">\u2248 $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + ' <span class="price-sub">\u2248 $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
             '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
@@ -721,7 +720,7 @@ function buildRecPendingCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span class="price-sub">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -730,7 +729,7 @@ function buildRecPendingCard(pt) {
         '<button class="btn-approve" onclick="openRecDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openRecDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
-        '<div id="recdispatch-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="recdispatch-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
@@ -743,11 +742,11 @@ function buildRecApprovedCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span class="price-sub">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-approve" onclick="openRecArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
-        '<div id="recarr-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="recarr-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
@@ -775,12 +774,12 @@ function buildRecCompletedRow(pt) {
 
 function openRecDispatchForm(ptId, type) {
     var formEl = document.getElementById('recdispatch-form-' + ptId);
-    if (activeRecDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeRecDispatchId = null; return;
+    if (activeRecDispatchId === ptId && formEl.dataset.formType === type && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeRecDispatchId = null; return;
     }
     if (activeRecDispatchId && activeRecDispatchId !== ptId) {
         var prev = document.getElementById('recdispatch-form-' + activeRecDispatchId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeRecDispatchId = ptId;
     formEl.dataset.formType = type;
@@ -793,19 +792,19 @@ function openRecDispatchForm(ptId, type) {
             '</div><div class="di-msg" id="recdisp-msg-' + ptId + '"></div></div>';
     } else {
         formEl.innerHTML = '<div class="del-inline-form">' +
-            '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
+            '<label class="di-label">Reason for rejection <span class="label-hint">(required)</span></label>' +
             '<textarea class="di-textarea" id="recreject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:#ef4444" onclick="submitRecDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm-danger" onclick="submitRecDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelRecDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="recdisp-msg-' + ptId + '"></div></div>';
     }
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelRecDispatchForm(ptId) {
     var f = document.getElementById('recdispatch-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeRecDispatchId === ptId) activeRecDispatchId = null;
 }
 
@@ -815,7 +814,7 @@ function submitRecDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('recreject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef4444'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.className = 'di-msg msg-error'; return; }
         body.rejection_reason = reason;
     }
     fetch('/api/pending-transactions/' + ptId + '/recycler-dispatch-decision', {
@@ -826,19 +825,19 @@ function submitRecDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeRecDispatchId = null; loadRecyclerQueue(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 function openRecArrivalForm(ptId) {
     var formEl = document.getElementById('recarr-form-' + ptId);
-    if (activeRecArrivalId === ptId && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeRecArrivalId = null; return;
+    if (activeRecArrivalId === ptId && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeRecArrivalId = null; return;
     }
     if (activeRecArrivalId && activeRecArrivalId !== ptId) {
         var prev = document.getElementById('recarr-form-' + activeRecArrivalId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeRecArrivalId = ptId;
     var pt = recyclerDeliveries.find(function(d) { return d.id === ptId; });
@@ -855,12 +854,12 @@ function openRecArrivalForm(ptId) {
         '<button class="di-cancel" onclick="cancelRecArrivalForm(' + ptId + ')">Cancel</button>' +
         '</div><div class="di-msg" id="recarr-msg-' + ptId + '"></div>' +
         '</div>';
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelRecArrivalForm(ptId) {
     var f = document.getElementById('recarr-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeRecArrivalId === ptId) activeRecArrivalId = null;
 }
 
@@ -869,7 +868,7 @@ function submitRecArrival(ptId) {
     var msgEl = document.getElementById('recarr-msg-' + ptId);
     var weight = document.getElementById('recarr-weight-' + ptId).value;
     var grade = document.getElementById('recarr-grade-' + ptId).value;
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef4444'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.className = 'di-msg msg-error'; return; }
     fetch('/api/pending-transactions/' + ptId + '/recycler-arrival', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -878,9 +877,9 @@ function submitRecArrival(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeRecArrivalId = null; loadRecyclerQueue(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 // -- OUTBOUND SALES (sell to converter) --
@@ -1090,7 +1089,7 @@ function rateProcessor(processorId, processorName) {
     _rateProcessorScore = null;
     document.getElementById('rateProcessorName').textContent = processorName || 'Your processor';
     document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.getElementById('rateProcessorMsg').style.display = 'none';
+    document.getElementById('rateProcessorMsg').classList.add('hidden');
     document.getElementById('rec-rating-note').value = '';
     renderRecRatingTags();
     document.getElementById('rateProcessorModal').classList.add('show');
@@ -1111,7 +1110,7 @@ async function submitRecRating() {
     if (!_rateProcessorScore) {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Please select a star rating.';
-        msg.style.display = 'block';
+        msg.classList.remove('hidden');
         return;
     }
     try {
@@ -1138,12 +1137,12 @@ async function submitRecRating() {
         } else {
             var msg = document.getElementById('rateProcessorMsg');
             msg.textContent = data.message || 'Could not submit rating.';
-            msg.style.display = 'block';
+            msg.classList.remove('hidden');
         }
     } catch (e) {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Network error. Please try again.';
-        msg.style.display = 'block';
+        msg.classList.remove('hidden');
     }
 }
 
@@ -1206,12 +1205,12 @@ function switchTopSuppliers(period) {
 function loadTopSuppliers(period) {
   var el = document.getElementById("top-suppliers-list");
   if (!el) return;
-  el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div>';
+  el.innerHTML = '<div class="placeholder-cell">Loading...</div>';
   fetch("/api/recycler/top-suppliers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="placeholder-cell">No data yet</div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
           '<div class="partner-row">',
@@ -1268,12 +1267,12 @@ function switchTopBuyers(period) {
 function loadTopBuyers(period) {
   var el = document.getElementById("top-buyers-list");
   if (!el) return;
-  el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div>';
+  el.innerHTML = '<div class="placeholder-cell">Loading...</div>';
   fetch("/api/recycler/top-buyers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);
-      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="placeholder-cell">No data yet</div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
           '<div class="partner-row">',
