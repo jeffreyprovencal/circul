@@ -9,7 +9,6 @@
 <style>
 /* ── LOGIN OVERLAY ── */
 .login-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500}
-.login-overlay.hidden{display:none}
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
 .login-box h2{font-size:1.3rem;font-weight:700;margin-bottom:6px;color:var(--accent)}
 .login-box p{color:var(--text-2);font-size:0.85rem;margin-bottom:24px}
@@ -19,35 +18,12 @@
 .login-box input:focus{outline:none;border-color:var(--accent)}
 .login-box button{width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-size:0.9rem;font-weight:700;cursor:pointer;font-family:var(--font)}
 .login-box button:hover{background:var(--accent-hover)}
-.login-error{color:#ef4444;font-size:0.8rem;margin-top:8px}
-.login-error.visible{display:block}
 
-/* ── TOAST ── */
-#cvToast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px 24px;font-size:0.85rem;font-weight:600;z-index:9999;display:none;font-family:var(--font);white-space:nowrap}
-#cvToast.hidden{display:none}
-
-/* ── RATING MODAL ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.modal-overlay.open{display:flex}
-.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:440px;max-width:95vw}
-.modal-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
-.modal-sub{font-size:0.8rem;color:var(--text-2);margin-bottom:20px}
-.stars-row{display:flex;gap:8px;margin-bottom:20px}
-.star-btn{font-size:1.6rem;cursor:pointer;color:var(--text-3);transition:color 0.15s;line-height:1}
-.star-btn.active{color:#ffd740}
-.modal-section-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:10px}
-.rating-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
-.rtag{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s}
+/* ── RATING (local overrides) ── */
 .rtag.positive{background:var(--accent-muted);color:var(--accent);border-color:var(--border)}
 .rtag.positive.selected{border-color:var(--accent)}
 .rtag.negative{background:rgba(255,215,64,0.1);color:#ffd740;border-color:rgba(255,215,64,0.2)}
 .rtag.negative.selected{border-color:#ffd740}
-.modal-note{width:100%;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:20px}
-.modal-note::placeholder{color:var(--text-3)}
-.modal-note:focus{outline:none;border-color:var(--accent)}
-.modal-actions{display:flex;gap:10px;justify-content:flex-end}
-.btn-secondary{background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
-.btn-secondary:hover{border-color:var(--text-3);color:var(--text-1)}
 
 /* ── DELIVERY / QUEUE CARDS ── */
 .del-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
@@ -104,9 +80,6 @@
 .avail-vol{font-size:1.2rem;font-weight:800;color:var(--accent)}
 .avail-unit{font-size:0.75rem;color:var(--text-3)}
 
-/* ── HIDDEN UTILITY ── */
-.hidden{display:none!important}
-
 /* ── ORDER TOTAL BOX ── */
 .order-total{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;font-size:0.85rem;color:var(--text-2)}
 .order-total strong{color:var(--accent)}
@@ -146,7 +119,7 @@
   <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
   <span class="nav-spacer"></span>
   <div class="nav-right">
-    <span class="nav-pill" style="background:#2a0a1a;color:#f48fb1">CONVERTER</span>
+    <span class="nav-pill nav-pill-converter">CONVERTER</span>
     <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="navConvId"></span>
     <a class="nav-link" id="switch-role-btn" href="/processor-dashboard.html" style="display:none">Switch to Processor</a>
@@ -166,6 +139,10 @@
         <span id="heroEmail"></span>
         <span class="sep">·</span>
         <span id="heroRegion"></span>
+        <span class="sep">·</span>
+        <span>⭐ <span id="heroRating" style="font-weight:600">—</span></span>
+        <span class="sep">·</span>
+        <span class="badge">ACTIVE</span>
       </div>
     </div>
   </div>
@@ -219,8 +196,13 @@
 
   <!-- PLACE PURCHASE ORDER -->
   <div class="section">
-    <div class="section-title">Place purchase order</div>
-    <div class="section-sub" style="margin-bottom:14px">Request material from your suppliers</div>
+    <div class="section-head">
+      <div>
+        <div class="section-title">Place purchase order</div>
+        <div class="section-sub">Request material from your suppliers</div>
+      </div>
+      <button class="btn-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
+    </div>
     <div class="tier-selector">
       <button class="tier-btn active" data-tier="recycler" onclick="selectOrderTier('recycler')" style="background:#1a0d2a;color:#b388ff;border-color:#b388ff">Recycler</button>
       <button class="tier-btn" data-tier="processor" onclick="selectOrderTier('processor')" style="color:#42a5f5">Processor</button>
@@ -275,7 +257,6 @@
       <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
     </div>
     <div style="color:#ef4444;font-size:0.8rem;margin-bottom:8px" id="ord-msg"></div>
-    <button class="form-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
   </div>
 
   <!-- INCOMING DELIVERIES -->
@@ -353,24 +334,29 @@
 </div><!-- /.page -->
 
 <!-- RATE PROCESSOR MODAL -->
-<div class="modal-overlay" id="rateProcessorModal">
-  <div class="modal-box">
+<div class="rating-overlay" id="rateProcessorModal">
+  <div class="rating-box">
     <h3 id="rateProcessorName">Rate Processor</h3>
-    <div class="modal-sub">Your feedback helps improve the supply chain</div>
-    <div class="stars-row" id="rateProcessorStars"></div>
-    <div class="modal-section-label">What went well or not?</div>
-    <div class="rating-tags" id="cv-rating-tags"></div>
+    <div class="sub">Your feedback helps improve the supply chain</div>
+    <div class="stars-row" id="rateProcessorStars">
+      <button class="star-btn" onclick="setStars(1)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(2)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(3)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(4)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(5)">&#9733;</button>
+    </div>
+    <div id="cv-rating-tags"></div>
     <div style="color:#ef4444;font-size:0.8rem;margin-bottom:12px" id="rateProcessorMsg"></div>
-    <textarea class="modal-note" id="cv-rating-note" placeholder="Add a note (optional)..."></textarea>
+    <textarea class="rating-note" id="cv-rating-note" placeholder="Add a note (optional)..."></textarea>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="this.closest('.modal-overlay').style.display='none'">Cancel</button>
-      <button class="btn-primary" onclick="submitCvRating()">Submit Rating</button>
+      <button class="btn-cancel" onclick="closeRateProcessorModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitCvRating()">Submit Rating</button>
     </div>
   </div>
 </div>
 
 <!-- TOAST -->
-<div id="cvToast"></div>
+<div class="toast" id="cvToast"></div>
 
 <!-- ARRIVAL FORM CONTAINER -->
 <div id="conv-arrival-form"></div>
@@ -448,7 +434,11 @@ function showDashboard() {
     var heroEl = document.getElementById('heroName');
     if (heroEl) heroEl.textContent = op.company || op.name || '—';
     var emailEl = document.getElementById('heroEmail');
-    if (emailEl) emailEl.textContent = op.email || '';
+    if (emailEl) emailEl.textContent = op.email || '—';
+    var regionEl = document.getElementById('heroRegion');
+    if (regionEl) regionEl.textContent = op.location || op.city || '—';
+    var heroRat = document.getElementById('heroRating');
+    if (heroRat && op.avg_rating) heroRat.textContent = Number(op.avg_rating).toFixed(1);
     checkDualRole();
     loadAll();
     if (op.token) {
@@ -457,11 +447,13 @@ function showDashboard() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.converter) {
-                    var name = data.converter.company || data.converter.name || op.name || '';
+                    var cv = data.converter;
+                    var name = cv.company || cv.name || op.name || '';
                     document.getElementById('navName').textContent = name;
                     if (heroEl) heroEl.textContent = name;
-                    var regionEl = document.getElementById('heroRegion');
-                    if (regionEl) regionEl.textContent = data.converter.city || data.converter.region || '';
+                    if (regionEl) regionEl.textContent = cv.city || cv.region || '—';
+                    if (emailEl && cv.email) emailEl.textContent = cv.email;
+                    if (heroRat && cv.avg_rating) heroRat.textContent = Number(cv.avg_rating).toFixed(1);
                 }
             })
             .catch(function() {});
@@ -743,9 +735,11 @@ function buildConvApprovedCard(pt) {
 function buildConvCompletedRow(pt) {
     var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
-    var statusBadge = (pt.status === 'arrived' || pt.status === 'completed')
-        ? '<span class="badge badge-green">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
-        : '<span class="badge" style="background:rgba(239,68,68,0.15);color:#ef4444">Rejected</span>';
+    var statusBadge = pt.status === 'arrived'
+        ? '<span class="pill pill-arrived">Arrived</span>'
+        : pt.status === 'completed'
+        ? '<span class="pill pill-completed">Completed</span>'
+        : '<span class="pill pill-rejected">Rejected</span>';
     var rejNote = (pt.status === 'dispatch_rejected' && pt.rejection_reason)
         ? '<div style="font-size:0.74rem;color:#ef4444;margin-top:2px">' + esc(pt.rejection_reason) + '</div>'
         : '';
@@ -871,10 +865,9 @@ function showCvToast(msg) {
     var el = document.getElementById('cvToast');
     if (!el) return;
     el.textContent = msg;
-    el.style.display = '';
-    el.classList.remove('hidden');
+    el.classList.add('show');
     if (cvToastTimer) clearTimeout(cvToastTimer);
-    cvToastTimer = setTimeout(function() { el.style.display = 'none'; }, 3500);
+    cvToastTimer = setTimeout(function() { el.classList.remove('show'); }, 3500);
 }
 
 function timeAgo(iso) {
@@ -897,7 +890,7 @@ function loadTxns() {
             var tbody = document.getElementById('supplyBody');
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
-                var supplier = esc(t.processor_company || t.processor_name || t.seller_name || '—');
+                var supplier = esc(t.recycler_company || t.recycler_name || t.processor_company || t.processor_name || t.seller_name || '—');
                 var priceKg = t.price_per_kg ? fmt(t.price_per_kg) : '—';
                 var matLower = (t.material_type || '').toLowerCase();
                 var pillClass = 'pill pill-' + matLower;
@@ -969,7 +962,7 @@ function loadRatings() {
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-green" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-submit" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
             }).join('');
         });
     fetch('/api/ratings/operator/' + state.operator.id)
@@ -988,38 +981,40 @@ function rateProcessor(processorId, processorName) {
     _rateProcessorId = processorId;
     _rateProcessorScore = null;
     document.getElementById('rateProcessorName').textContent = processorName || 'Your processor';
-    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.style.color = 'var(--text-3)'; });
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.classList.remove('active'); });
     document.getElementById('rateProcessorMsg').style.display = 'none';
-    var modal = document.getElementById('rateProcessorModal');
-    modal.style.display = 'flex';
+    document.getElementById('cv-rating-note').value = '';
+    renderCvRatingTags();
+    document.getElementById('rateProcessorModal').classList.add('show');
 }
 
-function selectProcessorStar(val) {
-    _rateProcessorScore = val;
-    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) {
-        b.style.color = parseInt(b.dataset.val) <= val ? '#ffd740' : 'var(--text-3)';
+function setStars(n) {
+    _rateProcessorScore = n;
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(s, i) {
+        s.classList.toggle('active', i < n);
     });
 }
 
 function closeRateProcessorModal() {
-    document.getElementById('rateProcessorModal').style.display = 'none';
+    document.getElementById('rateProcessorModal').classList.remove('show');
 }
 
-async function submitProcessorRating() {
+function submitCvRating() {
     if (!_rateProcessorScore) {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Please select a star rating.';
         msg.style.display = 'block';
         return;
     }
-    try {
-        var token = localStorage.getItem('circul_token');
-        var r = await fetch('/api/ratings/operator', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor' })
-        });
-        var data = await r.json();
+    var token = localStorage.getItem('circul_token');
+    var note = document.getElementById('cv-rating-note').value.trim();
+    fetch('/api/ratings/operator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor', tags: _cvSelectedTags, note: note || null })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.success) {
             closeRateProcessorModal();
             showCvToast('Rating submitted!');
@@ -1028,11 +1023,12 @@ async function submitProcessorRating() {
             msg.textContent = data.message || 'Could not submit rating.';
             msg.style.display = 'block';
         }
-    } catch (e) {
+    })
+    .catch(function() {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Network error. Please try again.';
         msg.style.display = 'block';
-    }
+    });
 }
 
 function renderPriceCards(prices) {
@@ -1239,23 +1235,6 @@ function renderCvRatingTags() {
     return "<span class=\"rtag " + t.type + "\" onclick=\"cvToggleTag(this,'" + t.label + "')\">" + t.label + "</span>";
   }).join("");
 }
-
-// Patch rateProcessor to also render tags
-var _origRateProcessor = typeof rateProcessor === "function" ? rateProcessor : null;
-rateProcessor = function(processorId, processorName) {
-  renderCvRatingTags();
-  if (_origRateProcessor) _origRateProcessor(processorId, processorName);
-};
-
-// Patch submitProcessorRating to include tags
-var _origSubmitProcessorRating = typeof submitProcessorRating === "function" ? submitProcessorRating : null;
-submitProcessorRating = function() {
-  var tagsEl = document.getElementById("cv-rating-tags");
-  var tags = _cvSelectedTags.slice();
-  if (_origSubmitProcessorRating) {
-    _origSubmitProcessorRating();
-  }
-};
 
 // ── INIT ─────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", function() {
