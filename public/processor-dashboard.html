@@ -15,8 +15,8 @@
 .login-error{margin-bottom:12px}
 .login-field{margin-bottom:16px}
 
-/* ── TOAST (local overrides) ── */
-.toast-error{background:#7f1d1d;color:#fca5a5;border-color:#ef5350}
+/* ── TOAST (local overrides — extends shared .toast-error) ── */
+.toast-error{background:#7f1d1d;color:#fca5a5}
 
 /* ── RATING (local overrides) ── */
 .rtag.positive{background:var(--accent-muted);color:var(--accent);border-color:rgba(0,230,118,0.25)}
@@ -24,21 +24,7 @@
 .rtag.positive.selected{background:var(--accent);color:#000;font-weight:700}
 .rtag.negative.selected{background:#ffd740;color:#1a0a00;font-weight:700}
 
-/* ── DELIVERY CARDS ── */
-.delivery-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px}
-.delivery-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.delivery-title{font-weight:600;font-size:0.9rem}
-.delivery-meta{font-size:0.8rem;color:var(--text-3)}
-.delivery-price{font-weight:700;color:var(--accent);font-size:0.9rem}
-.delivery-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.delivery-inline-form{margin-top:10px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm)}
-.di-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:6px}
-.di-input{width:100%;padding:9px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;box-sizing:border-box}
-.di-textarea{width:100%;box-sizing:border-box;padding:9px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;resize:vertical;margin-bottom:10px}
-.di-actions{display:flex;gap:8px;margin-top:10px}
-.di-confirm{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:var(--r-sm);font-weight:700;cursor:pointer;font-family:var(--font);font-size:0.8rem}
-.di-cancel{background:transparent;border:1px solid var(--border);color:var(--text-2);padding:8px 16px;border-radius:var(--r-sm);font-weight:600;cursor:pointer;font-family:var(--font);font-size:0.8rem}
-.di-msg{font-size:0.8rem;margin-top:8px}
+/* ── GRADE SELECTION (processor-specific) ── */
 .di-grade-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .di-grade-btn{background:var(--surface-alt);border:1px solid var(--border);color:var(--text-2);padding:8px 14px;border-radius:var(--r-sm);font-size:0.8rem;cursor:pointer;font-family:var(--font);text-align:left}
 .di-grade-btn.sel-a{border-color:var(--accent);color:var(--accent);font-weight:700}
@@ -55,10 +41,9 @@
 .ps-sale-price{font-weight:700;color:var(--accent);font-size:0.9rem}
 .ps-rejection{font-size:0.8rem;color:#ef5350;padding:6px 10px;background:rgba(239,83,80,0.1);border-radius:var(--r-sm);margin-top:4px}
 
-/* ── ACTION BUTTONS ── */
+/* ── ACTION BUTTONS (local: approve/decline) ── */
 .btn-approve{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:var(--r-sm);font-weight:700;cursor:pointer;font-family:var(--font);font-size:0.8rem}
 .btn-decline{background:transparent;border:1px solid #ef5350;color:#ef5350;padding:8px 16px;border-radius:var(--r-sm);font-weight:600;cursor:pointer;font-family:var(--font);font-size:0.8rem}
-.btn-log-arrival{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:var(--r-sm);font-weight:700;cursor:pointer;font-family:var(--font);font-size:0.8rem}
 
 </style>
 </head>
@@ -669,17 +654,17 @@ function buildPendingCard(pt) {
     var warnHtml = bigBatch && !hasPhotos
         ? '<div style="font-size:0.8rem;padding:7px 10px;background:rgba(255,193,7,0.1);color:#ffd740;border-radius:var(--r-sm);margin-top:8px">Photos required for batches over 500 kg — you may waive below.</div>'
         : '';
-    return '<div class="delivery-card" id="dc-' + pt.id + '">' +
-        '<div class="delivery-row">' +
+    return '<div class="del-card" id="dc-' + pt.id + '">' +
+        '<div class="del-row">' +
         '<span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span>' +
-        '<span class="delivery-title">' + aggName + '</span>' +
-        '<span class="delivery-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="delivery-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="delivery-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
-        '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
+        '<span class="del-title">' + aggName + '</span>' +
+        '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
+        '<span class="del-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
+        '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
-        '<div class="delivery-actions">' +
+        '<div class="del-actions">' +
         '<button class="btn-approve" onclick="openDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
@@ -692,17 +677,17 @@ function buildPendingCard(pt) {
 function buildApprovedCard(pt) {
     var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
     var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
-    return '<div class="delivery-card" id="dc-arr-' + pt.id + '">' +
-        '<div class="delivery-row">' +
+    return '<div class="del-card" id="dc-arr-' + pt.id + '">' +
+        '<div class="del-row">' +
         '<span class="pill pill-paid">Approved</span>' +
         '<span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span>' +
-        '<span class="delivery-title">' + aggName + '</span>' +
-        '<span class="delivery-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="delivery-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="delivery-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
-        '<span class="delivery-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
+        '<span class="del-title">' + aggName + '</span>' +
+        '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
+        '<span class="del-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
+        '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
-        '<div class="delivery-actions"><button class="btn-log-arrival" onclick="openArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
+        '<div class="del-actions"><button class="btn-log-arrival" onclick="openArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
         '<div style="padding:10px 0 4px 0">' + buildPTPaymentUI(pt) + '</div>' +
         '<div id="arrival-form-' + pt.id + '" style="display:none"></div>' +
     '</div>';
@@ -765,13 +750,13 @@ function openDispatchForm(ptId, type) {
         var waiveHtml = bigBatch && noPhotos
             ? '<label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin-bottom:12px;cursor:pointer;color:var(--text-2)"><input type="checkbox" id="waive-' + ptId + '"> Waive photo requirement for this batch</label>'
             : '';
-        formEl.innerHTML = '<div class="delivery-inline-form">' + waiveHtml +
+        formEl.innerHTML = '<div class="del-inline-form">' + waiveHtml +
             '<div class="di-actions">' +
             '<button class="di-confirm" onclick="submitDispatchDecision(' + ptId + ',\'approve\')">Confirm Dispatch Approval</button>' +
             '<button class="di-cancel" onclick="cancelDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="dispatch-msg-' + ptId + '"></div></div>';
     } else {
-        formEl.innerHTML = '<div class="delivery-inline-form">' +
+        formEl.innerHTML = '<div class="del-inline-form">' +
             '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
             '<textarea class="di-textarea" id="reject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
@@ -835,7 +820,7 @@ function openArrivalForm(ptId) {
     var pt = deliveries.find(function(d) { return d.id === ptId; });
     var origWeight = pt ? parseFloat(pt.gross_weight_kg).toFixed(1) : '';
 
-    formEl.innerHTML = '<div class="delivery-inline-form">' +
+    formEl.innerHTML = '<div class="del-inline-form">' +
         '<div style="margin-bottom:12px"><label class="di-label">Actual weight received (kg)</label>' +
         '<input type="number" class="di-input" id="arr-weight-' + ptId + '" value="' + esc(String(origWeight)) + '" min="0.1" step="0.1" style="max-width:200px;margin-bottom:0"></div>' +
         '<label class="di-label">Grade</label>' +
