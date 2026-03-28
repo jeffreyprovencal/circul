@@ -237,6 +237,29 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 .msg-success{color:var(--accent);font-size:0.8rem}
 
 /* ══════════════════════════════════════════
+   PHASE C — JS inline style replacements
+   ══════════════════════════════════════════ */
+
+/* ── PLACEHOLDER CELL (loading / empty states in tables and grids) ── */
+.placeholder-cell{color:var(--text-3);padding:20px;text-align:center}
+
+/* ── PRICE SUB-SPAN (USD conversion, secondary price info) ── */
+.price-sub{font-weight:400;font-size:0.74rem;color:var(--text-3)}
+
+/* ── LABEL HINT (reset text-transform on sub-labels inside uppercase headings) ── */
+.label-hint{text-transform:none;letter-spacing:0;font-weight:400}
+
+/* ── GRADE SUB-LABEL (small helper text under grade buttons) ── */
+.grade-sub{font-size:0.72rem;font-weight:400;color:var(--text-3)}
+
+/* ── DANGER CONFIRM (red confirm button for rejections) ── */
+.di-confirm-danger{padding:6px 14px;background:#ef5350;color:#fff;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:0.75rem;font-weight:700;cursor:pointer}
+.di-confirm-danger:hover{background:#e53935}
+
+/* ── FADE OUT (animation helper) ── */
+.fade-out{opacity:0;transition:opacity 0.3s}
+
+/* ══════════════════════════════════════════
    PHASE B — extracted shared components
    ══════════════════════════════════════════ */
 
