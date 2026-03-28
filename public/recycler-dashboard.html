@@ -24,46 +24,16 @@
 .rtag.negative{background:rgba(255,215,64,0.08);color:#ffd740;border-color:var(--border)}
 .rtag.negative.selected{background:rgba(255,215,64,0.15);border-color:#ffd740}
 
-/* ── DELIVERY / QUEUE CARDS ── */
-.del-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px}
-.del-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.del-title{font-size:0.875rem;font-weight:700;flex:1;min-width:0}
-.del-meta{font-size:0.75rem;color:var(--text-3)}
-.del-price{font-size:0.875rem;font-weight:700;color:var(--accent)}
-.del-actions{display:flex;gap:8px;margin-top:10px}
-.del-inline-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-top:8px}
-.di-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);display:block;margin-bottom:5px}
-.di-input{width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;font-family:var(--font);margin-bottom:12px}
-.di-input:focus{outline:none;border-color:var(--accent)}
-.di-textarea{width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;font-family:var(--font);resize:vertical;min-height:50px;margin-bottom:12px}
-.di-textarea:focus{outline:none;border-color:var(--accent)}
-.di-actions{display:flex;gap:8px;margin-top:8px}
-.di-confirm{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:600;font-size:0.8rem;cursor:pointer}
-.di-confirm:hover{background:var(--accent-hover)}
-.di-cancel{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-2);font-family:var(--font);font-size:0.8rem;cursor:pointer}
-.di-cancel:hover{border-color:var(--text-3);color:var(--text-1)}
-.di-msg{font-size:0.8rem;margin-top:8px}
+/* ── DELIVERY QUEUE (local: approve/decline buttons) ── */
 .btn-approve{padding:8px 16px;background:rgba(179,136,255,0.12);color:#b388ff;border:1px solid rgba(179,136,255,0.25);border-radius:var(--r-sm);font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
 .btn-approve:hover{background:rgba(179,136,255,0.2)}
 .btn-decline{padding:8px 16px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.25);border-radius:var(--r-sm);font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
 .btn-decline:hover{background:rgba(239,68,68,0.18)}
 
-/* ── ORDER CARD (renderOrders) ── */
-.order-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px}
-.order-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.order-title{font-size:0.875rem;font-weight:700}
-.order-meta{font-size:0.8rem;color:var(--text-2)}
-.order-price{font-size:0.875rem;font-weight:700;color:var(--accent)}
-.order-specs{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+/* ── ORDER CARD (local: spec items) ── */
 .order-spec-item{font-size:0.75rem}
 .order-spec-label{color:var(--text-3);margin-right:4px}
 .order-spec-val{color:var(--text-1)}
-
-/* ── BADGE variants for JS ── */
-.badge-blue{background:rgba(0,150,255,0.15);color:#4fc3f7}
-.badge-green{background:rgba(0,230,118,0.15);color:var(--accent)}
-.badge-amber{background:rgba(255,215,64,0.15);color:#ffd740}
-.badge-gray{background:rgba(255,255,255,0.08);color:var(--text-3)}
 
 /* ── STATUS BADGES for JS ── */
 .status-badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;white-space:nowrap}
@@ -93,10 +63,6 @@
 .partner-price-label{display:block;font-size:0.6rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em}
 .partner-price-val{display:block;font-size:0.875rem;font-weight:700;color:var(--accent)}
 .partner-price-note{display:block;font-size:0.6rem;color:var(--text-3)}
-
-/* ── TAB PANEL ── */
-.tab-panel{display:none}
-.tab-panel.active{display:block}
 
 /* ── TOTAL BOX (order form) ── */
 .order-total{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;font-size:0.875rem;color:var(--text-2)}
