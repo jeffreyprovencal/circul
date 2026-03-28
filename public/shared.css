@@ -184,6 +184,66 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
   th,td{padding:8px 6px;font-size:0.75rem}
 }
 
+/* ── UTILITY ── */
+.hidden{display:none}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-md);padding:12px 24px;font-size:0.85rem;color:var(--text-1);z-index:300;opacity:0;transition:opacity 0.3s}
+.toast.show{opacity:1}
+
+/* ── NAV PILL ROLE COLORS ── */
+.nav-pill-collector{background:#0f2a14;color:#00e676}
+.nav-pill-aggregator{background:#0a2a28;color:#26c6da}
+.nav-pill-processor{background:#0a1e2a;color:#42a5f5}
+.nav-pill-recycler{background:#160d2e;color:#b388ff}
+.nav-pill-converter{background:#2a0a1a;color:#f48fb1}
+.nav-pill-admin{background:#1a1a2e;color:#e0e0e0}
+
+/* ── STATUS PILLS (extend existing .pill) ── */
+.pill-arrived{background:rgba(255,183,77,0.15);color:#ffb74d}
+.pill-completed{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-rejected{background:rgba(239,83,80,0.15);color:#ef5350}
+.pill-approved{background:rgba(66,165,245,0.15);color:#42a5f5}
+
+/* ── RATING MODAL ── */
+.rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;justify-content:center;align-items:center;z-index:200}
+.rating-overlay.show{display:flex}
+.rating-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:100%;max-width:460px}
+.rating-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
+.rating-box .sub{font-size:0.8rem;color:var(--text-2);margin-bottom:16px}
+.stars-row{display:flex;gap:8px;margin-bottom:18px}
+.star-btn{font-size:1.6rem;cursor:pointer;color:var(--border);background:none;border:none;padding:0;transition:color 0.15s}
+.star-btn.active,.star-btn:hover{color:#ffd740}
+.rtag{display:inline-block;font-size:0.75rem;padding:5px 12px;border-radius:20px;border:1px solid var(--border);color:var(--text-2);background:transparent;cursor:pointer;font-family:var(--font);margin:0 6px 6px 0}
+.rtag.selected{background:var(--accent-muted);border-color:var(--accent);color:var(--accent)}
+.rtag.negative.selected{background:rgba(255,183,77,0.1);border-color:#ffb74d;color:#ffb74d}
+.rating-note{width:100%;padding:8px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;resize:vertical;min-height:60px;margin-top:12px}
+.rating-note::placeholder{color:var(--text-3)}
+.rating-note:focus{outline:none;border-color:var(--accent)}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+.btn-cancel{padding:8px 16px;border:1px solid var(--border);background:transparent;color:var(--text-2);border-radius:20px;font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
+.btn-cancel:hover{border-color:var(--text-3);color:var(--text-1)}
+
+/* ── COMPACT SUBMIT (top-right in section-head) ── */
+.btn-submit{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#000;font-family:var(--font);font-size:0.8rem;font-weight:700;padding:8px 20px;border:none;border-radius:20px;cursor:pointer;white-space:nowrap}
+.btn-submit:hover{background:var(--accent-hover)}
+
+/* ── COLLECTOR COUNTER BADGE ── */
+.counter-badge{display:inline-flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-2);background:var(--surface-alt);border:1px solid var(--border);border-radius:20px;padding:2px 12px 2px 8px}
+.counter-badge strong{font-weight:800;color:var(--accent);font-size:0.95rem}
+
+/* ── MESSAGE STATES ── */
+.msg-error{color:#ef4444;font-size:0.8rem}
+.msg-success{color:var(--accent);font-size:0.8rem}
+
+/* ── LOGIN OVERLAY (shared) ── */
+.login-error{color:#ef4444;font-size:0.8rem;display:none;margin-top:8px;text-align:center}
+.login-error.visible{display:block}
+
+/* ── SPINNER ── */
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
 /* ── LOGIN OVERLAY (defensive fallback) ── */
 .login-overlay.hidden{display:none}
 
