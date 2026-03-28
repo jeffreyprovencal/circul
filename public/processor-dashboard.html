@@ -63,7 +63,7 @@
 </div>
 
 <!-- DASHBOARD -->
-<div id="dashboard" style="display:none">
+<div id="dashboard" class="hidden">
 
 <nav>
   <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
@@ -345,7 +345,7 @@ function checkAuth() {
 
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('dashboard').style.display = '';
+    document.getElementById('dashboard').classList.remove('hidden');
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
     var navProcId = document.getElementById('navProcId');
@@ -670,7 +670,7 @@ function buildPendingCard(pt) {
         '</div>' +
         '<div style="padding:10px 0 4px 0">' + buildPTPaymentUI(pt) + '</div>' +
         warnHtml +
-        '<div id="dispatch-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="dispatch-form-' + pt.id + '" class="hidden"></div>' +
     '</div>';
 }
 
@@ -689,7 +689,7 @@ function buildApprovedCard(pt) {
         '</div>' +
         '<div class="del-actions"><button class="btn-log-arrival" onclick="openArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
         '<div style="padding:10px 0 4px 0">' + buildPTPaymentUI(pt) + '</div>' +
-        '<div id="arrival-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="arrival-form-' + pt.id + '" class="hidden"></div>' +
     '</div>';
 }
 
@@ -725,18 +725,18 @@ function openDispatchForm(ptId, type) {
     // If called without args (from "Log sale" button), toggle the sale form
     if (ptId === undefined || typeof ptId !== 'number') {
         var sf = document.getElementById('procSaleForm');
-        if (sf) sf.style.display = sf.style.display === 'none' ? '' : 'none';
+        if (sf) sf.classList.toggle('hidden');
         return;
     }
     var formEl = document.getElementById('dispatch-form-' + ptId);
     // Toggle off
-    if (activeDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeDispatchId = null; return;
+    if (activeDispatchId === ptId && formEl.dataset.formType === type && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeDispatchId = null; return;
     }
     // Close previous
     if (activeDispatchId && activeDispatchId !== ptId) {
         var prev = document.getElementById('dispatch-form-' + activeDispatchId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeDispatchId = ptId;
     formEl.dataset.formType = type;
@@ -757,24 +757,24 @@ function openDispatchForm(ptId, type) {
             '</div><div class="di-msg" id="dispatch-msg-' + ptId + '"></div></div>';
     } else {
         formEl.innerHTML = '<div class="del-inline-form">' +
-            '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
+            '<label class="di-label">Reason for rejection <span class="label-hint">(required)</span></label>' +
             '<textarea class="di-textarea" id="reject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:#ef5350" onclick="submitDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm-danger" onclick="submitDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="dispatch-msg-' + ptId + '"></div></div>';
     }
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelDispatchForm(ptId) {
     if (typeof ptId === 'number') {
         var f = document.getElementById('dispatch-form-' + ptId);
-        if (f) f.style.display = 'none';
+        if (f) f.classList.add('hidden');
         if (activeDispatchId === ptId) activeDispatchId = null;
     } else {
         var sf = document.getElementById('procSaleForm');
-        if (sf) sf.style.display = 'none';
+        if (sf) sf.classList.add('hidden');
     }
 }
 
@@ -784,7 +784,7 @@ function submitDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('reject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef5350'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.className = 'di-msg msg-error'; return; }
         body.rejection_reason = reason;
     } else {
         var waiveEl = document.getElementById('waive-' + ptId);
@@ -798,21 +798,21 @@ function submitDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeDispatchId = null; loadDeliveries(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef5350'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef5350'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 // ── ARRIVAL CONFIRMATION FORMS ────────────────────────────────────────────────
 
 function openArrivalForm(ptId) {
     var formEl = document.getElementById('arrival-form-' + ptId);
-    if (activeArrivalId === ptId && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeArrivalId = null; return;
+    if (activeArrivalId === ptId && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeArrivalId = null; return;
     }
     if (activeArrivalId && activeArrivalId !== ptId) {
         var prev = document.getElementById('arrival-form-' + activeArrivalId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeArrivalId = ptId;
     arrivalGradeMap[ptId] = null;
@@ -825,13 +825,13 @@ function openArrivalForm(ptId) {
         '<input type="number" class="di-input" id="arr-weight-' + ptId + '" value="' + esc(String(origWeight)) + '" min="0.1" step="0.1" style="max-width:200px;margin-bottom:0"></div>' +
         '<label class="di-label">Grade</label>' +
         '<div class="di-grade-row">' +
-        '<button class="di-grade-btn" id="agA-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.7rem;font-weight:400">&lt;5% contamination</span></button>' +
-        '<button class="di-grade-btn" id="agB-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.7rem;font-weight:400">5-15% contamination</span></button>' +
-        '<button class="di-grade-btn" id="agC-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.7rem;font-weight:400">&gt;15% contamination</span></button>' +
+        '<button class="di-grade-btn" id="agA-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'A\')">Grade A<br><span class="grade-sub">&lt;5% contamination</span></button>' +
+        '<button class="di-grade-btn" id="agB-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'B\')">Grade B<br><span class="grade-sub">5-15% contamination</span></button>' +
+        '<button class="di-grade-btn" id="agC-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'C\')">Grade C<br><span class="grade-sub">&gt;15% contamination</span></button>' +
         '</div>' +
-        '<div id="grade-c-warn-' + ptId + '" style="display:none;font-size:0.8rem;padding:7px 10px;background:rgba(255,193,7,0.1);color:#ffd740;border-radius:var(--r-sm);margin-bottom:10px">Grade C flags this delivery.</div>' +
-        '<div id="grade-c-reason-' + ptId + '" style="display:none">' +
-        '<label class="di-label">Rejection / flag reason <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>' +
+        '<div id="grade-c-warn-' + ptId + '" class="hidden" style="font-size:0.8rem;padding:7px 10px;background:rgba(255,193,7,0.1);color:#ffd740;border-radius:var(--r-sm);margin-bottom:10px">Grade C flags this delivery.</div>' +
+        '<div id="grade-c-reason-' + ptId + '" class="hidden">' +
+        '<label class="di-label">Rejection / flag reason <span class="label-hint">(optional)</span></label>' +
         '<textarea class="di-textarea" id="arr-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
         '</div>' +
         '<div class="di-actions">' +
@@ -839,7 +839,7 @@ function openArrivalForm(ptId) {
         '<button class="di-cancel" onclick="cancelArrivalForm(' + ptId + ')">Cancel</button>' +
         '</div><div class="di-msg" id="arrival-msg-' + ptId + '"></div>' +
     '</div>';
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function selectArrivalGrade(ptId, grade) {
@@ -850,15 +850,15 @@ function selectArrivalGrade(ptId, grade) {
     });
     var cWarn   = document.getElementById('grade-c-warn-' + ptId);
     var cReason = document.getElementById('grade-c-reason-' + ptId);
-    if (cWarn)   cWarn.style.display   = grade === 'C' ? '' : 'none';
-    if (cReason) cReason.style.display = grade === 'C' ? '' : 'none';
+    if (cWarn)   cWarn.classList.toggle('hidden', grade !== 'C');
+    if (cReason) cReason.classList.toggle('hidden', grade !== 'C');
     var confirmBtn = document.getElementById('arr-confirm-' + ptId);
     if (confirmBtn) confirmBtn.disabled = false;
 }
 
 function cancelArrivalForm(ptId) {
     var f = document.getElementById('arrival-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeArrivalId === ptId) activeArrivalId = null;
 }
 
@@ -867,8 +867,8 @@ function submitArrivalConfirmation(ptId) {
     var msgEl = document.getElementById('arrival-msg-' + ptId);
     var weight = document.getElementById('arr-weight-' + ptId).value;
     var grade  = arrivalGradeMap[ptId];
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef5350'; return; }
-    if (!grade) { msgEl.textContent = 'Select a grade.'; msgEl.style.color = '#ef5350'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.className = 'di-msg msg-error'; return; }
+    if (!grade) { msgEl.textContent = 'Select a grade.'; msgEl.className = 'di-msg msg-error'; return; }
     var body = { actual_weight_kg: parseFloat(weight), grade: grade };
     if (grade === 'C') {
         var reasonEl = document.getElementById('arr-reason-' + ptId);
@@ -882,9 +882,9 @@ function submitArrivalConfirmation(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeArrivalId = null; loadDeliveries(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef5350'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef5350'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 // ── SALES TO CONVERTERS ────────────────────────────────────────────────────────
@@ -923,9 +923,9 @@ function calcProcSaleTotal() {
         if (ghsEl) ghsEl.textContent = 'GH¢ ' + fmt(total) + ' total';
         if (usdEl) usdEl.textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
         if (!ghsEl && !usdEl) box.textContent = 'GH¢ ' + fmt(total);
-        box.style.display = '';
+        box.classList.remove('hidden');
     } else {
-        box.style.display = 'none';
+        box.classList.add('hidden');
     }
 }
 
@@ -941,7 +941,7 @@ function submitProcessorSale() {
     var notes        = notesEl ? notesEl.value.trim() : '';
 
     if (msgEl) msgEl.textContent = '';
-    function showMsg(m) { if (msgEl) { msgEl.textContent = m; msgEl.style.color = '#ef5350'; } }
+    function showMsg(m) { if (msgEl) { msgEl.textContent = m; msgEl.className = 'msg-error'; } }
     if (!converterId)            { showMsg('Select a converter.');       return; }
     if (!material)               { showMsg('Select a material.');        return; }
     if (!weight || parseFloat(weight) <= 0) { showMsg('Enter a valid weight.'); return; }
@@ -967,7 +967,7 @@ function submitProcessorSale() {
             document.getElementById('ps-weight').value    = '';
             document.getElementById('ps-price').value     = '';
             var pn = document.getElementById('ps-notes'); if (pn) pn.value = '';
-            var ptb = document.getElementById('ps-total-box') || document.getElementById('ps-total'); if (ptb) ptb.style.display = 'none';
+            var ptb = document.getElementById('ps-total-box') || document.getElementById('ps-total'); if (ptb) ptb.classList.add('hidden');
             if (msgEl) msgEl.textContent = '';
             showProcToast('Sale logged — awaiting converter dispatch approval');
             loadProcessorSales();
