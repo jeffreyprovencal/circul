@@ -845,8 +845,11 @@ function timeAgo(iso) {
 // ── EXISTING TABS FUNCTIONS ────────────────────────────────────────────────────
 
 function loadTxns() {
-    fetch('/api/transactions?converter_id=' + state.operator.id + '&limit=30')
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/transactions?converter_id=' + state.operator.id + '&limit=30')
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             var tbody = document.getElementById('supplyBody');
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
@@ -857,7 +860,8 @@ function loadTxns() {
                 var pillClass = 'pill pill-' + matLower;
                 return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (priceKg !== '—' ? 'GH¢ ' + priceKg + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? 'GH¢ ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
             }).join('');
-        });
+        })
+        .catch(function(e) { console.error('loadTxns error:', e); });
 }
 
 function loadProcessorPrices() {

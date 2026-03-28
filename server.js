@@ -1015,11 +1015,13 @@ app.post('/api/transactions', async (req, res) => {
 
 app.get('/api/transactions', async (req, res) => {
   try {
-    const { collector_id, aggregator_id, material_type, start_date, end_date, payment_status, limit = 100, offset = 0 } = req.query;
-    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM transactions t JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
+    const { collector_id, aggregator_id, converter_id, processor_id, material_type, start_date, end_date, payment_status, limit = 100, offset = 0 } = req.query;
+    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name, pr.name as processor_name, pr.company as processor_company FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id LEFT JOIN processors pr ON pr.id=t.processor_id WHERE 1=1`;
     const params = [];
     if (collector_id) { params.push(collector_id); query += ` AND t.collector_id=$${params.length}`; }
     if (aggregator_id) { params.push(aggregator_id); query += ` AND t.aggregator_id=$${params.length}`; }
+    if (converter_id) { params.push(converter_id); query += ` AND t.converter_id=$${params.length}`; }
+    if (processor_id) { params.push(processor_id); query += ` AND t.processor_id=$${params.length}`; }
     if (material_type) { params.push(material_type.toUpperCase()); query += ` AND t.material_type=$${params.length}`; }
     if (start_date) { params.push(start_date); query += ` AND t.transaction_date>=$${params.length}::timestamptz`; }
     if (end_date) { params.push(end_date); query += ` AND t.transaction_date<=$${params.length}::timestamptz`; }
