@@ -2939,4 +2939,40 @@ app.post('/api/admin/reject', async (req, res) => {
   }
 });
 
+// ── Discovery Crons (hourly) ──────────────────────────────────────
+async function runDiscoveryCrons() {
+  try {
+    // 1. Expire stale offers (pending > 48h)
+    const expiredOffers = await pool.query(
+      `UPDATE offers SET status = 'expired', responded_at = NOW()
+       WHERE status = 'pending' AND created_at < NOW() - INTERVAL '48 hours'`
+    );
+    console.log(`[cron] Expired ${expiredOffers.rowCount} stale offers`);
+
+    // 2. Expire old listings (past expires_at, no pending offers)
+    const expiredListings = await pool.query(
+      `UPDATE listings SET status = 'expired', updated_at = NOW()
+       WHERE status = 'active' AND expires_at < NOW()
+       AND id NOT IN (SELECT DISTINCT listing_id FROM offers WHERE status = 'pending')`
+    );
+    console.log(`[cron] Expired ${expiredListings.rowCount} stale listings`);
+
+    // 3. Renewal reminders (listings expiring within 24h)
+    const expiringSoon = await pool.query(
+      `SELECT id, seller_id, seller_role, material_type, quantity_kg
+       FROM listings
+       WHERE status = 'active'
+       AND expires_at BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
+       AND id NOT IN (SELECT DISTINCT listing_id FROM offers WHERE status = 'pending')`
+    );
+    console.log(`[cron] ${expiringSoon.rowCount} listings expiring within 24h`);
+  } catch (err) {
+    console.error('[cron] Discovery cron error:', err.message);
+  }
+}
+
+setInterval(runDiscoveryCrons, 60 * 60 * 1000);
+// Run once on startup after a short delay
+setTimeout(runDiscoveryCrons, 10000);
+
 app.listen(port, () => console.log(`Circul server running on port ${port}`));
