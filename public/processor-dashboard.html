@@ -281,6 +281,34 @@
     </div>
   </div>
 
+    <!-- DISCOVER MATERIALS -->
+    <div class="section" id="discover-section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Discover Materials</div>
+          <div class="section-sub">Browse aggregator listings and make offers</div>
+        </div>
+      </div>
+      <div class="discovery-filters">
+        <span class="pill pill-pet" onclick="toggleDiscFilter('PET', this)">PET</span>
+        <span class="pill pill-hdpe" onclick="toggleDiscFilter('HDPE', this)">HDPE</span>
+        <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
+        <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
+        <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
+        <input type="text" id="discover-location" class="form-input" placeholder="Location" style="width:140px;">
+        <button class="btn" onclick="loadDiscoverListings()">Search</button>
+      </div>
+      <div id="discover-listings">
+        <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
+      </div>
+      <div style="margin-top:1.5rem;">
+        <div class="section-title" style="font-size:0.9rem;">My Offers</div>
+        <div id="my-sent-offers">
+          <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
+        </div>
+      </div>
+    </div>
+
 </div>
 </div>
 
@@ -442,6 +470,7 @@ function loadAll() {
     loadProcessorSales();
     loadTopSuppliers('month');
     loadTopBuyers('month');
+    loadSentOffers();
 }
 
 function loadTxns() {
@@ -921,7 +950,7 @@ function calcProcSaleTotal() {
         var ghsEl = document.getElementById('ps-total-ghs');
         var usdEl = document.getElementById('ps-total-usd');
         if (ghsEl) ghsEl.textContent = 'GH¢ ' + fmt(total) + ' total';
-        if (usdEl) usdEl.textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
+        if (usdEl) usdEl.textContent = '';
         if (!ghsEl && !usdEl) box.textContent = 'GH¢ ' + fmt(total);
         box.classList.remove('hidden');
     } else {
@@ -1046,6 +1075,181 @@ function showProcToast(msg, isError) {
   t.classList.add("show");
   clearTimeout(procToastTimer);
   procToastTimer = setTimeout(function() { t.classList.remove("show"); }, 3000);
+}
+
+/* ── Discovery: Discover & Offers ─────────────── */
+var discActiveFilters = [];
+
+function discMatPill(mat) {
+  if (!mat) return '';
+  var m = mat.toUpperCase();
+  var cls = m === 'PET' ? 'pill-pet' : m === 'HDPE' ? 'pill-hdpe' : m === 'LDPE' ? 'pill-ldpe' : 'pill-pp';
+  return '<span class="pill ' + cls + '">' + esc(m) + '</span>';
+}
+
+function toggleDiscFilter(material, el) {
+  var idx = discActiveFilters.indexOf(material);
+  if (idx >= 0) { discActiveFilters.splice(idx, 1); el.classList.remove('active'); }
+  else { discActiveFilters.push(material); el.classList.add('active'); }
+  loadDiscoverListings();
+}
+
+function loadDiscoverListings() {
+  if (!discActiveFilters.length) {
+    document.getElementById('discover-listings').innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>';
+    return;
+  }
+  var params = '?material=' + discActiveFilters.join(',');
+  var minKg = document.getElementById('discover-min-kg').value;
+  if (minKg) params += '&min_kg=' + minKg;
+  var loc = document.getElementById('discover-location').value.trim();
+  if (loc) params += '&location=' + encodeURIComponent(loc);
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/listings' + params, { headers: { 'Authorization': 'Bearer ' + token } })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var container = document.getElementById('discover-listings');
+    var listings = data.listings || data || [];
+    if (!listings.length) { container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings match your filters.</p>'; return; }
+    container.innerHTML = listings.map(function(l) {
+      var now = new Date(); var exp = new Date(l.expires_at);
+      var daysLeft = Math.max(0, Math.ceil((exp - now) / 86400000));
+      var expiryClass = daysLeft <= 1 ? 'expiring-soon' : 'active';
+      var expiryText = daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? 'Expires tomorrow' : 'Expires in ' + daysLeft + ' days';
+      var priceHtml = l.price_per_kg
+        ? '<span class="listing-card-price">GH\u20b5 ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
+        : '<span class="listing-card-price make-offer">Make an offer</span>';
+      var sellerName = esc(l.seller_name || 'Seller');
+      var starsHtml = '';
+      if (l.seller_rating) {
+        var full = Math.round(parseFloat(l.seller_rating));
+        for (var s = 0; s < 5; s++) starsHtml += s < full ? '\u2605' : '\u2606';
+        starsHtml = '<span class="stars">' + starsHtml + '</span> ' + parseFloat(l.seller_rating).toFixed(1);
+      }
+      return '<div class="listing-card">' +
+        '<div class="listing-card-header"><div>' + discMatPill(l.material_type) + '</div>' + priceHtml + '</div>' +
+        '<div class="listing-card-meta">' +
+          '<span>' + sellerName + (starsHtml ? ' \u00b7 ' + starsHtml : '') + '</span>' +
+          '<span>' + parseFloat(l.quantity_kg).toFixed(1) + 'kg available</span>' +
+          (l.location ? '<span>' + esc(l.location) + '</span>' : '') +
+          '<span class="expiry-badge ' + expiryClass + '">' + expiryText + '</span>' +
+        '</div>' +
+        '<div style="margin-top:0.75rem;"><button class="btn btn-green" onclick="showDiscOfferForm(' + l.id + ',' + parseFloat(l.quantity_kg).toFixed(1) + ',' + (l.price_per_kg ? parseFloat(l.price_per_kg).toFixed(2) : 'null') + ')">Make Offer</button></div>' +
+        '<div id="disc-offer-form-' + l.id + '" class="hidden" style="margin-top:0.75rem;">' +
+          '<div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">' +
+            '<div><label class="form-label">Price/kg (GH\u20b5)</label><input type="number" id="disc-offer-price-' + l.id + '" class="form-input" step="0.01" style="width:110px;"' + (l.price_per_kg ? ' value="' + parseFloat(l.price_per_kg).toFixed(2) + '"' : '') + '></div>' +
+            '<div><label class="form-label">Quantity (kg)</label><input type="number" id="disc-offer-qty-' + l.id + '" class="form-input" step="0.01" style="width:110px;" max="' + parseFloat(l.quantity_kg).toFixed(1) + '" value="' + parseFloat(l.quantity_kg).toFixed(1) + '"></div>' +
+            '<button class="btn btn-green" onclick="submitDiscOffer(' + l.id + ')">Submit</button>' +
+            '<button class="btn" onclick="document.getElementById(\'disc-offer-form-' + l.id + '\').classList.add(\'hidden\')">Cancel</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  })
+  .catch(function() { document.getElementById('discover-listings').innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">Error loading listings.</p>'; });
+}
+
+function showDiscOfferForm(listingId) {
+  document.getElementById('disc-offer-form-' + listingId).classList.remove('hidden');
+}
+
+function submitDiscOffer(listingId) {
+  var price = parseFloat(document.getElementById('disc-offer-price-' + listingId).value);
+  var qty = parseFloat(document.getElementById('disc-offer-qty-' + listingId).value);
+  if (!price || price <= 0) { showProcToast('Enter a valid price', true); return; }
+  if (!qty || qty <= 0) { showProcToast('Enter a valid quantity', true); return; }
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/listings/' + listingId + '/offers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ price_per_kg: price, quantity_kg: qty })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) { showProcToast('Offer submitted'); document.getElementById('disc-offer-form-' + listingId).classList.add('hidden'); loadDiscoverListings(); loadSentOffers(); }
+    else showProcToast(data.message || 'Error submitting offer', true);
+  })
+  .catch(function() { showProcToast('Error submitting offer', true); });
+}
+
+function loadSentOffers() {
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/mine', { headers: { 'Authorization': 'Bearer ' + token } })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var container = document.getElementById('my-sent-offers');
+    if (!container) return;
+    var offers = data.offers || data || [];
+    if (!offers.length) { container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>'; return; }
+    container.innerHTML = offers.map(function(o) {
+      var statusCls = o.status === 'accepted' ? 'pill-paid' : o.status === 'rejected' ? 'pill-pending' : o.status === 'countered' ? 'pill-sent' : 'pill-pending';
+      var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';
+      var actions = '';
+      if (o.status === 'countered') {
+        actions = '<div class="offer-actions" style="margin-top:0.5rem;">' +
+          '<button class="btn btn-green" onclick="discAcceptOffer(' + o.id + ')">Accept</button>' +
+          '<button class="btn" onclick="discRejectOffer(' + o.id + ')">Reject</button>' +
+          (o.round < 2 ? '<button class="btn" onclick="showDiscCounterForm(' + o.id + ')">Counter</button>' : '') +
+        '</div>' +
+        '<div id="disc-counter-form-' + o.id + '" class="hidden" style="margin-top:0.5rem;">' +
+          '<div style="display:flex;gap:0.5rem;align-items:flex-end;">' +
+            '<div><label class="form-label">Price/kg</label><input type="number" id="disc-counter-price-' + o.id + '" class="form-input" step="0.01" style="width:100px;"></div>' +
+            '<div><label class="form-label">Qty (kg)</label><input type="number" id="disc-counter-qty-' + o.id + '" class="form-input" step="0.01" style="width:100px;" value="' + parseFloat(o.quantity_kg).toFixed(1) + '"></div>' +
+            '<button class="btn btn-green" onclick="discCounterOffer(' + o.id + ')">Send</button>' +
+            '<button class="btn" onclick="document.getElementById(\'disc-counter-form-' + o.id + '\').classList.add(\'hidden\')">Cancel</button>' +
+          '</div>' +
+        '</div>';
+      }
+      return '<div class="offer-bubble">' +
+        '<div class="offer-bubble-header">' +
+          '<span>' + discMatPill(o.material_type || '') + '</span>' +
+          '<span class="pill ' + statusCls + '">' + esc(o.status) + '</span>' +
+        '</div>' +
+        '<div>GH\u20b5 ' + parseFloat(o.price_per_kg).toFixed(2) + '/kg \u00b7 ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg \u00b7 Round ' + o.round + finalTag + '</div>' +
+        actions +
+      '</div>';
+    }).join('');
+  })
+  .catch(function() {
+    var c = document.getElementById('my-sent-offers');
+    if (c) c.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">Could not load offers.</p>';
+  });
+}
+
+function showDiscCounterForm(offerId) {
+  document.getElementById('disc-counter-form-' + offerId).classList.remove('hidden');
+}
+
+function discAcceptOffer(id) {
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/' + id + '/accept', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } })
+  .then(function(r) { return r.json(); })
+  .then(function(data) { if (data.success) { showProcToast('Offer accepted \u2014 transaction created'); loadSentOffers(); } else showProcToast(data.message || 'Error', true); })
+  .catch(function() { showProcToast('Error accepting offer', true); });
+}
+
+function discRejectOffer(id) {
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/' + id + '/reject', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } })
+  .then(function(r) { return r.json(); })
+  .then(function() { showProcToast('Offer rejected'); loadSentOffers(); })
+  .catch(function() { showProcToast('Error rejecting offer', true); });
+}
+
+function discCounterOffer(id) {
+  var price = parseFloat(document.getElementById('disc-counter-price-' + id).value);
+  var qty = parseFloat(document.getElementById('disc-counter-qty-' + id).value);
+  if (!price || price <= 0) { showProcToast('Enter a valid price', true); return; }
+  if (!qty || qty <= 0) { showProcToast('Enter a valid quantity', true); return; }
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/' + id + '/counter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ price_per_kg: price, quantity_kg: qty })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) { if (data.success) { showProcToast('Counter offer sent'); loadSentOffers(); } else showProcToast(data.message || 'Error', true); })
+  .catch(function() { showProcToast('Error sending counter offer', true); });
 }
 
 checkAuth();
