@@ -2,6 +2,7 @@ node_modules/
 .env
 .DS_Store
 public/uploads/receipts/
+!.claude/PROJECT.md
 
 # Polsia safety (auto-injected)
 .env
