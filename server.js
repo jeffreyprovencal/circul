@@ -5,6 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 const CirculRoles = require('./shared/roles');
+const { EVENTS, notify } = require('./shared/notifications');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -1086,6 +1087,18 @@ app.post('/api/listings/:id/offers', requireAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, 1, FALSE, 'buyer', 'pending') RETURNING *`,
       [req.params.id, req.user.id, buyerRole, price, qty]
     );
+    // Notify listing seller about the new offer
+    try {
+      const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role] || 'collectors';
+      const nameCol = listing.seller_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const seller = (await pool.query(`SELECT phone, ${nameCol} AS name FROM ${sellerTable} WHERE id = $1`, [listing.seller_id])).rows[0];
+      const buyerTable = CirculRoles.TABLE_MAP[buyerRole] || 'operators';
+      const buyerNameCol = buyerRole === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const buyer = (await pool.query(`SELECT ${buyerNameCol} AS name FROM ${buyerTable} WHERE id = $1`, [req.user.id])).rows[0];
+      if (seller && seller.phone) {
+        notify(EVENTS.NEW_OFFER, seller.phone, { buyer_name: buyer ? buyer.name : 'A buyer', price: price, material: listing.material_type, qty: qty });
+      }
+    } catch (notifyErr) { console.warn('Notification error (new_offer):', notifyErr.message); }
     res.status(201).json({ success: true, offer: result.rows[0] });
   } catch (err) { console.error('POST /api/listings/:id/offers error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1172,6 +1185,18 @@ app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
         vals
       );
       await client.query('COMMIT');
+      // Notify the buyer that their offer was accepted
+      try {
+        const buyerTable = CirculRoles.TABLE_MAP[offer.buyer_role] || 'operators';
+        const buyerNameCol = offer.buyer_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
+        const buyerRow = (await pool.query(`SELECT phone, ${buyerNameCol} AS name FROM ${buyerTable} WHERE id = $1`, [offer.buyer_id])).rows[0];
+        const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role] || 'collectors';
+        const sellerNameCol = listing.seller_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
+        const sellerRow = (await pool.query(`SELECT ${sellerNameCol} AS name FROM ${sellerTable} WHERE id = $1`, [listing.seller_id])).rows[0];
+        if (buyerRow && buyerRow.phone) {
+          notify(EVENTS.OFFER_ACCEPTED, buyerRow.phone, { material: listing.material_type, qty: offerQty, seller_name: sellerRow ? sellerRow.name : 'the seller' });
+        }
+      } catch (notifyErr) { console.warn('Notification error (offer_accepted):', notifyErr.message); }
       res.json({ success: true, pending_transaction: ptResult.rows[0], offer: { id: offer.id, status: 'accepted' } });
     } catch (txErr) {
       await client.query('ROLLBACK');
@@ -1194,6 +1219,18 @@ app.post('/api/offers/:id/reject', requireAuth, async (req, res) => {
     if (!isReceiver(offer, listing, req.user.id, userRole))
       return res.status(403).json({ success: false, message: 'Only the receiving party can reject' });
     await pool.query(`UPDATE offers SET status = 'rejected', responded_at = NOW() WHERE id = $1`, [offer.id]);
+    // Notify the buyer that their offer was rejected
+    try {
+      const buyerTable = CirculRoles.TABLE_MAP[offer.buyer_role] || 'operators';
+      const buyerNameCol = offer.buyer_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const buyerRow = (await pool.query(`SELECT phone, ${buyerNameCol} AS name FROM ${buyerTable} WHERE id = $1`, [offer.buyer_id])).rows[0];
+      const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role] || 'collectors';
+      const sellerNameCol = listing.seller_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const sellerRow = (await pool.query(`SELECT ${sellerNameCol} AS name FROM ${sellerTable} WHERE id = $1`, [listing.seller_id])).rows[0];
+      if (buyerRow && buyerRow.phone) {
+        notify(EVENTS.OFFER_REJECTED, buyerRow.phone, { material: listing.material_type, seller_name: sellerRow ? sellerRow.name : 'the seller' });
+      }
+    } catch (notifyErr) { console.warn('Notification error (offer_rejected):', notifyErr.message); }
     res.json({ success: true, offer: { id: offer.id, status: 'rejected' } });
   } catch (err) { console.error('POST /api/offers/:id/reject error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1233,6 +1270,22 @@ app.post('/api/offers/:id/counter', requireAuth, async (req, res) => {
         [offer.listing_id, offer.thread_id, offer.buyer_id, offer.buyer_role, price, qty, newRound, newRound >= 2, offeredBy, offer.id]
       );
       await client.query('COMMIT');
+      // Notify the other party about the counter-offer
+      try {
+        const recipientId = isSeller ? offer.buyer_id : listing.seller_id;
+        const recipientRole = isSeller ? offer.buyer_role : listing.seller_role;
+        const recipientTable = CirculRoles.TABLE_MAP[recipientRole] || 'operators';
+        const recipientNameCol = recipientRole === 'collector' ? "first_name || ' ' || last_name" : 'name';
+        const recipientRow = (await pool.query(`SELECT phone, ${recipientNameCol} AS name FROM ${recipientTable} WHERE id = $1`, [recipientId])).rows[0];
+        const counterpartyId = isSeller ? listing.seller_id : offer.buyer_id;
+        const counterpartyRole = isSeller ? listing.seller_role : offer.buyer_role;
+        const counterpartyTable = CirculRoles.TABLE_MAP[counterpartyRole] || 'operators';
+        const counterpartyNameCol = counterpartyRole === 'collector' ? "first_name || ' ' || last_name" : 'name';
+        const counterpartyRow = (await pool.query(`SELECT ${counterpartyNameCol} AS name FROM ${counterpartyTable} WHERE id = $1`, [counterpartyId])).rows[0];
+        if (recipientRow && recipientRow.phone) {
+          notify(EVENTS.COUNTER_OFFER, recipientRow.phone, { counterparty: counterpartyRow ? counterpartyRow.name : 'Your counterparty', price: price, qty: qty, material: listing.material_type });
+        }
+      } catch (notifyErr) { console.warn('Notification error (counter_offer):', notifyErr.message); }
       res.status(201).json({ success: true, offer: result.rows[0] });
     } catch (txErr) {
       await client.query('ROLLBACK');
@@ -1755,6 +1808,18 @@ app.post('/api/ratings/operator', async (req, res) => {
         [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, tags||[], notes||null, rating_direction||null]
       );
     }
+    // Notify the rated user
+    try {
+      const ratedTable = CirculRoles.TABLE_MAP[finalRatedType] || 'operators';
+      const ratedNameCol = finalRatedType === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const ratedRow = (await pool.query(`SELECT phone, ${ratedNameCol} AS name FROM ${ratedTable} WHERE id = $1`, [finalRatedId])).rows[0];
+      const raterTable = CirculRoles.TABLE_MAP[finalRaterType] || 'operators';
+      const raterNameCol = finalRaterType === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const raterRow = (await pool.query(`SELECT ${raterNameCol} AS name FROM ${raterTable} WHERE id = $1`, [finalRaterId])).rows[0];
+      if (ratedRow && ratedRow.phone) {
+        notify(EVENTS.RATING_RECEIVED, ratedRow.phone, { rater_name: raterRow ? raterRow.name : 'Someone', stars: rating });
+      }
+    } catch (notifyErr) { console.warn('Notification error (rating_received):', notifyErr.message); }
     res.status(201).json({ success: true, rating: result.rows[0] });
   } catch (err) {
     console.error('Rating error:', err);
@@ -2109,6 +2174,14 @@ app.post('/api/pending-transactions/:id/dispatch-decision', requireAuth, async (
     const noPhotos = !Array.isArray(photoUrls) || photoUrls.length === 0;
     if (parseFloat(pt.gross_weight_kg) > 500 && noPhotos && !waive_photos) return res.status(400).json({ success: false, message: 'Photos required for batches over 500 kg', error: 'photos_required' });
     const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_approved', dispatch_approved=true, dispatch_approved_at=NOW(), dispatch_approved_by_id=$1, dispatch_approved_by_type='processor', updated_at=NOW() WHERE id=$2 RETURNING *`, [req.user.id, id]);
+    // Notify the sender (aggregator) that dispatch was approved
+    try {
+      const aggRow = (await pool.query(`SELECT phone, name FROM aggregators WHERE id = $1`, [pt.aggregator_operator_id])).rows[0];
+      const procRow = (await pool.query(`SELECT name FROM processors WHERE id = $1`, [req.user.id])).rows[0];
+      if (aggRow && aggRow.phone) {
+        notify(EVENTS.DELIVERY_APPROVED, aggRow.phone, { receiver_name: procRow ? procRow.name : 'the processor', qty: pt.gross_weight_kg, material: pt.material_type });
+      }
+    } catch (notifyErr) { console.warn('Notification error (delivery_approved):', notifyErr.message); }
     return res.json({ success: true, pending_transaction: updated.rows[0] });
   } catch (err) { console.error('Dispatch decision error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2194,6 +2267,14 @@ app.post('/api/pending-transactions/:id/recycler-dispatch-decision', requireAuth
       return res.json({ success: true, pending_transaction: updated.rows[0] });
     }
     const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_approved', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
+    // Notify the sender (processor) that dispatch was approved
+    try {
+      const procRow = (await pool.query(`SELECT phone, name FROM processors WHERE id = $1`, [pt.processor_buyer_id])).rows[0];
+      const recRow = (await pool.query(`SELECT name FROM recyclers WHERE id = $1`, [req.user.id])).rows[0];
+      if (procRow && procRow.phone) {
+        notify(EVENTS.DELIVERY_APPROVED, procRow.phone, { receiver_name: recRow ? recRow.name : 'the recycler', qty: pt.gross_weight_kg, material: pt.material_type });
+      }
+    } catch (notifyErr) { console.warn('Notification error (delivery_approved):', notifyErr.message); }
     res.json({ success: true, pending_transaction: updated.rows[0] });
   } catch (err) { console.error('Recycler dispatch decision error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2275,6 +2356,16 @@ app.post('/api/pending-transactions/:id/converter-dispatch-decision', requireAut
       return res.json({ success: true, pending_transaction: updated.rows[0] });
     }
     const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_approved', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
+    // Notify the sender that dispatch was approved
+    try {
+      var senderTable = pt.recycler_id ? 'recyclers' : 'processors';
+      var senderId = pt.recycler_id || pt.processor_buyer_id;
+      var senderRow = (await pool.query(`SELECT phone, name FROM ${senderTable} WHERE id = $1`, [senderId])).rows[0];
+      var convRow = (await pool.query(`SELECT name FROM converters WHERE id = $1`, [converterId])).rows[0];
+      if (senderRow && senderRow.phone) {
+        notify(EVENTS.DELIVERY_APPROVED, senderRow.phone, { receiver_name: convRow ? convRow.name : 'the converter', qty: pt.gross_weight_kg, material: pt.material_type });
+      }
+    } catch (notifyErr) { console.warn('Notification error (delivery_approved):', notifyErr.message); }
     res.json({ success: true, pending_transaction: updated.rows[0] });
   } catch (err) { console.error('Converter dispatch decision error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
