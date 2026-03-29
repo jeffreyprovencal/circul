@@ -2516,17 +2516,21 @@ app.get('/api/me/prices', requireAuth, async (req, res) => {
 
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
-    const [collectors, aggregators, processors, recyclers, converters, transactions, volume] = await Promise.all([
+    const [collectors, aggregators, processors, recyclers, converters, transactions, volume, pendingProc, pendingRec, pendingConv] = await Promise.all([
       pool.query(`SELECT COUNT(*) as count FROM collectors WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM aggregators WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM processors WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM recyclers WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM converters WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM transactions`),
-      pool.query(`SELECT material_type, COALESCE(SUM(net_weight_kg),0) as total_kg, COUNT(*) as count FROM transactions GROUP BY material_type ORDER BY total_kg DESC`)
+      pool.query(`SELECT material_type, COALESCE(SUM(net_weight_kg),0) as total_kg, COUNT(*) as count FROM transactions GROUP BY material_type ORDER BY total_kg DESC`),
+      pool.query(`SELECT COUNT(*) as count FROM processors WHERE is_active=false`),
+      pool.query(`SELECT COUNT(*) as count FROM recyclers WHERE is_active=false`),
+      pool.query(`SELECT COUNT(*) as count FROM converters WHERE is_active=false`)
     ]);
     const totalVol = await pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total FROM transactions`);
-    res.json({ success: true, stats: { collectors: parseInt(collectors.rows[0].count), aggregators: parseInt(aggregators.rows[0].count), processors: parseInt(processors.rows[0].count), recyclers: parseInt(recyclers.rows[0].count), converters: parseInt(converters.rows[0].count), transactions: parseInt(transactions.rows[0].count), total_volume_kg: parseFloat(totalVol.rows[0].total), by_material: volume.rows } });
+    const pending = parseInt(pendingProc.rows[0].count) + parseInt(pendingRec.rows[0].count) + parseInt(pendingConv.rows[0].count);
+    res.json({ collectors: parseInt(collectors.rows[0].count), aggregators: parseInt(aggregators.rows[0].count), processors: parseInt(processors.rows[0].count), recyclers: parseInt(recyclers.rows[0].count), converters: parseInt(converters.rows[0].count), pending: pending, transactions: parseInt(transactions.rows[0].count), total_volume_kg: parseFloat(totalVol.rows[0].total), by_material: volume.rows });
   } catch (err) { console.error('Admin stats error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
