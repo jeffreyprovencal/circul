@@ -1030,6 +1030,26 @@ function isReceiver(offer, listing, userId, userRole) {
   return offer.buyer_id === userId && offer.buyer_role === userRole;
 }
 
+// GET /api/listings/:id/offers — get all offers on a listing (seller only)
+app.get('/api/listings/:id/offers', requireAuth, async (req, res) => {
+  try {
+    const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [req.params.id])).rows[0];
+    if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    if (listing.seller_id !== req.user.id || listing.seller_role !== userRole) {
+      return res.status(403).json({ success: false, message: 'Not your listing' });
+    }
+    const buyerRole = listing.seller_role === 'collector' ? 'aggregator' : 'processor';
+    const buyerTable = CirculRoles.TABLE_MAP[buyerRole] || 'operators';
+    const offers = (await pool.query(
+      `SELECT o.*, b.name AS buyer_name FROM offers o
+       LEFT JOIN ${buyerTable} b ON b.id = o.buyer_id
+       WHERE o.listing_id = $1 ORDER BY o.created_at DESC`, [req.params.id]
+    )).rows;
+    res.json({ success: true, offers: offers });
+  } catch (err) { console.error('GET /api/listings/:id/offers error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 // POST /api/listings/:id/offers — buyer places an offer
 app.post('/api/listings/:id/offers', requireAuth, async (req, res) => {
   try {
