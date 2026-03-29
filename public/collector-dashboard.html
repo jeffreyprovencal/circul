@@ -539,14 +539,15 @@ async function populateTopBuyers() {
     renderTopBuyers(data);
   } catch(e) {
     const tbody = document.getElementById('topBuyersBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="placeholder-cell">No data yet</td></tr>';
+    const tbody = document.getElementById('topBuyersBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Log your first collection to see top buyers</p><p class="text-3" style="font-size:0.85rem">Track which aggregators pay you the most</p></div></td></tr>';
   }
 }
 function renderTopBuyers(rows) {
   const tbody = document.getElementById('topBuyersBody');
   if (!tbody) return;
   if (!rows || !rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="placeholder-cell">No transactions yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Log your first collection to see top buyers</p><p class="text-3" style="font-size:0.85rem">Track which aggregators pay you the most</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = rows.slice(0,5).map((r,i) => `
@@ -574,7 +575,7 @@ async function populateTxns() {
     const tbody = document.getElementById('txnBody');
     if (!tbody) return;
     if (!txns || !txns.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="placeholder-cell">No transactions yet</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your drop-off history will appear here after your first sale</p></div></td></tr>';
       return;
     }
     tbody.innerHTML = txns.map(t => {
@@ -801,7 +802,7 @@ function loadMyListings() {
       if (!list) return;
       var listings = data.listings || data || [];
       if (!listings.length) {
-        list.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings yet. Create one to start selling on the marketplace.</p>';
+        list.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Create your first listing to sell materials</p><p class="text-3" style="font-size:0.85rem">Aggregators near you will see your listing and make offers</p></div>';
         return;
       }
       var banners = listings.filter(function(l) {

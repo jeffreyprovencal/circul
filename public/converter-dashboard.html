@@ -1156,7 +1156,7 @@ function loadTopSuppliers(period) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your top processor suppliers will appear after your first purchase</p></div>'; return; }
       el.innerHTML = '<table><thead><tr><th>#</th><th>Supplier</th><th>Volume</th><th>Avg Paid</th><th>Tier</th></tr></thead><tbody>' +
         items.slice(0,10).map(function(p, i) {
           var tierHtml = p.tier ? tierBadge(p.tier) : '';

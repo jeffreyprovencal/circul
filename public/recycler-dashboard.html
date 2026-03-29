@@ -1240,7 +1240,7 @@ function loadTopSuppliers(period) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = '<div class="placeholder-cell">No data yet</div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your top suppliers will appear after your first purchase</p></div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
           '<div class="partner-row">',
@@ -1302,7 +1302,7 @@ function loadTopBuyers(period) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);
-      if (!items.length) { el.innerHTML = '<div class="placeholder-cell">No data yet</div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your converter buyers will appear after your first sale</p></div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
           '<div class="partner-row">',

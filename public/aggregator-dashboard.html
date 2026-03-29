@@ -1578,7 +1578,7 @@ function loadIncomingCollections() {
             pendingMap = {};
             rows.forEach(function(pt) { pendingMap[pt.id] = pt; });
             if (!rows.length) {
-                list.innerHTML = '<div class="empty"><div class="empty-icon">○</div><div>No pending collections — collectors will appear here when they log a sale.</div></div>';
+                list.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Pending drop-offs from collectors will appear here</p><p class="text-3" style="font-size:0.85rem">Post your purchase prices to attract collectors</p></div>';
                 return;
             }
             list.innerHTML = rows.map(function(pt) {
@@ -1971,7 +1971,7 @@ function loadMyBatchSales() {
             var list = document.getElementById('myBatchSalesList');
             var rows = data.pending_transactions || [];
             if (!rows.length) {
-                list.innerHTML = '<div class="empty">No sales yet.</div>';
+                list.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Log a batch sale to see your sales history</p><p class="text-3" style="font-size:0.85rem">Sell materials to processors and recyclers</p></div>';
                 return;
             }
             list.innerHTML = rows.map(renderBatchSaleItem).join('');
@@ -2163,7 +2163,7 @@ function loadMyListings() {
     if (!list) return;
     var listings = data.listings || data || [];
     if (!listings.length) {
-      list.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings yet. Create one to start selling on the marketplace.</p>';
+      list.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 List your materials to reach processors and recyclers</p><p class="text-3" style="font-size:0.85rem">Create a listing to start selling on the marketplace</p></div>';
       return;
     }
     var banners = listings.filter(function(l) {
@@ -2582,7 +2582,7 @@ async function loadTopSuppliers(period) {
     var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
     var data = await apiFetch("/api/aggregator/top-suppliers?period=" + period, opts).then(function(r){return r.json();});
     renderTopTable(tbody, data, "collector_name", 5);
-  } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"empty\">No data yet</td></tr>"; }
+  } catch(e) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your top collectors will appear after your first purchase</p></div></td></tr>'; }
 }
 
 async function loadTopBuyers(period) {
@@ -2594,12 +2594,12 @@ async function loadTopBuyers(period) {
     var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
     var data = await apiFetch("/api/aggregator/top-buyers?period=" + period, opts).then(function(r){return r.json();});
     renderTopTable(tbody, data, "processor_name", 5);
-  } catch(e) { tbody.innerHTML = "<tr><td colspan=\"5\" class=\"empty\">No data yet</td></tr>"; }
+  } catch(e) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your processor and recycler buyers will appear after your first batch sale</p></div></td></tr>'; }
 }
 
 function renderTopTable(tbody, rows, nameKey, cols) {
   if (!rows || !Array.isArray(rows) || !rows.length) {
-    tbody.innerHTML = "<tr><td colspan=\"" + cols + "\" class=\"empty\">No data yet</td></tr>";
+    tbody.innerHTML = "<tr><td colspan=\"" + cols + "\"><div class=\"empty\"><p style=\"font-size:1.1rem;margin-bottom:4px\">\u2022 No data yet</p></div></td></tr>";
     return;
   }
   tbody.innerHTML = rows.slice(0,3).map(function(r,i) {
