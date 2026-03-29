@@ -125,6 +125,18 @@
     </div>
   </div>
 
+  <!-- RATING PROMPT BANNER -->
+  <div id="ratingPromptBanner" class="hidden" style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:20px;">&#11088;</span>
+      <span id="ratingPromptText" style="font-size:14px;color:#92400e;">You have a recent transaction to rate!</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="scrollToRating()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Rate now</button>
+      <button onclick="dismissRatingPrompt()" style="background:transparent;border:1px solid #d97706;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:#92400e;">Dismiss</button>
+    </div>
+  </div>
+
   <!-- MY TOP SUPPLIERS -->
   <div class="section">
     <div class="section-head">
@@ -496,10 +508,44 @@ function showTab(tab, el) {
     if (tab === 'ratings') loadRatings();
 }
 
+/* ── rating prompt ── */
+var _pendingRatingTxn = null;
+function checkPendingRatings() {
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
+    apiFetch('/api/ratings/pending', opts)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.pending || !data.pending.length) return;
+            for (var i = 0; i < data.pending.length; i++) {
+                var p = data.pending[i];
+                if (localStorage.getItem('circul_dismissed_rating_' + p.txn_id)) continue;
+                _pendingRatingTxn = p;
+                var txt = document.getElementById('ratingPromptText');
+                if (txt) txt.textContent = 'Rate your transaction with ' + (p.peer_name || 'your supplier') + '!';
+                var banner = document.getElementById('ratingPromptBanner');
+                if (banner) banner.classList.remove('hidden');
+                return;
+            }
+        })
+        .catch(function(e) { console.warn('checkPendingRatings error', e); });
+}
+function dismissRatingPrompt() {
+    if (_pendingRatingTxn) localStorage.setItem('circul_dismissed_rating_' + _pendingRatingTxn.txn_id, '1');
+    var banner = document.getElementById('ratingPromptBanner');
+    if (banner) banner.classList.add('hidden');
+}
+function scrollToRating() {
+    if (_pendingRatingTxn) {
+        rateProcessor(_pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Processor');
+    }
+}
+
 function loadAll() {
     var id = state.operator.converter_id || state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
+    checkPendingRatings();
     apiFetch('/api/converters/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
