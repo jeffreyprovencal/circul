@@ -1091,10 +1091,12 @@ app.get('/api/converters/:id/stats', async (req, res) => {
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
 
     const [totals, monthlyTotals, ptTotals, ptMonthly, inboundPending, postedPrices, orderStats] = await Promise.all([
-      // Query the transactions table (completed trades)
-      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM transactions WHERE converter_id=$1`, [id]),
-      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM transactions WHERE converter_id=$1 AND transaction_date>=$2`, [id, thisMonth.toISOString()]),
-      // Also query pending_transactions for in-flight trades
+      // Query the transactions table (completed trades) — converter_id does not exist
+      // on the transactions table (restructure migration only has collector_id + aggregator_id),
+      // so we return zeros here; converter trade data lives in pending_transactions.
+      Promise.resolve({ rows: [{ total_kg: 0, total_value: 0, total_txns: 0 }] }),
+      Promise.resolve({ rows: [{ month_kg: 0, month_value: 0, month_txns: 0 }] }),
+      // Query pending_transactions for converter trades
       pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_buyer_id=$1 AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ total_kg: 0, total_value: 0, total_txns: 0 }] })),
       pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_buyer_id=$1 AND transaction_type IN ('processor_sale','recycler_sale') AND created_at>=$2`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ month_kg: 0, month_value: 0, month_txns: 0 }] })),
       pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_buyer_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ count: 0, value: 0 }] })),
@@ -1284,12 +1286,10 @@ app.post('/api/transactions', async (req, res) => {
 app.get('/api/transactions', async (req, res) => {
   try {
     const { collector_id, aggregator_id, converter_id, processor_id, material_type, start_date, end_date, payment_status, limit = 100, offset = 0 } = req.query;
-    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name, pr.name as processor_name, pr.company as processor_company FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id LEFT JOIN processors pr ON pr.id=t.processor_id WHERE 1=1`;
+    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
     const params = [];
     if (collector_id) { params.push(collector_id); query += ` AND t.collector_id=$${params.length}`; }
     if (aggregator_id) { params.push(aggregator_id); query += ` AND t.aggregator_id=$${params.length}`; }
-    if (converter_id) { params.push(converter_id); query += ` AND t.converter_id=$${params.length}`; }
-    if (processor_id) { params.push(processor_id); query += ` AND t.processor_id=$${params.length}`; }
     if (material_type) { params.push(material_type.toUpperCase()); query += ` AND t.material_type=$${params.length}`; }
     if (start_date) { params.push(start_date); query += ` AND t.transaction_date>=$${params.length}::timestamptz`; }
     if (end_date) { params.push(end_date); query += ` AND t.transaction_date<=$${params.length}::timestamptz`; }
