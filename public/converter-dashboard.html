@@ -306,8 +306,8 @@
         <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
         <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
         <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
-        <input type="text" id="discover-location" class="form-input" placeholder="Location" style="width:140px;">
-        <button class="btn" onclick="loadDiscoverListings()">Search</button>
+        <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
+        <button class="btn" onclick="discSearch()">Search</button>
       </div>
       <div id="discover-listings">
         <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
@@ -515,6 +515,7 @@ function loadAll() {
     loadOrders();
     loadConverterQueue();
     loadSentOffers();
+    loadDiscLocations();
 }
 
 // ── PURCHASE ORDERS ────────────────────────────────────────────────────────────
@@ -1248,6 +1249,26 @@ function showDiscToast(type, title, message) {
 /* ── Discovery: Discover & Offers ─────────────── */
 var discActiveFilters = [];
 
+function loadDiscLocations() {
+  fetch('/api/listings/locations').then(function(r) { return r.json(); }).then(function(data) {
+    var sel = document.getElementById('discLocationSelect');
+    if (!sel) return;
+    (data.locations || []).forEach(function(loc) {
+      var opt = document.createElement('option');
+      opt.value = loc; opt.textContent = loc;
+      sel.appendChild(opt);
+    });
+  }).catch(function() {});
+}
+
+function discSearch() {
+  if (!discActiveFilters.length) {
+    showDiscToast('warning', 'No Material', 'Please select a material type first.');
+    return;
+  }
+  loadDiscoverListings();
+}
+
 function discMatPill(mat) {
   if (!mat) return '';
   var m = mat.toUpperCase();
@@ -1270,7 +1291,7 @@ function loadDiscoverListings() {
   var params = '?material=' + discActiveFilters.join(',');
   var minKg = document.getElementById('discover-min-kg').value;
   if (minKg) params += '&min_kg=' + minKg;
-  var loc = document.getElementById('discover-location').value.trim();
+  var loc = document.getElementById('discLocationSelect').value;
   if (loc) params += '&location=' + encodeURIComponent(loc);
   var token = state.operator.token || localStorage.getItem('circul_token') || '';
   fetch('/api/listings' + params, { headers: { 'Authorization': 'Bearer ' + token } })

@@ -885,6 +885,14 @@ app.post('/api/listings', requireAuth, async (req, res) => {
   } catch (err) { console.error('POST /api/listings error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+// GET /api/listings/locations — distinct active listing locations
+app.get('/api/listings/locations', async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT DISTINCT location FROM listings WHERE status = 'active' AND location IS NOT NULL AND location != '' ORDER BY location`);
+    res.json({ locations: result.rows.map(r => r.location) });
+  } catch (err) { console.error('GET /api/listings/locations error:', err); res.status(500).json({ locations: [] }); }
+});
+
 // GET /api/listings — browse active listings (buyer sees tier below)
 app.get('/api/listings', requireAuth, async (req, res) => {
   try {

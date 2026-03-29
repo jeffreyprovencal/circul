@@ -470,8 +470,8 @@
         <span class="pill pill-ldpe" onclick="toggleFilter('LDPE', this)">LDPE</span>
         <span class="pill pill-pp" onclick="toggleFilter('PP', this)">PP</span>
         <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
-        <input type="text" id="discover-location" class="form-input" placeholder="Location" style="width:140px;">
-        <button class="btn" onclick="loadDiscoverListings()">Search</button>
+        <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
+        <button class="btn" onclick="discSearch()">Search</button>
       </div>
 
       <div id="discover-listings">
@@ -665,6 +665,7 @@ function loadAll() {
     loadTopBuyers('ytd');
     loadMyListings();
     loadSentOffers();
+    loadDiscLocations();
 }
 
 function renderPriceCards(prices) {
@@ -2358,6 +2359,26 @@ function counterOffer(id) {
 /* ── Discovery: Discover & Offers ─────────────── */
 var activeFilters = [];
 
+function loadDiscLocations() {
+  fetch('/api/listings/locations').then(function(r) { return r.json(); }).then(function(data) {
+    var sel = document.getElementById('discLocationSelect');
+    if (!sel) return;
+    (data.locations || []).forEach(function(loc) {
+      var opt = document.createElement('option');
+      opt.value = loc; opt.textContent = loc;
+      sel.appendChild(opt);
+    });
+  }).catch(function() {});
+}
+
+function discSearch() {
+  if (!activeFilters.length) {
+    showDiscToast('warning', 'No Material', 'Please select a material type first.');
+    return;
+  }
+  loadDiscoverListings();
+}
+
 function toggleFilter(material, el) {
   var idx = activeFilters.indexOf(material);
   if (idx >= 0) {
@@ -2378,7 +2399,7 @@ function loadDiscoverListings() {
   var params = '?material=' + activeFilters.join(',');
   var minKg = document.getElementById('discover-min-kg').value;
   if (minKg) params += '&min_kg=' + minKg;
-  var loc = document.getElementById('discover-location').value.trim();
+  var loc = document.getElementById('discLocationSelect').value;
   if (loc) params += '&location=' + encodeURIComponent(loc);
 
   var token = localStorage.getItem('circul_token') || '';
