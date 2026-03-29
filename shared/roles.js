@@ -129,6 +129,14 @@
   // Roles that can post prices
   var PRICE_POSTER_ROLES = Object.keys(ROLES).filter(function (r) { return ROLES[r].canPostPrices; });
 
+  // Discovery marketplace: buyer_role → seller_role whose listings they browse
+  var DISCOVERY_TIERS = {
+    aggregator: 'collector',
+    processor: 'aggregator',
+    recycler: 'aggregator',
+    converter: 'aggregator'
+  };
+
   // For a given role, what poster_types are visible in price listings
   function getPosterTypes(role) {
     var r = ROLES[role];
@@ -162,6 +170,7 @@
     PAID_ROLES: PAID_ROLES,
     FREE_ROLES: FREE_ROLES,
     PRICE_POSTER_ROLES: PRICE_POSTER_ROLES,
+    DISCOVERY_TIERS: DISCOVERY_TIERS,
     getPosterTypes: getPosterTypes,
     highestRole: highestRole,
     dashboardFor: dashboardFor,

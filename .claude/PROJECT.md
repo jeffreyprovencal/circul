@@ -249,6 +249,81 @@ Frontend: 3-level collapsible P&L accordion, log expense form (date picker, phot
 
 Default expense categories: Transportation, Fuel, Storage, Labour, Equipment, Maintenance, Mobile money fees.
 
+### Discovery Marketplace — Batch 3 (March 2026) ✓ Complete
+
+Marketplace feature allowing collectors and aggregators to advertise available materials to tier-above buyers. Buyers browse listings filtered by material type, make offers, and negotiate price/quantity through a max 2-round thread. Accepted offers automatically create `pending_transactions` with `source = 'discovery'`.
+
+#### Data Model
+
+**`listings`** — Material advertisements posted by sellers:
+- `id`, `seller_id`, `seller_role` (collector or aggregator), `material_type` (PET, HDPE, LDPE, PP, Other)
+- `quantity_kg`, `price_per_kg` (GH₵), `description`
+- `status` (active, closed, expired), `expires_at` (7 days from creation), `created_at`
+
+**`offers`** — Buyer bids on listings:
+- `id`, `listing_id` (FK → listings), `buyer_id`, `buyer_role`
+- `price_per_kg`, `quantity_kg`, `round` (1 or 2), `is_counter` (boolean)
+- `status` (pending, accepted, rejected, expired, countered), `parent_offer_id` (FK → offers, for counter chains)
+- `created_at`
+
+#### Business Rules
+
+- **Tier-up visibility:** Collectors' listings visible to aggregators; aggregators' listings visible to processors, recyclers, and converters
+- **Minimum thresholds:** 30 kg for collectors, 500 kg for aggregators
+- **7-day expiry** with one-click renewal (resets `expires_at` to +7 days)
+- **2-round negotiation:** Round 1 is the initial offer; round 2 is marked "Final Offer" — no further counters allowed
+- **Partial fills:** Offer quantity can be less than listing quantity
+- **Accepted offer → transaction:** Creates a `pending_transaction` row with `source = 'discovery'`, mapping buyer/seller IDs to the correct `pending_transactions` columns
+
+#### API Endpoints (14 total)
+
+**Listings (8):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/listings` | Create a new listing (seller only) |
+| GET | `/api/listings` | Browse active listings (buyers see tier-appropriate listings) |
+| GET | `/api/listings/mine` | Get current user's own listings |
+| GET | `/api/listings/:id` | Get single listing details |
+| PATCH | `/api/listings/:id/renew` | Renew listing for another 7 days |
+| PATCH | `/api/listings/:id/close` | Close listing (mark as closed) |
+| DELETE | `/api/listings/:id` | Delete own listing |
+| GET | `/api/listings/:id/offers` | Get all offers on a listing (seller only, includes buyer name) |
+
+**Offers (6):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/listings/:id/offers` | Submit an offer on a listing |
+| GET | `/api/offers/mine` | Get current user's sent offers |
+| GET | `/api/offers/:id/thread` | Get full offer thread (original + counters) |
+| POST | `/api/offers/:id/accept` | Accept an offer (creates pending_transaction) |
+| POST | `/api/offers/:id/reject` | Reject an offer |
+| POST | `/api/offers/:id/counter` | Counter an offer (increments round, max 2) |
+
+#### Dashboard Integration
+
+- **Collectors:** "My Listings" section — create/renew/close listings, view incoming offers with accept/reject/counter
+- **Aggregators:** "My Listings" section (same as collector) + "Discover Materials" section — browse collector listings, submit offers, track sent offers
+- **Processors, Recyclers, Converters:** "Discover Materials" section — browse aggregator listings, submit offers, track sent offers
+
+#### Cron Jobs (hourly via `runDiscoveryCrons()`)
+
+1. **Offer expiry:** Expire pending offers older than 48 hours
+2. **Listing expiry:** Expire active listings past `expires_at`, but protect listings that have pending offers (NOT IN subquery)
+3. **Renewal reminders:** Log listings expiring within 24 hours (+ in-dashboard renewal banners)
+
+#### Toast Notification System
+
+Discovery actions use a dedicated `showDiscToast(type, title, message)` function with rich formatting (icon + title + body). Types: `success` (green), `warning` (orange), `info` (blue). CSS class prefix `disc-toast-*` avoids collision with existing dashboard toast systems.
+
+#### Phase 2 Notes
+
+- Waste source tagging (municipal, industrial, commercial)
+- Location-based discovery with GPS coordinates and radius search
+- Push notifications for new listings matching buyer preferences
+- Discovery analytics dashboard (conversion rates, average negotiation rounds, fill rates)
+
 ### Revenue Breakdown in P&L (Future)
 
 The P&L accordion's Revenue row currently shows a "coming soon" placeholder when expanded. Needs: sub-breakdown by buyer type (sales to processors vs sales to converters) with drill-down into individual sale transactions. Requires enhancing the stats API to return revenue grouped by buyer role.
