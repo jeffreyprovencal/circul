@@ -521,6 +521,7 @@
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+<div id="disc-toast-container" class="disc-toast-container"></div>
 
 
 <script src="/shared/roles.js"></script>
@@ -2074,6 +2075,18 @@ function esc(s) {
     var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
 }
 
+/* ── discovery toast ── */
+function showDiscToast(type, title, message) {
+  var container = document.getElementById('disc-toast-container');
+  if (!container) return;
+  var toast = document.createElement('div');
+  toast.className = 'disc-toast toast-' + type;
+  var icons = { success: '\u2713', warning: '\u26a0', info: '\u2139' };
+  toast.innerHTML = '<span class="disc-toast-icon">' + (icons[type] || '\u2139') + '</span><div class="disc-toast-body"><div class="disc-toast-title">' + title + '</div><div class="disc-toast-message">' + message + '</div></div>';
+  container.appendChild(toast);
+  setTimeout(function() { toast.remove(); }, 5000);
+}
+
 /* ── Discovery: My Listings ────────────────────── */
 function showCreateListing() {
   document.getElementById('create-listing-form').classList.remove('hidden');
@@ -2109,10 +2122,10 @@ function submitListing() {
       document.getElementById('listing-qty').value = '';
       document.getElementById('listing-price').value = '';
       document.getElementById('listing-location').value = '';
-      showToast('Listing created');
+      showDiscToast('success', 'Listing Created', 'Your ' + material + ' listing is now live for 7 days.');
       loadMyListings();
     } else {
-      showToast(data.message || 'Error creating listing', true);
+      showDiscToast('warning', 'Error', data.message || 'Error creating listing');
     }
   })
   .catch(function() { showToast('Error creating listing', true); });
@@ -2144,7 +2157,19 @@ function loadMyListings() {
       list.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings yet. Create one to start selling on the marketplace.</p>';
       return;
     }
-    list.innerHTML = listings.map(function(l) {
+    var banners = listings.filter(function(l) {
+      var exp = new Date(l.expires_at);
+      var hoursLeft = (exp - new Date()) / 3600000;
+      return l.status === 'active' && hoursLeft > 0 && hoursLeft <= 24;
+    }).map(function(l) {
+      return '<div class="disc-toast toast-warning" style="position:static;pointer-events:auto;margin-bottom:0.75rem;">' +
+        '<span class="disc-toast-icon">\u26a0</span>' +
+        '<div class="disc-toast-body">' +
+          '<div class="disc-toast-title">Listing expiring soon</div>' +
+          '<div class="disc-toast-message">Your ' + esc(l.material_type) + ' listing (' + parseFloat(l.quantity_kg).toFixed(0) + 'kg) expires tomorrow. <a href="#" onclick="renewListing(' + l.id + ');return false;" style="color:var(--accent);font-weight:600;">Renew</a> or <a href="#" onclick="closeListing(' + l.id + ');return false;" style="color:#ef5350;font-weight:600;">Close</a></div>' +
+        '</div></div>';
+    }).join('');
+    list.innerHTML = banners + listings.map(function(l) {
       var pct = l.original_qty_kg > 0 ? Math.round((l.quantity_kg / l.original_qty_kg) * 100) : 100;
       var now = new Date();
       var exp = new Date(l.expires_at);
@@ -2194,7 +2219,7 @@ function renewListing(id) {
     headers: { 'Authorization': 'Bearer ' + token }
   })
   .then(function(r) { return r.json(); })
-  .then(function() { showToast('Listing renewed'); loadMyListings(); })
+  .then(function() { showDiscToast('success', 'Listing Renewed', 'Your listing has been renewed for 7 more days.'); loadMyListings(); })
   .catch(function() { showToast('Error renewing listing', true); });
 }
 
@@ -2206,7 +2231,7 @@ function closeListing(id) {
     headers: { 'Authorization': 'Bearer ' + token }
   })
   .then(function(r) { return r.json(); })
-  .then(function() { showToast('Listing closed'); loadMyListings(); })
+  .then(function() { showDiscToast('warning', 'Listing Closed', 'Your listing has been closed and pending offers rejected.'); loadMyListings(); })
   .catch(function() { showToast('Error closing listing', true); });
 }
 
@@ -2277,7 +2302,7 @@ function acceptOffer(id) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success) {
-      showToast('Offer accepted — transaction created');
+      showDiscToast('success', 'Offer Accepted', 'Transaction created successfully.');
       loadMyListings();
       loadSentOffers();
     } else {
@@ -2294,7 +2319,7 @@ function rejectOffer(id) {
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
   })
   .then(function(r) { return r.json(); })
-  .then(function() { showToast('Offer rejected'); loadMyListings(); loadSentOffers(); })
+  .then(function() { showDiscToast('info', 'Offer Declined', 'The offer has been declined.'); loadMyListings(); loadSentOffers(); })
   .catch(function() { showToast('Error rejecting offer', true); });
 }
 
@@ -2312,7 +2337,7 @@ function counterOffer(id) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success) {
-      showToast('Counter offer sent');
+      showDiscToast('info', 'Counter Sent', 'Your counter-offer has been sent.');
       loadMyListings();
       loadSentOffers();
     } else {
@@ -2426,7 +2451,7 @@ function submitOffer(listingId) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success) {
-      showToast('Offer submitted');
+      showDiscToast('success', 'Offer Sent', 'Your offer has been sent to the seller.');
       document.getElementById('offer-form-' + listingId).classList.add('hidden');
       loadDiscoverListings();
       loadSentOffers();
@@ -2504,7 +2529,7 @@ function counterSentOffer(id) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.success) {
-      showToast('Counter offer sent');
+      showDiscToast('info', 'Counter Sent', 'Your counter-offer has been sent.');
       loadSentOffers();
     } else {
       showToast(data.message || 'Error sending counter', true);

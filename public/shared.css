@@ -483,3 +483,16 @@ table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:1
 
 /* Offer count badge */
 .offer-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;background:var(--accent);color:var(--bg);font-size:0.7rem;font-weight:700;border-radius:10px;padding:0 6px}
+
+/* Discovery toast notifications */
+.disc-toast-container{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none}
+.disc-toast{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1rem;min-width:280px;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);pointer-events:auto;animation:disc-toast-in 0.3s ease,disc-toast-out 0.3s ease 4.7s forwards;display:flex;align-items:flex-start;gap:0.75rem}
+.disc-toast.toast-success{border-color:var(--accent)}
+.disc-toast.toast-warning{border-color:#ffb74d}
+.disc-toast.toast-info{border-color:#64b5f6}
+.disc-toast-icon{font-size:1.2rem;flex-shrink:0}
+.disc-toast-body{flex:1}
+.disc-toast-title{font-weight:600;font-size:0.85rem;margin-bottom:2px}
+.disc-toast-message{font-size:0.8rem;color:var(--text-2)}
+@keyframes disc-toast-in{from{opacity:0;transform:translateX(100%)}to{opacity:1;transform:translateX(0)}}
+@keyframes disc-toast-out{from{opacity:1}to{opacity:0;transform:translateY(-10px)}}
