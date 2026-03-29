@@ -846,6 +846,163 @@ app.delete('/api/aggregators/:id/expenses/:eid', async (req, res) => {
   }
 });
 
+// ── Discovery: Listings ──────────────────────────────────────────────
+
+const VALID_MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
+const MIN_KG = { collector: 30, aggregator: 500 };
+
+// Determine which seller_role a buyer sees based on tier
+function sellerRoleForBuyer(buyerRole) {
+  if (buyerRole === 'aggregator') return 'collector';
+  if (['processor', 'recycler', 'converter'].includes(buyerRole)) return 'aggregator';
+  return null;
+}
+
+// POST /api/listings — create a listing (collectors + aggregators only)
+app.post('/api/listings', requireAuth, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'collector' && role !== 'aggregator') {
+      if (!req.user.hasRole('collector') && !req.user.hasRole('aggregator'))
+        return res.status(403).json({ success: false, message: 'Only collectors and aggregators can create listings' });
+    }
+    const sellerRole = req.user.hasRole('collector') ? 'collector' : 'aggregator';
+    const { material_type, quantity_kg, price_per_kg, location, photo_url } = req.body;
+    if (!material_type || !quantity_kg) return res.status(400).json({ success: false, message: 'material_type and quantity_kg required' });
+    const mat = material_type.toUpperCase();
+    if (!VALID_MATERIALS.includes(mat)) return res.status(400).json({ success: false, message: 'material_type must be one of: ' + VALID_MATERIALS.join(', ') });
+    const kg = parseFloat(quantity_kg);
+    if (isNaN(kg) || kg <= 0) return res.status(400).json({ success: false, message: 'quantity_kg must be a positive number' });
+    const minKg = MIN_KG[sellerRole] || 30;
+    if (kg < minKg) return res.status(400).json({ success: false, message: sellerRole + ' listings require at least ' + minKg + ' kg' });
+    const price = price_per_kg != null && price_per_kg !== '' ? parseFloat(price_per_kg) : null;
+    const result = await pool.query(
+      `INSERT INTO listings (seller_id, seller_role, material_type, quantity_kg, original_qty_kg, price_per_kg, location, photo_url, expires_at)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, NOW() + INTERVAL '7 days') RETURNING *`,
+      [req.user.id, sellerRole, mat, kg, price, location || null, photo_url || null]
+    );
+    res.status(201).json({ success: true, listing: result.rows[0] });
+  } catch (err) { console.error('POST /api/listings error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/listings — browse active listings (buyer sees tier below)
+app.get('/api/listings', requireAuth, async (req, res) => {
+  try {
+    const buyerRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    const targetSellerRole = sellerRoleForBuyer(buyerRole);
+    if (!targetSellerRole) return res.status(403).json({ success: false, message: 'Your role cannot browse listings' });
+    const sellerTable = CirculRoles.TABLE_MAP[targetSellerRole];
+    const nameCol = targetSellerRole === 'collector' ? "s.first_name || ' ' || s.last_name" : 's.name';
+    const ratingCol = targetSellerRole === 'collector' ? 's.average_rating' : 'NULL';
+
+    let where = `l.status = 'active' AND l.expires_at > NOW() AND l.seller_role = $1`;
+    const params = [targetSellerRole];
+    const { material, min_kg, max_kg, location } = req.query;
+    if (material) { params.push(material.toUpperCase()); where += ` AND l.material_type = $${params.length}`; }
+    if (min_kg) { params.push(parseFloat(min_kg)); where += ` AND l.quantity_kg >= $${params.length}`; }
+    if (max_kg) { params.push(parseFloat(max_kg)); where += ` AND l.quantity_kg <= $${params.length}`; }
+    if (location) { params.push('%' + location + '%'); where += ` AND l.location ILIKE $${params.length}`; }
+
+    const result = await pool.query(
+      `SELECT l.*, ${nameCol} AS seller_name, ${ratingCol} AS seller_rating
+       FROM listings l
+       LEFT JOIN ${sellerTable} s ON s.id = l.seller_id
+       WHERE ${where}
+       ORDER BY l.created_at DESC`,
+      params
+    );
+    res.json({ success: true, listings: result.rows });
+  } catch (err) { console.error('GET /api/listings error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/listings/mine — seller's own listings with pending offer counts
+app.get('/api/listings/mine', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT l.*, COALESCE(oc.pending_count, 0)::int AS pending_offers
+       FROM listings l
+       LEFT JOIN (SELECT listing_id, COUNT(*) AS pending_count FROM offers WHERE status = 'pending' GROUP BY listing_id) oc ON oc.listing_id = l.id
+       WHERE l.seller_id = $1 AND l.seller_role = $2
+       ORDER BY l.created_at DESC`,
+      [req.user.id, req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null)]
+    );
+    res.json({ success: true, listings: result.rows });
+  } catch (err) { console.error('GET /api/listings/mine error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/listings/:id — single listing with seller info
+app.get('/api/listings/:id', requireAuth, async (req, res) => {
+  try {
+    const row = await pool.query(`SELECT * FROM listings WHERE id = $1`, [req.params.id]);
+    if (!row.rows.length) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const listing = row.rows[0];
+    const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role];
+    const nameCol = listing.seller_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
+    const ratingCol = listing.seller_role === 'collector' ? 'average_rating' : 'NULL';
+    const seller = await pool.query(
+      `SELECT id, ${nameCol} AS name, ${ratingCol} AS rating FROM ${sellerTable} WHERE id = $1`,
+      [listing.seller_id]
+    );
+    listing.seller_name = seller.rows.length ? seller.rows[0].name : null;
+    listing.seller_rating = seller.rows.length ? seller.rows[0].rating : null;
+    res.json({ success: true, listing });
+  } catch (err) { console.error('GET /api/listings/:id error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// PATCH /api/listings/:id/renew — extend expiry by 7 days
+app.patch('/api/listings/:id/renew', requireAuth, async (req, res) => {
+  try {
+    const row = await pool.query(`SELECT * FROM listings WHERE id = $1`, [req.params.id]);
+    if (!row.rows.length) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const listing = row.rows[0];
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    if (listing.seller_id !== req.user.id || listing.seller_role !== userRole)
+      return res.status(403).json({ success: false, message: 'Not your listing' });
+    const result = await pool.query(
+      `UPDATE listings SET expires_at = NOW() + INTERVAL '7 days', renewal_count = renewal_count + 1, status = 'active', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    res.json({ success: true, listing: result.rows[0] });
+  } catch (err) { console.error('PATCH /api/listings/:id/renew error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// PATCH /api/listings/:id/close — close listing + reject pending offers
+app.patch('/api/listings/:id/close', requireAuth, async (req, res) => {
+  try {
+    const row = await pool.query(`SELECT * FROM listings WHERE id = $1`, [req.params.id]);
+    if (!row.rows.length) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const listing = row.rows[0];
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    if (listing.seller_id !== req.user.id || listing.seller_role !== userRole)
+      return res.status(403).json({ success: false, message: 'Not your listing' });
+    await pool.query(`UPDATE offers SET status = 'rejected', responded_at = NOW() WHERE listing_id = $1 AND status = 'pending'`, [req.params.id]);
+    const result = await pool.query(
+      `UPDATE listings SET status = 'closed', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    res.json({ success: true, listing: result.rows[0] });
+  } catch (err) { console.error('PATCH /api/listings/:id/close error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// DELETE /api/listings/:id — hard delete (only if no accepted offers)
+app.delete('/api/listings/:id', requireAuth, async (req, res) => {
+  try {
+    const row = await pool.query(`SELECT * FROM listings WHERE id = $1`, [req.params.id]);
+    if (!row.rows.length) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const listing = row.rows[0];
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    if (listing.seller_id !== req.user.id || listing.seller_role !== userRole)
+      return res.status(403).json({ success: false, message: 'Not your listing' });
+    const accepted = await pool.query(`SELECT COUNT(*) FROM offers WHERE listing_id = $1 AND status = 'accepted'`, [req.params.id]);
+    if (parseInt(accepted.rows[0].count) > 0)
+      return res.status(400).json({ success: false, message: 'Cannot delete listing with accepted offers' });
+    await pool.query(`DELETE FROM listings WHERE id = $1`, [req.params.id]);
+    res.status(204).end();
+  } catch (err) { console.error('DELETE /api/listings/:id error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ── End Discovery: Listings ──────────────────────────────────────────
+
 app.get('/api/aggregator/top-suppliers', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
