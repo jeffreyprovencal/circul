@@ -51,7 +51,7 @@
 .price-post-btn{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:600;font-size:0.8rem;cursor:pointer;white-space:nowrap}
 .price-post-btn:hover{background:var(--accent-hover)}
 .price-card-current{font-size:0.9rem;font-weight:700;color:var(--accent);margin-bottom:2px}
-.price-card-usd{font-size:0.75rem;color:var(--text-3);margin-bottom:4px}
+.price-card-sub{font-size:0.75rem;color:var(--text-3);margin-bottom:4px}
 
 /* ── PARTNER ROW (top suppliers/buyers JS) ── */
 .partner-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -540,7 +540,7 @@ function loadAll() {
             document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg);
             var ghs = parseFloat(s.totals.total_value || 0);
             document.getElementById('statSpentGhs').textContent = fmt(ghs);
-            document.getElementById('statSpentUsd').textContent = '$' + fmt(ghs * 0.067);
+            document.getElementById('statSpentUsd').textContent = '';
             renderPriceCards(s.posted_prices);
         });
     loadTxns();
@@ -559,7 +559,7 @@ function calcOrderTotal() {
     if (!isNaN(q) && q > 0 && !isNaN(p) && p > 0) {
         var total = q * p;
         document.getElementById('ord-total-ghs').textContent = 'Est. GH\u20B5 ' + fmt(total) + ' total value';
-        document.getElementById('ord-total-usd').textContent = '\u2248 $' + (total * 0.067).toFixed(2) + ' USD';
+        document.getElementById('ord-total-usd').textContent = '';
         box.classList.remove('hidden');
     } else {
         box.classList.add('hidden');
@@ -656,7 +656,7 @@ function renderOrders() {
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
             '<span class="order-meta">GH\u20B5 ' + fmt(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + ' <span class="price-sub">\u2248 $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + '</span>' +
             '</div>' +
             specsHtml + notesHtml +
             '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
@@ -695,7 +695,7 @@ function loadRecyclerQueue() {
         } else {
             document.getElementById('recQueueCompleted').innerHTML =
                 '<div class="table-wrap"><table><thead><tr>' +
-                '<th>Processor</th><th>Material</th><th>Weight</th><th>Total (GHS)</th><th>Total (USD)</th><th>Status</th><th>Date</th>' +
+                '<th>Processor</th><th>Material</th><th>Weight</th><th>Total (GH\u20B5)</th><th>Status</th><th>Date</th>' +
                 '</tr></thead><tbody>' + completed.map(buildRecCompletedRow).join('') + '</tbody></table></div>';
         }
     })
@@ -720,7 +720,7 @@ function buildRecPendingCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span class="price-sub">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + '</span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -742,7 +742,7 @@ function buildRecApprovedCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span class="price-sub">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + '</span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-approve" onclick="openRecArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
@@ -766,7 +766,6 @@ function buildRecCompletedRow(pt) {
         '<td><span class="pill pill-' + (pt.material_type || '').toLowerCase() + '">' + esc(pt.material_type) + '</span></td>' +
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
         '<td class="td-green">GH\u20B5 ' + fmt(total) + '</td>' +
-        '<td class="td-green">$' + (total * 0.067).toFixed(0) + '</td>' +
         '<td>' + statusBadge + (rejNote ? '<br>' + rejNote : '') + '</td>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
         '</tr>';
@@ -1027,10 +1026,9 @@ function loadProcessorPrices() {
                 '</tr></thead><tbody>' +
                 all.map(function(p) {
                     var ghsLine = p.price_per_kg_ghs ? 'GH\u20B5 ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : '\u2014';
-                    var usdLine = p.price_per_kg_ghs ? '<div style="font-size:0.72rem;color:var(--text-3)">\u2248 $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD</div>' : '';
                     return '<tr>' +
                         '<td style="font-weight:600">' + p.material_type + '</td>' +
-                        '<td class="td-green">' + ghsLine + usdLine + '</td>' +
+                        '<td class="td-green">' + ghsLine + '</td>' +
                         '<td>' + esc(p.operator_name || '\u2014') + '</td>' +
                         '<td>' + esc(p.city || '\u2014') + '</td>' +
                         '<td style="color:var(--text-3)">' + (p.actual_avg_price_30d ? 'GH\u20B5 ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '\u2014') + '</td>' +
@@ -1152,12 +1150,10 @@ function renderPriceCards(prices) {
     document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
         var current = p && p.price_per_kg_ghs ? 'GH\u20B5 ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : 'Not set';
-        var usdLine = p && p.price_per_kg_ghs ? '\u2248 $' + (parseFloat(p.price_per_kg_ghs) * 0.067).toFixed(2) + ' USD' : '';
         return '<div class="price-card">' +
             '<div class="pc-label">Material</div>' +
             '<div class="pc-name">' + mat + '</div>' +
             '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
-            (usdLine ? '<div style="font-size:0.75rem;color:var(--text-3)">' + usdLine + '</div>' : '') +
             '<div class="pc-inline">' +
             '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH\u20B5 / kg" step="0.01" min="0">' +
             '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
