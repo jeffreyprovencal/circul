@@ -83,10 +83,10 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 
 /* ── PILLS ── */
 .pill{display:inline-block;font-size:0.7rem;font-weight:600;padding:3px 8px;border-radius:10px;white-space:nowrap}
-.pill-pet{background:rgba(0,150,255,0.15);color:#4fc3f7}
-.pill-hdpe{background:rgba(0,230,118,0.15);color:#00e676}
-.pill-ldpe{background:rgba(255,215,64,0.15);color:#ffd740}
-.pill-pp{background:rgba(244,143,177,0.15);color:#f48fb1}
+.pill-pet{background:#2196f326;color:#64b5f6}
+.pill-hdpe{background:#4caf5026;color:#81c784}
+.pill-ldpe{background:#ff980026;color:#ffb74d}
+.pill-pp{background:#e91e6326;color:#f06292}
 .pill-paid{background:rgba(0,230,118,0.15);color:#00e676}
 .pill-sent{background:rgba(255,215,64,0.15);color:#ffd740}
 .pill-pending{background:rgba(255,152,0,0.15);color:#ffb74d}
@@ -443,3 +443,43 @@ table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:1
 .admin-reject-form textarea{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid rgba(239,83,80,.3);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:.78rem;padding:8px 10px;resize:vertical;min-height:48px;margin-bottom:8px}
 .admin-rejection-reason{font-size:.72rem;color:#ef4444;margin-top:4px;font-style:italic}
 .admin-reviewed-card{opacity:.6}
+
+/* ── Discovery ── */
+
+/* Listing card */
+.listing-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:0.75rem;transition:border-color 0.2s}
+.listing-card:hover{border-color:var(--accent)}
+.listing-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem}
+.listing-card-meta{display:flex;gap:1rem;font-size:0.85rem;color:var(--text-2);flex-wrap:wrap}
+.listing-card-price{font-size:1.25rem;font-weight:700;color:var(--accent)}
+.listing-card-price.make-offer{font-style:italic;font-size:0.95rem;color:var(--text-2)}
+
+/* Offer thread */
+.offer-thread{border-left:2px solid var(--border);padding-left:1rem;margin:0.75rem 0}
+.offer-bubble{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;margin-bottom:0.5rem}
+.offer-bubble.mine{border-color:var(--accent)}
+.offer-bubble-header{display:flex;justify-content:space-between;font-size:0.8rem;color:var(--text-2);margin-bottom:0.25rem}
+.final-offer-tag{display:inline-block;background:#ff980040;color:#ffb74d;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.05em}
+
+/* Offer action buttons */
+.offer-actions{display:flex;gap:0.5rem;margin-top:0.5rem}
+.offer-actions .btn-accept{background:var(--accent);color:var(--bg);border:none;padding:6px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:0.85rem}
+.offer-actions .btn-reject{background:transparent;color:#ef5350;border:1px solid #ef5350;padding:6px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:0.85rem}
+.offer-actions .btn-counter{background:transparent;color:var(--accent);border:1px solid var(--accent);padding:6px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:0.85rem}
+
+/* Quantity bar (remaining vs original) */
+.qty-bar{height:4px;background:var(--border);border-radius:2px;margin-top:0.5rem;overflow:hidden}
+.qty-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s}
+
+/* Filter bar */
+.discovery-filters{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+.discovery-filters .pill{cursor:pointer;transition:opacity 0.2s;opacity:0.5}
+.discovery-filters .pill.active{opacity:1;box-shadow:0 0 0 2px currentColor}
+
+/* Expiry badge */
+.expiry-badge{font-size:0.75rem;padding:2px 8px;border-radius:4px}
+.expiry-badge.expiring-soon{background:#ff980030;color:#ffb74d}
+.expiry-badge.active{background:rgba(0,230,118,0.15);color:var(--accent)}
+
+/* Offer count badge */
+.offer-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;background:var(--accent);color:var(--bg);font-size:0.7rem;font-weight:700;border-radius:10px;padding:0 6px}
