@@ -36,6 +36,7 @@
         .login-card .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: var(--white); border-radius: 50%; animation: spin 0.6s linear infinite; }
 
         /* NAV (page-specific additions) */
+        #navUser { display: flex; align-items: center; gap: 10px; }
         .role-badge { font-family: var(--font); font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
         .role-badge.admin { background: var(--amber); color: var(--green-deep); }
         .role-badge.operator { background: rgba(255,255,255,0.15); color: var(--green-light); }
@@ -205,7 +206,7 @@
         <span class="nav-spacer"></span>
         <span class="nav-title" id="navTitle" style="font-size:0.85rem;font-weight:500;color:var(--text-2);letter-spacing:0.5px;text-transform:uppercase;margin-right:16px;">Operator Dashboard</span>
         <div class="nav-right">
-            <div class="nav-user" id="navUser" style="display:none;">
+            <div class="nav-user hidden" id="navUser">
                 <span class="nav-name" id="navUserName"></span>
                 <span class="role-badge nav-pill" id="navRoleBadge"></span>
             </div>
@@ -214,7 +215,7 @@
                 <span id="refreshText">Auto-refresh: 30s</span>
             </div>
             <button class="btn-refresh" onclick="refreshAll()" id="refreshBtn">Refresh</button>
-            <button class="nav-logout" onclick="handleLogout()" id="logoutBtn" style="display:none;">Log Out</button>
+            <button class="nav-logout hidden" onclick="handleLogout()" id="logoutBtn">Log Out</button>
         </div>
     </nav>
 
@@ -373,12 +374,12 @@
         function showDashboard() {
             document.getElementById('loginOverlay').classList.add('hidden');
             var op = state.operator;
-            document.getElementById('navUser').style.display = 'flex';
+            document.getElementById('navUser').classList.remove('hidden');
             document.getElementById('navUserName').textContent = op.name + (op.company ? ' (' + op.company + ')' : '');
             var badge = document.getElementById('navRoleBadge');
             badge.textContent = op.role;
             badge.className = 'role-badge ' + op.role;
-            document.getElementById('logoutBtn').style.display = '';
+            document.getElementById('logoutBtn').classList.remove('hidden');
 
             if (op.role === 'admin') {
                 document.getElementById('navTitle').textContent = 'Admin Dashboard — All Operators';
@@ -434,8 +435,8 @@
             state.operator = null;
             localStorage.removeItem('circul_user');
             if (state.refreshTimer) clearInterval(state.refreshTimer);
-            document.getElementById('navUser').style.display = 'none';
-            document.getElementById('logoutBtn').style.display = 'none';
+            document.getElementById('navUser').classList.add('hidden');
+            document.getElementById('logoutBtn').classList.add('hidden');
             showLogin();
         };
 

@@ -9,7 +9,6 @@
 <style>
 /* ── LOGIN OVERLAY ── */
 .login-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500}
-.login-overlay.hidden{display:none}
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
 .login-box h2{font-size:1.3rem;font-weight:700;margin-bottom:6px;color:var(--accent)}
 .login-box p{color:var(--text-2);font-size:0.85rem;margin-bottom:24px}
@@ -19,76 +18,20 @@
 .login-box input:focus{outline:none;border-color:var(--accent)}
 .login-box button{width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-size:0.9rem;font-weight:700;cursor:pointer;font-family:var(--font)}
 .login-box button:hover{background:var(--accent-hover)}
-.login-error{color:#ef4444;font-size:0.8rem;margin-top:8px}
-.login-error.visible{display:block}
 
-/* ── TOAST ── */
-#cvToast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:var(--surface);color:var(--accent);border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px 24px;font-size:0.85rem;font-weight:600;z-index:9999;display:none;font-family:var(--font);white-space:nowrap}
-#cvToast.hidden{display:none}
-
-/* ── RATING MODAL ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.modal-overlay.open{display:flex}
-.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:440px;max-width:95vw}
-.modal-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
-.modal-sub{font-size:0.8rem;color:var(--text-2);margin-bottom:20px}
-.stars-row{display:flex;gap:8px;margin-bottom:20px}
-.star-btn{font-size:1.6rem;cursor:pointer;color:var(--text-3);transition:color 0.15s;line-height:1}
-.star-btn.active{color:#ffd740}
-.modal-section-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:10px}
-.rating-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
-.rtag{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s}
+/* ── RATING (local overrides) ── */
 .rtag.positive{background:var(--accent-muted);color:var(--accent);border-color:var(--border)}
 .rtag.positive.selected{border-color:var(--accent)}
 .rtag.negative{background:rgba(255,215,64,0.1);color:#ffd740;border-color:rgba(255,215,64,0.2)}
 .rtag.negative.selected{border-color:#ffd740}
-.modal-note{width:100%;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:20px}
-.modal-note::placeholder{color:var(--text-3)}
-.modal-note:focus{outline:none;border-color:var(--accent)}
-.modal-actions{display:flex;gap:10px;justify-content:flex-end}
-.btn-secondary{background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
-.btn-secondary:hover{border-color:var(--text-3);color:var(--text-1)}
 
-/* ── DELIVERY / QUEUE CARDS ── */
-.del-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
-.del-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.del-title{font-weight:600;font-size:0.85rem}
-.del-meta{font-size:0.75rem;color:var(--text-3)}
-.del-price{font-size:0.85rem;font-weight:600;color:var(--accent)}
-.del-actions{display:flex;gap:8px;margin-top:10px}
+/* ── DELIVERY QUEUE (local: approve/decline buttons) ── */
 .btn-approve{background:var(--accent-muted);color:var(--accent);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
 .btn-approve:hover{border-color:var(--accent)}
 .btn-decline{background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
 .btn-decline:hover{border-color:#ef4444}
-.btn-log-arrival{background:var(--accent-muted);color:var(--accent);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
-.btn-log-arrival:hover{border-color:var(--accent)}
 
-/* ── INLINE FORMS (dispatch/arrival) ── */
-.del-inline-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:10px}
-.di-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px;display:block}
-.di-textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:12px}
-.di-textarea::placeholder{color:var(--text-3)}
-.di-textarea:focus{outline:none;border-color:var(--accent)}
-.di-input{width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;margin-bottom:12px}
-.di-input:focus{outline:none;border-color:var(--accent)}
-.di-actions{display:flex;gap:8px;margin-top:8px}
-.di-confirm{background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
-.di-confirm:hover{background:var(--accent-hover)}
-.di-cancel{background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 16px;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
-.di-cancel:hover{border-color:var(--text-3);color:var(--text-1)}
-.di-msg{font-size:0.8rem;margin-top:8px}
-
-/* ── TAB PANELS ── */
-.tab-panel{display:none}
-.tab-panel.active{display:block}
-
-/* ── ORDER CARD (rendered by JS) ── */
-.order-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
-.order-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.order-title{font-weight:600;font-size:0.85rem}
-.order-meta{font-size:0.75rem;color:var(--text-3)}
-.order-price{font-size:0.85rem;font-weight:600;color:var(--accent)}
-.order-specs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+/* ── ORDER CARD (local: spec items) ── */
 .order-spec-item{font-size:0.75rem;color:var(--text-2)}
 .order-spec-label{color:var(--text-3);margin-right:4px}
 .order-spec-val{color:var(--text-1)}
@@ -104,18 +47,9 @@
 .avail-vol{font-size:1.2rem;font-weight:800;color:var(--accent)}
 .avail-unit{font-size:0.75rem;color:var(--text-3)}
 
-/* ── HIDDEN UTILITY ── */
-.hidden{display:none!important}
-
 /* ── ORDER TOTAL BOX ── */
 .order-total{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;font-size:0.85rem;color:var(--text-2)}
 .order-total strong{color:var(--accent)}
-
-/* ── BADGE (JS-generated, supplement shared.css .badge) ── */
-.badge-blue{background:rgba(0,150,255,0.15);color:#4fc3f7}
-.badge-green{background:var(--accent-muted);color:var(--accent)}
-.badge-amber{background:rgba(255,215,64,0.1);color:#ffd740}
-.badge-gray{background:rgba(255,255,255,0.08);color:var(--text-3)}
 
 /* ── RESPONSIVE SUPPLEMENT ── */
 @media(max-width:768px){
@@ -146,17 +80,17 @@
   <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
   <span class="nav-spacer"></span>
   <div class="nav-right">
-    <span class="nav-pill" style="background:#2a0a1a;color:#f48fb1">CONVERTER</span>
+    <span class="nav-pill nav-pill-converter">CONVERTER</span>
     <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="navConvId"></span>
-    <a class="nav-link" id="switch-role-btn" href="/processor-dashboard.html" style="display:none">Switch to Processor</a>
+    <a class="nav-link hidden" id="switch-role-btn" href="/processor-dashboard.html">Switch to Processor</a>
     <a class="nav-link" href="/">Home</a>
     <button class="nav-logout" onclick="handleLogout()">Log out</button>
   </div>
 </nav>
 
 <!-- MAIN DASHBOARD -->
-<div class="page" id="dashboard" style="display:none">
+<div class="page hidden" id="dashboard">
 
   <!-- HERO -->
   <div class="hero">
@@ -166,6 +100,10 @@
         <span id="heroEmail"></span>
         <span class="sep">·</span>
         <span id="heroRegion"></span>
+        <span class="sep">·</span>
+        <span>⭐ <span id="heroRating" style="font-weight:600">—</span></span>
+        <span class="sep">·</span>
+        <span class="badge">ACTIVE</span>
       </div>
     </div>
   </div>
@@ -179,7 +117,7 @@
     <div class="stat">
       <div class="stat-label">Total Spent</div>
       <div class="stat-val">GH¢ <span id="statSpentGhs">—</span></div>
-      <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px" id="statSpentUsd"></div>
+      <div class="price-sub" style="margin-top:2px" id="statSpentUsd"></div>
     </div>
     <div class="stat">
       <div class="stat-label">Open Orders</div>
@@ -200,7 +138,7 @@
       </div>
     </div>
     <div class="table-wrap">
-      <div id="top-suppliers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
     </div>
   </div>
 
@@ -219,8 +157,13 @@
 
   <!-- PLACE PURCHASE ORDER -->
   <div class="section">
-    <div class="section-title">Place purchase order</div>
-    <div class="section-sub" style="margin-bottom:14px">Request material from your suppliers</div>
+    <div class="section-head">
+      <div>
+        <div class="section-title">Place purchase order</div>
+        <div class="section-sub">Request material from your suppliers</div>
+      </div>
+      <button class="btn-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
+    </div>
     <div class="tier-selector">
       <button class="tier-btn active" data-tier="recycler" onclick="selectOrderTier('recycler')" style="background:#1a0d2a;color:#b388ff;border-color:#b388ff">Recycler</button>
       <button class="tier-btn" data-tier="processor" onclick="selectOrderTier('processor')" style="color:#42a5f5">Processor</button>
@@ -270,12 +213,11 @@
       </div>
     </div>
     <input type="hidden" id="ord-price" value="" />
-    <div class="order-total" id="ord-total-box" style="display:none">
+    <div class="order-total hidden" id="ord-total-box">
       Estimated total: <strong id="ord-total-ghs">—</strong> GHS
       <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
     </div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:8px" id="ord-msg"></div>
-    <button class="form-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
+    <div class="msg-error" style="margin-bottom:8px" id="ord-msg"></div>
   </div>
 
   <!-- INCOMING DELIVERIES -->
@@ -321,7 +263,7 @@
           <thead><tr>
             <th>Date</th><th>Supplier</th><th>Material</th><th>Weight</th><th>Price/KG</th><th>Amount</th><th>Status</th>
           </tr></thead>
-          <tbody id="supplyBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading...</td></tr></tbody>
+          <tbody id="supplyBody"><tr><td colspan="7" class="placeholder-cell">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -332,17 +274,17 @@
         <span style="font-size:0.85rem;color:var(--text-3)">Prices in</span>
         <span id="priceCity" style="font-size:0.85rem;font-weight:700;color:var(--accent)">Accra</span>
       </div>
-      <div id="processorPrices"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorPrices"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- TRACEABILITY TAB -->
     <div class="tab-panel" id="tab-certs">
-      <div id="txnCerts"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="txnCerts"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- RATINGS TAB -->
     <div class="tab-panel" id="tab-ratings">
-      <div id="processorRatingsList"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorRatingsList"><div class="placeholder-cell">Loading...</div></div>
       <div id="ratingsReceived"></div>
     </div>
   </div>
@@ -353,24 +295,29 @@
 </div><!-- /.page -->
 
 <!-- RATE PROCESSOR MODAL -->
-<div class="modal-overlay" id="rateProcessorModal">
-  <div class="modal-box">
+<div class="rating-overlay" id="rateProcessorModal">
+  <div class="rating-box">
     <h3 id="rateProcessorName">Rate Processor</h3>
-    <div class="modal-sub">Your feedback helps improve the supply chain</div>
-    <div class="stars-row" id="rateProcessorStars"></div>
-    <div class="modal-section-label">What went well or not?</div>
-    <div class="rating-tags" id="cv-rating-tags"></div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:12px" id="rateProcessorMsg"></div>
-    <textarea class="modal-note" id="cv-rating-note" placeholder="Add a note (optional)..."></textarea>
+    <div class="sub">Your feedback helps improve the supply chain</div>
+    <div class="stars-row" id="rateProcessorStars">
+      <button class="star-btn" onclick="setStars(1)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(2)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(3)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(4)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(5)">&#9733;</button>
+    </div>
+    <div id="cv-rating-tags"></div>
+    <div class="msg-error hidden" style="margin-bottom:12px" id="rateProcessorMsg"></div>
+    <textarea class="rating-note" id="cv-rating-note" placeholder="Add a note (optional)..."></textarea>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="this.closest('.modal-overlay').style.display='none'">Cancel</button>
-      <button class="btn-primary" onclick="submitCvRating()">Submit Rating</button>
+      <button class="btn-cancel" onclick="closeRateProcessorModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitCvRating()">Submit Rating</button>
     </div>
   </div>
 </div>
 
 <!-- TOAST -->
-<div id="cvToast"></div>
+<div class="toast" id="cvToast"></div>
 
 <!-- ARRIVAL FORM CONTAINER -->
 <div id="conv-arrival-form"></div>
@@ -427,7 +374,7 @@ function checkDualRole() {
                 try {
                     var p = JSON.parse(atob(parts[i]));
                     if (p && p.roles && p.roles.indexOf('processor') !== -1) {
-                        var srb = document.getElementById('switch-role-btn'); if (srb) srb.style.display = 'inline-block';
+                        var srb = document.getElementById('switch-role-btn'); if (srb) srb.classList.remove('hidden');
                         return;
                     }
                 } catch(e) {}
@@ -438,7 +385,7 @@ function checkDualRole() {
 
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('dashboard').style.display = '';
+    document.getElementById('dashboard').classList.remove('hidden');
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
     var navConvId = document.getElementById('navConvId');
@@ -448,7 +395,11 @@ function showDashboard() {
     var heroEl = document.getElementById('heroName');
     if (heroEl) heroEl.textContent = op.company || op.name || '—';
     var emailEl = document.getElementById('heroEmail');
-    if (emailEl) emailEl.textContent = op.email || '';
+    if (emailEl) emailEl.textContent = op.email || '—';
+    var regionEl = document.getElementById('heroRegion');
+    if (regionEl) regionEl.textContent = op.location || op.city || '—';
+    var heroRat = document.getElementById('heroRating');
+    if (heroRat && op.avg_rating) heroRat.textContent = Number(op.avg_rating).toFixed(1);
     checkDualRole();
     loadAll();
     if (op.token) {
@@ -457,11 +408,13 @@ function showDashboard() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.converter) {
-                    var name = data.converter.company || data.converter.name || op.name || '';
+                    var cv = data.converter;
+                    var name = cv.company || cv.name || op.name || '';
                     document.getElementById('navName').textContent = name;
                     if (heroEl) heroEl.textContent = name;
-                    var regionEl = document.getElementById('heroRegion');
-                    if (regionEl) regionEl.textContent = data.converter.city || data.converter.region || '';
+                    if (regionEl) regionEl.textContent = cv.city || cv.region || '—';
+                    if (emailEl && cv.email) emailEl.textContent = cv.email;
+                    if (heroRat && cv.avg_rating) heroRat.textContent = Number(cv.avg_rating).toFixed(1);
                 }
             })
             .catch(function() {});
@@ -541,9 +494,9 @@ function calcOrderTotal() {
         var total = q * p;
         document.getElementById('ord-total-ghs').textContent = 'Est. GH₵ ' + fmt(total) + ' total value';
         document.getElementById('ord-total-usd').textContent = '≈ $' + (total * 0.067).toFixed(2) + ' USD';
-        box.style.display = '';
+        box.classList.remove('hidden');
     } else {
-        box.style.display = 'none';
+        box.classList.add('hidden');
     }
 }
 
@@ -561,9 +514,10 @@ function submitOrder() {
     var notes    = document.getElementById('ord-notes').value.trim();
 
     msgEl.textContent = '';
-    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = '#ef4444'; return; }
-    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = '#ef4444'; return; }
-    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = '#ef4444'; return; }
+    msgEl.className = 'msg-error';
+    if (!material)           { msgEl.textContent = 'Material type is required.'; return; }
+    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; return; }
+    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; return; }
 
     btn.disabled = true; btn.textContent = 'Placing…';
     fetch('/api/orders', {
@@ -591,16 +545,15 @@ function submitOrder() {
             document.getElementById('ord-excl').value     = '';
             document.getElementById('ord-contam').value   = '';
             document.getElementById('ord-notes').value    = '';
-            document.getElementById('ord-total-box').style.display = 'none';
+            document.getElementById('ord-total-box').classList.add('hidden');
             msgEl.textContent = '';
             showCvToast('Order placed successfully');
             loadOrders();
         } else {
             msgEl.textContent = data.message || 'Error placing order.';
-            msgEl.style.color = '#ef4444';
         }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; })
+    .catch(function() { msgEl.textContent = 'Connection error.'; })
     .finally(function() { btn.disabled = false; btn.textContent = 'Place Order'; });
 }
 
@@ -642,7 +595,7 @@ function renderOrders() {
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
             '<span class="order-meta">GH₵ ' + fmt(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span class="price-sub">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
             '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
@@ -708,7 +661,7 @@ function buildConvPendingCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -717,7 +670,7 @@ function buildConvPendingCard(pt) {
         '<button class="btn-approve" onclick="openConvDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openConvDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
-        '<div id="cvdispatch-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="cvdispatch-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
@@ -732,20 +685,22 @@ function buildConvApprovedCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-log-arrival" onclick="openConvArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
-        '<div id="cvarr-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="cvarr-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
 function buildConvCompletedRow(pt) {
     var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
-    var statusBadge = (pt.status === 'arrived' || pt.status === 'completed')
-        ? '<span class="badge badge-green">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
-        : '<span class="badge" style="background:rgba(239,68,68,0.15);color:#ef4444">Rejected</span>';
+    var statusBadge = pt.status === 'arrived'
+        ? '<span class="pill pill-arrived">Arrived</span>'
+        : pt.status === 'completed'
+        ? '<span class="pill pill-completed">Completed</span>'
+        : '<span class="pill pill-rejected">Rejected</span>';
     var rejNote = (pt.status === 'dispatch_rejected' && pt.rejection_reason)
         ? '<div style="font-size:0.74rem;color:#ef4444;margin-top:2px">' + esc(pt.rejection_reason) + '</div>'
         : '';
@@ -763,12 +718,12 @@ function buildConvCompletedRow(pt) {
 
 function openConvDispatchForm(ptId, type) {
     var formEl = document.getElementById('cvdispatch-form-' + ptId);
-    if (activeConvDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeConvDispatchId = null; return;
+    if (activeConvDispatchId === ptId && formEl.dataset.formType === type && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeConvDispatchId = null; return;
     }
     if (activeConvDispatchId && activeConvDispatchId !== ptId) {
         var prev = document.getElementById('cvdispatch-form-' + activeConvDispatchId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeConvDispatchId = ptId;
     formEl.dataset.formType = type;
@@ -781,19 +736,19 @@ function openConvDispatchForm(ptId, type) {
             '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
     } else {
         formEl.innerHTML = '<div class="del-inline-form">' +
-            '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
+            '<label class="di-label">Reason for rejection <span class="label-hint">(required)</span></label>' +
             '<textarea class="di-textarea" id="cvreject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:#ef4444" onclick="submitConvDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm-danger" onclick="submitConvDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelConvDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="cvdisp-msg-' + ptId + '"></div></div>';
     }
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelConvDispatchForm(ptId) {
     var f = document.getElementById('cvdispatch-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeConvDispatchId === ptId) activeConvDispatchId = null;
 }
 
@@ -803,7 +758,7 @@ function submitConvDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('cvreject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef4444'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.className = 'di-msg msg-error'; return; }
         body.rejection_reason = reason;
     }
     fetch('/api/pending-transactions/' + ptId + '/converter-dispatch-decision', {
@@ -814,19 +769,19 @@ function submitConvDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeConvDispatchId = null; loadConverterQueue(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 function openConvArrivalForm(ptId) {
     var formEl = document.getElementById('cvarr-form-' + ptId);
-    if (activeConvArrivalId === ptId && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeConvArrivalId = null; return;
+    if (activeConvArrivalId === ptId && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeConvArrivalId = null; return;
     }
     if (activeConvArrivalId && activeConvArrivalId !== ptId) {
         var prev = document.getElementById('cvarr-form-' + activeConvArrivalId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeConvArrivalId = ptId;
     var pt = converterDeliveries.find(function(d) { return d.id === ptId; });
@@ -840,12 +795,12 @@ function openConvArrivalForm(ptId) {
         '<button class="di-cancel" onclick="cancelConvArrivalForm(' + ptId + ')">Cancel</button>' +
         '</div><div class="di-msg" id="cvarr-msg-' + ptId + '"></div>' +
         '</div>';
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelConvArrivalForm(ptId) {
     var f = document.getElementById('cvarr-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeConvArrivalId === ptId) activeConvArrivalId = null;
 }
 
@@ -853,7 +808,7 @@ function submitConvArrival(ptId) {
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var msgEl = document.getElementById('cvarr-msg-' + ptId);
     var weight = document.getElementById('cvarr-weight-' + ptId).value;
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef4444'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.className = 'di-msg msg-error'; return; }
     fetch('/api/pending-transactions/' + ptId + '/converter-arrival', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -862,19 +817,18 @@ function submitConvArrival(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeConvArrivalId = null; loadConverterQueue(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 function showCvToast(msg) {
     var el = document.getElementById('cvToast');
     if (!el) return;
     el.textContent = msg;
-    el.style.display = '';
-    el.classList.remove('hidden');
+    el.classList.add('show');
     if (cvToastTimer) clearTimeout(cvToastTimer);
-    cvToastTimer = setTimeout(function() { el.style.display = 'none'; }, 3500);
+    cvToastTimer = setTimeout(function() { el.classList.remove('show'); }, 3500);
 }
 
 function timeAgo(iso) {
@@ -891,19 +845,23 @@ function timeAgo(iso) {
 // ── EXISTING TABS FUNCTIONS ────────────────────────────────────────────────────
 
 function loadTxns() {
-    fetch('/api/transactions?converter_id=' + state.operator.id + '&limit=30')
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/transactions?converter_id=' + state.operator.id + '&limit=30')
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             var tbody = document.getElementById('supplyBody');
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
-                var supplier = esc(t.processor_company || t.processor_name || t.seller_name || '—');
+                var supplier = esc(t.recycler_company || t.recycler_name || t.processor_company || t.processor_name || t.seller_name || '—');
                 var priceKg = t.price_per_kg ? fmt(t.price_per_kg) : '—';
                 var matLower = (t.material_type || '').toLowerCase();
                 var pillClass = 'pill pill-' + matLower;
                 return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (priceKg !== '—' ? 'GH¢ ' + priceKg + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? 'GH¢ ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
             }).join('');
-        });
+        })
+        .catch(function(e) { console.error('loadTxns error:', e); });
 }
 
 function loadProcessorPrices() {
@@ -969,7 +927,7 @@ function loadRatings() {
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span>' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-green" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-submit" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
             }).join('');
         });
     fetch('/api/ratings/operator/' + state.operator.id)
@@ -988,51 +946,54 @@ function rateProcessor(processorId, processorName) {
     _rateProcessorId = processorId;
     _rateProcessorScore = null;
     document.getElementById('rateProcessorName').textContent = processorName || 'Your processor';
-    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.style.color = 'var(--text-3)'; });
-    document.getElementById('rateProcessorMsg').style.display = 'none';
-    var modal = document.getElementById('rateProcessorModal');
-    modal.style.display = 'flex';
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById('rateProcessorMsg').classList.add('hidden');
+    document.getElementById('cv-rating-note').value = '';
+    renderCvRatingTags();
+    document.getElementById('rateProcessorModal').classList.add('show');
 }
 
-function selectProcessorStar(val) {
-    _rateProcessorScore = val;
-    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) {
-        b.style.color = parseInt(b.dataset.val) <= val ? '#ffd740' : 'var(--text-3)';
+function setStars(n) {
+    _rateProcessorScore = n;
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(s, i) {
+        s.classList.toggle('active', i < n);
     });
 }
 
 function closeRateProcessorModal() {
-    document.getElementById('rateProcessorModal').style.display = 'none';
+    document.getElementById('rateProcessorModal').classList.remove('show');
 }
 
-async function submitProcessorRating() {
+function submitCvRating() {
     if (!_rateProcessorScore) {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Please select a star rating.';
-        msg.style.display = 'block';
+        msg.classList.remove('hidden');
         return;
     }
-    try {
-        var token = localStorage.getItem('circul_token');
-        var r = await fetch('/api/ratings/operator', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor' })
-        });
-        var data = await r.json();
+    var token = localStorage.getItem('circul_token');
+    var note = document.getElementById('cv-rating-note').value.trim();
+    fetch('/api/ratings/operator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor', tags: _cvSelectedTags, note: note || null })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.success) {
             closeRateProcessorModal();
             showCvToast('Rating submitted!');
         } else {
             var msg = document.getElementById('rateProcessorMsg');
             msg.textContent = data.message || 'Could not submit rating.';
-            msg.style.display = 'block';
+            msg.classList.remove('hidden');
         }
-    } catch (e) {
+    })
+    .catch(function() {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Network error. Please try again.';
-        msg.style.display = 'block';
-    }
+        msg.classList.remove('hidden');
+    });
 }
 
 function renderPriceCards(prices) {
@@ -1239,23 +1200,6 @@ function renderCvRatingTags() {
     return "<span class=\"rtag " + t.type + "\" onclick=\"cvToggleTag(this,'" + t.label + "')\">" + t.label + "</span>";
   }).join("");
 }
-
-// Patch rateProcessor to also render tags
-var _origRateProcessor = typeof rateProcessor === "function" ? rateProcessor : null;
-rateProcessor = function(processorId, processorName) {
-  renderCvRatingTags();
-  if (_origRateProcessor) _origRateProcessor(processorId, processorName);
-};
-
-// Patch submitProcessorRating to include tags
-var _origSubmitProcessorRating = typeof submitProcessorRating === "function" ? submitProcessorRating : null;
-submitProcessorRating = function() {
-  var tagsEl = document.getElementById("cv-rating-tags");
-  var tags = _cvSelectedTags.slice();
-  if (_origSubmitProcessorRating) {
-    _origSubmitProcessorRating();
-  }
-};
 
 // ── INIT ─────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", function() {

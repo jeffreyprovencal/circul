@@ -9,7 +9,6 @@
 <style>
 /* ── LOGIN OVERLAY ── */
 .login-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:500}
-.login-overlay.hidden{display:none}
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
 .login-box h2{font-size:1.35rem;font-weight:700;margin-bottom:6px;color:var(--accent)}
 .login-box p{color:var(--text-2);font-size:0.875rem;margin-bottom:24px}
@@ -18,72 +17,23 @@
 .login-box input:focus{outline:none;border-color:var(--accent)}
 .login-box button{width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-size:0.9rem;font-weight:700;cursor:pointer;font-family:var(--font)}
 .login-box button:hover{background:var(--accent-hover)}
-.login-error{color:#ef4444;font-size:0.8rem;margin-top:8px}
-.login-error.visible{display:block}
 
-/* ── TOAST ── */
-#recToast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#160d2e;color:#b388ff;border:1px solid #b388ff;border-radius:var(--r-sm);padding:12px 24px;font-size:0.875rem;font-weight:600;z-index:9999;display:none;font-family:var(--font);white-space:nowrap}
-
-/* ── RATING MODAL ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.modal-overlay.open{display:flex}
-.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:440px;max-width:95vw}
-.modal-box h3{font-size:1.05rem;font-weight:700;margin-bottom:4px}
-.modal-sub{font-size:0.8rem;color:var(--text-2);margin-bottom:20px}
-.stars-row{display:flex;gap:8px;margin-bottom:20px}
-.star-btn{font-size:1.75rem;cursor:pointer;color:var(--border);transition:color 0.15s;line-height:1}
-.star-btn.active{color:#ffd740}
-.modal-section-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:10px}
-.rating-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
-.rtag{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.15s}
+/* ── RATING (local overrides) ── */
 .rtag.positive{background:rgba(0,230,118,0.08);color:var(--accent);border-color:var(--border)}
 .rtag.positive.selected{background:rgba(0,230,118,0.15);border-color:var(--accent)}
 .rtag.negative{background:rgba(255,215,64,0.08);color:#ffd740;border-color:var(--border)}
 .rtag.negative.selected{background:rgba(255,215,64,0.15);border-color:#ffd740}
-.modal-note{width:100%;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;padding:10px 12px;font-family:var(--font);resize:vertical;min-height:60px;margin-bottom:20px}
-.modal-note:focus{outline:none;border-color:var(--accent)}
-.modal-actions{display:flex;gap:10px;justify-content:flex-end}
 
-/* ── DELIVERY / QUEUE CARDS ── */
-.del-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px}
-.del-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.del-title{font-size:0.875rem;font-weight:700;flex:1;min-width:0}
-.del-meta{font-size:0.75rem;color:var(--text-3)}
-.del-price{font-size:0.875rem;font-weight:700;color:var(--accent)}
-.del-actions{display:flex;gap:8px;margin-top:10px}
-.del-inline-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-top:8px}
-.di-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);display:block;margin-bottom:5px}
-.di-input{width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;font-family:var(--font);margin-bottom:12px}
-.di-input:focus{outline:none;border-color:var(--accent)}
-.di-textarea{width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-size:0.8rem;font-family:var(--font);resize:vertical;min-height:50px;margin-bottom:12px}
-.di-textarea:focus{outline:none;border-color:var(--accent)}
-.di-actions{display:flex;gap:8px;margin-top:8px}
-.di-confirm{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:600;font-size:0.8rem;cursor:pointer}
-.di-confirm:hover{background:var(--accent-hover)}
-.di-cancel{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-2);font-family:var(--font);font-size:0.8rem;cursor:pointer}
-.di-cancel:hover{border-color:var(--text-3);color:var(--text-1)}
-.di-msg{font-size:0.8rem;margin-top:8px}
+/* ── DELIVERY QUEUE (local: approve/decline buttons) ── */
 .btn-approve{padding:8px 16px;background:rgba(179,136,255,0.12);color:#b388ff;border:1px solid rgba(179,136,255,0.25);border-radius:var(--r-sm);font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
 .btn-approve:hover{background:rgba(179,136,255,0.2)}
 .btn-decline{padding:8px 16px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.25);border-radius:var(--r-sm);font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
 .btn-decline:hover{background:rgba(239,68,68,0.18)}
 
-/* ── ORDER CARD (renderOrders) ── */
-.order-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px}
-.order-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.order-title{font-size:0.875rem;font-weight:700}
-.order-meta{font-size:0.8rem;color:var(--text-2)}
-.order-price{font-size:0.875rem;font-weight:700;color:var(--accent)}
-.order-specs{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+/* ── ORDER CARD (local: spec items) ── */
 .order-spec-item{font-size:0.75rem}
 .order-spec-label{color:var(--text-3);margin-right:4px}
 .order-spec-val{color:var(--text-1)}
-
-/* ── BADGE variants for JS ── */
-.badge-blue{background:rgba(0,150,255,0.15);color:#4fc3f7}
-.badge-green{background:rgba(0,230,118,0.15);color:var(--accent)}
-.badge-amber{background:rgba(255,215,64,0.15);color:#ffd740}
-.badge-gray{background:rgba(255,255,255,0.08);color:var(--text-3)}
 
 /* ── STATUS BADGES for JS ── */
 .status-badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;white-space:nowrap}
@@ -114,16 +64,10 @@
 .partner-price-val{display:block;font-size:0.875rem;font-weight:700;color:var(--accent)}
 .partner-price-note{display:block;font-size:0.6rem;color:var(--text-3)}
 
-/* ── TAB PANEL ── */
-.tab-panel{display:none}
-.tab-panel.active{display:block}
-
 /* ── TOTAL BOX (order form) ── */
 .order-total{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;font-size:0.875rem;color:var(--text-2)}
 .order-total strong{color:var(--accent)}
 
-/* ── EMPTY STATE ── */
-.empty{text-align:center;padding:32px 20px;color:var(--text-3);font-size:0.85rem}
 </style>
 </head>
 <body>
@@ -147,7 +91,7 @@
   <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
   <span class="nav-spacer"></span>
   <div class="nav-right">
-    <span class="nav-pill" style="background:#160d2e;color:#b388ff">RECYCLER</span>
+    <span class="nav-pill nav-pill-recycler">RECYCLER</span>
     <span class="nav-name" id="navName">&mdash;</span>
     <span class="nav-id" id="navRecId"></span>
     <a class="nav-link" href="/">Home</a>
@@ -156,7 +100,7 @@
 </nav>
 
 <!-- MAIN DASHBOARD -->
-<div class="page" id="dashboard" style="display:none">
+<div class="page hidden" id="dashboard">
 
   <!-- HERO -->
   <div class="hero">
@@ -166,6 +110,9 @@
         <span id="heroEmail"></span>
         <span class="sep">&middot;</span>
         <span id="heroRegion"></span>
+        <span class="sep">&middot;</span>
+        <span>⭐ <span id="heroRating" style="font-weight:600">—</span></span>
+        <span class="sep">&middot;</span>
         <span class="badge">ACTIVE</span>
       </div>
     </div>
@@ -199,7 +146,7 @@
           <span class="view-all">View all</span>
         </div>
       </div>
-      <div id="top-suppliers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- MY TOP BUYERS -->
@@ -212,7 +159,7 @@
           <span class="view-all">View all</span>
         </div>
       </div>
-      <div id="top-buyers-list"><div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div></div>
+      <div id="top-buyers-list"><div class="placeholder-cell">Loading...</div></div>
     </div>
   </div>
 
@@ -232,7 +179,11 @@
   <!-- PLACE PURCHASE ORDER -->
   <div class="section">
     <div class="section-head">
-      <div><div class="section-title">Place purchase order</div></div>
+      <div>
+        <div class="section-title">Place purchase order</div>
+        <div class="section-sub">Request material from a processor</div>
+      </div>
+      <button class="btn-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
     </div>
     <div class="form-grid">
       <div class="form-group">
@@ -277,12 +228,11 @@
       </div>
     </div>
     <input type="hidden" id="ord-price" value="" />
-    <div class="order-total" id="ord-total-box" style="display:none">
+    <div class="order-total hidden" id="ord-total-box">
       Estimated total: <strong id="ord-total-ghs">&mdash;</strong>
       <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
     </div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:8px" id="ord-msg"></div>
-    <button class="form-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
+    <div class="msg-error" style="margin-bottom:8px" id="ord-msg"></div>
   </div>
 
   <!-- MY ORDERS -->
@@ -321,7 +271,11 @@
   <!-- SELL TO CONVERTER -->
   <div class="section">
     <div class="section-head">
-      <div><div class="section-title">Sell to converter</div></div>
+      <div>
+        <div class="section-title">Sell to converter</div>
+        <div class="section-sub">Log a sale of recycled material to a converter</div>
+      </div>
+      <button class="btn-submit" onclick="submitRecSale()">Submit Sale</button>
     </div>
     <div class="form-grid" id="recSaleForm">
       <div class="form-group">
@@ -351,8 +305,7 @@
         <input class="form-input" type="number" id="rec-sale-price" placeholder="e.g. 3.50" step="0.01" min="0" />
       </div>
     </div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-top:8px;margin-bottom:8px" id="rec-sale-msg"></div>
-    <button class="form-submit" onclick="submitRecSale()">Submit Sale</button>
+    <div class="msg-error" style="margin-top:8px;margin-bottom:8px" id="rec-sale-msg"></div>
   </div>
 
   <!-- MY SALES -->
@@ -382,7 +335,7 @@
           <thead><tr>
             <th>Date</th><th>Processor</th><th>Material</th><th>Weight</th><th>Price/KG</th><th>Amount</th><th>Status</th>
           </tr></thead>
-          <tbody id="supplyBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading...</td></tr></tbody>
+          <tbody id="supplyBody"><tr><td colspan="7" class="placeholder-cell">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -393,17 +346,17 @@
         <span style="font-size:0.85rem;color:var(--text-2)">Prices in</span>
         <span id="priceCity" style="font-size:0.85rem;font-weight:700;color:#b388ff">Accra</span>
       </div>
-      <div id="processorPrices"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorPrices"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- TRACEABILITY TAB -->
     <div class="tab-panel" id="tab-certs">
-      <div id="txnCerts"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="txnCerts"><div class="placeholder-cell">Loading...</div></div>
     </div>
 
     <!-- RATINGS TAB -->
     <div class="tab-panel" id="tab-ratings">
-      <div id="processorRatingsList"><div style="color:var(--text-3);font-size:0.8rem">Loading...</div></div>
+      <div id="processorRatingsList"><div class="placeholder-cell">Loading...</div></div>
       <div id="ratingsReceived"></div>
     </div>
   </div>
@@ -411,24 +364,29 @@
 </div><!-- /.page -->
 
 <!-- RATE PROCESSOR MODAL -->
-<div class="modal-overlay" id="rateProcessorModal">
-  <div class="modal-box">
+<div class="rating-overlay" id="rateProcessorModal">
+  <div class="rating-box">
     <h3 id="rateProcessorName">Rate Processor</h3>
-    <div class="modal-sub">Your feedback helps improve the supply chain</div>
-    <div class="stars-row" id="rateProcessorStars"></div>
-    <div class="modal-section-label">What went well or not?</div>
-    <div class="rating-tags" id="rec-rating-tags"></div>
-    <div style="color:#ef4444;font-size:0.8rem;margin-bottom:12px" id="rateProcessorMsg"></div>
-    <textarea class="modal-note" id="rec-rating-note" placeholder="Add a note (optional)..."></textarea>
+    <div class="sub">Your feedback helps improve the supply chain</div>
+    <div class="stars-row" id="rateProcessorStars">
+      <button class="star-btn" onclick="setStars(1)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(2)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(3)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(4)">&#9733;</button>
+      <button class="star-btn" onclick="setStars(5)">&#9733;</button>
+    </div>
+    <div id="rec-rating-tags"></div>
+    <div class="msg-error hidden" style="margin-bottom:12px" id="rateProcessorMsg"></div>
+    <textarea class="rating-note" id="rec-rating-note" placeholder="Add a note (optional)..."></textarea>
     <div class="modal-actions">
-      <button class="btn" onclick="this.closest('.modal-overlay').style.display='none'">Cancel</button>
-      <button class="btn-green" onclick="submitRecRating()">Submit Rating</button>
+      <button class="btn-cancel" onclick="closeRateProcessorModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitRecRating()">Submit Rating</button>
     </div>
   </div>
 </div>
 
 <!-- TOAST -->
-<div id="recToast"></div>
+<div class="toast" id="recToast"></div>
 
 <!-- ARRIVAL FORM CONTAINER -->
 <div id="rec-arrival-form"></div>
@@ -483,7 +441,7 @@ function checkDualRole() {
                     var p = JSON.parse(atob(parts[i]));
                     if (p && p.roles && p.roles.indexOf('converter') !== -1) {
                         var btn = document.getElementById('switch-role-btn');
-                        if (btn) btn.style.display = 'inline-block';
+                        if (btn) btn.classList.remove('hidden');
                         return;
                     }
                 } catch(e) {}
@@ -494,7 +452,7 @@ function checkDualRole() {
 
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('dashboard').style.display = '';
+    document.getElementById('dashboard').classList.remove('hidden');
     var op = state.operator;
     document.getElementById('navName').textContent = op.company || op.name || '';
     var navId = document.getElementById('navRecId');
@@ -506,17 +464,21 @@ function showDashboard() {
     if (heroEl) heroEl.textContent = op.company || op.name || '\u2014';
     var emailEl = document.getElementById('heroEmail');
     if (emailEl) emailEl.textContent = op.email || '';
+    var heroRat = document.getElementById('heroRating');
+    if (heroRat && op.avg_rating) heroRat.textContent = Number(op.avg_rating).toFixed(1);
     if (op.token) {
         var opId = op.id;
         fetch('/api/recyclers/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.recycler) {
-                    var name = data.recycler.company || data.recycler.name || op.name || '';
+                    var rec = data.recycler;
+                    var name = rec.company || rec.name || op.name || '';
                     document.getElementById('navName').textContent = name;
                     if (heroEl) heroEl.textContent = name;
                     var regionEl = document.getElementById('heroRegion');
-                    if (regionEl) regionEl.textContent = data.recycler.city || data.recycler.region || '';
+                    if (regionEl) regionEl.textContent = rec.city || rec.region || '';
+                    if (heroRat && rec.avg_rating) heroRat.textContent = Number(rec.avg_rating).toFixed(1);
                 }
             })
             .catch(function() {});
@@ -598,9 +560,9 @@ function calcOrderTotal() {
         var total = q * p;
         document.getElementById('ord-total-ghs').textContent = 'Est. GH\u20B5 ' + fmt(total) + ' total value';
         document.getElementById('ord-total-usd').textContent = '\u2248 $' + (total * 0.067).toFixed(2) + ' USD';
-        box.style.display = '';
+        box.classList.remove('hidden');
     } else {
-        box.style.display = 'none';
+        box.classList.add('hidden');
     }
 }
 
@@ -616,10 +578,10 @@ function submitOrder() {
     var contam   = document.getElementById('ord-contam').value;
     var notes    = document.getElementById('ord-notes').value.trim();
 
-    msgEl.textContent = '';
-    if (!material)           { msgEl.textContent = 'Material type is required.';  msgEl.style.color = '#ef4444'; return; }
-    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; msgEl.style.color = '#ef4444'; return; }
-    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; msgEl.style.color = '#ef4444'; return; }
+    msgEl.textContent = ''; msgEl.className = 'msg-error';
+    if (!material)           { msgEl.textContent = 'Material type is required.'; return; }
+    if (!qty || parseFloat(qty) <= 0)   { msgEl.textContent = 'Enter a valid quantity.'; return; }
+    if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; return; }
 
     btn.disabled = true; btn.textContent = 'Placing...';
     fetch('/api/orders', {
@@ -645,16 +607,15 @@ function submitOrder() {
             document.getElementById('ord-excl').value     = '';
             document.getElementById('ord-contam').value   = '';
             document.getElementById('ord-notes').value    = '';
-            document.getElementById('ord-total-box').style.display = 'none';
+            document.getElementById('ord-total-box').classList.add('hidden');
             msgEl.textContent = '';
             showRecToast('Order placed successfully');
             loadOrders();
         } else {
             msgEl.textContent = data.message || 'Error placing order.';
-            msgEl.style.color = '#ef4444';
         }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; })
+    .catch(function() { msgEl.textContent = 'Connection error.'; })
     .finally(function() { btn.disabled = false; btn.textContent = 'Place Order'; });
 }
 
@@ -695,7 +656,7 @@ function renderOrders() {
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
             '<span class="order-meta">GH\u20B5 ' + fmt(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-2)">\u2248 $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. GH\u20B5 ' + fmt(estTotal) + ' <span class="price-sub">\u2248 $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
             '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
@@ -759,7 +720,7 @@ function buildRecPendingCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span class="price-sub">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -768,7 +729,7 @@ function buildRecPendingCard(pt) {
         '<button class="btn-approve" onclick="openRecDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openRecDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
-        '<div id="recdispatch-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="recdispatch-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
@@ -781,20 +742,22 @@ function buildRecApprovedCard(pt) {
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
         '<span class="del-meta">GH\u20B5 ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span style="font-weight:400;font-size:0.74rem;color:var(--text-3)">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-price">GH\u20B5 ' + fmt(pt.total_price || 0) + ' <span class="price-sub">\u2248 $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-approve" onclick="openRecArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
-        '<div id="recarr-form-' + pt.id + '" style="display:none"></div>' +
+        '<div id="recarr-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
 function buildRecCompletedRow(pt) {
     var procName = esc(pt.processor_company || pt.processor_name || '\u2014');
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
-    var statusBadge = (pt.status === 'arrived' || pt.status === 'completed')
-        ? '<span class="pill pill-paid">' + (pt.status === 'completed' ? 'Completed' : 'Arrived') + '</span>'
-        : '<span class="pill" style="background:rgba(239,68,68,0.15);color:#ef4444">Rejected</span>';
+    var statusBadge = pt.status === 'arrived'
+        ? '<span class="pill pill-arrived">Arrived</span>'
+        : pt.status === 'completed'
+        ? '<span class="pill pill-completed">Completed</span>'
+        : '<span class="pill pill-rejected">Rejected</span>';
     var rejNote = (pt.status === 'dispatch_rejected' && pt.rejection_reason)
         ? '<div style="font-size:0.74rem;color:#ef4444;margin-top:2px">\u2717 ' + esc(pt.rejection_reason) + '</div>'
         : '';
@@ -811,12 +774,12 @@ function buildRecCompletedRow(pt) {
 
 function openRecDispatchForm(ptId, type) {
     var formEl = document.getElementById('recdispatch-form-' + ptId);
-    if (activeRecDispatchId === ptId && formEl.dataset.formType === type && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeRecDispatchId = null; return;
+    if (activeRecDispatchId === ptId && formEl.dataset.formType === type && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeRecDispatchId = null; return;
     }
     if (activeRecDispatchId && activeRecDispatchId !== ptId) {
         var prev = document.getElementById('recdispatch-form-' + activeRecDispatchId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeRecDispatchId = ptId;
     formEl.dataset.formType = type;
@@ -829,19 +792,19 @@ function openRecDispatchForm(ptId, type) {
             '</div><div class="di-msg" id="recdisp-msg-' + ptId + '"></div></div>';
     } else {
         formEl.innerHTML = '<div class="del-inline-form">' +
-            '<label class="di-label">Reason for rejection <span style="text-transform:none;letter-spacing:0;font-weight:400">(required)</span></label>' +
+            '<label class="di-label">Reason for rejection <span class="label-hint">(required)</span></label>' +
             '<textarea class="di-textarea" id="recreject-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
             '<div class="di-actions">' +
-            '<button class="di-confirm" style="background:#ef4444" onclick="submitRecDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
+            '<button class="di-confirm-danger" onclick="submitRecDispatchDecision(' + ptId + ',\'reject\')">Confirm Rejection</button>' +
             '<button class="di-cancel" onclick="cancelRecDispatchForm(' + ptId + ')">Cancel</button>' +
             '</div><div class="di-msg" id="recdisp-msg-' + ptId + '"></div></div>';
     }
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelRecDispatchForm(ptId) {
     var f = document.getElementById('recdispatch-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeRecDispatchId === ptId) activeRecDispatchId = null;
 }
 
@@ -851,7 +814,7 @@ function submitRecDispatchDecision(ptId, decision) {
     var body = { decision: decision };
     if (decision === 'reject') {
         var reason = document.getElementById('recreject-reason-' + ptId).value.trim();
-        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.style.color = '#ef4444'; return; }
+        if (!reason) { msgEl.textContent = 'Rejection reason is required.'; msgEl.className = 'di-msg msg-error'; return; }
         body.rejection_reason = reason;
     }
     fetch('/api/pending-transactions/' + ptId + '/recycler-dispatch-decision', {
@@ -862,19 +825,19 @@ function submitRecDispatchDecision(ptId, decision) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeRecDispatchId = null; loadRecyclerQueue(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 function openRecArrivalForm(ptId) {
     var formEl = document.getElementById('recarr-form-' + ptId);
-    if (activeRecArrivalId === ptId && formEl.style.display !== 'none') {
-        formEl.style.display = 'none'; activeRecArrivalId = null; return;
+    if (activeRecArrivalId === ptId && !formEl.classList.contains('hidden')) {
+        formEl.classList.add('hidden'); activeRecArrivalId = null; return;
     }
     if (activeRecArrivalId && activeRecArrivalId !== ptId) {
         var prev = document.getElementById('recarr-form-' + activeRecArrivalId);
-        if (prev) prev.style.display = 'none';
+        if (prev) prev.classList.add('hidden');
     }
     activeRecArrivalId = ptId;
     var pt = recyclerDeliveries.find(function(d) { return d.id === ptId; });
@@ -891,12 +854,12 @@ function openRecArrivalForm(ptId) {
         '<button class="di-cancel" onclick="cancelRecArrivalForm(' + ptId + ')">Cancel</button>' +
         '</div><div class="di-msg" id="recarr-msg-' + ptId + '"></div>' +
         '</div>';
-    formEl.style.display = '';
+    formEl.classList.remove('hidden');
 }
 
 function cancelRecArrivalForm(ptId) {
     var f = document.getElementById('recarr-form-' + ptId);
-    if (f) f.style.display = 'none';
+    if (f) f.classList.add('hidden');
     if (activeRecArrivalId === ptId) activeRecArrivalId = null;
 }
 
@@ -905,7 +868,7 @@ function submitRecArrival(ptId) {
     var msgEl = document.getElementById('recarr-msg-' + ptId);
     var weight = document.getElementById('recarr-weight-' + ptId).value;
     var grade = document.getElementById('recarr-grade-' + ptId).value;
-    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.style.color = '#ef4444'; return; }
+    if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.className = 'di-msg msg-error'; return; }
     fetch('/api/pending-transactions/' + ptId + '/recycler-arrival', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -914,9 +877,9 @@ function submitRecArrival(ptId) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) { activeRecArrivalId = null; loadRecyclerQueue(); loadAll(); }
-        else { msgEl.textContent = data.message || 'Error.'; msgEl.style.color = '#ef4444'; }
+        else { msgEl.textContent = data.message || 'Error.'; msgEl.className = 'di-msg msg-error'; }
     })
-    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.style.color = '#ef4444'; });
+    .catch(function() { msgEl.textContent = 'Connection error.'; msgEl.className = 'di-msg msg-error'; });
 }
 
 // -- OUTBOUND SALES (sell to converter) --
@@ -1013,9 +976,9 @@ function showRecToast(msg) {
     var el = document.getElementById('recToast');
     if (!el) return;
     el.textContent = msg;
-    el.style.display = '';
+    el.classList.add('show');
     if (recToastTimer) clearTimeout(recToastTimer);
-    recToastTimer = setTimeout(function() { el.style.display = 'none'; }, 3500);
+    recToastTimer = setTimeout(function() { el.classList.remove('show'); }, 3500);
 }
 
 function timeAgo(iso) {
@@ -1106,7 +1069,7 @@ function loadRatings() {
             var procs = Object.keys(seen);
             if (!procs.length) { el.innerHTML = '<div class="empty">No processors to rate yet</div>'; return; }
             el.innerHTML = procs.map(function(id) {
-                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-green" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-submit" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
             }).join('');
         });
     fetch('/api/ratings/operator/' + state.operator.id)
@@ -1125,29 +1088,29 @@ function rateProcessor(processorId, processorName) {
     _rateProcessorId = processorId;
     _rateProcessorScore = null;
     document.getElementById('rateProcessorName').textContent = processorName || 'Your processor';
-    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.style.color = '#ccc'; });
-    document.getElementById('rateProcessorMsg').style.display = 'none';
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById('rateProcessorMsg').classList.add('hidden');
+    document.getElementById('rec-rating-note').value = '';
     renderRecRatingTags();
-    var modal = document.getElementById('rateProcessorModal');
-    modal.style.display = 'flex';
+    document.getElementById('rateProcessorModal').classList.add('show');
 }
 
-function selectProcessorStar(val) {
-    _rateProcessorScore = val;
-    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(b) {
-        b.style.color = parseInt(b.dataset.val) <= val ? '#f5a623' : '#ccc';
+function setStars(n) {
+    _rateProcessorScore = n;
+    document.querySelectorAll('#rateProcessorStars .star-btn').forEach(function(s, i) {
+        s.classList.toggle('active', i < n);
     });
 }
 
 function closeRateProcessorModal() {
-    document.getElementById('rateProcessorModal').style.display = 'none';
+    document.getElementById('rateProcessorModal').classList.remove('show');
 }
 
 async function submitRecRating() {
     if (!_rateProcessorScore) {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Please select a star rating.';
-        msg.style.display = 'block';
+        msg.classList.remove('hidden');
         return;
     }
     try {
@@ -1174,12 +1137,12 @@ async function submitRecRating() {
         } else {
             var msg = document.getElementById('rateProcessorMsg');
             msg.textContent = data.message || 'Could not submit rating.';
-            msg.style.display = 'block';
+            msg.classList.remove('hidden');
         }
     } catch (e) {
         var msg = document.getElementById('rateProcessorMsg');
         msg.textContent = 'Network error. Please try again.';
-        msg.style.display = 'block';
+        msg.classList.remove('hidden');
     }
 }
 
@@ -1242,12 +1205,12 @@ function switchTopSuppliers(period) {
 function loadTopSuppliers(period) {
   var el = document.getElementById("top-suppliers-list");
   if (!el) return;
-  el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div>';
+  el.innerHTML = '<div class="placeholder-cell">Loading...</div>';
   fetch("/api/recycler/top-suppliers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="placeholder-cell">No data yet</div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
           '<div class="partner-row">',
@@ -1304,12 +1267,12 @@ function switchTopBuyers(period) {
 function loadTopBuyers(period) {
   var el = document.getElementById("top-buyers-list");
   if (!el) return;
-  el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">Loading...</div>';
+  el.innerHTML = '<div class="placeholder-cell">Loading...</div>';
   fetch("/api/recycler/top-buyers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);
-      if (!items.length) { el.innerHTML = '<div style="color:var(--text-3);font-size:0.8rem;padding:12px 0">No data yet</div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="placeholder-cell">No data yet</div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p, i) {
         return [
           '<div class="partner-row">',

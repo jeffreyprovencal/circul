@@ -97,6 +97,19 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     </div>
   </div>
 
+  <!-- Expense Category Approvals -->
+  <div class="section" id="expenseCategorySection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Expense Categories</div>
+        <div class="section-sub">Review suggested categories from aggregators</div>
+      </div>
+    </div>
+    <div id="pendingCategoriesContainer">
+      <p style="color:var(--text-3);font-size:.8rem">Loading…</p>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -200,6 +213,131 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       .then(function(r){ return r.json(); })
       .then(function(data){ renderStats(data); })
       .catch(function(){ document.getElementById('stats-strip').innerHTML = '<p style="color:var(--text-3);font-size:0.8rem;">Stats unavailable.</p>'; });
+
+    /* ── Expense Category Approval ─────────── */
+    var pendingCategories = [];
+    var rejectingCategoryId = null;
+
+    function loadPendingCategories() {
+      fetch('/api/expense-categories/pending')
+        .then(function(r){ return r.json(); })
+        .then(function(rows){
+          pendingCategories = rows;
+          renderPendingCategories();
+        })
+        .catch(function(){
+          document.getElementById('pendingCategoriesContainer').innerHTML =
+            '<p style="color:var(--text-3);font-size:.8rem">Failed to load categories</p>';
+        });
+    }
+
+    function renderPendingCategories() {
+      var container = document.getElementById('pendingCategoriesContainer');
+
+      if (pendingCategories.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-3);font-size:.8rem">No pending suggestions</p>';
+        return;
+      }
+
+      var html = '';
+      for (var i = 0; i < pendingCategories.length; i++) {
+        var cat = pendingCategories[i];
+        var timeAgo = relTime(cat.created_at);
+
+        if (rejectingCategoryId === cat.id) {
+          html += '<div class="admin-pending-card">' +
+            '<div class="admin-pending-header">' +
+              '<span class="admin-pending-name">' + esc(cat.name) + '</span>' +
+              '<span class="admin-pending-badge pending">Pending</span>' +
+            '</div>' +
+            '<div class="admin-pending-meta">Suggested by ' + esc(cat.suggested_by_name || 'Unknown') + ' · ' + timeAgo + '</div>' +
+            '<div class="admin-reject-form">' +
+              '<label>Reason for rejection (required)</label>' +
+              '<textarea id="rejectReason-' + cat.id + '" placeholder="Explain why this category was rejected..."></textarea>' +
+              '<div class="admin-pending-actions">' +
+                '<button class="btn-reject" style="border-color:#ef4444;color:#ef4444" onclick="confirmRejectCategory(' + cat.id + ')">Confirm Rejection</button>' +
+                '<button class="btn-reject" onclick="cancelRejectCategory()">Cancel</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        } else {
+          html += '<div class="admin-pending-card">' +
+            '<div class="admin-pending-header">' +
+              '<span class="admin-pending-name">' + esc(cat.name) + '</span>' +
+              '<span class="admin-pending-badge pending">Pending</span>' +
+            '</div>' +
+            '<div class="admin-pending-meta">Suggested by ' + esc(cat.suggested_by_name || 'Unknown') + ' · ' + timeAgo + '</div>' +
+            '<div class="admin-rename-row">' +
+              '<input type="text" id="renameCat-' + cat.id + '" value="' + esc(cat.name) + '" placeholder="Rename if needed">' +
+              '<span class="admin-rename-hint">optional rename</span>' +
+            '</div>' +
+            '<div class="admin-pending-actions">' +
+              '<button class="btn-approve" onclick="approveCategory(' + cat.id + ')">Approve</button>' +
+              '<button class="btn-reject" onclick="startRejectCategory(' + cat.id + ')">Reject</button>' +
+            '</div>' +
+          '</div>';
+        }
+      }
+
+      container.innerHTML = html;
+    }
+
+    function approveCategory(id) {
+      var renameInput = document.getElementById('renameCat-' + id);
+      var newName = renameInput ? renameInput.value.trim() : null;
+      var cat = null;
+      for (var i = 0; i < pendingCategories.length; i++) {
+        if (pendingCategories[i].id === id) { cat = pendingCategories[i]; break; }
+      }
+      var body = {};
+      if (newName && cat && newName !== cat.name) body.name = newName;
+
+      fetch('/api/expense-categories/' + id + '/approve', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.error) { alert(data.error); return; }
+          loadPendingCategories();
+        })
+        .catch(function(){ alert('Failed to approve. Please try again.'); });
+    }
+
+    function startRejectCategory(id) {
+      rejectingCategoryId = id;
+      renderPendingCategories();
+    }
+
+    function cancelRejectCategory() {
+      rejectingCategoryId = null;
+      renderPendingCategories();
+    }
+
+    function confirmRejectCategory(id) {
+      var textarea = document.getElementById('rejectReason-' + id);
+      var reason = textarea ? textarea.value.trim() : '';
+      if (!reason) {
+        alert('Please provide a rejection reason');
+        return;
+      }
+
+      fetch('/api/expense-categories/' + id + '/reject', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejection_reason: reason })
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.error) { alert(data.error); return; }
+          rejectingCategoryId = null;
+          loadPendingCategories();
+        })
+        .catch(function(){ alert('Failed to reject. Please try again.'); });
+    }
+
+    loadPendingCategories();
 </script>
 
 </body>

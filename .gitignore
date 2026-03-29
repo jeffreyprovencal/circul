@@ -1,6 +1,7 @@
 node_modules/
 .env
 .DS_Store
+public/uploads/receipts/
 
 # Polsia safety (auto-injected)
 .env

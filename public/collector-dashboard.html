@@ -12,22 +12,7 @@
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
 .login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
 .login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
-.login-error{color:#ef4444;font-size:0.8rem;margin-bottom:12px;display:none}
-/* ── RATING MODAL ── */
-.rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.rating-overlay.open{display:flex}
-.rating-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:440px;max-width:95vw}
-.rating-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
-.rating-sub{font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
-.stars-row{display:flex;gap:8px;margin-bottom:20px}
-.star{font-size:1.6rem;cursor:pointer;color:var(--border);transition:color 0.15s;line-height:1}
-.star.selected{color:#ffd740}
-.tag-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
-.tag-chip{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-2);font-family:var(--font)}
-.tag-chip.positive{background:rgba(0,230,118,0.1);color:var(--accent);border-color:rgba(0,230,118,0.2)}
-.tag-chip.selected-pos{background:rgba(0,230,118,0.2);border-color:var(--accent)}
-.tag-chip.negative{background:rgba(255,193,7,0.1);color:#ffd740;border-color:rgba(255,193,7,0.2)}
-.tag-chip.selected-neg{background:rgba(255,193,7,0.2);border-color:#ffd740}
+.login-error{margin-bottom:12px}
 /* ── PENDING CARDS ── */
 .pend-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
 .pend-item-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -37,9 +22,6 @@
 .pend-actions{display:flex;gap:8px;margin-top:10px}
 .btn-accept{background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:var(--r-sm);font-weight:600;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
 .btn-decline{background:transparent;border:1px solid var(--border);color:var(--text-2);padding:6px 14px;border-radius:var(--r-sm);font-weight:600;font-size:0.8rem;cursor:pointer;font-family:var(--font)}
-/* ── TOAST ── */
-.toast{position:fixed;bottom:24px;right:24px;z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-sm);padding:14px 20px;color:var(--text-1);font-size:0.85rem;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.4);transform:translateY(80px);opacity:0;transition:transform 0.3s ease,opacity 0.3s ease;pointer-events:none}
-.toast.show{transform:translateY(0);opacity:1;pointer-events:auto}
 </style>
 </head>
 <body>
@@ -67,7 +49,7 @@
   <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
   <span class="nav-spacer"></span>
   <div class="nav-right">
-    <span class="nav-pill" style="background:#0f2a14;color:#00e676">COLLECTOR</span>
+    <span class="nav-pill nav-pill-collector">COLLECTOR</span>
     <span class="nav-name" id="collectorName">—</span>
     <span class="nav-id" id="collectorId"></span>
     <a class="nav-link" href="/">Home</a>
@@ -83,7 +65,7 @@
       <div class="hero-name" id="collectorNameHero">—</div>
       <div class="hero-meta">
         <span id="collectorPhone"></span>
-        <span class="sep" id="metaSep1" style="display:none">·</span>
+        <span class="sep hidden" id="metaSep1">·</span>
         <span id="collectorRegion"></span>
         <span class="stars">★</span> <span id="collectorRating">—</span>
         <span class="badge">ACTIVE</span>
@@ -146,7 +128,7 @@
         <thead><tr>
           <th>#</th><th>Aggregator</th><th>Volume YTD</th><th>Avg Price (last 10)</th><th>Transactions</th>
         </tr></thead>
-        <tbody id="topBuyersBody"><tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">Loading…</td></tr></tbody>
+        <tbody id="topBuyersBody"><tr><td colspan="5" class="placeholder-cell">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -211,12 +193,12 @@
       </div>
     </div>
     <div class="price-grid" id="pricesGrid">
-      <div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-3)">Loading…</div>
+      <div class="placeholder-cell" style="grid-column:1/-1">Loading…</div>
     </div>
   </div>
 
   <!-- PENDING PURCHASES -->
-  <div class="section" id="pendAggCard" style="display:none">
+  <div class="section hidden" id="pendAggCard">
     <div class="section-title">Pending purchases from aggregators</div>
     <div class="section-sub" style="margin-bottom:14px">Review and accept or decline</div>
     <div id="pendAggList"></div>
@@ -235,7 +217,7 @@
         <thead><tr>
           <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Earned</th><th>Payment</th><th>Action</th>
         </tr></thead>
-        <tbody id="txnBody"><tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">Loading…</td></tr></tbody>
+        <tbody id="txnBody"><tr><td colspan="7" class="placeholder-cell">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -246,29 +228,25 @@
 <div class="rating-overlay" id="ratingOverlay">
   <div class="rating-box">
     <h3 id="ratingModalTitle">Rate aggregator</h3>
-    <div class="rating-sub" id="ratingModalSub">How was your experience?</div>
+    <div class="sub" id="ratingModalSub">How was your experience?</div>
     <div class="stars-row">
-      <span class="star" data-v="1" onclick="setStarRating(1)">★</span>
-      <span class="star" data-v="2" onclick="setStarRating(2)">★</span>
-      <span class="star" data-v="3" onclick="setStarRating(3)">★</span>
-      <span class="star" data-v="4" onclick="setStarRating(4)">★</span>
-      <span class="star" data-v="5" onclick="setStarRating(5)">★</span>
+      <button class="star-btn" onclick="setStarRating(1)">&#9733;</button>
+      <button class="star-btn" onclick="setStarRating(2)">&#9733;</button>
+      <button class="star-btn" onclick="setStarRating(3)">&#9733;</button>
+      <button class="star-btn" onclick="setStarRating(4)">&#9733;</button>
+      <button class="star-btn" onclick="setStarRating(5)">&#9733;</button>
     </div>
-    <div class="form-label">Tags</div>
-    <div class="tag-chips" id="ratingTags">
-      <span class="tag-chip positive" data-tag="fair_price">Fair price</span>
-      <span class="tag-chip positive" data-tag="paid_on_time">Paid on time</span>
-      <span class="tag-chip positive" data-tag="professional">Professional</span>
-      <span class="tag-chip negative" data-tag="slow_payment">Slow payment</span>
-      <span class="tag-chip negative" data-tag="unfair_price">Unfair price</span>
+    <div id="ratingTags">
+      <span class="rtag" data-tag="fair_price">Fair price</span>
+      <span class="rtag" data-tag="paid_on_time">Paid on time</span>
+      <span class="rtag" data-tag="professional">Professional</span>
+      <span class="rtag negative" data-tag="slow_payment">Slow payment</span>
+      <span class="rtag negative" data-tag="unfair_price">Unfair price</span>
     </div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label">Note (optional)</label>
-      <textarea class="form-input" id="ratingNote" rows="3" placeholder="Any additional feedback…"></textarea>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn" onclick="closeRatingModal()">Cancel</button>
-      <button class="btn-green" onclick="submitRating()">Submit Rating</button>
+    <textarea class="rating-note" id="ratingNote" placeholder="Any additional feedback…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitRating()">Submit Rating</button>
     </div>
   </div>
 </div>
@@ -321,7 +299,7 @@ function handleCollectorLogin() {
   var btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';
   var errEl = document.getElementById('loginError');
-  errEl.style.display = 'none';
+  errEl.classList.add('hidden');
   fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, pin: pin }) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -337,10 +315,10 @@ function handleCollectorLogin() {
         showDashboard();
       } else {
         errEl.textContent = data.message || 'Invalid phone or PIN';
-        errEl.style.display = 'block';
+        errEl.classList.remove('hidden');
       }
     })
-    .catch(function() { errEl.textContent = 'Connection error.'; errEl.style.display = 'block'; })
+    .catch(function() { errEl.textContent = 'Connection error.'; errEl.classList.remove('hidden'); })
     .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
 }
 
@@ -426,7 +404,7 @@ function populateProfile(me) {
 
   const phoneEl = document.getElementById('collectorPhone');
   const sep1 = document.getElementById('metaSep1');
-  if (phoneEl) { phoneEl.textContent = phone; if (sep1) sep1.style.display = phone ? '' : 'none'; }
+  if (phoneEl) { phoneEl.textContent = phone; if (sep1) sep1.classList.toggle('hidden', !phone); }
   const regionEl = document.getElementById('collectorRegion');
   if (regionEl) regionEl.textContent = region;
   const ratingEl = document.getElementById('collectorRating');
@@ -508,14 +486,14 @@ async function populateTopBuyers() {
     renderTopBuyers(data);
   } catch(e) {
     const tbody = document.getElementById('topBuyersBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">No data yet</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="placeholder-cell">No data yet</td></tr>';
   }
 }
 function renderTopBuyers(rows) {
   const tbody = document.getElementById('topBuyersBody');
   if (!tbody) return;
   if (!rows || !rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-3);padding:20px;text-align:center">No transactions yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="placeholder-cell">No transactions yet</td></tr>';
     return;
   }
   tbody.innerHTML = rows.slice(0,5).map((r,i) => `
@@ -543,7 +521,7 @@ async function populateTxns() {
     const tbody = document.getElementById('txnBody');
     if (!tbody) return;
     if (!txns || !txns.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-3);padding:20px;text-align:center">No transactions yet</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="placeholder-cell">No transactions yet</td></tr>';
       return;
     }
     tbody.innerHTML = txns.map(t => {
@@ -587,7 +565,7 @@ async function populatePrices() {
     const grid = document.getElementById('pricesGrid');
     if (!grid) return;
     if (!prices || !prices.length) {
-      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-3)">No prices posted near you yet</div>';
+      grid.innerHTML = '<div class="placeholder-cell" style="grid-column:1/-1">No prices posted near you yet</div>';
       return;
     }
     const sorted = [...prices].sort((a,b) => {
@@ -626,8 +604,8 @@ async function loadPendingFromAgg() {
     const card = document.getElementById('pendAggCard');
     const list = document.getElementById('pendAggList');
     if (!card || !list) return;
-    if (!pending || !pending.length) { card.style.display = 'none'; return; }
-    card.style.display = '';
+    if (!pending || !pending.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
     list.innerHTML = pending.map(p => `
       <div class="pend-item">
         <div class="pend-item-head">
@@ -665,31 +643,30 @@ function openRateModal(txnId, aggId, aggName) {
   document.getElementById('ratingModalTitle').textContent = 'Rate ' + aggName;
   document.getElementById('ratingModalSub').textContent = 'How was your experience with this aggregator?';
   document.getElementById('ratingNote').value = '';
-  document.querySelectorAll('.star').forEach(s => s.classList.remove('selected'));
-  document.querySelectorAll('.tag-chip').forEach(c => {
-    c.classList.remove('selected-pos','selected-neg');
+  document.querySelectorAll('.star-btn').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('#ratingTags .rtag').forEach(c => {
+    c.classList.remove('selected');
     c.onclick = () => toggleTag(c);
   });
-  document.getElementById('ratingOverlay').classList.add('open');
+  document.getElementById('ratingOverlay').classList.add('show');
 }
 function closeRatingModal() {
-  document.getElementById('ratingOverlay').classList.remove('open');
+  document.getElementById('ratingOverlay').classList.remove('show');
 }
 function setStarRating(v) {
   _starValue = v;
-  document.querySelectorAll('.star').forEach(s => {
-    s.classList.toggle('selected', parseInt(s.dataset.v) <= v);
+  document.querySelectorAll('.star-btn').forEach((s, i) => {
+    s.classList.toggle('active', i < v);
   });
 }
 function toggleTag(chip) {
   const tag = chip.dataset.tag;
-  const isPos = chip.classList.contains('positive') || chip.classList.contains('selected-pos');
   if (_selectedTags.has(tag)) {
     _selectedTags.delete(tag);
-    chip.classList.remove('selected-pos','selected-neg');
+    chip.classList.remove('selected');
   } else {
     _selectedTags.add(tag);
-    chip.classList.add(isPos ? 'selected-pos' : 'selected-neg');
+    chip.classList.add('selected');
   }
 }
 async function submitRating() {

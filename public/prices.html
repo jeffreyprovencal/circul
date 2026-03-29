@@ -29,7 +29,7 @@
     .success-msg{color:var(--green);font-size:0.85rem;margin-top:8px;text-align:center}
 
     /* MAIN */
-    #main-screen{display:none;min-height:100vh;flex-direction:column}
+    #main-screen{display:flex;min-height:100vh;flex-direction:column}
     .content{flex:1;padding:32px;max-width:800px;margin:0 auto;width:100%}
     .welcome{margin-bottom:28px}
     .welcome h2{font-size:1.5rem;color:var(--text-1)}
@@ -87,7 +87,7 @@
 </div>
 
 <!-- MAIN -->
-<div id="main-screen">
+<div id="main-screen" class="hidden">
   <nav>
     <a class="nav-logo" href="/"><div class="nav-logo-icon">&#9678;</div> Circul</a>
     <span class="nav-spacer"></span>
@@ -155,8 +155,8 @@ async function buyerLogin() {
 }
 
 function showMain() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('main-screen').style.display = 'flex';
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('main-screen').classList.remove('hidden');
   if (buyerData) {
     document.getElementById('buyer-name-display').textContent = buyerData.name || buyerData.email;
     document.getElementById('buyer-role-badge').innerHTML = `<span class="prices-badge ${buyerData.role === 'aggregator' ? 'prices-badge-green' : 'prices-badge-blue'}">${buyerData.role}</span>`;
@@ -166,8 +166,8 @@ function showMain() {
 function logout() {
   localStorage.removeItem('circul_buyer_token');
   buyerToken = null;
-  document.getElementById('main-screen').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('main-screen').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
 }
 
 function authHeaders() {
@@ -224,7 +224,7 @@ async function setPrice(material) {
   const msgEl = document.getElementById('msg-' + material);
   const val = parseFloat(input.value);
   msgEl.textContent = '';
-  if (isNaN(val) || val < 0) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Enter a valid price'; return; }
+  if (isNaN(val) || val < 0) { msgEl.className = 'saved-msg msg-error'; msgEl.textContent = 'Enter a valid price'; return; }
 
   try {
     const res = await fetch(`/api/buyers/me/prices/${material}`, {
@@ -234,15 +234,15 @@ async function setPrice(material) {
     });
     if (res.status === 401) { logout(); return; }
     const data = await res.json();
-    if (!data.success) { msgEl.style.color = 'var(--red)'; msgEl.textContent = data.message || 'Error saving'; return; }
+    if (!data.success) { msgEl.className = 'saved-msg msg-error'; msgEl.textContent = data.message || 'Error saving'; return; }
     // Update display
     document.getElementById('price-display-' + material).textContent = 'GHS ' + parseFloat(data.price.price_per_kg).toFixed(2);
     document.getElementById('updated-' + material).textContent = 'Last updated: ' + fmtDate(data.price.updated_at);
-    msgEl.style.color = 'var(--green)';
+    msgEl.className = 'saved-msg msg-success';
     msgEl.textContent = '✓ Saved';
     setTimeout(() => { msgEl.textContent = ''; }, 3000);
   } catch (e) {
-    msgEl.style.color = 'var(--red)';
+    msgEl.className = 'saved-msg msg-error';
     msgEl.textContent = 'Network error';
   }
 }

@@ -6,39 +6,14 @@
 <title>Aggregator Dashboard — Circul</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 /* ── LOGIN OVERLAY ── */
 .login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
 .login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
 .login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
-.login-error{color:#ef4444;font-size:0.8rem;margin-bottom:12px;display:none}
-.login-error.visible{display:block}
-/* ── TOAST ── */
-.toast{position:fixed;bottom:24px;right:24px;z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-sm);padding:14px 20px;color:var(--text-1);font-size:0.85rem;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.4);transform:translateY(80px);opacity:0;transition:transform 0.3s ease,opacity 0.3s ease;pointer-events:none}
-.toast.show{transform:translateY(0);opacity:1;pointer-events:auto}
-.toast-error{border-color:#ef4444}
-/* ── RATING MODAL ── */
-.rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.rating-overlay.open{display:flex}
-.rating-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:480px;max-width:95vw}
-.rating-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
-.rating-sub{font-size:0.8rem;color:var(--text-3);margin-bottom:20px}
-.stars-row{display:flex;gap:8px;margin-bottom:20px}
-.star{font-size:1.6rem;cursor:pointer;color:var(--border);transition:color 0.15s;line-height:1}
-.star.lit{color:#ffd740}
-.tags-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
-.tag-chip{padding:6px 14px;border-radius:20px;font-size:0.75rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:var(--font)}
-.tag-chip.pos{background:rgba(0,230,118,0.1);color:var(--accent);border-color:rgba(0,230,118,0.2)}
-.tag-chip.neg{background:rgba(255,193,7,0.1);color:#ffd740;border-color:rgba(255,193,7,0.2)}
-.tag-chip.sel-pos,.tag-chip.selected-pos{background:var(--accent);color:#000;font-weight:700}
-.tag-chip.sel-neg,.tag-chip.selected-neg{background:#ffd740;color:#1a0a00;font-weight:700}
-.rating-note-input{width:100%;box-sizing:border-box;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;color:var(--text-1);font-size:0.8rem;font-family:var(--font);height:80px;resize:vertical;margin-bottom:16px}
-.modal-actions{display:flex;gap:10px}
-/* ── SUGGEST CATEGORY MODAL ── */
-.suggest-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:200}
-.suggest-overlay.open{display:flex}
-.suggest-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:400px;max-width:95vw}
+.login-error{margin-bottom:12px}
 /* ── INCOMING / REVIEW PANELS ── */
 .incoming-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
 .incoming-item-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -88,11 +63,6 @@
 .bs-photo-ok{font-size:0.75rem;color:var(--accent)}
 .bs-photo-warn{font-size:0.75rem;color:#ffb74d}
 .bs-reject-reason{font-size:0.8rem;color:#ef4444;margin-top:6px;padding:8px;background:rgba(239,68,68,0.08);border-radius:var(--r-sm)}
-/* ── SPINNER ── */
-.spinner{width:18px;height:18px;border:2px solid rgba(0,0,0,0.2);border-top-color:#000;border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto}
-@keyframes spin{to{transform:rotate(360deg)}}
-/* ── SUGGEST LINK ── */
-.suggest-category-link{color:var(--accent);font-size:0.8rem;cursor:pointer;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -112,14 +82,14 @@
 </div>
 
 <!-- DASHBOARD -->
-<div id="dashboard" style="display:none">
+<div id="dashboard" class="hidden">
 
   <!-- NAV -->
   <nav>
     <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
     <span class="nav-spacer"></span>
     <div class="nav-right">
-      <span class="nav-pill" style="background:#0a2a28;color:#26c6da">AGGREGATOR</span>
+      <span class="nav-pill nav-pill-aggregator">AGGREGATOR</span>
       <span class="nav-name" id="navName">—</span>
       <span class="nav-id" id="navAggId"></span>
       <a class="nav-link" href="/">Home</a>
@@ -175,7 +145,7 @@
       </div>
 
       <!-- Register purchase form (inline, hidden by default) -->
-      <div id="registerForm" style="display:none;margin-top:16px;">
+      <div id="registerForm" class="hidden" style="margin-top:16px;">
         <div style="font-size:0.9rem;font-weight:600;margin-bottom:14px;">Register a purchase from collector</div>
         <div class="form-grid" style="margin-bottom:12px;">
           <div class="form-group">
@@ -204,7 +174,7 @@
         <div id="photoArea" class="photo-area" onclick="document.getElementById('photoUpload').click()">📷 Tap to add photos (required for batches over 500 kg)</div>
         <input type="file" id="photoUpload" accept="image/*" multiple style="display:none" />
         <div class="photo-warning" id="photoWarning">Photos required for batches over 500 kg</div>
-        <div id="registerMsg" style="font-size:0.8rem;margin-top:10px;color:var(--text-3);"></div>
+        <div id="registerMsg" class="hidden" style="margin-top:10px;"></div>
         <div style="display:flex;gap:8px;margin-top:14px;">
           <button class="btn-green btn" onclick="submitAggregatorPurchase()">Register purchase</button>
           <button class="btn" onclick="toggleRegisterForm()">Cancel</button>
@@ -280,6 +250,7 @@
         <div>
           <div class="section-title">Send batch to a processor</div>
         </div>
+        <button class="btn-submit" onclick="submitAggregatorSale()">Submit Sale</button>
       </div>
       <div class="form-grid">
         <div class="form-group">
@@ -303,21 +274,20 @@
           <input class="form-input" id="sellPrice" type="number" min="0" step="0.01" placeholder="0.00" />
         </div>
       </div>
-      <div id="sellNotes" style="display:none;margin-top:12px;">
+      <div id="sellNotes" class="hidden" style="margin-top:12px;">
         <label class="form-label">Notes (optional)</label>
         <input class="form-input" type="text" placeholder="e.g. delivery notes" />
       </div>
       <div class="photo-warning" id="photoWarning2">Photos required for batches over 500 kg</div>
-      <div id="sellMsg" style="font-size:0.8rem;margin-top:10px;color:var(--text-3);"></div>
-      <button class="form-submit" onclick="submitAggregatorSale()">Submit Sale</button>
+      <div id="sellMsg" class="hidden" style="margin-top:10px;"></div>
     </div>
 
     <!-- MY COLLECTORS -->
     <div class="section">
       <div class="section-head">
-        <div>
+        <div style="display:flex;align-items:center;gap:10px">
           <div class="section-title">My collectors</div>
-          <div class="section-sub" id="statCollectors">0 active</div>
+          <span class="counter-badge" id="collectorCount"></span>
         </div>
       </div>
       <div class="table-wrap">
@@ -331,18 +301,88 @@
 
     <!-- MY P&L -->
     <div class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">My P&amp;L</div>
+      <div class="pl-header">
+        <div class="pl-header-left">
+          <h3>My P&amp;L</h3>
+          <button class="btn-export" id="plExportBtn" title="Download as PDF">↓ PDF</button>
         </div>
-        <div class="tabs">
-          <button class="tab" id="plMonthBtn" onclick="switchPLView('month')">Month</button>
-          <button class="tab on" id="plYTDBtn" onclick="switchPLView('ytd')">YTD</button>
+        <div class="tab-toggle">
+          <button class="tab-toggle-btn active" data-pl-range="month">Month</button>
+          <button class="tab-toggle-btn" data-pl-range="ytd">YTD</button>
         </div>
       </div>
-      <div id="plSummary" class="pl-grid">
-        <div><div class="pl-col-title">Bought</div><div class="empty">Loading…</div></div>
-        <div><div class="pl-col-title">Sold</div><div class="empty">Loading…</div></div>
+
+      <div id="plOfflineBar" class="pl-offline-bar hidden">
+        <span class="pl-offline-dot"></span>
+        You're offline — expenses will sync when you reconnect
+      </div>
+
+      <div id="plCard" class="pl-card">
+        <!-- Populated by renderPL() -->
+      </div>
+
+      <button id="plLogExpenseBtn" class="log-expense-btn hidden" onclick="openLogExpense()">+ Log Expense</button>
+
+      <!-- Log Expense Form -->
+      <div id="plLogForm" class="pl-log-form hidden">
+        <div class="pl-log-form-title" id="plFormTitle">Log Expense</div>
+
+        <!-- Main form fields -->
+        <div id="plFormFields">
+          <div class="pl-form-row">
+            <div class="pl-form-field">
+              <label for="plCategory">Category</label>
+              <select id="plCategory">
+                <option value="">Select…</option>
+                <option disabled>──────────</option>
+                <option value="suggest">+ Suggest new category</option>
+              </select>
+            </div>
+            <div class="pl-form-field" style="max-width:140px">
+              <label for="plDate">Date</label>
+              <input type="date" id="plDate">
+            </div>
+          </div>
+
+          <div class="pl-form-row">
+            <div class="pl-form-field" style="max-width:130px">
+              <label for="plAmount">Amount (GH¢)</label>
+              <input type="number" id="plAmount" placeholder="0.00" step="0.01" min="0">
+            </div>
+            <div class="pl-form-field">
+              <label for="plNote">Note (optional)</label>
+              <input type="text" id="plNote" placeholder="e.g. Accra to Tema round trip">
+            </div>
+          </div>
+
+          <div class="pl-form-field">
+            <label>Receipt photo (optional)</label>
+            <div id="plPhotoArea">
+              <label class="pl-photo-btn" id="plPhotoBtnLabel">
+                📷 Tap to attach receipt
+                <input type="file" id="plReceiptFile" accept="image/jpeg,image/png,image/webp" capture="environment" style="display:none">
+              </label>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn-submit" onclick="submitExpense()">Save</button>
+            <button class="btn-cancel" onclick="closeLogExpense()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Suggest category sub-form -->
+        <div id="plSuggestFields" class="hidden">
+          <p class="pl-suggest-note">New categories must be approved by an admin before they appear in the dropdown. You'll be notified when your suggestion is reviewed.</p>
+          <div class="pl-form-field">
+            <label for="plSuggestName">Category name</label>
+            <input type="text" id="plSuggestName" placeholder="e.g. Sorting labour">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn-submit" onclick="submitSuggestion()">Submit for Approval</button>
+            <button class="btn-cancel" onclick="backToExpenseForm()">Back</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -377,47 +417,33 @@
 <div class="rating-overlay" id="ratingModal">
   <div class="rating-box">
     <h3>Rate collector</h3>
-    <div class="rating-sub" id="ratingCollectorName"></div>
+    <div class="sub" id="ratingCollectorName"></div>
     <div class="stars-row" id="starsRow">
-      <span class="star" data-r="1" onclick="setStar(1)">★</span>
-      <span class="star" data-r="2" onclick="setStar(2)">★</span>
-      <span class="star" data-r="3" onclick="setStar(3)">★</span>
-      <span class="star" data-r="4" onclick="setStar(4)">★</span>
-      <span class="star" data-r="5" onclick="setStar(5)">★</span>
+      <button class="star-btn" data-r="1" onclick="setStar(1)">★</button>
+      <button class="star-btn" data-r="2" onclick="setStar(2)">★</button>
+      <button class="star-btn" data-r="3" onclick="setStar(3)">★</button>
+      <button class="star-btn" data-r="4" onclick="setStar(4)">★</button>
+      <button class="star-btn" data-r="5" onclick="setStar(5)">★</button>
     </div>
-    <div class="tags-row" id="tagsRow">
-      <span class="tag-chip pos" data-tag="Reliable" data-type="pos" onclick="toggleTag(this)">Reliable</span>
-      <span class="tag-chip pos" data-tag="Good sorter" data-type="pos" onclick="toggleTag(this)">Good sorter</span>
-      <span class="tag-chip pos" data-tag="Consistent volume" data-type="pos" onclick="toggleTag(this)">Consistent volume</span>
-      <span class="tag-chip pos" data-tag="Punctual" data-type="pos" onclick="toggleTag(this)">Punctual</span>
-      <span class="tag-chip neg" data-tag="Poor sorting" data-type="neg" onclick="toggleTag(this)">Poor sorting</span>
-      <span class="tag-chip neg" data-tag="Inconsistent" data-type="neg" onclick="toggleTag(this)">Inconsistent</span>
-      <span class="tag-chip neg" data-tag="No-show" data-type="neg" onclick="toggleTag(this)">No-show</span>
+    <div id="tagsRow">
+      <span class="rtag" data-tag="Reliable" data-type="pos" onclick="toggleTag(this)">Reliable</span>
+      <span class="rtag" data-tag="Good sorter" data-type="pos" onclick="toggleTag(this)">Good sorter</span>
+      <span class="rtag" data-tag="Consistent volume" data-type="pos" onclick="toggleTag(this)">Consistent volume</span>
+      <span class="rtag" data-tag="Punctual" data-type="pos" onclick="toggleTag(this)">Punctual</span>
+      <span class="rtag negative" data-tag="Poor sorting" data-type="neg" onclick="toggleTag(this)">Poor sorting</span>
+      <span class="rtag negative" data-tag="Inconsistent" data-type="neg" onclick="toggleTag(this)">Inconsistent</span>
+      <span class="rtag negative" data-tag="No-show" data-type="neg" onclick="toggleTag(this)">No-show</span>
     </div>
-    <textarea class="rating-note-input" id="ratingNote" placeholder="Optional note…"></textarea>
+    <textarea class="rating-note" id="ratingNote" placeholder="Optional note…"></textarea>
     <div class="modal-actions">
-      <button class="btn-green btn" id="submitRatingBtn" onclick="submitRating()">Submit rating</button>
-      <button class="btn" onclick="closeRatingModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- SUGGEST CATEGORY MODAL -->
-<div class="suggest-overlay" id="suggestModal">
-  <div class="suggest-box">
-    <h3 style="margin-bottom:6px;">Suggest a cost category</h3>
-    <div class="rating-sub">We'll review your suggestion within 24h and let you know if it's approved.</div>
-    <label class="form-label">Category name</label>
-    <input class="form-input" id="suggestCategoryInput" type="text" placeholder="e.g. Motorbike maintenance" style="margin-bottom:16px" />
-    <div class="modal-actions">
-      <button class="btn-green btn" onclick="submitSuggestCategory()">Submit suggestion</button>
-      <button class="btn" onclick="closeSuggestModal()">Cancel</button>
+      <button class="btn-submit" id="submitRatingBtn" onclick="submitRating()">Submit rating</button>
+      <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- TOAST -->
-<div id="toast"></div>
+<div class="toast" id="toast"></div>
 
 
 <script src="/shared/roles.js"></script>
@@ -465,7 +491,7 @@ function fmtAggId(id) {
 
 function showDashboard() {
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('dashboard').style.display = '';
+    document.getElementById('dashboard').classList.remove('hidden');
     var op = state.operator;
     document.getElementById('navName').textContent = op.name + (op.company ? ' · ' + op.company : '');
     document.getElementById('navAggId').textContent = fmtAggId(op.id);
@@ -534,7 +560,7 @@ function loadAll() {
             if (!data.success) return;
             var s = data.stats;
             var el;
-            el = document.getElementById('statCollectors'); if (el) el.textContent = s.active_collectors;
+            el = document.getElementById('collectorCount'); if (el) el.innerHTML = '<strong>' + s.active_collectors + '</strong> active';
             el = document.getElementById('statPending'); if (el) el.textContent = s.pending_payments.count;
             el = document.getElementById('statPendingVal'); if (el) el.textContent = 'GH¢ ' + fmt(s.pending_payments.value);
             el = document.getElementById('statMonthKg'); if (el) el.textContent = fmt(s.this_month.month_kg);
@@ -542,8 +568,17 @@ function loadAll() {
             renderPriceCards(s.posted_prices);
             renderCollectors(s.top_collectors);
             renderRatingsReceived(s.ratings);
-            renderPL(s);
+            var heroRatingEl = document.getElementById('heroRating');
+            if (heroRatingEl) {
+                if (s.ratings && s.ratings.avg_rating) {
+                    heroRatingEl.textContent = parseFloat(s.ratings.avg_rating).toFixed(1);
+                } else {
+                    heroRatingEl.textContent = 'New';
+                }
+            }
         });
+    loadPL('month');
+    loadCategories();
     loadPendingTxns();
     loadIncomingCollections();
     loadMyBatchSales();
@@ -608,8 +643,11 @@ function paymentBadge(ps) {
 }
 
 function loadPendingTxns() {
-    fetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50&payment_status=unpaid,payment_sent')
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/transactions?aggregator_id=' + state.operator.id + '&limit=50&payment_status=unpaid,payment_sent')
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             if (!data.success) return;
             var txns = (data.transactions || []).filter(function(t) { return t.payment_status === 'unpaid' || t.payment_status === 'payment_sent'; });
@@ -650,14 +688,14 @@ function loadPendingTxns() {
 function openPaymentForm(table, id, btn) {
     var form = document.getElementById('pay-form-' + table + '-' + id);
     if (!form) return;
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    form.classList.toggle('hidden');
 }
 
 function toggleMoMo(table, id) {
     var cashRadio = document.querySelector('input[name="pm-' + id + '"][value="cash"]');
     var field = document.getElementById('momo-field-' + table + '-' + id);
     if (!field) return;
-    field.style.display = (cashRadio && cashRadio.checked) ? 'none' : 'block';
+    field.classList.toggle('hidden', !!(cashRadio && cashRadio.checked));
 }
 
 function submitPaymentInitiate(table, id) {
@@ -700,22 +738,680 @@ function submitPaymentConfirm(table, id) {
     .catch(function() { alert('Connection error.'); });
 }
 
-function renderPL(s) {
-    var el = document.getElementById('plSummary');
-    if (!el) return;
-    var paid = (s.payment_history || []).filter(function(p) { return p.status === 'success'; }).reduce(function(acc, p) { return acc + parseFloat(p.amount || 0); }, 0);
-    el.innerHTML =
-        '<div>' +
-            '<div class="pl-col-title">Bought</div>' +
-            '<div class="pl-row"><span>Total purchased (GH¢)</span><span>' + fmt(s.totals.total_value) + '</span></div>' +
-            '<div class="pl-row"><span>Total paid out (GH¢)</span><span>' + fmt(paid) + '</span></div>' +
-            '<div class="pl-total"><span>Outstanding</span><span class="pl-total-val">' + fmt(s.pending_payments.value) + '</span></div>' +
-        '</div>' +
-        '<div>' +
-            '<div class="pl-col-title">Sold</div>' +
-            '<div class="pl-row"><span>This month (GH¢)</span><span>' + fmt(s.this_month.month_value) + '</span></div>' +
-            '<div class="pl-total"><span>Total</span><span class="pl-total-val">' + fmt(s.totals.total_value) + '</span></div>' +
-        '</div>';
+/* ── P&L Accordion ─────────────────────── */
+var plData = null;
+var plExpenses = null;
+var plExpandedRows = new Set();
+var plExpandedSubs = new Set();
+var plDeleteConfirm = null;
+
+async function loadPL(range) {
+  var id = state.operator.id;
+  try {
+    var statsRes = await apiFetch('/api/aggregators/' + id + '/stats');
+    if (!statsRes.ok) throw new Error(statsRes.status);
+    var statsData = await statsRes.json();
+    var pl = (statsData.stats || {}).pl;
+    plData = pl || { revenue:{amount:0,mom:0}, cogs:{amount:0,mom:0}, gross:{amount:0,mom:0,pct:0}, opex:{amount:0,mom:0}, net:{amount:0,mom:0,pct:0} };
+
+    var url = '/api/aggregators/' + id + '/expenses';
+    if (range === 'ytd') {
+      var jan1 = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10);
+      url += '?from=' + jan1;
+    }
+    var expRes = await apiFetch(url);
+    if (!expRes.ok) throw new Error(expRes.status);
+    plExpenses = await expRes.json();
+
+    renderPL();
+  } catch (err) {
+    console.error('loadPL error:', err);
+  }
+}
+
+function fmtGHS(n) {
+  return 'GH\u00a2 ' + Math.abs(n).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function trendHTML(mom) {
+  if (mom === 0) return '<span class="trend trend-flat">\u2014</span>';
+  var cls = mom > 0 ? 'trend-up' : 'trend-down';
+  var arrow = mom > 0 ? '\u25b2' : '\u25bc';
+  return '<span class="trend ' + cls + '">' + arrow + ' ' + Math.abs(mom) + '%</span>';
+}
+
+function renderPL() {
+  var card = document.getElementById('plCard');
+  var logBtn = document.getElementById('plLogExpenseBtn');
+  if (!plData) { card.innerHTML = '<div class="pl-empty"><div class="pl-empty-icon">📊</div><div class="pl-empty-title">Loading\u2026</div></div>'; return; }
+
+  var revenue = plData.revenue;
+  var cogs = plData.cogs;
+  var gross = plData.gross;
+  var opex = plData.opex;
+  var net = plData.net;
+  var isEmpty = revenue.amount === 0 && cogs.amount === 0 && opex.amount === 0;
+
+  var html = '';
+
+  // Revenue row
+  html += plRowHTML('revenue', 'Revenue', revenue.amount, 'val-pos', revenue.mom);
+  if (plExpandedRows.has('revenue')) {
+    html += renderRevenueBreakdown();
+  }
+
+  // COGS row
+  html += plRowHTML('cogs', 'Cost of Goods Sold', cogs.amount, 'val-neg', cogs.mom);
+
+  // Gross Margin divider
+  html += '<div class="pl-row divider">' +
+    '<span class="pl-row-label">Gross Margin</span>' +
+    '<span class="pl-row-right">' +
+      '<span class="margin-pct">' + gross.pct + '%</span>' +
+      trendHTML(gross.mom) +
+      '<span class="pl-row-val ' + (gross.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + fmtGHS(gross.amount) + '</span>' +
+    '</span></div>';
+
+  // OpEx row
+  html += plRowHTML('opex', 'Operating Expenses', opex.amount, 'val-neg', opex.mom);
+  if (plExpandedRows.has('opex') && plExpenses) {
+    html += renderOpExBreakdown();
+  }
+
+  // Net Margin divider
+  html += '<div class="pl-row divider">' +
+    '<span class="pl-row-label">Net Margin</span>' +
+    '<span class="pl-row-right">' +
+      '<span class="margin-pct">' + net.pct + '%</span>' +
+      trendHTML(net.mom) +
+      '<span class="pl-row-val ' + (net.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + fmtGHS(net.amount) + '</span>' +
+    '</span></div>';
+
+  // Empty state
+  if (isEmpty) {
+    html += '<div class="pl-empty">' +
+      '<div class="pl-empty-icon">📊</div>' +
+      '<div class="pl-empty-title">Your P&amp;L builds as you trade</div>' +
+      '<div class="pl-empty-text">Revenue and costs appear automatically from your purchases and sales. Log your first expense to start tracking profit.</div>' +
+      '<button class="pl-empty-cta" onclick="openLogExpense()">+ Log your first expense</button>' +
+    '</div>';
+  }
+
+  card.innerHTML = html;
+
+  // Show log button only when there is data
+  logBtn.classList.toggle('hidden', isEmpty);
+}
+
+function plRowHTML(key, label, amount, valClass, mom) {
+  var isOpen = plExpandedRows.has(key);
+  var chevron = '<span class="pl-chev ' + (isOpen ? 'open' : '') + '">\u25b6</span>';
+  return '<div class="pl-row" onclick="togglePLRow(\'' + key + '\')"' + (isOpen ? ' style="background:rgba(255,255,255,.02)"' : '') + '>' +
+    '<span class="pl-row-label">' + chevron + ' ' + label + '</span>' +
+    '<span class="pl-row-right">' +
+      trendHTML(mom) +
+      '<span class="pl-row-val ' + valClass + '">' + fmtGHS(amount) + '</span>' +
+    '</span></div>';
+}
+
+function togglePLRow(key) {
+  if (plExpandedRows.has(key)) plExpandedRows.delete(key);
+  else plExpandedRows.add(key);
+  renderPL();
+}
+
+function renderRevenueBreakdown() {
+  return '<div class="pl-sub">' +
+    '<div class="pl-sub-total"><span>Tap for detailed sales breakdown (coming soon)</span><span></span></div>' +
+  '</div>';
+}
+
+function renderOpExBreakdown() {
+  if (!plExpenses || !plExpenses.categories || plExpenses.categories.length === 0) {
+    return '<div class="pl-sub"><div class="pl-sub-total"><span>No expenses logged this period</span><span></span></div></div>';
+  }
+
+  var html = '<div class="pl-sub">';
+  for (var ci = 0; ci < plExpenses.categories.length; ci++) {
+    var cat = plExpenses.categories[ci];
+    var subKey = 'opex-' + cat.category_id;
+    var isOpen = plExpandedSubs.has(subKey);
+    var chevron = '<span class="pl-chev ' + (isOpen ? 'open' : '') + '" style="font-size:.55rem">\u25b6</span>';
+
+    html += '<div class="pl-sub-row" onclick="event.stopPropagation(); togglePLSub(\'' + subKey + '\')"' + (isOpen ? ' style="background:rgba(255,255,255,.02)"' : '') + '>' +
+      '<span class="pl-sub-label">' + chevron + ' ' + esc(cat.category_name) + '</span>' +
+      '<span class="pl-sub-val val-neg">' + fmtGHS(cat.total) + '</span>' +
+    '</div>';
+
+    // Level 3: individual entries
+    if (isOpen) {
+      html += '<div class="pl-txns">';
+      for (var ei = 0; ei < cat.entries.length; ei++) {
+        var e = cat.entries[ei];
+        var d = new Date(e.expense_date);
+        var dateStr = d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        var noteStr = e.note ? ' \u00b7 <span class="pl-txn-note">' + esc(e.note) + '</span>' : '';
+        var receiptIcon = e.receipt_url ? ' 📷' : '';
+        var queueBadge = e._queued ? '<span class="pl-queued-badge">queued</span>' : '';
+
+        if (plDeleteConfirm === e.id) {
+          html += '<div class="pl-del-confirm">' +
+            '<span class="pl-del-confirm-text">Delete "' + esc(e.note || 'this entry') + '" \u2014 ' + fmtGHS(e.amount) + '?</span>' +
+            '<span><button class="pl-del-yes" onclick="event.stopPropagation(); confirmDeleteExpense(' + e.id + ')">Delete</button> ' +
+            '<button class="pl-del-no" onclick="event.stopPropagation(); cancelDeleteExpense()">Keep</button></span>' +
+          '</div>';
+        } else {
+          html += '<div class="pl-txn">' +
+            '<span class="pl-txn-info">' + dateStr + noteStr + receiptIcon + ' ' + queueBadge + '</span>' +
+            '<span class="pl-txn-actions">' +
+              '<span class="pl-txn-amount val-neg">' + fmtGHS(e.amount) + '</span>' +
+              '<button class="pl-txn-del" onclick="event.stopPropagation(); promptDeleteExpense(' + e.id + ')" title="Delete">\u2715</button>' +
+            '</span></div>';
+        }
+      }
+      html += '</div>';
+    }
+  }
+
+  html += '<div class="pl-sub-total"><span>' + plExpenses.entry_count + ' entries across ' + plExpenses.categories.length + ' categories</span><span>' + fmtGHS(plExpenses.total) + '</span></div>';
+  html += '</div>';
+  return html;
+}
+
+function togglePLSub(key) {
+  if (plExpandedSubs.has(key)) plExpandedSubs.delete(key);
+  else plExpandedSubs.add(key);
+  renderPL();
+}
+
+// Delete flow
+function promptDeleteExpense(id) {
+  plDeleteConfirm = id;
+  renderPL();
+}
+function cancelDeleteExpense() {
+  plDeleteConfirm = null;
+  renderPL();
+}
+async function confirmDeleteExpense(eid) {
+  try {
+    var res = await apiFetch('/api/aggregators/' + state.operator.id + '/expenses/' + eid, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.status);
+    plDeleteConfirm = null;
+    var activeRange = document.querySelector('[data-pl-range].active');
+    await loadPL(activeRange ? activeRange.dataset.plRange : 'month');
+  } catch (err) {
+    console.error('Delete expense error:', err);
+  }
+}
+
+/* ── Log Expense Form ──────────────────── */
+var plCategories = [];
+var selectedReceiptFile = null;
+
+async function loadCategories() {
+  try {
+    var res = await apiFetch('/api/expense-categories');
+    if (!res.ok) throw new Error(res.status);
+    plCategories = await res.json();
+    populateCategoryDropdown();
+  } catch (err) {
+    console.error('loadCategories error:', err);
+  }
+}
+
+function populateCategoryDropdown() {
+  var sel = document.getElementById('plCategory');
+  // Remove all options between first ("Select…") and last two (separator + suggest)
+  while (sel.options.length > 3) sel.remove(1);
+  // Insert categories before the separator (index sel.options.length - 2)
+  for (var i = 0; i < plCategories.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = plCategories[i].id;
+    opt.textContent = plCategories[i].name;
+    sel.insertBefore(opt, sel.options[sel.options.length - 2]);
+  }
+}
+
+function openLogExpense() {
+  var form = document.getElementById('plLogForm');
+  var btn = document.getElementById('plLogExpenseBtn');
+
+  // Set date default to today
+  var today = new Date().toISOString().slice(0, 10);
+  document.getElementById('plDate').value = today;
+  document.getElementById('plDate').max = today;
+
+  // Reset fields
+  document.getElementById('plAmount').value = '';
+  document.getElementById('plNote').value = '';
+  document.getElementById('plCategory').value = '';
+  clearReceiptPhoto();
+
+  // Show main form, hide suggest
+  document.getElementById('plFormFields').classList.remove('hidden');
+  document.getElementById('plSuggestFields').classList.add('hidden');
+  document.getElementById('plFormTitle').textContent = 'Log Expense';
+
+  form.classList.remove('hidden');
+  btn.classList.add('hidden');
+
+  loadCategories();
+}
+
+function closeLogExpense() {
+  document.getElementById('plLogForm').classList.add('hidden');
+  document.getElementById('plLogExpenseBtn').classList.remove('hidden');
+}
+
+// Category dropdown change — switch to suggest form if needed
+document.getElementById('plCategory').addEventListener('change', function() {
+  if (this.value === 'suggest') {
+    document.getElementById('plFormFields').classList.add('hidden');
+    document.getElementById('plSuggestFields').classList.remove('hidden');
+    document.getElementById('plFormTitle').textContent = 'Suggest New Category';
+    document.getElementById('plSuggestName').value = '';
+    document.getElementById('plSuggestName').focus();
+  }
+});
+
+function backToExpenseForm() {
+  document.getElementById('plFormFields').classList.remove('hidden');
+  document.getElementById('plSuggestFields').classList.add('hidden');
+  document.getElementById('plFormTitle').textContent = 'Log Expense';
+  document.getElementById('plCategory').value = '';
+}
+
+// Photo receipt handling
+function attachReceiptListener() {
+  var fileInput = document.getElementById('plReceiptFile');
+  if (!fileInput) return;
+  fileInput.addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+      selectedReceiptFile = this.files[0];
+      var area = document.getElementById('plPhotoArea');
+      area.innerHTML = '<div class="pl-photo-preview">' +
+        '<span>📷</span>' +
+        '<span>' + esc(selectedReceiptFile.name) + '</span>' +
+        '<button class="remove" onclick="clearReceiptPhoto()" title="Remove">\u2715</button>' +
+      '</div>';
+    }
+  });
+}
+attachReceiptListener();
+
+function clearReceiptPhoto() {
+  selectedReceiptFile = null;
+  var area = document.getElementById('plPhotoArea');
+  area.innerHTML = '<label class="pl-photo-btn" id="plPhotoBtnLabel">' +
+    '📷 Tap to attach receipt' +
+    '<input type="file" id="plReceiptFile" accept="image/jpeg,image/png,image/webp" capture="environment" style="display:none">' +
+  '</label>';
+  attachReceiptListener();
+}
+
+/* ── Offline Expense Queue ─────────────── */
+var OFFLINE_QUEUE_KEY = 'circul_expense_queue';
+
+function getOfflineQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  } catch (e) { return []; }
+}
+
+function saveOfflineQueue(queue) {
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+}
+
+function queueExpenseOffline(expense) {
+  var queue = getOfflineQueue();
+  var tempId = 'q-' + Date.now();
+  queue.push({
+    category_id: expense.category_id,
+    amount: expense.amount,
+    note: expense.note || null,
+    expense_date: expense.expense_date,
+    _queued: true,
+    _queuedAt: new Date().toISOString(),
+    _tempId: tempId
+  });
+  saveOfflineQueue(queue);
+  updateOfflineUI();
+
+  // Merge queued entry into plExpenses for immediate display
+  if (plExpenses) {
+    var catMatch = null;
+    for (var i = 0; i < plExpenses.categories.length; i++) {
+      if (plExpenses.categories[i].category_id == expense.category_id) { catMatch = plExpenses.categories[i]; break; }
+    }
+    var catName = 'Unknown';
+    for (var j = 0; j < plCategories.length; j++) {
+      if (plCategories[j].id == expense.category_id) { catName = plCategories[j].name; break; }
+    }
+    var entry = {
+      id: tempId,
+      amount: parseFloat(expense.amount),
+      note: expense.note || null,
+      receipt_url: null,
+      expense_date: expense.expense_date,
+      _queued: true
+    };
+    if (catMatch) {
+      catMatch.entries.unshift(entry);
+      catMatch.total += entry.amount;
+    } else {
+      plExpenses.categories.push({
+        category_id: expense.category_id,
+        category_name: catName,
+        total: entry.amount,
+        entries: [entry]
+      });
+    }
+    plExpenses.total += entry.amount;
+    plExpenses.entry_count += 1;
+    renderPL();
+  }
+}
+
+async function syncOfflineQueue() {
+  var queue = getOfflineQueue();
+  if (queue.length === 0) return;
+
+  var remaining = [];
+  for (var i = 0; i < queue.length; i++) {
+    var expense = queue[i];
+    try {
+      var formData = new FormData();
+      formData.append('category_id', expense.category_id);
+      formData.append('amount', expense.amount);
+      formData.append('expense_date', expense.expense_date);
+      if (expense.note) formData.append('note', expense.note);
+
+      var resp = await fetch('/api/aggregators/' + state.operator.id + '/expenses', {
+        method: 'POST',
+        body: formData
+      });
+      if (!resp.ok) throw new Error('Sync failed');
+    } catch (err) {
+      remaining.push(expense);
+    }
+  }
+
+  saveOfflineQueue(remaining);
+
+  if (remaining.length === 0) {
+    showToast('All queued expenses synced');
+    var activeRange = document.querySelector('[data-pl-range].active');
+    await loadPL(activeRange ? activeRange.dataset.plRange : 'month');
+  } else {
+    showToast((queue.length - remaining.length) + ' synced, ' + remaining.length + ' still queued');
+  }
+  updateOfflineUI();
+}
+
+function updateOfflineUI() {
+  var bar = document.getElementById('plOfflineBar');
+  if (!bar) return;
+  var queue = getOfflineQueue();
+
+  if (!navigator.onLine) {
+    bar.classList.remove('hidden');
+    bar.innerHTML = '<span class="pl-offline-dot"></span> You\u2019re offline \u2014 expenses will sync when you reconnect';
+  } else if (queue.length > 0) {
+    bar.classList.remove('hidden');
+    bar.innerHTML = '<span class="pl-offline-dot" style="background:var(--accent)"></span> Syncing ' + queue.length + ' queued expense' + (queue.length > 1 ? 's' : '') + '\u2026';
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+window.addEventListener('online', function() {
+  updateOfflineUI();
+  syncOfflineQueue();
+});
+
+window.addEventListener('offline', function() {
+  updateOfflineUI();
+});
+
+// Sync any remaining queue on page load
+document.addEventListener('DOMContentLoaded', function() {
+  if (navigator.onLine) syncOfflineQueue();
+  updateOfflineUI();
+});
+
+// Submit expense
+async function submitExpense() {
+  var category_id = document.getElementById('plCategory').value;
+  var amount = document.getElementById('plAmount').value;
+  var note = document.getElementById('plNote').value;
+  var expense_date = document.getElementById('plDate').value;
+
+  if (!category_id || category_id === 'suggest') {
+    return showToast('Please select a category', true);
+  }
+  if (!amount || parseFloat(amount) <= 0) {
+    return showToast('Please enter an amount', true);
+  }
+
+  // Proactive offline check — queue immediately
+  if (!navigator.onLine) {
+    queueExpenseOffline({ category_id: category_id, amount: amount, note: note, expense_date: expense_date });
+    showToast('Saved offline \u2014 will sync when reconnected');
+    closeLogExpense();
+    return;
+  }
+
+  var formData = new FormData();
+  formData.append('category_id', category_id);
+  formData.append('amount', amount);
+  formData.append('expense_date', expense_date);
+  if (note) formData.append('note', note);
+  if (selectedReceiptFile) formData.append('receipt', selectedReceiptFile);
+
+  try {
+    var resp = await fetch('/api/aggregators/' + state.operator.id + '/expenses', {
+      method: 'POST',
+      body: formData
+    });
+    if (!resp.ok) throw new Error('Failed to save');
+    await resp.json();
+
+    showToast('Expense logged');
+    closeLogExpense();
+    var activeRange = document.querySelector('[data-pl-range].active');
+    await loadPL(activeRange ? activeRange.dataset.plRange : 'month');
+  } catch (err) {
+    if (!navigator.onLine) {
+      queueExpenseOffline({ category_id: category_id, amount: amount, note: note, expense_date: expense_date });
+      showToast('Saved offline \u2014 will sync when reconnected');
+      closeLogExpense();
+      return;
+    }
+    console.error('submitExpense error:', err);
+    showToast('Failed to save expense', true);
+  }
+}
+
+// Submit category suggestion
+async function submitSuggestion() {
+  var name = document.getElementById('plSuggestName').value.trim();
+  if (!name) {
+    return showToast('Please enter a category name', true);
+  }
+
+  try {
+    var res = await apiFetch('/api/expense-categories/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, aggregator_id: state.operator.id })
+    });
+    if (!res.ok) throw new Error(res.status);
+    showToast('Category submitted for approval');
+    backToExpenseForm();
+    loadCategories();
+  } catch (err) {
+    console.error('submitSuggestion error:', err);
+    showToast('Failed to submit suggestion', true);
+  }
+}
+
+/* ── PDF Export ────────────────────────── */
+document.getElementById('plExportBtn').addEventListener('click', exportPLtoPDF);
+
+function exportPLtoPDF() {
+  if (!plData) {
+    showToast('No P&L data to export', true);
+    return;
+  }
+
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  var pw = doc.internal.pageSize.getWidth();
+  var margin = 20;
+  var y = margin;
+
+  // Colors
+  var green = [0, 230, 118];
+  var dark = [10, 26, 15];
+  var gray = [154, 184, 160];
+  var white = [232, 245, 233];
+
+  // Header
+  doc.setFillColor(dark[0], dark[1], dark[2]);
+  doc.rect(0, 0, pw, 40, 'F');
+
+  doc.setTextColor(green[0], green[1], green[2]);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Circul', margin, 16);
+
+  doc.setTextColor(white[0], white[1], white[2]);
+  doc.setFontSize(14);
+  doc.text('Profit & Loss Statement', margin, 26);
+
+  doc.setTextColor(gray[0], gray[1], gray[2]);
+  doc.setFontSize(9);
+  var rangeBtn = document.querySelector('[data-pl-range].active');
+  var range = rangeBtn ? rangeBtn.dataset.plRange : 'month';
+  var now = new Date();
+  var periodLabel = range === 'ytd'
+    ? 'January \u2013 ' + now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    : now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  var opName = (state.operator && state.operator.name) ? state.operator.name : 'Aggregator';
+  doc.text(opName + ' \u00b7 ' + periodLabel, margin, 34);
+
+  y = 50;
+
+  // Helper: draw a P&L line
+  function plLine(label, amount, isBold, isGreen, indent) {
+    var x = margin + (indent || 0);
+    doc.setFontSize(isBold ? 10 : 9);
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    doc.setTextColor(60, 60, 60);
+    doc.text(label, x, y);
+
+    var valStr = 'GH\u00a2 ' + Math.abs(amount).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (isGreen) {
+      doc.setTextColor(0, 150, 80);
+    } else {
+      doc.setTextColor(180, 60, 60);
+    }
+    doc.text(valStr, pw - margin, y, { align: 'right' });
+
+    y += isBold ? 8 : 6;
+  }
+
+  function separator() {
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y - 2, pw - margin, y - 2);
+    y += 2;
+  }
+
+  var revenue = plData.revenue;
+  var cogs = plData.cogs;
+  var gross = plData.gross;
+  var opex = plData.opex;
+  var net = plData.net;
+
+  // Summary section
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(40, 40, 40);
+  doc.text('Summary', margin, y);
+  y += 8;
+
+  plLine('Revenue', revenue.amount, false, true);
+  plLine('Cost of Goods Sold', cogs.amount, false, false);
+  separator();
+  plLine('Gross Margin', gross.amount, true, gross.amount >= 0);
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text('(' + gross.pct + '% of revenue)', margin + 30, y - 5);
+  y += 2;
+
+  plLine('Operating Expenses', opex.amount, false, false);
+  separator();
+  plLine('Net Margin', net.amount, true, net.amount >= 0);
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text('(' + net.pct + '% of revenue)', margin + 26, y - 5);
+  y += 8;
+
+  // Expense breakdown
+  if (plExpenses && plExpenses.categories && plExpenses.categories.length > 0) {
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(40, 40, 40);
+    doc.text('Expense Breakdown', margin, y);
+    y += 8;
+
+    for (var ci = 0; ci < plExpenses.categories.length; ci++) {
+      var cat = plExpenses.categories[ci];
+      plLine(cat.category_name, cat.total, false, false, 4);
+
+      for (var ei = 0; ei < cat.entries.length; ei++) {
+        var e = cat.entries[ei];
+        if (e._queued) continue;
+        var d = new Date(e.expense_date);
+        var dateStr = d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        var noteStr = e.note ? ' \u2013 ' + e.note : '';
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(130, 130, 130);
+        doc.text(dateStr + noteStr, margin + 10, y);
+        doc.text(
+          'GH\u00a2 ' + e.amount.toLocaleString('en-GH', { minimumFractionDigits: 2 }),
+          pw - margin, y, { align: 'right' }
+        );
+        y += 5;
+
+        // Page break check
+        if (y > 270) {
+          doc.addPage();
+          y = margin;
+        }
+      }
+      y += 2;
+    }
+
+    separator();
+    plLine('Total Expenses', plExpenses.total, true, false);
+  }
+
+  // Footer
+  y = Math.max(y + 10, 260);
+  if (y > 270) { doc.addPage(); y = margin; }
+  doc.setFontSize(7);
+  doc.setTextColor(160, 160, 160);
+  doc.text('Generated by Circul \u00b7 ' + new Date().toLocaleDateString('en-GB'), margin, y);
+  doc.text('circul.polsia.app', pw - margin, y, { align: 'right' });
+
+  // Save
+  var safeName = opName.replace(/\s+/g, '-').toLowerCase();
+  var filename = 'circul-pl-' + safeName + '-' + now.toISOString().slice(0, 7) + '.pdf';
+  doc.save(filename);
+  showToast('PDF downloaded');
 }
 
 function renderRatingsReceived(ratings) {
@@ -731,29 +1427,28 @@ function openRatingModal(collectorId, name) {
     state.currentRatingStar = 0;
     state.selectedTags = [];
     document.getElementById('ratingCollectorName').textContent = name;
-    document.querySelectorAll('.star').forEach(function(s) { s.classList.remove('lit'); });
-    document.querySelectorAll('.tag-chip').forEach(function(c) { c.classList.remove('selected-pos', 'selected-neg'); });
+    document.querySelectorAll('.star-btn').forEach(function(s) { s.classList.remove('active'); });
+    document.querySelectorAll('#tagsRow .rtag').forEach(function(c) { c.classList.remove('selected'); });
     document.getElementById('ratingNote').value = '';
     document.getElementById('submitRatingBtn').disabled = true;
-    document.getElementById('ratingModal').classList.add('open');
+    document.getElementById('ratingModal').classList.add('show');
 }
 
-function closeRatingModal() { document.getElementById('ratingModal').classList.remove('open'); }
+function closeRatingModal() { document.getElementById('ratingModal').classList.remove('show'); }
 
 function setStar(n) {
     state.currentRatingStar = n;
-    document.querySelectorAll('.star').forEach(function(s) {
-        s.classList.toggle('lit', parseInt(s.getAttribute('data-r')) <= n);
+    document.querySelectorAll('.star-btn').forEach(function(s) {
+        s.classList.toggle('active', parseInt(s.getAttribute('data-r')) <= n);
     });
     document.getElementById('submitRatingBtn').disabled = false;
 }
 
 function toggleTag(chip) {
     var tag = chip.getAttribute('data-tag');
-    var type = chip.getAttribute('data-type');
     var idx = state.selectedTags.indexOf(tag);
-    if (idx >= 0) { state.selectedTags.splice(idx, 1); chip.classList.remove('selected-pos', 'selected-neg'); }
-    else { state.selectedTags.push(tag); chip.classList.add(type === 'pos' ? 'selected-pos' : 'selected-neg'); }
+    if (idx >= 0) { state.selectedTags.splice(idx, 1); chip.classList.remove('selected'); }
+    else { state.selectedTags.push(tag); chip.classList.add('selected'); }
 }
 
 function submitRating() {
@@ -779,12 +1474,16 @@ document.getElementById('ratingModal').addEventListener('click', function(e) {
     if (e.target === this) closeRatingModal();
 });
 
+
 // ── INCOMING COLLECTIONS ──────────────────────────────────────────────────────
 
 function loadIncomingCollections() {
     var aggId = state.operator.id;
-    fetch('/api/pending-transactions?aggregator_id=' + aggId)
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/pending-transactions?aggregator_id=' + aggId)
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             var list = document.getElementById('incomingList');
             var rows = data.pending_transactions || [];
@@ -807,7 +1506,7 @@ function loadIncomingCollections() {
                     (pt.price_per_kg ? '<span class="incoming-item-detail">GH¢ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg offered</span>' : '') +
                     '<button class="btn-review" id="review-btn-' + pt.id + '" onclick="openReview(' + pt.id + ')">Review</button>' +
                     '</div>' +
-                    '<div class="review-panel" id="review-panel-' + pt.id + '" style="display:none"></div>' +
+                    '<div class="review-panel hidden" id="review-panel-' + pt.id + '"></div>' +
                 '</div>';
             }).join('');
         })
@@ -819,18 +1518,18 @@ function loadIncomingCollections() {
 function openReview(ptId) {
     var panel = document.getElementById('review-panel-' + ptId);
     var btn   = document.getElementById('review-btn-' + ptId);
-    var isOpen = panel.style.display !== 'none';
+    var isOpen = !panel.classList.contains('hidden');
 
     // Close any other open review
     if (activeReviewId && activeReviewId !== ptId) {
         var prevPanel = document.getElementById('review-panel-' + activeReviewId);
         var prevBtn   = document.getElementById('review-btn-' + activeReviewId);
-        if (prevPanel) prevPanel.style.display = 'none';
+        if (prevPanel) prevPanel.classList.add('hidden');
         if (prevBtn)   prevBtn.classList.remove('active');
     }
 
     if (isOpen) {
-        panel.style.display = 'none';
+        panel.classList.add('hidden');
         btn.classList.remove('active');
         activeReviewId = null;
         return;
@@ -842,7 +1541,7 @@ function openReview(ptId) {
     var pt = pendingMap[ptId];
     var basePrice = postedPriceMap[pt.material_type] || (pt.price_per_kg ? parseFloat(pt.price_per_kg).toFixed(2) : '');
     panel.innerHTML = buildReviewPanel(ptId, pt, basePrice);
-    panel.style.display = '';
+    panel.classList.remove('hidden');
 }
 
 function buildReviewPanel(ptId, pt, basePrice) {
@@ -850,18 +1549,18 @@ function buildReviewPanel(ptId, pt, basePrice) {
     return '<div>' +
         '<div class="review-section-label">Assign Grade</div>' +
         '<div class="grade-row">' +
-        '<button class="grade-btn" id="gbA-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'A\')">Grade A<br><span style="font-size:0.72rem;font-weight:400">&lt;5% contamination · +10%</span></button>' +
-        '<button class="grade-btn" id="gbB-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'B\')">Grade B<br><span style="font-size:0.72rem;font-weight:400">5–15% contamination · standard</span></button>' +
-        '<button class="grade-btn" id="gbC-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'C\')">Grade C<br><span style="font-size:0.72rem;font-weight:400">&gt;15% contamination · −25%</span></button>' +
+        '<button class="grade-btn" id="gbA-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'A\')">Grade A<br><span class="grade-sub">&lt;5% contamination · +10%</span></button>' +
+        '<button class="grade-btn" id="gbB-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'B\')">Grade B<br><span class="grade-sub">5–15% contamination · standard</span></button>' +
+        '<button class="grade-btn" id="gbC-' + ptId + '" onclick="event.stopPropagation();selectGrade(' + ptId + ',\'C\')">Grade C<br><span class="grade-sub">&gt;15% contamination · −25%</span></button>' +
         '</div>' +
-        '<div id="price-preview-' + ptId + '" class="price-preview" style="display:none"></div>' +
+        '<div id="price-preview-' + ptId + '" class="price-preview" class="hidden"></div>' +
         '<div class="review-fields">' +
         '<div>' +
         '<label class="review-field-label">Price (GH¢/kg)</label>' +
         '<input type="number" class="review-input" id="rev-price-' + ptId + '" value="' + esc(String(basePrice)) + '" placeholder="GH¢/kg" step="0.01" min="0" oninput="updatePricePreview(' + ptId + ')">' +
         '</div>' +
         '<div>' +
-        '<label class="review-field-label">Grade notes <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>' +
+        '<label class="review-field-label">Grade notes <span class="label-hint">(optional)</span></label>' +
         '<input type="text" class="review-input" id="rev-notes-' + ptId + '" placeholder="Notes on condition…">' +
         '</div>' +
         '</div>' +
@@ -893,19 +1592,19 @@ function updatePricePreview(ptId) {
     var priceEl   = document.getElementById('rev-price-' + ptId);
     var pt        = pendingMap[ptId];
     var grade     = reviewStateMap[ptId] && reviewStateMap[ptId].grade;
-    if (!preview || !priceEl || !pt || !grade) { if (preview) preview.style.display = 'none'; return; }
+    if (!preview || !priceEl || !pt || !grade) { if (preview) preview.classList.add('hidden'); return; }
     var basePrice = parseFloat(priceEl.value);
-    if (isNaN(basePrice) || basePrice <= 0) { preview.style.display = 'none'; return; }
+    if (isNaN(basePrice) || basePrice <= 0) { preview.classList.add('hidden'); return; }
     var mult       = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
     var final      = parseFloat((basePrice * mult).toFixed(2));
     var total      = parseFloat((final * parseFloat(pt.gross_weight_kg)).toFixed(2));
     preview.textContent = 'Final price: GH¢ ' + final.toFixed(2) + '/kg — Total: GH¢ ' + total.toFixed(2) + ' (' + parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg)';
-    preview.style.display = '';
+    preview.classList.remove('hidden');
 }
 
 function toggleRejectBlock(ptId) {
     var block = document.getElementById('reject-block-' + ptId);
-    if (block) block.style.display = block.style.display === 'none' ? '' : 'none';
+    if (block) block.classList.toggle('hidden');
 }
 
 function submitReview(ptId, action) {
@@ -934,8 +1633,7 @@ function submitReview(ptId, action) {
         if (data.success) {
             var item = document.getElementById('pt-item-' + ptId);
             if (item) {
-                item.style.opacity = '0';
-                item.style.transition = 'opacity 0.3s';
+                item.classList.add('fade-out');
                 setTimeout(function() {
                     if (item.parentNode) item.parentNode.removeChild(item);
                     var list = document.getElementById('incomingList');
@@ -960,11 +1658,11 @@ function submitReview(ptId, action) {
 
 function toggleRegisterForm() {
     var form = document.getElementById('registerForm');
-    var visible = form.style.display !== 'none';
-    form.style.display = visible ? 'none' : '';
+    var visible = !form.classList.contains('hidden');
+    form.classList.toggle('hidden', visible);
     if (!visible) {
         populateRegisterCollectors();
-        document.getElementById('registerMsg').style.display = 'none';
+        document.getElementById('registerMsg').classList.add('hidden');
         document.getElementById('regCollector').value = '';
         document.getElementById('regMaterial').value  = '';
         document.getElementById('regWeight').value    = '';
@@ -991,8 +1689,8 @@ function submitAggregatorPurchase() {
 
     if (!collectorId || !material || !weight || parseFloat(weight) <= 0) {
         msg.textContent = 'Collector, material, and weight are required.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
         return;
     }
 
@@ -1013,22 +1711,22 @@ function submitAggregatorPurchase() {
     .then(function(data) {
         if (data.success) {
             msg.textContent = 'Purchase registered — waiting for collector to confirm.';
-            msg.style.color = 'var(--accent)';
-            msg.style.display = '';
+            msg.className = 'msg-success';
+            msg.classList.remove('hidden');
             document.getElementById('regCollector').value = '';
             document.getElementById('regMaterial').value  = '';
             document.getElementById('regWeight').value    = '';
             document.getElementById('regPrice').value     = '';
         } else {
             msg.textContent = data.message || 'Error registering purchase.';
-            msg.style.color = '#ef4444';
-            msg.style.display = '';
+            msg.className = 'msg-error';
+            msg.classList.remove('hidden');
         }
     })
     .catch(function() {
         msg.textContent = 'Connection error. Please try again.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
     });
 }
 
@@ -1036,9 +1734,18 @@ function submitAggregatorPurchase() {
 
 function loadProcessors() {
     Promise.all([
-        fetch('/api/processors').then(function(r) { return r.json(); }),
-        fetch('/api/converters?country=Ghana').then(function(r) { return r.json(); }),
-        fetch('/api/prices?role=aggregator').then(function(r) { return r.json(); }).catch(function() { return {}; })
+        apiFetch('/api/processors').then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).catch(function() { return { processors: [] }; }),
+        apiFetch('/api/converters?country=Ghana').then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).catch(function() { return { converters: [] }; }),
+        apiFetch('/api/prices?role=aggregator').then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).catch(function() { return {}; })
     ])
     .then(function(results) {
         var sel = document.getElementById('sellProcessor');
@@ -1062,7 +1769,8 @@ function loadProcessors() {
             .filter(function(p) { return p.operator_role === 'processor' || p.operator_role === 'converter'; })
             .map(function(p) { return { operator_id: p.aggregator_id, material_type: p.material_type, price_per_kg_ghs: p.price_per_kg_ghs }; });
     })
-    .catch(function() {
+    .catch(function(err) {
+        console.error('loadProcessors failed:', err);
         document.getElementById('sellProcessor').innerHTML = '<option value="">Could not load buyers</option>';
     });
 }
@@ -1088,10 +1796,10 @@ function updatePhotoWarning() {
     var warn   = document.getElementById('photoWarning');
     if (weight > 500) {
         if (area) area.classList.add('photo-required');
-        if (warn) warn.style.display = '';
+        if (warn) warn.classList.remove('hidden');
     } else {
         if (area) area.classList.remove('photo-required');
-        if (warn) warn.style.display = 'none';
+        if (warn) warn.classList.add('hidden');
     }
 }
 
@@ -1106,8 +1814,8 @@ function submitAggregatorSale() {
 
     if (!material || !processorId || !weight || parseFloat(weight) <= 0 || !price || parseFloat(price) <= 0) {
         msg.textContent = 'Material, processor, weight, and price are all required.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
         return;
     }
 
@@ -1140,8 +1848,8 @@ function submitAggregatorSale() {
             msg.textContent = data.photos_required
                 ? 'Sale logged — submit photos for processor approval before dispatching.'
                 : 'Sale logged — processor has been notified.';
-            msg.style.color = 'var(--accent)';
-            msg.style.display = '';
+            msg.className = 'msg-success';
+            msg.classList.remove('hidden');
             document.getElementById('sellMaterial').value  = '';
             document.getElementById('sellProcessor').value = '';
             document.getElementById('sellWeight').value    = '';
@@ -1152,21 +1860,24 @@ function submitAggregatorSale() {
             loadMyBatchSales();
         } else {
             msg.textContent = data.message || 'Error logging sale.';
-            msg.style.color = '#ef4444';
-            msg.style.display = '';
+            msg.className = 'msg-error';
+            msg.classList.remove('hidden');
         }
     })
     .catch(function() {
         msg.textContent = 'Connection error. Please try again.';
-        msg.style.color = '#ef4444';
-        msg.style.display = '';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
     });
 }
 
 function loadMyBatchSales() {
     var aggId = state.operator.id;
-    fetch('/api/pending-transactions/aggregator-sales?aggregator_id=' + aggId)
-        .then(function(r) { return r.json(); })
+    apiFetch('/api/pending-transactions/aggregator-sales?aggregator_id=' + aggId)
+        .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        })
         .then(function(data) {
             var list = document.getElementById('myBatchSalesList');
             var rows = data.pending_transactions || [];
@@ -1176,7 +1887,8 @@ function loadMyBatchSales() {
             }
             list.innerHTML = rows.map(renderBatchSaleItem).join('');
         })
-        .catch(function() {
+        .catch(function(err) {
+            console.error('loadMyBatchSales failed:', err);
             document.getElementById('myBatchSalesList').innerHTML = '<div class="empty">Could not load batch sales.</div>';
         });
 }
@@ -1342,32 +2054,14 @@ function switchTopBuyers(period) {
   loadTopBuyers(period);
 }
 
-/* P&L TOGGLE */
-function switchPLView(mode) {
-  document.getElementById("plMonthBtn").className = "tab" + (mode==="month" ? " on" : "");
-  document.getElementById("plYTDBtn").className = "tab" + (mode==="ytd" ? " on" : "");
-  renderPL(mode);
-}
-
-/* SUGGEST COST CATEGORY */
-function openSuggestModal() { document.getElementById("suggestModal").classList.add("open"); }
-function closeSuggestModal() {
-  document.getElementById("suggestModal").classList.remove("open");
-  document.getElementById("suggestCategoryInput").value = "";
-}
-async function submitSuggestCategory() {
-  var name = document.getElementById("suggestCategoryInput").value.trim();
-  if (!name) { showToast("Please enter a category name"); return; }
-  try {
-    await fetch("/api/aggregator/suggest-cost-category", {
-      method: "POST", credentials: "include",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ category_name: name, aggregator_id: window._aggId })
-    });
-    closeSuggestModal();
-    showToast('Suggestion submitted \u2014 we\'ll review within 24h');
-  } catch(e) { showToast("Error submitting suggestion"); }
-}
+/* P&L Month/YTD toggle */
+document.querySelectorAll('[data-pl-range]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('[data-pl-range]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    loadPL(btn.dataset.plRange);
+  });
+});
 
 /* HOOK: load top partners when dashboard shows */
 document.addEventListener("DOMContentLoaded", function() {
