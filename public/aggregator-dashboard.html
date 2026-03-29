@@ -1211,6 +1211,10 @@ async function syncOfflineQueue() {
         method: 'POST',
         body: formData
       });
+      if (resp.status === 404 || resp.status === 500) {
+        console.warn('Expense API error (' + resp.status + '), discarding queued item');
+        continue;
+      }
       if (!resp.ok) throw new Error('Sync failed');
     } catch (err) {
       remaining.push(expense);
@@ -1495,10 +1499,12 @@ function exportPLtoPDF() {
 }
 
 function renderRatingsReceived(ratings) {
+    var given = document.getElementById('ratingsGiven');
+    if (given) given.innerHTML = '';
     var el = document.getElementById('ratingsReceivedList');
     if (!el) return;
-    if (!ratings || !ratings.avg_rating) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
-    el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--accent)">★ ' + ratings.avg_rating + ' <span style="font-size:0.85rem;color:var(--text-2);font-weight:400">from ' + ratings.count + ' ratings</span></div>';
+    if (!ratings || !ratings.avg_rating) { el.innerHTML = '<div class="empty">No ratings yet</div>'; return; }
+    el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--accent)">\u2605 ' + ratings.avg_rating + ' <span style="font-size:0.85rem;color:var(--text-2);font-weight:400">from ' + ratings.count + ' ratings</span></div>';
 }
 
 // RATING MODAL
@@ -1559,6 +1565,7 @@ document.getElementById('ratingModal').addEventListener('click', function(e) {
 
 function loadIncomingCollections() {
     var aggId = state.operator.id;
+    if (!aggId) { console.warn('loadIncomingCollections: aggId is falsy', state.operator); return; }
     apiFetch('/api/pending-transactions?aggregator_id=' + aggId)
         .then(function(r) {
             if (!r.ok) throw new Error(r.status);
@@ -1953,6 +1960,7 @@ function submitAggregatorSale() {
 
 function loadMyBatchSales() {
     var aggId = state.operator.id;
+    if (!aggId) { console.warn('loadMyBatchSales: aggId is falsy', state.operator); return; }
     apiFetch('/api/pending-transactions/aggregator-sales?aggregator_id=' + aggId)
         .then(function(r) {
             if (!r.ok) throw new Error(r.status);
