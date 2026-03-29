@@ -1001,7 +1001,221 @@ app.delete('/api/listings/:id', requireAuth, async (req, res) => {
   } catch (err) { console.error('DELETE /api/listings/:id error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-// ── End Discovery: Listings ──────────────────────────────────────────
+// ── Discovery: Offers ────────────────────────────────────────────────
+
+// Map role to the correct pending_transactions column for that role
+function ptColForRole(role) {
+  switch (role) {
+    case 'collector':  return 'collector_id';
+    case 'aggregator': return 'aggregator_operator_id';
+    case 'processor':  return 'processor_buyer_id';
+    case 'recycler':   return 'recycler_id';
+    case 'converter':  return 'converter_buyer_id';
+    default: return null;
+  }
+}
+
+// Determine transaction_type from seller→buyer roles
+function txnTypeForRoles(sellerRole, buyerRole) {
+  if (sellerRole === 'collector' && buyerRole === 'aggregator') return 'collector_sale';
+  if (sellerRole === 'aggregator') return 'aggregator_sale';
+  return 'aggregator_sale'; // fallback
+}
+
+// Check if user is the receiver (not the sender) of an offer
+function isReceiver(offer, listing, userId, userRole) {
+  if (offer.offered_by === 'buyer') {
+    return listing.seller_id === userId && listing.seller_role === userRole;
+  }
+  return offer.buyer_id === userId && offer.buyer_role === userRole;
+}
+
+// POST /api/listings/:id/offers — buyer places an offer
+app.post('/api/listings/:id/offers', requireAuth, async (req, res) => {
+  try {
+    const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [req.params.id])).rows[0];
+    if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
+    if (listing.status !== 'active') return res.status(400).json({ success: false, message: 'Listing is not active' });
+    const buyerRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    const expectedSeller = sellerRoleForBuyer(buyerRole);
+    if (listing.seller_role !== expectedSeller)
+      return res.status(403).json({ success: false, message: 'You can only make offers on listings from the tier below you' });
+    const { price_per_kg, quantity_kg } = req.body;
+    if (!price_per_kg || !quantity_kg) return res.status(400).json({ success: false, message: 'price_per_kg and quantity_kg required' });
+    const price = parseFloat(price_per_kg);
+    const qty = parseFloat(quantity_kg);
+    if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'price_per_kg must be a positive number' });
+    if (isNaN(qty) || qty <= 0) return res.status(400).json({ success: false, message: 'quantity_kg must be a positive number' });
+    if (qty > parseFloat(listing.quantity_kg))
+      return res.status(400).json({ success: false, message: 'quantity_kg exceeds available quantity (' + listing.quantity_kg + ' kg)' });
+    const existing = await pool.query(
+      `SELECT id FROM offers WHERE listing_id = $1 AND buyer_id = $2 AND buyer_role = $3 AND status = 'pending'`,
+      [req.params.id, req.user.id, buyerRole]
+    );
+    if (existing.rows.length) return res.status(400).json({ success: false, message: 'You already have a pending offer on this listing' });
+    const result = await pool.query(
+      `INSERT INTO offers (listing_id, buyer_id, buyer_role, price_per_kg, quantity_kg, round, is_final, offered_by, status)
+       VALUES ($1, $2, $3, $4, $5, 1, FALSE, 'buyer', 'pending') RETURNING *`,
+      [req.params.id, req.user.id, buyerRole, price, qty]
+    );
+    res.status(201).json({ success: true, offer: result.rows[0] });
+  } catch (err) { console.error('POST /api/listings/:id/offers error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/offers/mine — all offers involving the authenticated user
+app.get('/api/offers/mine', requireAuth, async (req, res) => {
+  try {
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    const result = await pool.query(
+      `SELECT o.*, l.material_type AS listing_material, l.quantity_kg AS listing_qty, l.seller_id, l.seller_role
+       FROM offers o
+       JOIN listings l ON l.id = o.listing_id
+       WHERE (o.buyer_id = $1 AND o.buyer_role = $2)
+          OR (l.seller_id = $1 AND l.seller_role = $2)
+       ORDER BY o.created_at DESC`,
+      [req.user.id, userRole]
+    );
+    res.json({ success: true, offers: result.rows });
+  } catch (err) { console.error('GET /api/offers/mine error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/offers/:id/thread — full negotiation thread
+app.get('/api/offers/:id/thread', requireAuth, async (req, res) => {
+  try {
+    const offer = (await pool.query(`SELECT * FROM offers WHERE id = $1`, [req.params.id])).rows[0];
+    if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
+    const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [offer.listing_id])).rows[0];
+    if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    const isBuyer = offer.buyer_id === req.user.id && offer.buyer_role === userRole;
+    const isSeller = listing.seller_id === req.user.id && listing.seller_role === userRole;
+    if (!isBuyer && !isSeller) return res.status(403).json({ success: false, message: 'Not your negotiation' });
+    const thread = await pool.query(
+      `SELECT * FROM offers WHERE thread_id = $1 ORDER BY round ASC, created_at ASC`,
+      [offer.thread_id]
+    );
+    res.json({ success: true, listing, offers: thread.rows });
+  } catch (err) { console.error('GET /api/offers/:id/thread error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// POST /api/offers/:id/accept — accept an offer → create pending_transaction
+app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
+  try {
+    const offer = (await pool.query(`SELECT * FROM offers WHERE id = $1`, [req.params.id])).rows[0];
+    if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
+    if (offer.status !== 'pending') return res.status(400).json({ success: false, message: 'Offer is not pending' });
+    const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [offer.listing_id])).rows[0];
+    if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    if (!isReceiver(offer, listing, req.user.id, userRole))
+      return res.status(403).json({ success: false, message: 'Only the receiving party can accept' });
+    const offerQty = parseFloat(offer.quantity_kg);
+    if (offerQty > parseFloat(listing.quantity_kg))
+      return res.status(400).json({ success: false, message: 'Quantity no longer available — listing has been partially filled' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`UPDATE offers SET status = 'accepted', responded_at = NOW() WHERE id = $1`, [offer.id]);
+      const remainingQty = parseFloat(listing.quantity_kg) - offerQty;
+      if (remainingQty <= 0) {
+        await client.query(`UPDATE listings SET quantity_kg = 0, status = 'closed', updated_at = NOW() WHERE id = $1`, [listing.id]);
+      } else {
+        await client.query(`UPDATE listings SET quantity_kg = $1, updated_at = NOW() WHERE id = $2`, [remainingQty, listing.id]);
+      }
+
+      // Build pending_transaction INSERT with correct column names
+      const sellerCol = ptColForRole(listing.seller_role);
+      const buyerCol = ptColForRole(offer.buyer_role);
+      const txnType = txnTypeForRoles(listing.seller_role, offer.buyer_role);
+      const totalPrice = parseFloat((offerQty * parseFloat(offer.price_per_kg)).toFixed(2));
+      const cols = ['transaction_type', 'status', 'material_type', 'gross_weight_kg', 'price_per_kg', 'total_price', 'source'];
+      const vals = [txnType, 'pending', listing.material_type, offerQty, parseFloat(offer.price_per_kg), totalPrice, 'discovery'];
+      if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
+      if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(offer.buyer_id); }
+      else if (buyerCol && buyerCol === sellerCol) {
+        // Same column (e.g. aggregator buying from collector — aggregator_operator_id is the buyer)
+        // seller is collector_id, buyer is aggregator_operator_id — no conflict
+        cols.push(buyerCol); vals.push(offer.buyer_id);
+      }
+      const placeholders = vals.map((_, i) => '$' + (i + 1)).join(', ');
+      const ptResult = await client.query(
+        `INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
+        vals
+      );
+      await client.query('COMMIT');
+      res.json({ success: true, pending_transaction: ptResult.rows[0], offer: { id: offer.id, status: 'accepted' } });
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+  } catch (err) { console.error('POST /api/offers/:id/accept error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// POST /api/offers/:id/reject — reject a pending offer
+app.post('/api/offers/:id/reject', requireAuth, async (req, res) => {
+  try {
+    const offer = (await pool.query(`SELECT * FROM offers WHERE id = $1`, [req.params.id])).rows[0];
+    if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
+    if (offer.status !== 'pending') return res.status(400).json({ success: false, message: 'Offer is not pending' });
+    const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [offer.listing_id])).rows[0];
+    if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    if (!isReceiver(offer, listing, req.user.id, userRole))
+      return res.status(403).json({ success: false, message: 'Only the receiving party can reject' });
+    await pool.query(`UPDATE offers SET status = 'rejected', responded_at = NOW() WHERE id = $1`, [offer.id]);
+    res.json({ success: true, offer: { id: offer.id, status: 'rejected' } });
+  } catch (err) { console.error('POST /api/offers/:id/reject error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// POST /api/offers/:id/counter — counter an offer (max 2 rounds)
+app.post('/api/offers/:id/counter', requireAuth, async (req, res) => {
+  try {
+    const offer = (await pool.query(`SELECT * FROM offers WHERE id = $1`, [req.params.id])).rows[0];
+    if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
+    if (offer.status !== 'pending') return res.status(400).json({ success: false, message: 'Offer is not pending' });
+    if (offer.round >= 2) return res.status(400).json({ success: false, message: 'Cannot counter a final offer' });
+    const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [offer.listing_id])).rows[0];
+    if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' });
+    const userRole = req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    if (!isReceiver(offer, listing, req.user.id, userRole))
+      return res.status(403).json({ success: false, message: 'Only the receiving party can counter' });
+    const { price_per_kg, quantity_kg } = req.body;
+    if (!price_per_kg || !quantity_kg) return res.status(400).json({ success: false, message: 'price_per_kg and quantity_kg required' });
+    const price = parseFloat(price_per_kg);
+    const qty = parseFloat(quantity_kg);
+    if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'price_per_kg must be a positive number' });
+    if (isNaN(qty) || qty <= 0) return res.status(400).json({ success: false, message: 'quantity_kg must be a positive number' });
+    if (qty > parseFloat(listing.quantity_kg))
+      return res.status(400).json({ success: false, message: 'quantity_kg exceeds available quantity' });
+    // Determine who is countering
+    const isSeller = listing.seller_id === req.user.id && listing.seller_role === userRole;
+    const offeredBy = isSeller ? 'seller' : 'buyer';
+    const newRound = offer.round + 1;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`UPDATE offers SET status = 'countered', responded_at = NOW() WHERE id = $1`, [offer.id]);
+      const result = await client.query(
+        `INSERT INTO offers (listing_id, thread_id, buyer_id, buyer_role, price_per_kg, quantity_kg, round, is_final, offered_by, status, parent_offer_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10) RETURNING *`,
+        [offer.listing_id, offer.thread_id, offer.buyer_id, offer.buyer_role, price, qty, newRound, newRound >= 2, offeredBy, offer.id]
+      );
+      await client.query('COMMIT');
+      res.status(201).json({ success: true, offer: result.rows[0] });
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+  } catch (err) { console.error('POST /api/offers/:id/counter error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ── End Discovery: Offers ────────────────────────────────────────────
 
 app.get('/api/aggregator/top-suppliers', requireAuth, async (req, res) => {
   try {
