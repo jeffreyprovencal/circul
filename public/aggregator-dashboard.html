@@ -409,6 +409,83 @@
       <div id="ratingsReceivedList"></div>
     </div>
 
+    <!-- MY LISTINGS -->
+    <div class="section" id="listings-section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My Listings</div>
+          <div class="section-sub">Post materials for sale on the marketplace</div>
+        </div>
+        <button class="btn btn-green" onclick="showCreateListing()">+ New Listing</button>
+      </div>
+
+      <div id="create-listing-form" class="hidden">
+        <div style="display:grid;gap:0.75rem;padding:1rem 0;">
+          <div>
+            <label class="form-label">Material Type</label>
+            <select id="listing-material" class="form-select">
+              <option value="PET">PET</option>
+              <option value="HDPE">HDPE</option>
+              <option value="LDPE">LDPE</option>
+              <option value="PP">PP</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Quantity (kg)</label>
+            <input type="number" id="listing-qty" class="form-input" min="500" step="0.01" placeholder="Minimum 500kg">
+            <small id="listing-qty-error" class="hidden" style="color:#ef5350;">Minimum quantity is 500kg for aggregators</small>
+          </div>
+          <div>
+            <label class="form-label">Price per kg (GH₵) — optional</label>
+            <input type="number" id="listing-price" class="form-input" step="0.01" placeholder="Leave blank for 'Make an offer'">
+          </div>
+          <div>
+            <label class="form-label">Location</label>
+            <input type="text" id="listing-location" class="form-input" placeholder="e.g. Accra, Kumasi">
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-green" onclick="submitListing()">Create Listing</button>
+            <button class="btn" onclick="hideCreateListing()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="my-listings-list">
+        <p style="color:var(--text-3);font-size:0.85rem;">Loading listings...</p>
+      </div>
+    </div>
+
+    <!-- DISCOVER MATERIALS -->
+    <div class="section" id="discover-section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Discover Materials</div>
+          <div class="section-sub">Browse collector listings and make offers</div>
+        </div>
+      </div>
+
+      <div class="discovery-filters">
+        <span class="pill pill-pet" onclick="toggleFilter('PET', this)">PET</span>
+        <span class="pill pill-hdpe" onclick="toggleFilter('HDPE', this)">HDPE</span>
+        <span class="pill pill-ldpe" onclick="toggleFilter('LDPE', this)">LDPE</span>
+        <span class="pill pill-pp" onclick="toggleFilter('PP', this)">PP</span>
+        <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
+        <input type="text" id="discover-location" class="form-input" placeholder="Location" style="width:140px;">
+        <button class="btn" onclick="loadDiscoverListings()">Search</button>
+      </div>
+
+      <div id="discover-listings">
+        <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
+      </div>
+
+      <div style="margin-top:1.5rem;">
+        <div class="section-title" style="font-size:0.9rem;">My Offers</div>
+        <div id="my-sent-offers">
+          <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /.page -->
 
 </div><!-- /#dashboard -->
@@ -585,6 +662,8 @@ function loadAll() {
     loadProcessors();
     loadTopSuppliers('ytd');
     loadTopBuyers('ytd');
+    loadMyListings();
+    loadSentOffers();
 }
 
 function renderPriceCards(prices) {
@@ -1993,6 +2072,445 @@ function fmtDate(iso) {
 
 function esc(s) {
     var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+
+/* ── Discovery: My Listings ────────────────────── */
+function showCreateListing() {
+  document.getElementById('create-listing-form').classList.remove('hidden');
+}
+function hideCreateListing() {
+  document.getElementById('create-listing-form').classList.add('hidden');
+  document.getElementById('listing-qty-error').classList.add('hidden');
+}
+
+function submitListing() {
+  var material = document.getElementById('listing-material').value;
+  var qty = parseFloat(document.getElementById('listing-qty').value);
+  var price = document.getElementById('listing-price').value ? parseFloat(document.getElementById('listing-price').value) : null;
+  var location = document.getElementById('listing-location').value.trim();
+  var errEl = document.getElementById('listing-qty-error');
+
+  if (!qty || qty < 500) {
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/listings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ material_type: material, quantity_kg: qty, price_per_kg: price, location: location })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      hideCreateListing();
+      document.getElementById('listing-qty').value = '';
+      document.getElementById('listing-price').value = '';
+      document.getElementById('listing-location').value = '';
+      showToast('Listing created');
+      loadMyListings();
+    } else {
+      showToast(data.message || 'Error creating listing', true);
+    }
+  })
+  .catch(function() { showToast('Error creating listing', true); });
+}
+
+function matPill(mat) {
+  if (!mat) return '';
+  var m = mat.toUpperCase();
+  var cls = m === 'PET' ? 'pill-pet' : m === 'HDPE' ? 'pill-hdpe' : m === 'LDPE' ? 'pill-ldpe' : 'pill-pp';
+  return '<span class="pill ' + cls + '">' + esc(m) + '</span>';
+}
+
+function rolePill(role) {
+  if (!role) return '';
+  return '<span class="pill" style="background:rgba(255,255,255,0.08);color:var(--text-2);font-size:0.65rem;">' + esc(role.toUpperCase()) + '</span>';
+}
+
+function loadMyListings() {
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/listings/mine', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var list = document.getElementById('my-listings-list');
+    if (!list) return;
+    var listings = data.listings || data || [];
+    if (!listings.length) {
+      list.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings yet. Create one to start selling on the marketplace.</p>';
+      return;
+    }
+    list.innerHTML = listings.map(function(l) {
+      var pct = l.original_qty_kg > 0 ? Math.round((l.quantity_kg / l.original_qty_kg) * 100) : 100;
+      var now = new Date();
+      var exp = new Date(l.expires_at);
+      var daysLeft = Math.max(0, Math.ceil((exp - now) / 86400000));
+      var expiryClass = daysLeft <= 1 ? 'expiring-soon' : 'active';
+      var expiryText = daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? 'Expires tomorrow' : 'Expires in ' + daysLeft + ' days';
+      var priceHtml = l.price_per_kg
+        ? '<span class="listing-card-price">GH₵ ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
+        : '<span class="listing-card-price make-offer">Make an offer</span>';
+      var offerCountHtml = (l.offer_count && parseInt(l.offer_count) > 0)
+        ? ' <span class="offer-count">' + l.offer_count + '</span>'
+        : '';
+      var actionBtns = l.status === 'active'
+        ? '<button class="btn" onclick="renewListing(' + l.id + ')">Renew</button> <button class="btn" onclick="closeListing(' + l.id + ')">Close</button>'
+        : '<span class="pill pill-pending">' + esc(l.status) + '</span>';
+
+      return '<div class="listing-card">' +
+        '<div class="listing-card-header">' +
+          '<div>' + matPill(l.material_type) + offerCountHtml + '</div>' +
+          priceHtml +
+        '</div>' +
+        '<div class="listing-card-meta">' +
+          '<span>' + parseFloat(l.quantity_kg).toFixed(1) + 'kg of ' + parseFloat(l.original_qty_kg).toFixed(1) + 'kg</span>' +
+          (l.location ? '<span>' + esc(l.location) + '</span>' : '') +
+          '<span class="expiry-badge ' + expiryClass + '">' + expiryText + '</span>' +
+        '</div>' +
+        '<div class="qty-bar"><div class="qty-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '<div style="display:flex;gap:0.5rem;margin-top:0.75rem;align-items:center;">' +
+          actionBtns +
+          (l.offer_count && parseInt(l.offer_count) > 0 ? ' <button class="btn" onclick="toggleOffers(' + l.id + ')">View offers</button>' : '') +
+        '</div>' +
+        '<div id="offers-for-' + l.id + '" class="hidden"></div>' +
+      '</div>';
+    }).join('');
+  })
+  .catch(function(e) {
+    console.warn('listings error', e);
+    var list = document.getElementById('my-listings-list');
+    if (list) list.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">Could not load listings.</p>';
+  });
+}
+
+function renewListing(id) {
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/listings/' + id + '/renew', {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() { showToast('Listing renewed'); loadMyListings(); })
+  .catch(function() { showToast('Error renewing listing', true); });
+}
+
+function closeListing(id) {
+  if (!confirm('Close this listing? It will no longer be visible to buyers.')) return;
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/listings/' + id + '/close', {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() { showToast('Listing closed'); loadMyListings(); })
+  .catch(function() { showToast('Error closing listing', true); });
+}
+
+function toggleOffers(listingId) {
+  var container = document.getElementById('offers-for-' + listingId);
+  if (!container) return;
+  if (!container.classList.contains('hidden')) {
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  container.innerHTML = '<p style="color:var(--text-3);font-size:0.8rem;">Loading offers...</p>';
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/listings/' + listingId + '/offers', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var offers = data.offers || data || [];
+    if (!offers.length) {
+      container.innerHTML = '<p style="color:var(--text-3);font-size:0.8rem;margin-top:0.5rem;">No offers yet.</p>';
+      return;
+    }
+    container.innerHTML = '<div class="offer-thread">' + offers.map(function(o) {
+      var isMine = o.offered_by === 'seller';
+      var bubbleCls = isMine ? 'offer-bubble mine' : 'offer-bubble';
+      var buyerLabel = esc(o.buyer_name || 'Buyer') + ' ' + rolePill(o.buyer_role);
+      var header = '<div class="offer-bubble-header">' +
+        '<span>' + (isMine ? 'You' : buyerLabel) + ' · Round ' + o.round + '</span>' +
+        '<span>' + fmtDate(o.created_at) + '</span>' +
+      '</div>';
+      var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';
+      var body = '<div>GH₵ ' + parseFloat(o.price_per_kg).toFixed(2) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg' + finalTag + '</div>';
+      var actions = '';
+      if (o.status === 'pending' && !isMine) {
+        actions = '<div class="offer-actions">' +
+          '<button class="btn-accept" onclick="acceptOffer(' + o.id + ')">Accept</button>' +
+          '<button class="btn-reject-toggle" onclick="rejectOffer(' + o.id + ')">Reject</button>' +
+          (o.round < 2 ? '<button class="btn" onclick="showCounterForm(' + o.id + ')">Counter</button>' : '') +
+        '</div>' +
+        '<div id="counter-form-' + o.id + '" class="hidden" style="margin-top:0.5rem;">' +
+          '<div style="display:flex;gap:0.5rem;align-items:flex-end;">' +
+            '<div><label class="form-label">Price/kg</label><input type="number" id="counter-price-' + o.id + '" class="form-input" step="0.01" style="width:100px;"></div>' +
+            '<div><label class="form-label">Qty (kg)</label><input type="number" id="counter-qty-' + o.id + '" class="form-input" step="0.01" style="width:100px;" value="' + parseFloat(o.quantity_kg).toFixed(1) + '"></div>' +
+            '<button class="btn btn-green" onclick="counterOffer(' + o.id + ')">Send</button>' +
+            '<button class="btn" onclick="document.getElementById(\'counter-form-' + o.id + '\').classList.add(\'hidden\')">Cancel</button>' +
+          '</div>' +
+        '</div>';
+      }
+      return '<div class="' + bubbleCls + '">' + header + body + actions + '</div>';
+    }).join('') + '</div>';
+  })
+  .catch(function() {
+    container.innerHTML = '<p style="color:var(--text-3);font-size:0.8rem;">Error loading offers.</p>';
+  });
+}
+
+function showCounterForm(offerId) {
+  document.getElementById('counter-form-' + offerId).classList.remove('hidden');
+}
+
+function acceptOffer(id) {
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/' + id + '/accept', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('Offer accepted — transaction created');
+      loadMyListings();
+      loadSentOffers();
+    } else {
+      showToast(data.message || 'Error accepting offer', true);
+    }
+  })
+  .catch(function() { showToast('Error accepting offer', true); });
+}
+
+function rejectOffer(id) {
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/' + id + '/reject', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() { showToast('Offer rejected'); loadMyListings(); loadSentOffers(); })
+  .catch(function() { showToast('Error rejecting offer', true); });
+}
+
+function counterOffer(id) {
+  var price = parseFloat(document.getElementById('counter-price-' + id).value);
+  var qty = parseFloat(document.getElementById('counter-qty-' + id).value);
+  if (!price || price <= 0) { showToast('Enter a valid price', true); return; }
+  if (!qty || qty <= 0) { showToast('Enter a valid quantity', true); return; }
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/' + id + '/counter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ price_per_kg: price, quantity_kg: qty })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('Counter offer sent');
+      loadMyListings();
+      loadSentOffers();
+    } else {
+      showToast(data.message || 'Error sending counter', true);
+    }
+  })
+  .catch(function() { showToast('Error sending counter offer', true); });
+}
+
+/* ── Discovery: Discover & Offers ─────────────── */
+var activeFilters = [];
+
+function toggleFilter(material, el) {
+  var idx = activeFilters.indexOf(material);
+  if (idx >= 0) {
+    activeFilters.splice(idx, 1);
+    el.classList.remove('active');
+  } else {
+    activeFilters.push(material);
+    el.classList.add('active');
+  }
+  loadDiscoverListings();
+}
+
+function loadDiscoverListings() {
+  if (!activeFilters.length) {
+    document.getElementById('discover-listings').innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>';
+    return;
+  }
+  var params = '?material=' + activeFilters.join(',');
+  var minKg = document.getElementById('discover-min-kg').value;
+  if (minKg) params += '&min_kg=' + minKg;
+  var loc = document.getElementById('discover-location').value.trim();
+  if (loc) params += '&location=' + encodeURIComponent(loc);
+
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/listings' + params, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var container = document.getElementById('discover-listings');
+    var listings = data.listings || data || [];
+    if (!listings.length) {
+      container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings match your filters.</p>';
+      return;
+    }
+    container.innerHTML = listings.map(function(l) {
+      var now = new Date();
+      var exp = new Date(l.expires_at);
+      var daysLeft = Math.max(0, Math.ceil((exp - now) / 86400000));
+      var expiryClass = daysLeft <= 1 ? 'expiring-soon' : 'active';
+      var expiryText = daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? 'Expires tomorrow' : 'Expires in ' + daysLeft + ' days';
+      var priceHtml = l.price_per_kg
+        ? '<span class="listing-card-price">GH₵ ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
+        : '<span class="listing-card-price make-offer">Make an offer</span>';
+      var sellerName = esc(l.seller_name || 'Seller');
+      var rating = l.seller_rating ? parseFloat(l.seller_rating).toFixed(1) : null;
+      var starsHtml = '';
+      if (rating) {
+        var full = Math.round(parseFloat(rating));
+        for (var s = 0; s < 5; s++) starsHtml += s < full ? '★' : '☆';
+        starsHtml = '<span class="stars">' + starsHtml + '</span> ' + rating;
+      }
+
+      return '<div class="listing-card">' +
+        '<div class="listing-card-header">' +
+          '<div>' + matPill(l.material_type) + '</div>' +
+          priceHtml +
+        '</div>' +
+        '<div class="listing-card-meta">' +
+          '<span>' + sellerName + (starsHtml ? ' · ' + starsHtml : '') + '</span>' +
+          '<span>' + parseFloat(l.quantity_kg).toFixed(1) + 'kg available</span>' +
+          (l.location ? '<span>' + esc(l.location) + '</span>' : '') +
+          '<span class="expiry-badge ' + expiryClass + '">' + expiryText + '</span>' +
+        '</div>' +
+        '<div style="margin-top:0.75rem;">' +
+          '<button class="btn btn-green" onclick="showOfferForm(' + l.id + ',' + parseFloat(l.quantity_kg).toFixed(1) + ',' + (l.price_per_kg ? parseFloat(l.price_per_kg).toFixed(2) : 'null') + ')">Make Offer</button>' +
+        '</div>' +
+        '<div id="offer-form-' + l.id + '" class="hidden" style="margin-top:0.75rem;">' +
+          '<div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">' +
+            '<div><label class="form-label">Price/kg (GH₵)</label><input type="number" id="offer-price-' + l.id + '" class="form-input" step="0.01" style="width:110px;"' + (l.price_per_kg ? ' value="' + parseFloat(l.price_per_kg).toFixed(2) + '"' : '') + '></div>' +
+            '<div><label class="form-label">Quantity (kg)</label><input type="number" id="offer-qty-' + l.id + '" class="form-input" step="0.01" style="width:110px;" max="' + parseFloat(l.quantity_kg).toFixed(1) + '" value="' + parseFloat(l.quantity_kg).toFixed(1) + '"></div>' +
+            '<button class="btn btn-green" onclick="submitOffer(' + l.id + ')">Submit</button>' +
+            '<button class="btn" onclick="document.getElementById(\'offer-form-' + l.id + '\').classList.add(\'hidden\')">Cancel</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  })
+  .catch(function() {
+    document.getElementById('discover-listings').innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">Error loading listings.</p>';
+  });
+}
+
+function showOfferForm(listingId, maxQty, askingPrice) {
+  document.getElementById('offer-form-' + listingId).classList.remove('hidden');
+}
+
+function submitOffer(listingId) {
+  var price = parseFloat(document.getElementById('offer-price-' + listingId).value);
+  var qty = parseFloat(document.getElementById('offer-qty-' + listingId).value);
+  if (!price || price <= 0) { showToast('Enter a valid price', true); return; }
+  if (!qty || qty <= 0) { showToast('Enter a valid quantity', true); return; }
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/listings/' + listingId + '/offers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ price_per_kg: price, quantity_kg: qty })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('Offer submitted');
+      document.getElementById('offer-form-' + listingId).classList.add('hidden');
+      loadDiscoverListings();
+      loadSentOffers();
+    } else {
+      showToast(data.message || 'Error submitting offer', true);
+    }
+  })
+  .catch(function() { showToast('Error submitting offer', true); });
+}
+
+function loadSentOffers() {
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/mine', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var container = document.getElementById('my-sent-offers');
+    if (!container) return;
+    var offers = (data.offers || data || []).filter(function(o) { return o.offered_by === 'buyer' || o.buyer_role === 'aggregator'; });
+    if (!offers.length) {
+      container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>';
+      return;
+    }
+    container.innerHTML = offers.map(function(o) {
+      var statusCls = o.status === 'accepted' ? 'pill-paid' : o.status === 'rejected' ? 'pill-pending' : o.status === 'countered' ? 'pill-sent' : 'pill-pending';
+      var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';
+      var actions = '';
+      if (o.status === 'countered') {
+        actions = '<div class="offer-actions" style="margin-top:0.5rem;">' +
+          '<button class="btn-accept" onclick="acceptOffer(' + o.id + ')">Accept</button>' +
+          '<button class="btn-reject-toggle" onclick="rejectOffer(' + o.id + ')">Reject</button>' +
+          (o.round < 2 ? '<button class="btn" onclick="showSentCounterForm(' + o.id + ')">Counter</button>' : '') +
+        '</div>' +
+        '<div id="sent-counter-form-' + o.id + '" class="hidden" style="margin-top:0.5rem;">' +
+          '<div style="display:flex;gap:0.5rem;align-items:flex-end;">' +
+            '<div><label class="form-label">Price/kg</label><input type="number" id="sent-counter-price-' + o.id + '" class="form-input" step="0.01" style="width:100px;"></div>' +
+            '<div><label class="form-label">Qty (kg)</label><input type="number" id="sent-counter-qty-' + o.id + '" class="form-input" step="0.01" style="width:100px;" value="' + parseFloat(o.quantity_kg).toFixed(1) + '"></div>' +
+            '<button class="btn btn-green" onclick="counterSentOffer(' + o.id + ')">Send</button>' +
+            '<button class="btn" onclick="document.getElementById(\'sent-counter-form-' + o.id + '\').classList.add(\'hidden\')">Cancel</button>' +
+          '</div>' +
+        '</div>';
+      }
+      return '<div class="offer-bubble">' +
+        '<div class="offer-bubble-header">' +
+          '<span>' + matPill(o.material_type || '') + ' ' + esc(o.listing_material || '') + '</span>' +
+          '<span class="pill ' + statusCls + '">' + esc(o.status) + '</span>' +
+        '</div>' +
+        '<div>GH₵ ' + parseFloat(o.price_per_kg).toFixed(2) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg · Round ' + o.round + finalTag + '</div>' +
+        actions +
+      '</div>';
+    }).join('');
+  })
+  .catch(function() {
+    var container = document.getElementById('my-sent-offers');
+    if (container) container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">Could not load offers.</p>';
+  });
+}
+
+function showSentCounterForm(offerId) {
+  document.getElementById('sent-counter-form-' + offerId).classList.remove('hidden');
+}
+
+function counterSentOffer(id) {
+  var price = parseFloat(document.getElementById('sent-counter-price-' + id).value);
+  var qty = parseFloat(document.getElementById('sent-counter-qty-' + id).value);
+  if (!price || price <= 0) { showToast('Enter a valid price', true); return; }
+  if (!qty || qty <= 0) { showToast('Enter a valid quantity', true); return; }
+  var token = localStorage.getItem('circul_token') || '';
+  fetch('/api/offers/' + id + '/counter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ price_per_kg: price, quantity_kg: qty })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      showToast('Counter offer sent');
+      loadSentOffers();
+    } else {
+      showToast(data.message || 'Error sending counter', true);
+    }
+  })
+  .catch(function() { showToast('Error sending counter offer', true); });
 }
 
 checkAuth();
