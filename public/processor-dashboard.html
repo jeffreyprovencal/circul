@@ -387,7 +387,10 @@ function showDashboard() {
     var heroLoc = document.getElementById('heroLocation');
     if (heroLoc) heroLoc.textContent = op.location || op.city || '';
     var heroRat = document.getElementById('heroRating');
-    if (heroRat) heroRat.textContent = op.avg_rating ? Number(op.avg_rating).toFixed(1) : '—';
+    if (heroRat) {
+        if (op.avg_rating) { heroRat.textContent = Number(op.avg_rating).toFixed(1); }
+        else { heroRat.innerHTML = '<span class="text-2" style="font-size:0.85rem">No ratings yet</span>'; }
+    }
     loadAll();
     if (op.token) {
         var opId = op.id;
@@ -458,10 +461,10 @@ function loadAll() {
             if (!data.success) return;
             var s = data.stats;
             var el;
-            el = document.getElementById('statMonthKg'); if (el) el.textContent = fmt(s.this_month.month_kg);
+            el = document.getElementById('statMonthKg'); if (el) el.innerHTML = fmt(s.this_month.month_kg) + ' <small>kg this month</small>';
             el = document.getElementById('statTxns'); if (el) el.textContent = s.totals.total_txns;
             el = document.getElementById('statPending'); if (el) el.textContent = fmt(s.pending_payments.value);
-            el = document.getElementById('statTotal'); if (el) el.textContent = fmt(s.totals.total_kg);
+            el = document.getElementById('statTotal'); if (el) el.innerHTML = fmt(s.totals.total_kg) + ' <small>kg since Jan</small>';
             renderPriceCards(s.posted_prices);
         });
     loadTxns();

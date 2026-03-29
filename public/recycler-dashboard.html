@@ -494,7 +494,10 @@ function showDashboard() {
     var emailEl = document.getElementById('heroEmail');
     if (emailEl) emailEl.textContent = op.email || '';
     var heroRat = document.getElementById('heroRating');
-    if (heroRat && op.avg_rating) heroRat.textContent = Number(op.avg_rating).toFixed(1);
+    if (heroRat) {
+        if (op.avg_rating) { heroRat.textContent = Number(op.avg_rating).toFixed(1); }
+        else { heroRat.innerHTML = '<span class="text-2" style="font-size:0.85rem">No ratings yet</span>'; }
+    }
     if (op.token) {
         var opId = op.id;
         fetch('/api/recyclers/' + opId, { headers: { 'Authorization': 'Bearer ' + op.token } })
@@ -568,7 +571,7 @@ function loadAll() {
             var s = data.stats;
             document.getElementById('statTotalKg').textContent = fmt(s.totals.total_kg);
             var ghs = parseFloat(s.totals.total_value || 0);
-            document.getElementById('statSpentGhs').textContent = fmt(ghs);
+            document.getElementById('statSpentGhs').textContent = 'GH\u20b5 ' + fmt(ghs);
             document.getElementById('statSpentUsd').textContent = '';
             renderPriceCards(s.posted_prices);
         });

@@ -441,7 +441,7 @@ function populateProfile(me) {
   const name = me.name || '—';
   const phone = me.phone || '';
   const region = me.region || '';
-  const rating = me.avg_rating ? parseFloat(me.avg_rating).toFixed(1) : '—';
+  const rating = me.avg_rating ? parseFloat(me.avg_rating).toFixed(1) : null;
   const id = me.collector_id || me.id || '';
 
   const navName = document.getElementById('collectorName');
@@ -458,7 +458,10 @@ function populateProfile(me) {
   const regionEl = document.getElementById('collectorRegion');
   if (regionEl) regionEl.textContent = region;
   const ratingEl = document.getElementById('collectorRating');
-  if (ratingEl) ratingEl.textContent = rating;
+  if (ratingEl) {
+    if (rating) { ratingEl.textContent = rating; }
+    else { ratingEl.innerHTML = '<span class="text-2" style="font-size:0.85rem">No ratings yet</span>'; }
+  }
 
   const fields = {
     passportId: id ? 'C-' + String(id).padStart(4,'0') : '—',
@@ -588,7 +591,7 @@ async function populateTxns() {
         <td>${fmtDate(t.created_at||t.date)}</td>
         <td class="td-name">${esc(t.aggregator_name||'—')}</td>
         <td>${matPill(t.material_type)}</td>
-        <td>${t.weight_kg ? Math.round(t.weight_kg) + ' kg' : '—'}</td>
+        <td>${t.net_weight_kg ? Math.round(t.net_weight_kg) + ' kg' : '—'}</td>
         <td class="td-green">${fmtNum(t.total_price||t.amount)}</td>
         <td><span class="pill ${pillCls}">${pillText}</span></td>
         <td>${action}</td>

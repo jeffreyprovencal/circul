@@ -651,7 +651,7 @@ function loadAll() {
                 if (s.ratings && s.ratings.avg_rating) {
                     heroRatingEl.textContent = parseFloat(s.ratings.avg_rating).toFixed(1);
                 } else {
-                    heroRatingEl.textContent = 'New';
+                    heroRatingEl.innerHTML = '<span class="text-2" style="font-size:0.85rem">No ratings yet</span>';
                 }
             }
         });
