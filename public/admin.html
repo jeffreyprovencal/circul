@@ -66,9 +66,57 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     </div>
   </div>
 
-  <!-- STATS STRIP -->
+  <!-- USER COUNTS -->
   <div class="stats-strip" id="stats-strip">
     <div class="stat"><div class="stat-val skeleton" style="width:40px;height:28px;display:inline-block"></div><div class="stat-label" style="margin-top:4px">Loading…</div></div>
+  </div>
+
+  <!-- PLATFORM ACTIVITY -->
+  <div class="section">
+    <div class="section-head"><div><div class="section-title">Platform Activity</div></div></div>
+    <div class="stats-strip" id="txn-strip">
+      <div class="stat"><div class="stat-val" id="txnToday">--</div><div class="stat-label">Today</div></div>
+      <div class="stat"><div class="stat-val" id="txnWeek">--</div><div class="stat-label">This Week</div></div>
+      <div class="stat"><div class="stat-val" id="txnMonth">--</div><div class="stat-label">This Month</div></div>
+      <div class="stat"><div class="stat-val" id="txnTotal">--</div><div class="stat-label">All Time</div></div>
+    </div>
+  </div>
+
+  <!-- VOLUME + REVENUE + DISCOVERY -->
+  <div class="stats-strip" style="gap:var(--gap)">
+    <div class="section" style="flex:1;min-width:200px;margin-bottom:0">
+      <div class="section-head"><div><div class="section-title">Volume</div></div></div>
+      <div class="stats-strip" id="vol-strip">
+        <div class="stat"><div class="stat-val" id="volMonth">--</div><div class="stat-label">This Month (kg)</div></div>
+        <div class="stat"><div class="stat-val" id="volYtd">--</div><div class="stat-label">YTD (kg)</div></div>
+      </div>
+    </div>
+    <div class="section" style="flex:1;min-width:200px;margin-bottom:0">
+      <div class="section-head"><div><div class="section-title">Revenue</div></div></div>
+      <div class="stats-strip" id="rev-strip">
+        <div class="stat"><div class="stat-val" id="revMonth">--</div><div class="stat-label">This Month</div></div>
+        <div class="stat"><div class="stat-val" id="revYtd">--</div><div class="stat-label">YTD</div></div>
+      </div>
+    </div>
+    <div class="section" style="flex:1;min-width:200px;margin-bottom:0">
+      <div class="section-head"><div><div class="section-title">Discovery</div></div></div>
+      <div class="stats-strip" id="disc-strip">
+        <div class="stat"><div class="stat-val" id="discListings">--</div><div class="stat-label">Active Listings</div></div>
+        <div class="stat"><div class="stat-val" id="discOffers">--</div><div class="stat-label">Total Offers</div></div>
+        <div class="stat"><div class="stat-val" id="discAccepted">--</div><div class="stat-label">Accepted</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECENT ACTIVITY -->
+  <div class="section">
+    <div class="section-head"><div><div class="section-title">Recent Activity</div><div class="section-sub">Last 10 transactions</div></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Seller</th><th>Buyer</th><th>Material</th><th>Weight</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody id="recent-body"><tr><td colspan="7"><div style="height:20px;margin:8px 0;" class="skeleton"></div></td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- PENDING REQUESTS TABLE -->
@@ -210,9 +258,53 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       .then(function(rows){ renderPending(rows); })
       .catch(function(){ document.getElementById('pending-body').innerHTML = '<tr><td colspan="5" style="color:#f87171;padding:20px;">Failed to load pending requests.</td></tr>'; });
 
+    function fmtNum(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
+    function fmtDate(d) { if (!d) return '--'; var dt = new Date(d); return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+
+    function renderFullStats(data) {
+      renderStats(data);
+      // Transactions
+      var el;
+      el = document.getElementById('txnToday'); if (el) el.textContent = data.transactions ? data.transactions.today : 0;
+      el = document.getElementById('txnWeek'); if (el) el.textContent = data.transactions ? data.transactions.this_week : 0;
+      el = document.getElementById('txnMonth'); if (el) el.textContent = data.transactions ? data.transactions.this_month : 0;
+      el = document.getElementById('txnTotal'); if (el) el.textContent = data.transactions ? data.transactions.total : 0;
+      // Volume
+      el = document.getElementById('volMonth'); if (el) el.textContent = data.volume ? fmtNum(data.volume.this_month_kg) : '0';
+      el = document.getElementById('volYtd'); if (el) el.textContent = data.volume ? fmtNum(data.volume.ytd_kg) : '0';
+      // Revenue
+      el = document.getElementById('revMonth'); if (el) el.textContent = data.revenue ? 'GH\u20b5 ' + fmtNum(data.revenue.this_month) : 'GH\u20b5 0';
+      el = document.getElementById('revYtd'); if (el) el.textContent = data.revenue ? 'GH\u20b5 ' + fmtNum(data.revenue.ytd) : 'GH\u20b5 0';
+      // Discovery
+      if (data.discovery) {
+        el = document.getElementById('discListings'); if (el) el.textContent = data.discovery.active_listings;
+        el = document.getElementById('discOffers'); if (el) el.textContent = data.discovery.total_offers;
+        el = document.getElementById('discAccepted'); if (el) el.textContent = data.discovery.accepted_offers;
+      }
+      // Recent activity
+      var tbody = document.getElementById('recent-body');
+      if (tbody && data.recent_activity && data.recent_activity.length) {
+        tbody.innerHTML = data.recent_activity.map(function(t) {
+          var statusCls = t.payment_status === 'paid' ? 'pill-paid' : t.payment_status === 'payment_sent' ? 'pill-sent' : 'pill-pending';
+          var statusText = t.payment_status === 'paid' ? 'Paid' : t.payment_status === 'payment_sent' ? 'Sent' : 'Pending';
+          return '<tr>' +
+            '<td>' + fmtDate(t.transaction_date) + '</td>' +
+            '<td>' + esc(t.seller_name || '--') + '</td>' +
+            '<td>' + esc(t.buyer_name || '--') + '</td>' +
+            '<td>' + esc(t.material_type || '--') + '</td>' +
+            '<td>' + (t.net_weight_kg ? fmtNum(t.net_weight_kg) + ' kg' : '--') + '</td>' +
+            '<td>' + (t.total_price ? 'GH\u20b5 ' + fmtNum(t.total_price) : '--') + '</td>' +
+            '<td><span class="pill ' + statusCls + '">' + statusText + '</span></td>' +
+          '</tr>';
+        }).join('');
+      } else if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>';
+      }
+    }
+
     fetch('/api/admin/stats')
       .then(function(r){ return r.json(); })
-      .then(function(data){ renderStats(data); })
+      .then(function(data){ renderFullStats(data); })
       .catch(function(){ document.getElementById('stats-strip').innerHTML = '<p style="color:var(--text-3);font-size:0.8rem;">Stats unavailable.</p>'; });
 
     /* ── Expense Category Approval ─────────── */

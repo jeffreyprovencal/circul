@@ -2524,21 +2524,59 @@ app.get('/api/me/prices', requireAuth, async (req, res) => {
 
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
-    const [collectors, aggregators, processors, recyclers, converters, transactions, volume, pendingProc, pendingRec, pendingConv] = await Promise.all([
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const sevenDaysAgo = new Date(now - 7 * 86400000).toISOString();
+
+    const [collectors, aggregators, processors, recyclers, converters, pendingProc, pendingRec, pendingConv,
+           txnTotal, txnToday, txnWeek, txnMonth,
+           volTotal, volMonth, volYtd,
+           revMonth, revYtd, recentTxns] = await Promise.all([
       pool.query(`SELECT COUNT(*) as count FROM collectors WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM aggregators WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM processors WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM recyclers WHERE is_active=true`),
       pool.query(`SELECT COUNT(*) as count FROM converters WHERE is_active=true`),
-      pool.query(`SELECT COUNT(*) as count FROM transactions`),
-      pool.query(`SELECT material_type, COALESCE(SUM(net_weight_kg),0) as total_kg, COUNT(*) as count FROM transactions GROUP BY material_type ORDER BY total_kg DESC`),
       pool.query(`SELECT COUNT(*) as count FROM processors WHERE is_active=false`),
       pool.query(`SELECT COUNT(*) as count FROM recyclers WHERE is_active=false`),
-      pool.query(`SELECT COUNT(*) as count FROM converters WHERE is_active=false`)
+      pool.query(`SELECT COUNT(*) as count FROM converters WHERE is_active=false`),
+      pool.query(`SELECT COUNT(*) as count FROM transactions`),
+      pool.query(`SELECT COUNT(*) as count FROM transactions WHERE transaction_date >= $1`, [startOfDay]),
+      pool.query(`SELECT COUNT(*) as count FROM transactions WHERE transaction_date >= $1`, [sevenDaysAgo]),
+      pool.query(`SELECT COUNT(*) as count FROM transactions WHERE transaction_date >= $1`, [startOfMonth]),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as kg FROM transactions`),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as kg FROM transactions WHERE transaction_date >= $1`, [startOfMonth]),
+      pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as kg FROM transactions WHERE transaction_date >= $1`, [startOfYear]),
+      pool.query(`SELECT COALESCE(SUM(total_price),0) as amt FROM transactions WHERE transaction_date >= $1`, [startOfMonth]),
+      pool.query(`SELECT COALESCE(SUM(total_price),0) as amt FROM transactions WHERE transaction_date >= $1`, [startOfYear]),
+      pool.query(`SELECT t.id, t.transaction_date, t.material_type, t.net_weight_kg, t.total_price, t.payment_status, c.first_name || ' ' || c.last_name AS seller_name, a.name AS buyer_name FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id ORDER BY t.transaction_date DESC LIMIT 10`)
     ]);
-    const totalVol = await pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total FROM transactions`);
+
+    // Discovery stats — handle missing tables gracefully
+    let discovery = { active_listings: 0, total_offers: 0, accepted_offers: 0 };
+    try {
+      const [listings, offers, accepted] = await Promise.all([
+        pool.query(`SELECT COUNT(*) as count FROM listings WHERE status='active'`),
+        pool.query(`SELECT COUNT(*) as count FROM offers`),
+        pool.query(`SELECT COUNT(*) as count FROM offers WHERE status='accepted'`)
+      ]);
+      discovery = { active_listings: parseInt(listings.rows[0].count), total_offers: parseInt(offers.rows[0].count), accepted_offers: parseInt(accepted.rows[0].count) };
+    } catch (e) { /* tables may not exist */ }
+
     const pending = parseInt(pendingProc.rows[0].count) + parseInt(pendingRec.rows[0].count) + parseInt(pendingConv.rows[0].count);
-    res.json({ collectors: parseInt(collectors.rows[0].count), aggregators: parseInt(aggregators.rows[0].count), processors: parseInt(processors.rows[0].count), recyclers: parseInt(recyclers.rows[0].count), converters: parseInt(converters.rows[0].count), pending: pending, transactions: parseInt(transactions.rows[0].count), total_volume_kg: parseFloat(totalVol.rows[0].total), by_material: volume.rows });
+    const coll = parseInt(collectors.rows[0].count), agg = parseInt(aggregators.rows[0].count), proc = parseInt(processors.rows[0].count), rec = parseInt(recyclers.rows[0].count), conv = parseInt(converters.rows[0].count);
+
+    res.json({
+      collectors: coll, aggregators: agg, processors: proc, recyclers: rec, converters: conv, pending: pending,
+      users: { collectors: coll, aggregators: agg, processors: proc, recyclers: rec, converters: conv, pending: pending, total: coll + agg + proc + rec + conv },
+      transactions: { today: parseInt(txnToday.rows[0].count), this_week: parseInt(txnWeek.rows[0].count), this_month: parseInt(txnMonth.rows[0].count), total: parseInt(txnTotal.rows[0].count) },
+      volume: { this_month_kg: parseFloat(volMonth.rows[0].kg), ytd_kg: parseFloat(volYtd.rows[0].kg), total_kg: parseFloat(volTotal.rows[0].kg) },
+      revenue: { this_month: parseFloat(revMonth.rows[0].amt), ytd: parseFloat(revYtd.rows[0].amt) },
+      discovery: discovery,
+      recent_activity: recentTxns.rows
+    });
   } catch (err) { console.error('Admin stats error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
