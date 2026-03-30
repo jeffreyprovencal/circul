@@ -182,6 +182,20 @@
       </div>
     </div>
 
+    <!-- REGISTER A COLLECTOR (coming soon) -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Register a collector</div>
+          <div class="section-sub">Onboard new collectors into your supply network</div>
+        </div>
+      </div>
+      <div class="empty">
+        <p class="empty-action">Collector registration coming soon</p>
+        <p class="empty-hint">You will be able to register and onboard new collectors directly from your dashboard</p>
+      </div>
+    </div>
+
     <!-- TWO-COL: MY TOP SUPPLIERS & MY TOP BUYERS -->
     <div class="two-col">
 
@@ -2458,7 +2472,7 @@ function loadDiscoverListings() {
     var container = document.getElementById('discover-listings');
     var listings = data.listings || data || [];
     if (!listings.length) {
-      container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings match your filters.</p>';
+      container.innerHTML = '<div class="empty"><p class="empty-action">No materials available right now</p><p class="empty-hint">Check back soon or adjust your filters</p></div>';
       return;
     }
     container.innerHTML = listings.map(function(l) {

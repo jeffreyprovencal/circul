@@ -1358,7 +1358,7 @@ function loadDiscoverListings() {
   .then(function(data) {
     var container = document.getElementById('discover-listings');
     var listings = data.listings || data || [];
-    if (!listings.length) { container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No listings match your filters.</p>'; return; }
+    if (!listings.length) { container.innerHTML = '<div class="empty"><p class="empty-action">No aggregator materials available right now</p><p class="empty-hint">Aggregators in your area will appear here when they post available materials</p></div>'; return; }
     container.innerHTML = listings.map(function(l) {
       var now = new Date(); var exp = new Date(l.expires_at);
       var daysLeft = Math.max(0, Math.ceil((exp - now) / 86400000));
