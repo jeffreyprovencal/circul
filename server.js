@@ -362,15 +362,32 @@ app.get('/api/collector/pending-purchases', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const id = req.user.id;
-    const result = await pool.query(
-      `SELECT pt.*, a.name as aggregator_name, a.company as aggregator_company,
-              'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display
-       FROM pending_transactions pt
-       LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id
-       WHERE pt.collector_id=$1 AND pt.transaction_type='aggregator_purchase' AND pt.status='pending'
-       ORDER BY pt.created_at DESC`, [id]
-    );
-    res.json(result.rows);
+    let rows;
+    try {
+      const result = await pool.query(
+        `SELECT pt.*, a.name as aggregator_name, a.company as aggregator_company,
+                'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display
+         FROM pending_transactions pt
+         LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id
+         WHERE pt.collector_id=$1 AND pt.transaction_type='aggregator_purchase' AND pt.status='pending'
+         ORDER BY pt.created_at DESC`, [id]
+      );
+      rows = result.rows;
+    } catch (colErr) {
+      if (colErr.message && colErr.message.includes('aggregator_operator_id')) {
+        console.warn('pending_transactions.aggregator_operator_id missing — retrying with aggregator_id');
+        const result = await pool.query(
+          `SELECT pt.*, a.name as aggregator_name, a.company as aggregator_company,
+                  'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display
+           FROM pending_transactions pt
+           LEFT JOIN aggregators a ON a.id=pt.aggregator_id
+           WHERE pt.collector_id=$1 AND pt.transaction_type='aggregator_purchase' AND pt.status='pending'
+           ORDER BY pt.created_at DESC`, [id]
+        );
+        rows = result.rows;
+      } else { throw colErr; }
+    }
+    res.json(rows);
   } catch (err) { console.error('GET /api/collector/pending-purchases error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -684,6 +701,18 @@ app.get('/api/expense-categories', async (req, res) => {
   }
 });
 
+app.get('/api/aggregators/:id/expense-categories', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, status FROM expense_categories WHERE status IN ('default','approved') ORDER BY name`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/aggregators/:id/expense-categories error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.post('/api/expense-categories/suggest', async (req, res) => {
   try {
     const { name, aggregator_id } = req.body;
@@ -767,12 +796,29 @@ app.post('/api/aggregators/:id/expenses', receiptUpload.single('receipt'), async
     const receipt_url = req.file ? `/uploads/receipts/${req.file.filename}` : null;
     const date = expense_date || new Date().toISOString().slice(0, 10);
 
-    const { rows } = await pool.query(
-      `INSERT INTO expense_entries (aggregator_id, category_id, amount, note, receipt_url, expense_date)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [aggregator_id, category_id, parseFloat(amount), note || null, receipt_url, date]
-    );
+    let rows;
+    try {
+      const result = await pool.query(
+        `INSERT INTO expense_entries (aggregator_id, category_id, amount, note, receipt_url, expense_date)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [aggregator_id, category_id, parseFloat(amount), note || null, receipt_url, date]
+      );
+      rows = result.rows;
+    } catch (colErr) {
+      if (colErr.message && colErr.message.includes('note')) {
+        console.warn('expense_entries.note column missing on INSERT — retrying without it');
+        const result = await pool.query(
+          `INSERT INTO expense_entries (aggregator_id, category_id, amount, receipt_url, expense_date)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [aggregator_id, category_id, parseFloat(amount), receipt_url, date]
+        );
+        rows = result.rows;
+      } else {
+        throw colErr;
+      }
+    }
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('POST /api/aggregators/:id/expenses error:', err);
@@ -1851,8 +1897,10 @@ app.post('/api/ratings/operator', async (req, res) => {
 app.get('/api/ratings/operator/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const ratings = await pool.query(`SELECT r.* FROM ratings r WHERE r.rated_id=$1 AND r.rated_type IN ('aggregator','processor','converter') ORDER BY r.created_at DESC LIMIT 50`, [id]);
-    const avg = await pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_id=$1 AND rated_type IN ('aggregator','processor','converter')`, [id]);
+    const role = req.query.role;
+    const typeFilter = role ? [role] : ['aggregator','processor','recycler','converter'];
+    const ratings = await pool.query(`SELECT r.* FROM ratings r WHERE r.rated_id=$1 AND r.rated_type = ANY($2) ORDER BY r.created_at DESC LIMIT 50`, [id, typeFilter]);
+    const avg = await pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_id=$1 AND rated_type = ANY($2)`, [id, typeFilter]);
     res.json({ success: true, ratings: ratings.rows, summary: avg.rows[0] });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1879,24 +1927,25 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
 
     // Map role → which column in pending_transactions identifies this user,
     // and which column/table identifies the counterparty they should rate
+    // Primary columns match the original migration; fallback matches the restructure migration
     const ROLE_MAP = {
-      collector:  { myCol: 'collector_id',        peerCol: 'aggregator_operator_id', peerTable: 'aggregators',  peerName: 'name' },
-      aggregator: { myCol: 'aggregator_operator_id', peerCol: 'collector_id',        peerTable: 'collectors',   peerName: "first_name || ' ' || last_name" },
-      processor:  { myCol: 'processor_buyer_id',  peerCol: 'aggregator_operator_id', peerTable: 'aggregators',  peerName: 'name' },
-      recycler:   { myCol: 'recycler_id',         peerCol: 'aggregator_operator_id', peerTable: 'aggregators',  peerName: 'name' },
-      converter:  { myCol: 'converter_buyer_id',  peerCol: 'processor_buyer_id',     peerTable: 'processors',   peerName: 'name' },
+      collector:  { myCol: 'collector_id',           peerCol: 'aggregator_operator_id', peerTable: 'aggregators',  peerName: 'name',                          myColAlt: 'collector_id',  peerColAlt: 'aggregator_id' },
+      aggregator: { myCol: 'aggregator_operator_id', peerCol: 'collector_id',           peerTable: 'collectors',   peerName: "first_name || ' ' || last_name", myColAlt: 'aggregator_id', peerColAlt: 'collector_id' },
+      processor:  { myCol: 'processor_buyer_id',     peerCol: 'aggregator_operator_id', peerTable: 'aggregators',  peerName: 'name',                          myColAlt: 'processor_id',  peerColAlt: 'aggregator_id' },
+      recycler:   { myCol: 'recycler_id',            peerCol: 'processor_buyer_id',     peerTable: 'processors',   peerName: 'name',                          myColAlt: 'recycler_id',   peerColAlt: 'processor_id' },
+      converter:  { myCol: 'converter_buyer_id',     peerCol: 'processor_buyer_id',     peerTable: 'processors',   peerName: 'name',                          myColAlt: 'converter_id',  peerColAlt: 'processor_id' },
     };
     const cfg = ROLE_MAP[role];
     if (!cfg) return res.json({ success: true, pending: [] });
 
-    const rows = await pool.query(
-      `SELECT pt.id AS txn_id, pt.material_type, pt.gross_weight_kg, pt.created_at,
-              pt.${cfg.peerCol} AS peer_id,
+    function buildPendingRatingQuery(myCol, peerCol) {
+      return `SELECT pt.id AS txn_id, pt.material_type, pt.gross_weight_kg, pt.created_at,
+              pt.${peerCol} AS peer_id,
               p.${cfg.peerName} AS peer_name
        FROM pending_transactions pt
-       LEFT JOIN ${cfg.peerTable} p ON p.id = pt.${cfg.peerCol}
-       WHERE pt.${cfg.myCol} = $1
-         AND pt.status = 'completed'
+       LEFT JOIN ${cfg.peerTable} p ON p.id = pt.${peerCol}
+       WHERE pt.${myCol} = $1
+         AND pt.status IN ('completed','confirmed')
          AND pt.created_at > NOW() - INTERVAL '30 days'
          AND NOT EXISTS (
            SELECT 1 FROM ratings r
@@ -1905,9 +1954,18 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
              AND r.rater_id = $1
          )
        ORDER BY pt.created_at DESC
-       LIMIT 5`,
-      [userId, role]
-    );
+       LIMIT 5`;
+    }
+
+    let rows;
+    try {
+      rows = await pool.query(buildPendingRatingQuery(cfg.myCol, cfg.peerCol), [userId, role]);
+    } catch (colErr) {
+      if (colErr.message && (colErr.message.includes('column') || colErr.message.includes('does not exist'))) {
+        console.warn('ratings/pending column fallback — retrying with alternate column names');
+        rows = await pool.query(buildPendingRatingQuery(cfg.myColAlt, cfg.peerColAlt), [userId, role]);
+      } else { throw colErr; }
+    }
     res.json({ success: true, pending: rows.rows });
   } catch (err) {
     console.error('GET /api/ratings/pending error:', err.message);
