@@ -331,3 +331,44 @@ The P&L accordion's Revenue row currently shows a "coming soon" placeholder when
 ### Offline Support Expansion (Future)
 
 Currently only expense entries are queued offline. Consider extending to: purchase registration, batch submission, price posting. Would require a more general offline queue architecture and potentially a service worker.
+
+### Batch 6 — Server Hotfixes + UX Polish (March 30, 2026)
+
+Comprehensive live audit of circul.polsia.app found 20 bugs (8 P0, 5 P1, 7 P2) after Batch 5 deploy. Root cause of most P0 issues: SQL column name mismatches in pending_transactions queries — the table uses aggregator_operator_id, processor_buyer_id, converter_buyer_id but many queries reference the simpler names (aggregator_id, processor_id, converter_id).
+
+**P0 Critical (blocks core flows):**
+- BUG-01: POST /api/pending-transactions returns 500 for collections/purchases — INSERT query uses wrong column names
+- BUG-02: POST /api/pending-transactions validation requires collector_id + aggregator_id for ALL transaction types including sales — needs per-type validation
+- BUG-03: GET /api/pending-transactions returns 500 with aggregator_id param — WHERE clause column mismatch
+- BUG-04: GET /api/pending-transactions/aggregator-sales returns 400 — expects aggregator_id but frontend sends aggregator_operator_id
+- BUG-05: GET /api/pending-transactions/aggregator-purchase returns 404 — route missing or misnamed
+- BUG-06: POST /api/aggregators/:id/expenses returns 500 — INSERT references nonexistent note column
+- BUG-07: GET /api/collector/pending-purchases returns 500 — SQL column error
+- BUG-08: GET /api/ratings/pending returns 500 — query still has a column error despite Prompt 2 fix
+
+**P1 High (feature broken):**
+- BUG-09: Rating pill click does nothing — recycler/converter have no ratingModal element or rating form; pill stays hidden on all dashboards because BUG-08 prevents count
+- BUG-10: Aggregator P&L shows "offline" — stats endpoint works (200) but P&L rendering JS incorrectly shows offline message
+- BUG-11: Processor volume stats show dashes — stat elements exist, JS writes to them, but values don't populate
+- BUG-12: GET /api/ratings/operator returns 404 — route missing or uses different params
+- BUG-13: GET /api/aggregators/:id/expense-categories returns 404 — frontend calls wrong route (working route is /api/expense-categories?aggregator_id=:id)
+
+**P2 Medium (UX/feature requests from Miniplast demo):**
+- BUG-14: Collector "My Earnings" needs month/year pill navigation
+- BUG-15: Collector "Who's buying near you" should autopopulate price on aggregator+material selection
+- BUG-16: Collector listing location should be a dropdown from /api/listings/locations, not free text
+- BUG-17: Aggregator "Discover Materials" can't fetch specific collector listings
+- BUG-18: Processor listing visibility — clarify that processors see aggregator listings only (tier-up rule)
+- BUG-19: Collector passport view returns error — /api/collector/me returns 200 but empty data
+- BUG-20: Aggregator "Register a collector" feature missing
+
+**Fix Plan (5 prompts):**
+- Prompt 1: Fix pending-transactions POST + GET (BUG-01 through 05) — correct all column names in INSERT/WHERE, add per-type validation, fix param names
+- Prompt 2: Fix ratings, expenses, collector endpoints (BUG-06 through 08, 12, 13)
+- Prompt 3: Fix frontend data binding (BUG-09 through 11) — rating pill targets, P&L offline, processor stats
+- Prompt 4: Collector UX improvements (BUG-14 through 16, 19)
+- Prompt 5: Aggregator/Processor UX (BUG-17, 18, 20)
+
+**Endpoint Status (tested March 30, 2026):**
+Working (200): /api/auth/login (all roles), /api/prices, /api/transactions, /api/listings, /api/listings/mine, /api/listings/locations, /api/offers/mine, /api/collectors/4/passport, /api/collector/me, /api/collector/stats, /api/collector/pl, /api/collector/top-buyers, /api/collector/transactions, /api/collector/prices, /api/aggregators/9/stats, /api/aggregators/9/expenses (GET), /api/expense-categories, /api/processors/1
+Broken: POST /api/pending-transactions (500/400), GET /api/pending-transactions (500), /api/pending-transactions/aggregator-sales (400), /api/pending-transactions/aggregator-purchase (404), POST /api/aggregators/:id/expenses (500), /api/collector/pending-purchases (500), /api/ratings/pending (500), /api/ratings/operator (404), /api/aggregators/:id/expense-categories (404)
