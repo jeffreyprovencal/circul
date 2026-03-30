@@ -163,24 +163,34 @@
     </div>
   </div>
 
-  <!-- RATING PROMPT BANNER -->
-  <div id="ratingPromptBanner" class="hidden" style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:20px;">&#11088;</span>
-      <span id="ratingPromptText" style="font-size:14px;color:#92400e;">You have a recent transaction to rate!</span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="scrollToRating()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Rate now</button>
-      <button onclick="dismissRatingPrompt()" style="background:transparent;border:1px solid #d97706;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:#92400e;">Dismiss</button>
-    </div>
-  </div>
-
   <!-- POST PURCHASE PRICES -->
   <div class="section">
     <div class="section-head">
       <div>
         <div class="section-title">Post purchase prices</div>
         <div class="section-sub">Current prices posted &middot; GHS/kg</div>
+      </div>
+      <button class="btn btn-green" onclick="togglePriceForm()">+ Post Price</button>
+    </div>
+    <div id="create-price-form-rc" class="hidden" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px">
+      <div style="display:flex;gap:12px;align-items:flex-end">
+        <div class="form-group" style="flex:2">
+          <label class="form-label">Material Type</label>
+          <select id="rc-material" class="form-select">
+            <option value="PET">PET</option>
+            <option value="HDPE">HDPE</option>
+            <option value="LDPE">LDPE</option>
+            <option value="PP">PP</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Price per kg (GH₵)</label>
+          <input id="rc-price" class="form-input" type="number" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
+          <button class="btn btn-green" onclick="submitPriceForm()">Post</button>
+          <button class="btn" onclick="togglePriceForm()">Cancel</button>
+        </div>
       </div>
     </div>
     <div class="price-grid" id="priceCards">
@@ -368,6 +378,17 @@
 
     <!-- RATINGS TAB -->
     <div class="tab-panel" id="tab-ratings">
+      <div class="section-head" style="margin-bottom:14px">
+        <div>
+          <div class="section-title">Rate your processors</div>
+          <div class="section-sub">Your feedback helps improve the supply chain</div>
+        </div>
+        <a id="ratingPill" class="rating-pill hidden" href="#" onclick="scrollToRating();return false;">
+          <span class="dot"></span>
+          <span id="ratingPillText">1 unrated transaction</span>
+          <span style="font-size:0.7rem;opacity:0.7">&rarr;</span>
+        </a>
+      </div>
       <div id="processorRatingsList"><div class="placeholder-cell">Loading...</div></div>
       <div id="ratingsReceived"></div>
     </div>
@@ -581,27 +602,23 @@ function checkPendingRatings() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data || !data.pending || !data.pending.length) return;
+            var count = 0;
             for (var i = 0; i < data.pending.length; i++) {
-                var p = data.pending[i];
-                if (localStorage.getItem('circul_dismissed_rating_' + p.txn_id)) continue;
-                _pendingRatingTxn = p;
-                var txt = document.getElementById('ratingPromptText');
-                if (txt) txt.textContent = 'Rate your transaction with ' + (p.peer_name || 'your supplier') + '!';
-                var banner = document.getElementById('ratingPromptBanner');
-                if (banner) banner.classList.remove('hidden');
-                return;
+                if (!_pendingRatingTxn) _pendingRatingTxn = data.pending[i];
+                count++;
+            }
+            if (count > 0) {
+                var pill = document.getElementById('ratingPill');
+                var txt = document.getElementById('ratingPillText');
+                if (txt) txt.textContent = count + ' unrated transaction' + (count > 1 ? 's' : '') + ' \u2014 rate now';
+                if (pill) pill.classList.remove('hidden');
             }
         })
         .catch(function(e) { console.warn('checkPendingRatings error', e); });
 }
-function dismissRatingPrompt() {
-    if (_pendingRatingTxn) localStorage.setItem('circul_dismissed_rating_' + _pendingRatingTxn.txn_id, '1');
-    var banner = document.getElementById('ratingPromptBanner');
-    if (banner) banner.classList.add('hidden');
-}
 function scrollToRating() {
     if (_pendingRatingTxn) {
-        rateProcessor(_pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Aggregator');
+        rateProcessor(_pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Processor');
     }
 }
 
@@ -1239,6 +1256,22 @@ function renderPriceCards(prices) {
             '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
+}
+
+function togglePriceForm() {
+    document.getElementById('create-price-form-rc').classList.toggle('hidden');
+}
+function submitPriceForm() {
+    var mat = document.getElementById('rc-material').value;
+    var ghs = document.getElementById('rc-price').value;
+    if (!ghs || parseFloat(ghs) <= 0) { showRecToast('Enter a valid GH\u20B5 price'); return; }
+    fetch('/api/prices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poster_type: 'recycler', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.success) { togglePriceForm(); loadAll(); showRecToast('Price posted for ' + mat); }
+        else { showRecToast(data.message || 'Error posting price'); }
+    }).catch(function() { showRecToast('Connection error'); });
 }
 
 function postPrice(mat) {

@@ -248,6 +248,12 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 /* ── PRICE SUB-SPAN (USD conversion, secondary price info) ── */
 .price-sub{font-weight:400;font-size:0.74rem;color:var(--text-3)}
 
+/* ── RATING PILL ── */
+.rating-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,179,0,0.08);border:1px solid rgba(255,179,0,0.25);border-radius:20px;padding:5px 14px 5px 10px;font-size:0.78rem;color:#ffb300;font-weight:600;cursor:pointer;transition:background 0.15s;text-decoration:none}
+.rating-pill:hover{background:rgba(255,179,0,0.14)}
+.rating-pill .dot{width:6px;height:6px;border-radius:50%;background:#ffb300;animation:ratingPulse 2s ease-in-out infinite}
+@keyframes ratingPulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
 /* ── LABEL HINT (reset text-transform on sub-labels inside uppercase headings) ── */
 .label-hint{text-transform:none;letter-spacing:0;font-weight:400}
 
