@@ -783,6 +783,7 @@ app.post('/api/aggregators/:id/expenses', receiptUpload.single('receipt'), async
 app.get('/api/aggregators/:id/expenses', async (req, res) => {
   try {
     const aggregator_id = parseInt(req.params.id);
+    if (isNaN(aggregator_id)) return res.status(400).json({ success: false, message: 'Invalid aggregator ID' });
     const { from, to } = req.query;
 
     // Default: current month
@@ -820,8 +821,8 @@ app.get('/api/aggregators/:id/expenses', async (req, res) => {
       categories: Object.values(grouped)
     });
   } catch (err) {
-    console.error('GET /api/aggregators/:id/expenses error:', err);
-    res.status(500).json({ error: 'Failed to fetch expenses' });
+    console.error('GET /api/aggregators/:id/expenses error:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch expenses' });
   }
 });
 
@@ -1737,13 +1738,11 @@ app.post('/api/transactions', async (req, res) => {
 
 app.get('/api/transactions', async (req, res) => {
   try {
-    const { collector_id, aggregator_id, converter_id, processor_id, material_type, start_date, end_date, payment_status, limit = 100, offset = 0 } = req.query;
-    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name, p.name as processor_name, p.company as processor_company FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id LEFT JOIN processors p ON p.id=t.processor_id WHERE 1=1`;
+    const { collector_id, aggregator_id, material_type, start_date, end_date, payment_status, limit = 100, offset = 0 } = req.query;
+    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
     const params = [];
     if (collector_id) { params.push(collector_id); query += ` AND t.collector_id=$${params.length}`; }
     if (aggregator_id) { params.push(aggregator_id); query += ` AND t.aggregator_id=$${params.length}`; }
-    if (converter_id) { params.push(converter_id); query += ` AND t.converter_id=$${params.length}`; }
-    if (processor_id) { params.push(processor_id); query += ` AND t.processor_id=$${params.length}`; }
     if (material_type) { params.push(material_type.toUpperCase()); query += ` AND t.material_type=$${params.length}`; }
     if (start_date) { params.push(start_date); query += ` AND t.transaction_date>=$${params.length}::timestamptz`; }
     if (end_date) { params.push(end_date); query += ` AND t.transaction_date<=$${params.length}::timestamptz`; }
@@ -1754,7 +1753,7 @@ app.get('/api/transactions', async (req, res) => {
     const result = await pool.query(query, params);
     res.json({ success: true, transactions: result.rows, total: parseInt(countResult.rows?.[0]?.total||0), limit: parseInt(limit), offset: parseInt(offset) });
   } catch (err) {
-    console.error('Error listing transactions:', err);
+    console.error('GET /api/transactions error:', err.message);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -1869,7 +1868,7 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
     if (!cfg) return res.json({ success: true, pending: [] });
 
     const rows = await pool.query(
-      `SELECT pt.id AS txn_id, pt.material_type, pt.net_weight_kg, pt.created_at,
+      `SELECT pt.id AS txn_id, pt.material_type, pt.gross_weight_kg, pt.created_at,
               pt.${cfg.peerCol} AS peer_id,
               p.${cfg.peerName} AS peer_name
        FROM pending_transactions pt
@@ -1889,7 +1888,7 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
     );
     res.json({ success: true, pending: rows.rows });
   } catch (err) {
-    console.error('Pending ratings error:', err);
+    console.error('GET /api/ratings/pending error:', err.message);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -2047,7 +2046,7 @@ app.get('/api/pending-transactions', async (req, res) => {
     }
     const result = await pool.query(query, params);
     res.json({ success: true, pending_transactions: result.rows });
-  } catch (err) { console.error('Get pending transactions error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('GET /api/pending-transactions error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.get('/api/pending-transactions/collector-sales', async (req, res) => {
@@ -2056,7 +2055,7 @@ app.get('/api/pending-transactions/collector-sales', async (req, res) => {
     if (!collector_id) return res.status(400).json({ success: false, message: 'collector_id required' });
     const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, t.price_per_kg AS final_price_per_kg, t.total_price AS final_total_price FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id LEFT JOIN transactions t ON t.id=pt.transaction_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
     res.json({ success: true, pending_transactions: result.rows });
-  } catch (err) { console.error('Collector sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('GET /api/pending-transactions/collector-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.get('/api/pending-transactions/aggregator-sales', async (req, res) => {
@@ -2065,7 +2064,7 @@ app.get('/api/pending-transactions/aggregator-sales', async (req, res) => {
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id required' });
     const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, p.name AS processor_name, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_buyer_id LEFT JOIN converters c ON c.id=pt.converter_buyer_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_operator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
     res.json({ success: true, pending_transactions: result.rows });
-  } catch (err) { console.error('Aggregator sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('GET /api/pending-transactions/aggregator-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.patch('/api/pending-transactions/:id/review', async (req, res) => {
