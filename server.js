@@ -346,11 +346,18 @@ app.get('/api/collector/pl', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const id = req.user.id;
-    const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
-    const ytdStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
+    const qMonth = parseInt(req.query.month);
+    const qYear = parseInt(req.query.year);
+    const now = new Date();
+    const selYear = (qYear && qYear >= 2020 && qYear <= now.getFullYear()) ? qYear : now.getFullYear();
+    const selMonth = (qMonth && qMonth >= 1 && qMonth <= 12) ? qMonth - 1 : now.getMonth();
+    const monthStart = new Date(selYear, selMonth, 1);
+    const monthEnd = new Date(selYear, selMonth + 1, 1);
+    const ytdStart = new Date(selYear, 0, 1).toISOString();
+    const ytdEnd = new Date(selYear + 1, 0, 1).toISOString();
     const [monthly, ytd] = await Promise.all([
-      pool.query(`SELECT material_type, COALESCE(SUM(total_price),0) as earned FROM transactions WHERE collector_id=$1 AND transaction_date>=$2 GROUP BY material_type`, [id, thisMonth.toISOString()]),
-      pool.query(`SELECT material_type, COALESCE(SUM(total_price),0) as earned FROM transactions WHERE collector_id=$1 AND transaction_date>=$2 GROUP BY material_type`, [id, ytdStart])
+      pool.query(`SELECT material_type, COALESCE(SUM(total_price),0) as earned FROM transactions WHERE collector_id=$1 AND transaction_date>=$2 AND transaction_date<$3 GROUP BY material_type`, [id, monthStart.toISOString(), monthEnd.toISOString()]),
+      pool.query(`SELECT material_type, COALESCE(SUM(total_price),0) as earned FROM transactions WHERE collector_id=$1 AND transaction_date>=$2 AND transaction_date<$3 GROUP BY material_type`, [id, ytdStart, ytdEnd])
     ]);
     const monthMap = {}; monthly.rows.forEach(r => { monthMap[r.material_type] = parseFloat(r.earned); });
     const ytdMap = {}; ytd.rows.forEach(r => { ytdMap[r.material_type] = parseFloat(r.earned); });

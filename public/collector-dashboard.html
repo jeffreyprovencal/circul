@@ -151,6 +151,7 @@
     <div class="pl-grid">
       <div>
         <div class="pl-col-title">This Month</div>
+        <div id="plMonthPills" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;"></div>
         <div class="pl-row"><span>PET</span><span class="td-green" id="plMonthPET">—</span></div>
         <div class="pl-row"><span>HDPE</span><span class="td-green" id="plMonthHDPE">—</span></div>
         <div class="pl-row"><span>LDPE</span><span class="td-green" id="plMonthLDPE">—</span></div>
@@ -162,6 +163,7 @@
       </div>
       <div>
         <div class="pl-col-title">Year to Date</div>
+        <div id="plYearPills" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;"></div>
         <div class="pl-row"><span>PET</span><span class="td-green" id="plYTDPET">—</span></div>
         <div class="pl-row"><span>HDPE</span><span class="td-green" id="plYTDHDPE">—</span></div>
         <div class="pl-row"><span>LDPE</span><span class="td-green" id="plYTDLDPE">—</span></div>
@@ -244,7 +246,7 @@
       <div style="display:grid;gap:0.75rem;padding:1rem 0;">
         <div>
           <label class="form-label">Material Type</label>
-          <select id="listing-material" class="form-input">
+          <select id="listing-material" class="form-input" onchange="autofillListingPrice()">
             <option value="PET">PET</option>
             <option value="HDPE">HDPE</option>
             <option value="LDPE">LDPE</option>
@@ -262,7 +264,9 @@
         </div>
         <div>
           <label class="form-label">Location</label>
-          <input type="text" id="listing-location" class="form-input" placeholder="e.g. Accra, Kumasi">
+          <select id="listing-location" class="form-select">
+            <option value="">Select location\u2026</option>
+          </select>
         </div>
         <div style="display:flex;gap:0.5rem;">
           <button class="btn btn-green" onclick="submitListing()">Create Listing</button>
@@ -452,7 +456,13 @@ function scrollToRating() {
 /* ── load all ── */
 async function loadAll() {
   try {
-    const me = await apiFetch('/collector/me');
+    var me;
+    try {
+      me = await apiFetch('/collector/me');
+    } catch(meErr) {
+      console.warn('/collector/me failed, using cached profile:', meErr);
+      me = _collectorState || {};
+    }
     populateProfile(me);
     await Promise.all([
       populateStats(),
@@ -462,6 +472,7 @@ async function loadAll() {
       populatePL(),
       loadPendingFromAgg(),
       loadMyListings(),
+      loadListingLocations(),
       checkPendingRatings(),
     ]);
   } catch(e) {
@@ -542,22 +553,62 @@ async function populateStats() {
 }
 
 /* ── P&L ── */
+var _plActiveMonth = new Date().getMonth();
+var _plActiveYear = new Date().getFullYear();
+
+function renderPLPills() {
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var now = new Date();
+  var curMonth = now.getMonth();
+  var curYear = now.getFullYear();
+  var monthRow = document.getElementById('plMonthPills');
+  if (monthRow) {
+    monthRow.innerHTML = months.map(function(label, i) {
+      var cls = (i === _plActiveMonth) ? 'btn btn-green' : 'btn';
+      return '<button class="' + cls + '" style="padding:4px 10px;font-size:0.7rem;white-space:nowrap" onclick="selectPLMonth(' + i + ')">' + label + '</button>';
+    }).join('');
+  }
+  var yearRow = document.getElementById('plYearPills');
+  if (yearRow) {
+    var years = [];
+    for (var y = curYear - 2; y <= curYear; y++) years.push(y);
+    yearRow.innerHTML = years.map(function(yr) {
+      var cls = (yr === _plActiveYear) ? 'btn btn-green' : 'btn';
+      return '<button class="' + cls + '" style="padding:4px 10px;font-size:0.7rem;white-space:nowrap" onclick="selectPLYear(' + yr + ')">' + yr + '</button>';
+    }).join('');
+  }
+}
+
+function selectPLMonth(m) {
+  _plActiveMonth = m;
+  renderPLPills();
+  populatePL();
+}
+
+function selectPLYear(y) {
+  _plActiveYear = y;
+  renderPLPills();
+  populatePL();
+}
+
 async function populatePL() {
   try {
-    const pl = await apiFetch('/collector/pl');
-    const mats = ['PET','HDPE','LDPE','PP'];
-    let monthTotal = 0, ytdTotal = 0;
-    mats.forEach(m => {
-      const mv = pl.month?.[m] || 0;
-      const yv = pl.ytd?.[m] || 0;
+    renderPLPills();
+    var params = '?month=' + (_plActiveMonth + 1) + '&year=' + _plActiveYear;
+    var pl = await apiFetch('/collector/pl' + params);
+    var mats = ['PET','HDPE','LDPE','PP'];
+    var monthTotal = 0, ytdTotal = 0;
+    mats.forEach(function(m) {
+      var mv = (pl.month && pl.month[m]) ? pl.month[m] : 0;
+      var yv = (pl.ytd && pl.ytd[m]) ? pl.ytd[m] : 0;
       monthTotal += mv; ytdTotal += yv;
-      const mel = document.getElementById('plMonth' + m);
-      const yel = document.getElementById('plYTD' + m);
+      var mel = document.getElementById('plMonth' + m);
+      var yel = document.getElementById('plYTD' + m);
       if (mel) mel.textContent = fmtNum(mv);
       if (yel) yel.textContent = fmtNum(yv);
     });
-    const mt = document.getElementById('plMonthTotal');
-    const yt = document.getElementById('plYTDTotal');
+    var mt = document.getElementById('plMonthTotal');
+    var yt = document.getElementById('plYTDTotal');
     if (mt) mt.textContent = fmtNum(monthTotal);
     if (yt) yt.textContent = fmtNum(ytdTotal);
   } catch(e) {
@@ -679,8 +730,28 @@ async function populatePrices() {
   } catch(e) { console.warn('prices error', e); }
 }
 
+var _selectedAggPrices = null;
 function preselectAndSell(aggId) {
-  window.location.href = '/collect?agg=' + aggId;
+  _selectedAggPrices = null;
+  apiFetch('/collector/prices').then(function(prices) {
+    var agg = (prices || []).find(function(p) { return (p.aggregator_id || p.id) == aggId; });
+    if (agg && agg.prices) _selectedAggPrices = agg.prices;
+    showCreateListing();
+    autofillListingPrice();
+  }).catch(function() { showCreateListing(); });
+}
+
+function autofillListingPrice() {
+  var mat = document.getElementById('listing-material').value;
+  var priceEl = document.getElementById('listing-price');
+  if (!priceEl) return;
+  if (_selectedAggPrices && _selectedAggPrices[mat]) {
+    priceEl.value = parseFloat(_selectedAggPrices[mat]).toFixed(2);
+    priceEl.placeholder = 'GH\u20B5 ' + parseFloat(_selectedAggPrices[mat]).toFixed(2) + '/kg';
+  } else {
+    priceEl.value = '';
+    priceEl.placeholder = _selectedAggPrices ? 'No price posted for ' + mat : "Leave blank for 'Make an offer'";
+  }
 }
 
 /* ── pending from aggregator ── */
@@ -787,6 +858,17 @@ function showDiscToast(type, title, message) {
 }
 
 /* ── listings ── */
+function loadListingLocations() {
+  apiFetch('/listings/locations').then(function(data) {
+    var sel = document.getElementById('listing-location');
+    if (!sel) return;
+    var locs = (data && data.locations) || [];
+    var html = '<option value="">Select location\u2026</option>';
+    locs.forEach(function(loc) { html += '<option value="' + esc(loc) + '">' + esc(loc) + '</option>'; });
+    html += '<option value="__other">Other\u2026</option>';
+    sel.innerHTML = html;
+  }).catch(function() {});
+}
 function showCreateListing() {
   document.getElementById('create-listing-form').classList.remove('hidden');
 }
