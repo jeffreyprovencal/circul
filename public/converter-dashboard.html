@@ -125,18 +125,6 @@
     </div>
   </div>
 
-  <!-- RATING PROMPT BANNER -->
-  <div id="ratingPromptBanner" class="hidden" style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:20px;">&#11088;</span>
-      <span id="ratingPromptText" style="font-size:14px;color:#92400e;">You have a recent transaction to rate!</span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="scrollToRating()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Rate now</button>
-      <button onclick="dismissRatingPrompt()" style="background:transparent;border:1px solid #d97706;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:#92400e;">Dismiss</button>
-    </div>
-  </div>
-
   <!-- MY TOP SUPPLIERS -->
   <div class="section">
     <div class="section-head">
@@ -151,6 +139,18 @@
     </div>
     <div class="table-wrap">
       <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- RATING PROMPT BANNER -->
+  <div id="ratingPromptBanner" class="hidden" style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:20px;">&#11088;</span>
+      <span id="ratingPromptText" style="font-size:14px;color:#92400e;">You have a recent transaction to rate!</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="scrollToRating()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Rate now</button>
+      <button onclick="dismissRatingPrompt()" style="background:transparent;border:1px solid #d97706;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:#92400e;">Dismiss</button>
     </div>
   </div>
 
@@ -657,7 +657,7 @@ function loadOrders() {
 function renderOrders() {
     var el = document.getElementById('ordersList');
     if (!el) return;
-    if (!orders.length) { el.innerHTML = '<div class="empty">No orders placed yet.</div>'; return; }
+    if (!orders.length) { el.innerHTML = '<div class="section"><div class="empty"><p class="empty-action">Place a purchase order to start sourcing materials</p><p class="empty-hint">Your orders and their fulfillment status will appear here</p></div></div>'; return; }
     el.innerHTML = orders.map(function(o) {
         var statusBadge = buildOrderStatusBadge(o.status);
         var estTotal = parseFloat(o.target_quantity_kg) * parseFloat(o.price_per_kg);
@@ -940,7 +940,11 @@ function loadTxns() {
                 return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (priceKg !== '—' ? 'GH¢ ' + priceKg + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? 'GH¢ ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
             }).join('');
         })
-        .catch(function(e) { console.error('loadTxns error:', e); });
+        .catch(function(e) {
+            console.error('loadTxns error:', e);
+            var tbody = document.getElementById('supplyBody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><p class="empty-action">Your supply chain will appear after your first purchase</p></div></td></tr>';
+        });
 }
 
 function loadProcessorPrices() {

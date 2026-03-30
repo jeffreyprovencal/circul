@@ -129,18 +129,6 @@
       </div>
     </div>
 
-    <!-- RATING PROMPT BANNER -->
-    <div id="ratingPromptBanner" class="hidden" style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:20px;">&#11088;</span>
-        <span id="ratingPromptText" style="font-size:14px;color:#92400e;">You have a recent transaction to rate!</span>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="scrollToRating()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Rate now</button>
-        <button onclick="dismissRatingPrompt()" style="background:transparent;border:1px solid #d97706;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:#92400e;">Dismiss</button>
-      </div>
-    </div>
-
     <!-- TODAY'S WORK -->
     <div class="section" id="incomingCard">
       <div class="section-head">
@@ -191,6 +179,18 @@
           <button class="btn-green btn" onclick="submitAggregatorPurchase()">Register purchase</button>
           <button class="btn" onclick="toggleRegisterForm()">Cancel</button>
         </div>
+      </div>
+    </div>
+
+    <!-- RATING PROMPT BANNER -->
+    <div id="ratingPromptBanner" class="hidden" style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:20px;">&#11088;</span>
+        <span id="ratingPromptText" style="font-size:14px;color:#92400e;">You have a recent transaction to rate!</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="scrollToRating()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Rate now</button>
+        <button onclick="dismissRatingPrompt()" style="background:transparent;border:1px solid #d97706;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:#92400e;">Dismiss</button>
       </div>
     </div>
 
@@ -493,7 +493,7 @@
       <div style="margin-top:1.5rem;">
         <div class="section-title" style="font-size:0.9rem;">My Offers</div>
         <div id="my-sent-offers">
-          <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
+          <div class="empty"><p class="empty-action">Browse listings above and make an offer to get started</p><p class="empty-hint">Your sent offers and their status will appear here</p></div>
         </div>
       </div>
     </div>
@@ -893,6 +893,18 @@ async function loadPL(range) {
     renderPL();
   } catch (err) {
     console.error('loadPL error:', err);
+    if (navigator.onLine) {
+      var plCard = document.getElementById('plCard');
+      if (plCard) {
+        var msg = plCard.querySelector('.empty');
+        if (!msg) {
+          var d = document.createElement('div');
+          d.className = 'empty';
+          d.innerHTML = '<p class="empty-action">Could not load P&amp;L data. Pull down to retry.</p>';
+          plCard.appendChild(d);
+        }
+      }
+    }
   }
 }
 
@@ -2548,7 +2560,7 @@ function loadSentOffers() {
     if (!container) return;
     var offers = (data.offers || data || []).filter(function(o) { return o.offered_by === 'buyer' || o.buyer_role === 'aggregator'; });
     if (!offers.length) {
-      container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>';
+      container.innerHTML = '<div class="empty"><p class="empty-action">Browse listings above and make an offer to get started</p><p class="empty-hint">Your sent offers and their status will appear here</p></div>';
       return;
     }
     container.innerHTML = offers.map(function(o) {
