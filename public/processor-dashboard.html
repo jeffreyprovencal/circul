@@ -1368,7 +1368,7 @@ function loadTopSuppliers(period) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
-      if (!items.length) { el.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your top aggregator suppliers will appear after your first purchase</p></div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="empty"><p class="empty-action">Your top aggregator suppliers will appear after your first purchase</p></div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p,i) {
         return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
           "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
@@ -1393,7 +1393,7 @@ function loadTopBuyers(period) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);
-      if (!items.length) { el.innerHTML = '<div class="empty"><p style="font-size:1.1rem;margin-bottom:4px">\u2022 Your converter buyers will appear after your first sale</p></div>'; return; }
+      if (!items.length) { el.innerHTML = '<div class="empty"><p class="empty-action">Your converter buyers will appear after your first sale</p></div>'; return; }
       el.innerHTML = items.slice(0,3).map(function(p,i) {
         return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
           "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
