@@ -790,16 +790,38 @@ app.get('/api/aggregators/:id/expenses', async (req, res) => {
     const startDate = from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     const endDate = to || new Date().toISOString().slice(0, 10);
 
-    const { rows } = await pool.query(
-      `SELECT ee.id, ee.amount, ee.note, ee.receipt_url, ee.expense_date, ee.created_at,
-              ec.id AS category_id, ec.name AS category_name
-       FROM expense_entries ee
-       JOIN expense_categories ec ON ec.id = ee.category_id
-       WHERE ee.aggregator_id = $1
-         AND ee.expense_date BETWEEN $2 AND $3
-       ORDER BY ec.name, ee.expense_date DESC`,
-      [aggregator_id, startDate, endDate]
-    );
+    // Try with note column first; fall back without it if column missing on production
+    let rows;
+    try {
+      const result = await pool.query(
+        `SELECT ee.id, ee.amount, ee.note, ee.receipt_url, ee.expense_date, ee.created_at,
+                ec.id AS category_id, ec.name AS category_name
+         FROM expense_entries ee
+         JOIN expense_categories ec ON ec.id = ee.category_id
+         WHERE ee.aggregator_id = $1
+           AND ee.expense_date BETWEEN $2 AND $3
+         ORDER BY ec.name, ee.expense_date DESC`,
+        [aggregator_id, startDate, endDate]
+      );
+      rows = result.rows;
+    } catch (colErr) {
+      if (colErr.message && colErr.message.includes('note')) {
+        console.warn('expense_entries.note column missing — retrying without it');
+        const result = await pool.query(
+          `SELECT ee.id, ee.amount, ee.receipt_url, ee.expense_date, ee.created_at,
+                  ec.id AS category_id, ec.name AS category_name
+           FROM expense_entries ee
+           JOIN expense_categories ec ON ec.id = ee.category_id
+           WHERE ee.aggregator_id = $1
+             AND ee.expense_date BETWEEN $2 AND $3
+           ORDER BY ec.name, ee.expense_date DESC`,
+          [aggregator_id, startDate, endDate]
+        );
+        rows = result.rows;
+      } else {
+        throw colErr;
+      }
+    }
 
     // Group by category
     const grouped = {};
@@ -809,7 +831,7 @@ app.get('/api/aggregators/:id/expenses', async (req, res) => {
       }
       grouped[row.category_name].total += parseFloat(row.amount);
       grouped[row.category_name].entries.push({
-        id: row.id, amount: parseFloat(row.amount), note: row.note,
+        id: row.id, amount: parseFloat(row.amount), note: row.note || null,
         receipt_url: row.receipt_url, expense_date: row.expense_date, created_at: row.created_at
       });
     }

@@ -322,8 +322,16 @@
     </div>
   </div>
 
-  <!-- ORDERS LIST (rendered by JS) -->
-  <div id="ordersList"></div>
+  <!-- MY ORDERS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">My Orders</div>
+        <div class="section-sub">Your purchase orders and status</div>
+      </div>
+    </div>
+    <div id="ordersList"></div>
+  </div>
 
     <!-- DISCOVER MATERIALS -->
     <div class="section" id="discover-section">
@@ -674,7 +682,7 @@ function loadOrders() {
 function renderOrders() {
     var el = document.getElementById('ordersList');
     if (!el) return;
-    if (!orders.length) { el.innerHTML = '<div class="section"><div class="empty"><p class="empty-action">Place a purchase order to start sourcing materials</p><p class="empty-hint">Your orders and their fulfillment status will appear here</p></div></div>'; return; }
+    if (!orders.length) { el.innerHTML = '<div class="empty"><p class="empty-action">Place a purchase order to start sourcing materials</p><p class="empty-hint">Your orders and their fulfillment status will appear here</p></div>'; return; }
     el.innerHTML = orders.map(function(o) {
         var statusBadge = buildOrderStatusBadge(o.status);
         var estTotal = parseFloat(o.target_quantity_kg) * parseFloat(o.price_per_kg);
