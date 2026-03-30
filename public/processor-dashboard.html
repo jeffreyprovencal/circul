@@ -522,6 +522,13 @@ function loadAll() {
             el = document.getElementById('statPending'); if (el) el.innerHTML = 'GH\u20B5 ' + fmt(s.pending_payments.value) + ' <small>unpaid</small>';
             el = document.getElementById('statTotal'); if (el) el.innerHTML = fmt(s.totals.total_kg) + ' <small>kg since Jan</small>';
             renderPriceCards(s.posted_prices);
+        })
+        .catch(function(e) {
+            console.error('Processor stats load error:', e);
+            var el;
+            el = document.getElementById('statMonthKg'); if (el) el.innerHTML = '0 <small>kg this month</small>';
+            el = document.getElementById('statPending'); if (el) el.innerHTML = 'GH\u20B5 0 <small>unpaid</small>';
+            el = document.getElementById('statTotal'); if (el) el.innerHTML = '0 <small>kg since Jan</small>';
         });
     loadTxns();
     loadAggregators();

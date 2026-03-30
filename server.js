@@ -601,7 +601,7 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       // Revenue this month (aggregator sales to processors)
       pool.query(
         `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
-         WHERE aggregator_id=$1 AND transaction_type='aggregator_sale'
+         WHERE aggregator_operator_id=$1 AND transaction_type='aggregator_sale'
            AND status IN ('dispatch_approved','arrived','completed')
            AND created_at >= $2`,
         [id, plThisStart]
@@ -609,7 +609,7 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       // Revenue last month
       pool.query(
         `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
-         WHERE aggregator_id=$1 AND transaction_type='aggregator_sale'
+         WHERE aggregator_operator_id=$1 AND transaction_type='aggregator_sale'
            AND status IN ('dispatch_approved','arrived','completed')
            AND created_at >= $2 AND created_at < $3`,
         [id, plLastStart, plThisStart]
@@ -1463,12 +1463,25 @@ app.get('/api/processors/:id/stats', async (req, res) => {
     if (!pr.rows.length) return res.status(404).json({ success: false, message: 'Processor not found' });
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
 
-    const [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE processor_buyer_id=$1 AND transaction_type='aggregator_sale'`, [id]),
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE processor_buyer_id=$1 AND transaction_type='aggregator_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
-      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE processor_buyer_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='aggregator_sale'`, [id]),
-      pool.query(`SELECT * FROM posted_prices WHERE poster_type='processor' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
-    ]);
+    let totals, monthlyTotals, inboundPending, postedPrices;
+    try {
+      [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
+        pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE processor_buyer_id=$1 AND transaction_type='aggregator_sale'`, [id]),
+        pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE processor_buyer_id=$1 AND transaction_type='aggregator_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
+        pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE processor_buyer_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='aggregator_sale'`, [id]),
+        pool.query(`SELECT * FROM posted_prices WHERE poster_type='processor' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
+      ]);
+    } catch (colErr) {
+      if (colErr.message && colErr.message.includes('processor_buyer_id')) {
+        console.warn('processor_buyer_id missing — retrying with processor_id');
+        [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
+          pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE processor_id=$1 AND transaction_type='aggregator_sale'`, [id]),
+          pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE processor_id=$1 AND transaction_type='aggregator_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
+          pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE processor_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='aggregator_sale'`, [id]),
+          pool.query(`SELECT * FROM posted_prices WHERE poster_type='processor' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
+        ]);
+      } else { throw colErr; }
+    }
 
     res.json({
       success: true, buyer: pr.rows[0],

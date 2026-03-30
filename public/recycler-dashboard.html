@@ -383,11 +383,7 @@
           <div class="section-title">Rate your processors</div>
           <div class="section-sub">Your feedback helps improve the supply chain</div>
         </div>
-        <a id="ratingPill" class="rating-pill hidden" href="#" onclick="scrollToRating();return false;">
-          <span class="dot"></span>
-          <span id="ratingPillText">1 unrated transaction</span>
-          <span style="font-size:0.7rem;opacity:0.7">&rarr;</span>
-        </a>
+        <!-- rating pill deferred to future batch (no rating form on recycler yet) -->
       </div>
       <div id="processorRatingsList"><div class="placeholder-cell">Loading...</div></div>
       <div id="ratingsReceived"></div>
@@ -593,40 +589,12 @@ function showTab(tab, el) {
     if (tab === 'ratings') loadRatings();
 }
 
-/* ── rating prompt ── */
-var _pendingRatingTxn = null;
-function checkPendingRatings() {
-    var token = state.operator.token || localStorage.getItem('circul_token') || '';
-    var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
-    apiFetch('/api/ratings/pending', opts)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (!data || !data.pending || !data.pending.length) return;
-            var count = 0;
-            for (var i = 0; i < data.pending.length; i++) {
-                if (!_pendingRatingTxn) _pendingRatingTxn = data.pending[i];
-                count++;
-            }
-            if (count > 0) {
-                var pill = document.getElementById('ratingPill');
-                var txt = document.getElementById('ratingPillText');
-                if (txt) txt.textContent = count + ' unrated transaction' + (count > 1 ? 's' : '') + ' \u2014 rate now';
-                if (pill) pill.classList.remove('hidden');
-            }
-        })
-        .catch(function(e) { console.warn('checkPendingRatings error', e); });
-}
-function scrollToRating() {
-    if (_pendingRatingTxn) {
-        rateProcessor(_pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Processor');
-    }
-}
+/* ── rating prompt (deferred — no rating form on recycler yet) ── */
 
 function loadAll() {
     var id = state.operator.id;
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var fetchOpts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : {};
-    checkPendingRatings();
     apiFetch('/api/recyclers/' + id + '/stats', fetchOpts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
