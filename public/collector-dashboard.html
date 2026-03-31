@@ -472,7 +472,7 @@ function matPill(mat) {
 var _pendingRatingTxn = null;
 async function checkPendingRatings() {
   try {
-    var data = await apiFetch('/api/ratings/pending');
+    var data = await apiFetch('/ratings/pending');
     if (!data || !data.pending || !data.pending.length) return;
     var count = 0;
     for (var i = 0; i < data.pending.length; i++) {
@@ -778,7 +778,11 @@ function preselectAndSell(aggId) {
     if (agg && agg.prices) _selectedAggPrices = agg.prices;
     showCreateListing();
     autofillListingPrice();
-  }).catch(function() { showCreateListing(); });
+    document.getElementById('create-listing-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }).catch(function() {
+    showCreateListing();
+    document.getElementById('create-listing-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 function autofillListingPrice() {

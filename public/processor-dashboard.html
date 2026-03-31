@@ -195,6 +195,44 @@
     <div class="price-grid" id="priceCards"></div>
   </div>
 
+  <!-- SELL TO CONVERTERS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Sell to converters</div>
+        <div class="section-sub">Log a sale of processed material to a converter</div>
+      </div>
+      <button class="btn-green btn" onclick="openDispatchForm()">+ Log sale</button>
+    </div>
+    <div class="dispatch-form" id="procSaleForm">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Converter</label>
+          <select class="form-select" id="ps-converter"><option value="">Select converter...</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Material Type</label>
+          <select class="form-select" id="ps-material"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Weight (kg)</label>
+          <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price/kg (GH¢)</label>
+          <input class="form-input" id="ps-price" type="number" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:12px">Total: <span id="ps-total" style="color:var(--accent);font-weight:600">GH¢ 0</span></div>
+      <div id="ps-msg" style="font-size:0.8rem;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-green btn" id="ps-submit-btn" onclick="submitProcessorSale()">Log Sale to Converter</button>
+        <button class="btn" onclick="cancelDispatchForm()">Cancel</button>
+      </div>
+    </div>
+    <div id="procSalesList" style="margin-top:16px"></div>
+  </div>
+
   <!-- INCOMING DELIVERIES -->
   <div class="section">
     <div class="section-head">
@@ -245,44 +283,6 @@
         <tbody id="txnsList"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
       </table>
     </div>
-  </div>
-
-  <!-- SELL TO CONVERTERS -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Sell to converters</div>
-        <div class="section-sub">Log a sale of processed material to a converter</div>
-      </div>
-      <button class="btn-green btn" onclick="openDispatchForm()">+ Log sale</button>
-    </div>
-    <div class="dispatch-form" id="procSaleForm">
-      <div class="form-grid" style="margin-bottom:12px">
-        <div class="form-group">
-          <label class="form-label">Converter</label>
-          <select class="form-select" id="ps-converter"><option value="">Select converter...</option></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Material Type</label>
-          <select class="form-select" id="ps-material"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Weight (kg)</label>
-          <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Price/kg (GH¢)</label>
-          <input class="form-input" id="ps-price" type="number" min="0" step="0.01" placeholder="0.00">
-        </div>
-      </div>
-      <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:12px">Total: <span id="ps-total" style="color:var(--accent);font-weight:600">GH¢ 0</span></div>
-      <div id="ps-msg" style="font-size:0.8rem;margin-bottom:8px"></div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-green btn" id="ps-submit-btn" onclick="submitProcessorSale()">Log Sale to Converter</button>
-        <button class="btn" onclick="cancelDispatchForm()">Cancel</button>
-      </div>
-    </div>
-    <div id="procSalesList" style="margin-top:16px"></div>
   </div>
 
   <!-- RATE AGGREGATORS -->
