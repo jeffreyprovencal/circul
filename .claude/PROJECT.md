@@ -372,3 +372,68 @@ Comprehensive live audit of circul.polsia.app found 20 bugs (8 P0, 5 P1, 7 P2) a
 **Endpoint Status (tested March 30, 2026):**
 Working (200): /api/auth/login (all roles), /api/prices, /api/transactions, /api/listings, /api/listings/mine, /api/listings/locations, /api/offers/mine, /api/collectors/4/passport, /api/collector/me, /api/collector/stats, /api/collector/pl, /api/collector/top-buyers, /api/collector/transactions, /api/collector/prices, /api/aggregators/9/stats, /api/aggregators/9/expenses (GET), /api/expense-categories, /api/processors/1
 Broken: POST /api/pending-transactions (500/400), GET /api/pending-transactions (500), /api/pending-transactions/aggregator-sales (400), /api/pending-transactions/aggregator-purchase (404), POST /api/aggregators/:id/expenses (500), /api/collector/pending-purchases (500), /api/ratings/pending (500), /api/ratings/operator (404), /api/aggregators/:id/expense-categories (404)
+
+---
+
+## Audit Methodology — Mandatory Checklist
+
+Every re-audit MUST follow this checklist. A 200 status code on page load
+does NOT mean the feature works. You must test every user interaction.
+
+### Per-Dashboard Checklist:
+1. Log in with the demo account
+2. Capture console errors (open DevTools → Console BEFORE page load)
+3. Capture network requests (open DevTools → Network BEFORE page load)
+4. For EVERY section on the dashboard:
+   a. Scroll to it — does it render? Is data populated?
+   b. Click every button — does the handler fire?
+   c. Submit every form — does the POST succeed? Does the UI update?
+   d. Check every dropdown/select — are options populated?
+   e. Check every modal — does it open AND close?
+   f. Check every pill/tab switcher — does the view change?
+5. For EVERY API call captured in Network tab:
+   a. Check status code (200/201 = ok, anything else = bug)
+   b. Check response body — is it empty when it shouldn't be?
+   c. Check request body — are the field names correct?
+6. After testing all interactions, check console for NEW errors
+   that appeared during interaction (not just page load)
+
+### Bug Classification:
+- "Server 500" = SQL column mismatch, missing route, or query error
+- "Unresponsive button" = Missing onclick handler, wrong element ID, or
+  JS error swallowed by try/catch
+- "Form error" = Frontend sending wrong field names, or server validation
+  rejecting correct data
+- "Empty section" = API returns data but rendering function has a bug,
+  OR API returns empty because of WHERE clause filtering too aggressively
+
+### Common Pitfalls:
+- Fixing the MAIN route but not the SUB-ROUTES (same handler pattern,
+  separate code paths — must fix ALL of them)
+- Column name mismatches between tables (transactions vs pending_transactions)
+- Frontend apiFetch URL prefix — some dashboards prepend /api/, some don't
+- Modal show/hide class mismatches (hidden vs active vs show)
+- scrollIntoView missing after dynamically showing a form
+
+---
+
+## Production Error Logging
+
+Circul uses a lightweight error logging system to capture frontend and backend
+errors from live users. Errors are stored in the error_log table and reviewed
+in daily sessions.
+
+### Table: error_log
+- id SERIAL PRIMARY KEY
+- source VARCHAR(20) NOT NULL — 'frontend' or 'server'
+- dashboard VARCHAR(30) — 'collector', 'aggregator', 'processor', 'recycler', 'converter', or NULL for server
+- error_message TEXT NOT NULL
+- error_stack TEXT
+- url VARCHAR(500) — page URL or API endpoint
+- user_id INTEGER — authenticated user ID if available
+- user_role VARCHAR(20) — user role if available
+- created_at TIMESTAMPTZ DEFAULT NOW()
+
+### Frontend: window.onerror + unhandledrejection → POST /api/error-log
+### Backend: Express error middleware → INSERT into error_log
+### Review: GET /api/error-log?since=24h (admin-only, returns last 24h errors grouped by message)

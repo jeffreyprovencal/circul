@@ -451,6 +451,45 @@
 
 <script src="/shared/roles.js"></script>
 <script>
+// ── Production Error Logger ──
+(function() {
+  var DASHBOARD = document.title.split(' ')[0].toLowerCase();
+  var LOG_URL = '/api/error-log';
+  var seen = {};
+
+  function logError(msg, stack, url) {
+    var key = msg + (url || '');
+    if (seen[key]) return;
+    seen[key] = true;
+    try {
+      var token = localStorage.getItem('circul_token');
+      var headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      fetch(LOG_URL, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          source: 'frontend',
+          dashboard: DASHBOARD,
+          error_message: String(msg).substring(0, 2000),
+          error_stack: String(stack || '').substring(0, 5000),
+          url: url || location.href
+        })
+      }).catch(function() {});
+    } catch(e) { /* swallow */ }
+  }
+
+  window.onerror = function(msg, src, line, col, err) {
+    logError(msg, err && err.stack ? err.stack : (src + ':' + line + ':' + col), src);
+  };
+  window.addEventListener('unhandledrejection', function(e) {
+    logError(
+      e.reason && e.reason.message ? e.reason.message : String(e.reason),
+      e.reason && e.reason.stack ? e.reason.stack : '',
+      location.href
+    );
+  });
+})();
 
 var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];

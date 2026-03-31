@@ -3307,4 +3307,91 @@ setInterval(runDiscoveryCrons, 60 * 60 * 1000);
 // Run once on startup after a short delay
 setTimeout(runDiscoveryCrons, 10000);
 
+// ── Production Error Logging ──
+
+app.post('/api/error-log', async (req, res) => {
+  try {
+    const { source, dashboard, error_message, error_stack, url } = req.body;
+    if (!error_message) return res.status(400).json({ error: 'error_message required' });
+
+    // Extract user info from token if present (but don't require it)
+    let user_id = null, user_role = null;
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      if (token) {
+        const decoded = verifyToken(token, AUTH_SECRET);
+        user_id = decoded.id;
+        user_role = decoded.role;
+      }
+    } catch (e) { /* token invalid or missing — that's fine */ }
+
+    await pool.query(
+      `INSERT INTO error_log (source, dashboard, error_message, error_stack, url, user_id, user_role)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [source || 'frontend', dashboard || null, (error_message || '').substring(0, 2000),
+       (error_stack || '').substring(0, 5000), (url || '').substring(0, 500),
+       user_id, user_role]
+    );
+
+    // Spike alert via ntfy.sh — check if errors are spiking (>5 distinct errors in last 10 min)
+    if (!global._lastAlertAt || Date.now() - global._lastAlertAt > 10 * 60 * 1000) {
+      try {
+        const spike = await pool.query(
+          `SELECT COUNT(DISTINCT error_message) as cnt
+           FROM error_log WHERE created_at > NOW() - INTERVAL '10 minutes'`
+        );
+        if (parseInt(spike.rows[0].cnt) >= 5) {
+          global._lastAlertAt = Date.now();
+          fetch('https://ntfy.sh/' + (process.env.NTFY_TOPIC || 'circul-errors'), {
+            method: 'POST',
+            headers: { 'Title': 'Circul Error Spike', 'Priority': 'high', 'Tags': 'warning' },
+            body: spike.rows[0].cnt + ' distinct errors in the last 10 min on '
+                  + (dashboard || source || 'unknown') + '. Check /api/error-log?since=10m'
+          }).catch(() => {});
+        }
+      } catch(e) { /* alert check failed — don't block the response */ }
+    }
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Error logging failed:', e.message);
+    res.status(500).json({ error: 'logging failed' });
+  }
+});
+
+app.get('/api/error-log', requireAuth, async (req, res) => {
+  try {
+    const since = req.query.since || '24h';
+    const intervals = { '10m': '10 minutes', '1h': '1 hour', '6h': '6 hours', '24h': '24 hours', '48h': '48 hours', '7d': '7 days' };
+    const interval = intervals[since] || '24 hours';
+    const result = await pool.query(
+      `SELECT source, dashboard, error_message, COUNT(*) as count,
+              MAX(created_at) as last_seen, MIN(created_at) as first_seen
+       FROM error_log
+       WHERE created_at > NOW() - $1::interval
+       GROUP BY source, dashboard, error_message
+       ORDER BY count DESC
+       LIMIT 100`,
+      [interval]
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Express error-handling middleware — log server errors to error_log table
+app.use(async (err, req, res, next) => {
+  console.error('Server error:', err.message);
+  try {
+    await pool.query(
+      `INSERT INTO error_log (source, dashboard, error_message, error_stack, url)
+       VALUES ('server', NULL, $1, $2, $3)`,
+      [err.message?.substring(0, 2000), err.stack?.substring(0, 5000),
+       req.originalUrl?.substring(0, 500)]
+    );
+  } catch (logErr) { console.error('Error log insert failed:', logErr.message); }
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 app.listen(port, () => console.log(`Circul server running on port ${port}`));
