@@ -369,32 +369,15 @@ app.get('/api/collector/pending-purchases', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const id = req.user.id;
-    let rows;
-    try {
-      const result = await pool.query(
-        `SELECT pt.*, a.name as aggregator_name, a.company as aggregator_company,
-                'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display
-         FROM pending_transactions pt
-         LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id
-         WHERE pt.collector_id=$1 AND pt.transaction_type='aggregator_purchase' AND pt.status='pending'
-         ORDER BY pt.created_at DESC`, [id]
-      );
-      rows = result.rows;
-    } catch (colErr) {
-      if (colErr.message && colErr.message.includes('aggregator_operator_id')) {
-        console.warn('pending_transactions.aggregator_operator_id missing — retrying with aggregator_id');
-        const result = await pool.query(
-          `SELECT pt.*, a.name as aggregator_name, a.company as aggregator_company,
-                  'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display
-           FROM pending_transactions pt
-           LEFT JOIN aggregators a ON a.id=pt.aggregator_id
-           WHERE pt.collector_id=$1 AND pt.transaction_type='aggregator_purchase' AND pt.status='pending'
-           ORDER BY pt.created_at DESC`, [id]
-        );
-        rows = result.rows;
-      } else { throw colErr; }
-    }
-    res.json(rows);
+    const result = await pool.query(
+      `SELECT pt.*, a.name as aggregator_name, a.company as aggregator_company,
+              'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display
+       FROM pending_transactions pt
+       LEFT JOIN aggregators a ON a.id=pt.aggregator_id
+       WHERE pt.collector_id=$1 AND pt.transaction_type='aggregator_purchase' AND pt.status='pending'
+       ORDER BY pt.created_at DESC`, [id]
+    );
+    res.json(result.rows);
   } catch (err) { console.error('GET /api/collector/pending-purchases error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -594,7 +577,7 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       pool.query(`SELECT c.id, c.first_name, c.last_name, c.phone, c.average_rating, c.city, 'C-' || LPAD(c.id::text, 4, '0') AS display_name, SUM(t.net_weight_kg) as total_kg, COUNT(t.id) as txns FROM collectors c JOIN transactions t ON t.collector_id=c.id WHERE t.aggregator_id=$1 GROUP BY c.id ORDER BY total_kg DESC LIMIT 20`, [id]),
       pool.query(`SELECT * FROM posted_prices WHERE poster_type='aggregator' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
       pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_type='aggregator' AND rated_id=$1`, [id]).catch(() => ({ rows: [{ avg_rating: null, count: 0 }] })),
-      pool.query(`SELECT COALESCE(SUM(total_price),0) as total_sold, COALESCE(SUM(CASE WHEN created_at >= $2 THEN total_price ELSE 0 END),0) as month_sold FROM pending_transactions WHERE aggregator_operator_id=$1 AND transaction_type='aggregator_sale' AND status IN ('dispatch_approved','arrived','completed')`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ total_sold: 0, month_sold: 0 }] }))
+      pool.query(`SELECT COALESCE(SUM(total_price),0) as total_sold, COALESCE(SUM(CASE WHEN created_at >= $2 THEN total_price ELSE 0 END),0) as month_sold FROM pending_transactions WHERE aggregator_id=$1 AND transaction_type='aggregator_sale' AND status IN ('dispatch_approved','arrived','completed')`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ total_sold: 0, month_sold: 0 }] }))
     ]);
 
     // ── P&L data (month-over-month) ──────────────────────────
@@ -608,7 +591,7 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       // Revenue this month (aggregator sales to processors)
       pool.query(
         `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
-         WHERE aggregator_operator_id=$1 AND transaction_type='aggregator_sale'
+         WHERE aggregator_id=$1 AND transaction_type='aggregator_sale'
            AND status IN ('dispatch_approved','arrived','completed')
            AND created_at >= $2`,
         [id, plThisStart]
@@ -616,7 +599,7 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
       // Revenue last month
       pool.query(
         `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
-         WHERE aggregator_operator_id=$1 AND transaction_type='aggregator_sale'
+         WHERE aggregator_id=$1 AND transaction_type='aggregator_sale'
            AND status IN ('dispatch_approved','arrived','completed')
            AND created_at >= $2 AND created_at < $3`,
         [id, plLastStart, plThisStart]
@@ -1092,10 +1075,10 @@ app.delete('/api/listings/:id', requireAuth, async (req, res) => {
 function ptColForRole(role) {
   switch (role) {
     case 'collector':  return 'collector_id';
-    case 'aggregator': return 'aggregator_operator_id';
-    case 'processor':  return 'processor_buyer_id';
+    case 'aggregator': return 'aggregator_id';
+    case 'processor':  return 'processor_id';
     case 'recycler':   return 'recycler_id';
-    case 'converter':  return 'converter_buyer_id';
+    case 'converter':  return 'converter_id';
     default: return null;
   }
 }
@@ -1251,8 +1234,8 @@ app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
       if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
       if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(offer.buyer_id); }
       else if (buyerCol && buyerCol === sellerCol) {
-        // Same column (e.g. aggregator buying from collector — aggregator_operator_id is the buyer)
-        // seller is collector_id, buyer is aggregator_operator_id — no conflict
+        // Same column (e.g. aggregator buying from collector — aggregator_id is the buyer)
+        // seller is collector_id, buyer is aggregator_id — no conflict
         cols.push(buyerCol); vals.push(offer.buyer_id);
       }
       const placeholders = vals.map((_, i) => '$' + (i + 1)).join(', ');
@@ -1418,8 +1401,8 @@ app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
               AVG(pt.price_per_kg) AS avg_price,
               COUNT(*) AS transaction_count
        FROM pending_transactions pt
-       LEFT JOIN processors p ON p.id = pt.processor_buyer_id
-       WHERE pt.aggregator_operator_id = $1 AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $3
+       LEFT JOIN processors p ON p.id = pt.processor_id
+       WHERE pt.aggregator_id = $1 AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $3
        GROUP BY 1, 2 ORDER BY ytd_kg DESC LIMIT 5`,
       [aggId, since, new Date(new Date().getFullYear(), 0, 1).toISOString()]
     );
@@ -1470,25 +1453,12 @@ app.get('/api/processors/:id/stats', async (req, res) => {
     if (!pr.rows.length) return res.status(404).json({ success: false, message: 'Processor not found' });
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
 
-    let totals, monthlyTotals, inboundPending, postedPrices;
-    try {
-      [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
-        pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE processor_buyer_id=$1 AND transaction_type='aggregator_sale'`, [id]),
-        pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE processor_buyer_id=$1 AND transaction_type='aggregator_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
-        pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE processor_buyer_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='aggregator_sale'`, [id]),
-        pool.query(`SELECT * FROM posted_prices WHERE poster_type='processor' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
-      ]);
-    } catch (colErr) {
-      if (colErr.message && colErr.message.includes('processor_buyer_id')) {
-        console.warn('processor_buyer_id missing — retrying with processor_id');
-        [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
-          pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE processor_id=$1 AND transaction_type='aggregator_sale'`, [id]),
-          pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE processor_id=$1 AND transaction_type='aggregator_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
-          pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE processor_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='aggregator_sale'`, [id]),
-          pool.query(`SELECT * FROM posted_prices WHERE poster_type='processor' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
-        ]);
-      } else { throw colErr; }
-    }
+    const [totals, monthlyTotals, inboundPending, postedPrices] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE processor_id=$1 AND transaction_type='aggregator_sale'`, [id]),
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE processor_id=$1 AND transaction_type='aggregator_sale' AND created_at>=$2`, [id, thisMonth.toISOString()]),
+      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE processor_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type='aggregator_sale'`, [id]),
+      pool.query(`SELECT * FROM posted_prices WHERE poster_type='processor' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] }))
+    ]);
 
     res.json({
       success: true, buyer: pr.rows[0],
@@ -1510,8 +1480,8 @@ app.get('/api/processor/top-suppliers', async (req, res) => {
       `SELECT COALESCE(a.company, a.name, 'Unknown') AS name, 'aggregator' AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
-       LEFT JOIN aggregators a ON a.id = pt.aggregator_operator_id
-       WHERE pt.processor_buyer_id IS NOT NULL AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $1
+       LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+       WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $1
        GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
       [since]
     );
@@ -1533,9 +1503,9 @@ app.get('/api/processor/top-buyers', async (req, res) => {
               CASE WHEN pt.recycler_id IS NOT NULL THEN 'recycler' ELSE 'converter' END AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
-       LEFT JOIN converters c ON c.id = pt.converter_buyer_id
+       LEFT JOIN converters c ON c.id = pt.converter_id
        LEFT JOIN recyclers r ON r.id = pt.recycler_id
-       WHERE pt.processor_buyer_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
+       WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
        GROUP BY 1, 2 ORDER BY volume DESC LIMIT 5`,
       [since]
     );
@@ -1556,10 +1526,10 @@ app.get('/api/processor/transactions', requireAuth, async (req, res) => {
               COALESCE(a.company, a.name, 'Unknown') AS aggregator_name,
               COALESCE(c.company, c.name, r.company, r.name, 'Unknown') AS buyer_name
        FROM pending_transactions pt
-       LEFT JOIN aggregators a ON a.id = pt.aggregator_operator_id
-       LEFT JOIN converters c ON c.id = pt.converter_buyer_id
+       LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+       LEFT JOIN converters c ON c.id = pt.converter_id
        LEFT JOIN recyclers r ON r.id = pt.recycler_id
-       WHERE pt.processor_buyer_id = $1
+       WHERE pt.processor_id = $1
        ORDER BY pt.created_at DESC LIMIT 30`,
       [procId]
     );
@@ -1577,8 +1547,8 @@ app.get('/api/recycler/transactions', requireAuth, async (req, res) => {
               COALESCE(p.company, p.name, 'Unknown') AS processor_name,
               COALESCE(c.company, c.name, 'Unknown') AS converter_name
        FROM pending_transactions pt
-       LEFT JOIN processors p ON p.id = pt.processor_buyer_id
-       LEFT JOIN converters c ON c.id = pt.converter_buyer_id
+       LEFT JOIN processors p ON p.id = pt.processor_id
+       LEFT JOIN converters c ON c.id = pt.converter_id
        WHERE pt.recycler_id = $1
        ORDER BY pt.created_at DESC LIMIT 30`,
       [recId]
@@ -1638,9 +1608,9 @@ app.get('/api/converters/:id/stats', async (req, res) => {
       Promise.resolve({ rows: [{ total_kg: 0, total_value: 0, total_txns: 0 }] }),
       Promise.resolve({ rows: [{ month_kg: 0, month_value: 0, month_txns: 0 }] }),
       // Query pending_transactions for converter trades
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_buyer_id=$1 AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ total_kg: 0, total_value: 0, total_txns: 0 }] })),
-      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_buyer_id=$1 AND transaction_type IN ('processor_sale','recycler_sale') AND created_at>=$2`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ month_kg: 0, month_value: 0, month_txns: 0 }] })),
-      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_buyer_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ count: 0, value: 0 }] })),
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as total_value, COUNT(*) as total_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ total_kg: 0, total_value: 0, total_txns: 0 }] })),
+      pool.query(`SELECT COALESCE(SUM(gross_weight_kg),0) as month_kg, COALESCE(SUM(total_price),0) as month_value, COUNT(*) as month_txns FROM pending_transactions WHERE converter_id=$1 AND transaction_type IN ('processor_sale','recycler_sale') AND created_at>=$2`, [id, thisMonth.toISOString()]).catch(() => ({ rows: [{ month_kg: 0, month_value: 0, month_txns: 0 }] })),
+      pool.query(`SELECT COUNT(*) as count, COALESCE(SUM(total_price),0) as value FROM pending_transactions WHERE converter_id=$1 AND status IN ('pending','dispatch_approved') AND transaction_type IN ('processor_sale','recycler_sale')`, [id]).catch(() => ({ rows: [{ count: 0, value: 0 }] })),
       pool.query(`SELECT * FROM posted_prices WHERE poster_type='converter' AND poster_id=$1 AND is_active=true ORDER BY material_type`, [id]).catch(() => ({ rows: [] })),
       pool.query(`SELECT COUNT(*) as total_orders, COUNT(*) FILTER (WHERE status='open') as open_orders, COALESCE(SUM(fulfilled_kg),0) as fulfilled_kg FROM orders WHERE buyer_id=$1`, [id]).catch(() => ({ rows: [{ total_orders: 0, open_orders: 0, fulfilled_kg: 0 }] }))
     ]);
@@ -1679,9 +1649,9 @@ app.get('/api/converter/top-suppliers', async (req, res) => {
          SUM(pt.gross_weight_kg) AS volume,
          AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
-       LEFT JOIN processors p ON p.id = pt.processor_buyer_id
+       LEFT JOIN processors p ON p.id = pt.processor_id
        LEFT JOIN recyclers r ON r.id = pt.recycler_id
-       WHERE pt.converter_buyer_id IS NOT NULL
+       WHERE pt.converter_id IS NOT NULL
          AND pt.transaction_type IN ('processor_sale','recycler_sale')
          AND pt.created_at >= $1
        GROUP BY 1, 2
@@ -1760,7 +1730,7 @@ app.get('/api/recycler/top-suppliers', async (req, res) => {
       `SELECT COALESCE(p.company, p.name, 'Unknown') AS name, 'processor' AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
-       LEFT JOIN processors p ON p.id = pt.processor_buyer_id
+       LEFT JOIN processors p ON p.id = pt.processor_id
        WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
        GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
       [since]
@@ -1782,7 +1752,7 @@ app.get('/api/recycler/top-buyers', async (req, res) => {
       `SELECT COALESCE(c.company, c.name, 'Unknown') AS name, 'converter' AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
-       LEFT JOIN converters c ON c.id = pt.converter_buyer_id
+       LEFT JOIN converters c ON c.id = pt.converter_id
        WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'recycler_sale' AND pt.created_at >= $1
        GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
       [since]
@@ -1947,24 +1917,23 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
 
     // Map role → which column in pending_transactions identifies this user,
     // and which column/table identifies the counterparty they should rate
-    // Primary columns match the original migration; fallback matches the restructure migration
     const ROLE_MAP = {
-      collector:  { myCol: 'collector_id',           peerCol: 'aggregator_operator_id', peerTable: 'aggregators',  peerName: 'name',                          myColAlt: 'collector_id',  peerColAlt: 'aggregator_id' },
-      aggregator: { myCol: 'aggregator_operator_id', peerCol: 'collector_id',           peerTable: 'collectors',   peerName: "first_name || ' ' || last_name", myColAlt: 'aggregator_id', peerColAlt: 'collector_id' },
-      processor:  { myCol: 'processor_buyer_id',     peerCol: 'aggregator_operator_id', peerTable: 'aggregators',  peerName: 'name',                          myColAlt: 'processor_id',  peerColAlt: 'aggregator_id' },
-      recycler:   { myCol: 'recycler_id',            peerCol: 'processor_buyer_id',     peerTable: 'processors',   peerName: 'name',                          myColAlt: 'recycler_id',   peerColAlt: 'processor_id' },
-      converter:  { myCol: 'converter_buyer_id',     peerCol: 'processor_buyer_id',     peerTable: 'processors',   peerName: 'name',                          myColAlt: 'converter_id',  peerColAlt: 'processor_id' },
+      collector:  { myCol: 'collector_id',  peerCol: 'aggregator_id', peerTable: 'aggregators', peerName: 'name' },
+      aggregator: { myCol: 'aggregator_id', peerCol: 'collector_id',  peerTable: 'collectors',  peerName: "first_name || ' ' || last_name" },
+      processor:  { myCol: 'processor_id',  peerCol: 'aggregator_id', peerTable: 'aggregators', peerName: 'name' },
+      recycler:   { myCol: 'recycler_id',   peerCol: 'processor_id',  peerTable: 'processors',  peerName: 'name' },
+      converter:  { myCol: 'converter_id',  peerCol: 'processor_id',  peerTable: 'processors',  peerName: 'name' },
     };
     const cfg = ROLE_MAP[role];
     if (!cfg) return res.json({ success: true, pending: [] });
 
-    function buildPendingRatingQuery(myCol, peerCol) {
-      return `SELECT pt.id AS txn_id, pt.material_type, pt.gross_weight_kg, pt.created_at,
-              pt.${peerCol} AS peer_id,
+    const rows = await pool.query(
+      `SELECT pt.id AS txn_id, pt.material_type, pt.gross_weight_kg, pt.created_at,
+              pt.${cfg.peerCol} AS peer_id,
               p.${cfg.peerName} AS peer_name
        FROM pending_transactions pt
-       LEFT JOIN ${cfg.peerTable} p ON p.id = pt.${peerCol}
-       WHERE pt.${myCol} = $1
+       LEFT JOIN ${cfg.peerTable} p ON p.id = pt.${cfg.peerCol}
+       WHERE pt.${cfg.myCol} = $1
          AND pt.status IN ('completed','confirmed')
          AND pt.created_at > NOW() - INTERVAL '30 days'
          AND NOT EXISTS (
@@ -1974,18 +1943,9 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
              AND r.rater_id = $1
          )
        ORDER BY pt.created_at DESC
-       LIMIT 5`;
-    }
-
-    let rows;
-    try {
-      rows = await pool.query(buildPendingRatingQuery(cfg.myCol, cfg.peerCol), [userId, role]);
-    } catch (colErr) {
-      if (colErr.message && (colErr.message.includes('column') || colErr.message.includes('does not exist'))) {
-        console.warn('ratings/pending column fallback — retrying with alternate column names');
-        rows = await pool.query(buildPendingRatingQuery(cfg.myColAlt, cfg.peerColAlt), [userId, role]);
-      } else { throw colErr; }
-    }
+       LIMIT 5`,
+      [userId, role]
+    );
     res.json({ success: true, pending: rows.rows });
   } catch (err) {
     console.error('GET /api/ratings/pending error:', err.message);
@@ -2109,9 +2069,9 @@ app.post('/api/pending-transactions', async (req, res) => {
 
     // Map param names to correct pending_transactions column names
     const collectorId = b.collector_id || null;
-    const aggId = b.aggregator_operator_id || b.aggregator_id || null;
-    const procId = b.processor_buyer_id || b.processor_id || null;
-    const convId = b.converter_buyer_id || b.converter_id || null;
+    const aggId = b.aggregator_id || b.aggregator_id || null;
+    const procId = b.processor_id || b.processor_id || null;
+    const convId = b.converter_id || b.converter_id || null;
     const recyclerId = b.recycler_id || null;
     const material_type = b.material_type;
     const price_per_kg = b.price_per_kg;
@@ -2127,16 +2087,16 @@ app.post('/api/pending-transactions', async (req, res) => {
     // Per-type validation
     if (transaction_type === 'collector_sale' || transaction_type === 'aggregator_purchase') {
       if (!collectorId) return res.status(400).json({ success: false, message: 'collector_id is required for ' + transaction_type });
-      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id or aggregator_operator_id is required for ' + transaction_type });
+      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id or aggregator_id is required for ' + transaction_type });
     } else if (transaction_type === 'aggregator_sale') {
-      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id or aggregator_operator_id is required for aggregator_sale' });
+      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id or aggregator_id is required for aggregator_sale' });
       if (!procId && !convId) return res.status(400).json({ success: false, message: 'processor_id or converter_id is required for aggregator_sale' });
     } else if (transaction_type === 'processor_sale') {
-      if (!procId) return res.status(400).json({ success: false, message: 'processor_id or processor_buyer_id is required for processor_sale' });
+      if (!procId) return res.status(400).json({ success: false, message: 'processor_id or processor_id is required for processor_sale' });
       if (!convId && !recyclerId) return res.status(400).json({ success: false, message: 'converter_id or recycler_id is required for processor_sale' });
     } else if (transaction_type === 'recycler_sale') {
       if (!recyclerId) return res.status(400).json({ success: false, message: 'recycler_id is required for recycler_sale' });
-      if (!convId) return res.status(400).json({ success: false, message: 'converter_id or converter_buyer_id is required for recycler_sale' });
+      if (!convId) return res.status(400).json({ success: false, message: 'converter_id or converter_id is required for recycler_sale' });
     }
 
     // Resolve price
@@ -2150,7 +2110,7 @@ app.post('/api/pending-transactions', async (req, res) => {
     const totalPrice = pricePer !== null ? parseFloat((kg * pricePer).toFixed(2)) : null;
 
     const result = await pool.query(
-      `INSERT INTO pending_transactions (transaction_type, collector_id, aggregator_operator_id, processor_buyer_id, converter_buyer_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, status, notes)
+      `INSERT INTO pending_transactions (transaction_type, collector_id, aggregator_id, processor_id, converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, status, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11) RETURNING *`,
       [transaction_type, collectorId, aggId, procId, convId, recyclerId, material_type.toUpperCase(), kg, pricePer, totalPrice, b.notes || null]
     );
@@ -2161,23 +2121,23 @@ app.post('/api/pending-transactions', async (req, res) => {
 app.get('/api/pending-transactions', async (req, res) => {
   try {
     var collector_id = req.query.collector_id;
-    var aggregator_id = req.query.aggregator_id || req.query.aggregator_operator_id;
-    var processor_id = req.query.processor_id || req.query.processor_buyer_id;
-    var converter_id = req.query.converter_id || req.query.converter_buyer_id;
+    var aggregator_id = req.query.aggregator_id;
+    var processor_id = req.query.processor_id || req.query.processor_id;
+    var converter_id = req.query.converter_id || req.query.converter_id;
     var type = req.query.type;
     if (!collector_id && !aggregator_id && !processor_id && !converter_id) return res.status(400).json({ success: false, message: 'collector_id, aggregator_id, processor_id, or converter_id required' });
     let query, params;
     if (collector_id) {
-      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id WHERE pt.collector_id=$1 AND pt.status='pending' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.collector_id=$1 AND pt.status='pending' ORDER BY pt.created_at DESC`;
       params = [collector_id];
     } else if (processor_id) {
-      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id WHERE pt.processor_buyer_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [processor_id];
     } else if (type === 'aggregator_sale') {
-      query = `SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_buyer_id WHERE pt.aggregator_operator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     } else {
-      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_operator_id=$1 AND pt.status='pending' AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     }
     const result = await pool.query(query, params);
@@ -2189,25 +2149,25 @@ app.get('/api/pending-transactions/collector-sales', async (req, res) => {
   try {
     const { collector_id } = req.query;
     if (!collector_id) return res.status(400).json({ success: false, message: 'collector_id required' });
-    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, t.price_per_kg AS final_price_per_kg, t.total_price AS final_total_price FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id LEFT JOIN transactions t ON t.id=pt.transaction_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
+    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, t.price_per_kg AS final_price_per_kg, t.total_price AS final_total_price FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id LEFT JOIN transactions t ON t.id=pt.transaction_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/collector-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.get('/api/pending-transactions/aggregator-sales', async (req, res) => {
   try {
-    var aggregator_id = req.query.aggregator_id || req.query.aggregator_operator_id;
+    var aggregator_id = req.query.aggregator_id;
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id required' });
-    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, p.name AS processor_name, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_buyer_id LEFT JOIN converters c ON c.id=pt.converter_buyer_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_operator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
+    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, p.name AS processor_name, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/aggregator-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.get('/api/pending-transactions/aggregator-purchases', async (req, res) => {
   try {
-    var aggregator_id = req.query.aggregator_id || req.query.aggregator_operator_id;
+    var aggregator_id = req.query.aggregator_id;
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id required' });
-    var result = await pool.query(`SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_operator_id=$1 AND pt.collector_id IS NOT NULL AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
+    var result = await pool.query(`SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.collector_id IS NOT NULL AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/aggregator-purchases error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2241,13 +2201,13 @@ app.patch('/api/pending-transactions/:id/review', async (req, res) => {
     if (price_per_kg !== undefined && price_per_kg !== null && !isNaN(parseFloat(price_per_kg))) {
       basePricePerKg = parseFloat(price_per_kg);
     } else {
-      const postedResult = await pool.query(`SELECT price_per_kg_ghs FROM posted_prices WHERE poster_type='aggregator' AND poster_id=$1 AND material_type=$2 AND is_active=true ORDER BY posted_at DESC LIMIT 1`, [pt.aggregator_operator_id, pt.material_type]);
+      const postedResult = await pool.query(`SELECT price_per_kg_ghs FROM posted_prices WHERE poster_type='aggregator' AND poster_id=$1 AND material_type=$2 AND is_active=true ORDER BY posted_at DESC LIMIT 1`, [pt.aggregator_id, pt.material_type]);
       basePricePerKg = postedResult.rows.length ? parseFloat(postedResult.rows[0].price_per_kg_ghs) : parseFloat(pt.price_per_kg||0);
     }
     const multiplier = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
     const adjustedPrice = parseFloat((basePricePerKg * multiplier).toFixed(2));
     const totalPrice = parseFloat((adjustedPrice * parseFloat(pt.gross_weight_kg)).toFixed(2));
-    const txnResult = await pool.query(`INSERT INTO transactions (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg, contamination_deduction_percent, price_per_kg, total_price, payment_status, notes) VALUES ($1,$2,$3,$4,$4,0,$5,$6,'unpaid',$7) RETURNING *`, [pt.collector_id, pt.aggregator_operator_id, pt.material_type, pt.gross_weight_kg, adjustedPrice, totalPrice, 'grade:'+grade]);
+    const txnResult = await pool.query(`INSERT INTO transactions (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg, contamination_deduction_percent, price_per_kg, total_price, payment_status, notes) VALUES ($1,$2,$3,$4,$4,0,$5,$6,'unpaid',$7) RETURNING *`, [pt.collector_id, pt.aggregator_id, pt.material_type, pt.gross_weight_kg, adjustedPrice, totalPrice, 'grade:'+grade]);
     const updatedPt = await pool.query(`UPDATE pending_transactions SET status='confirmed', grade=$1, grade_notes=$2, transaction_id=$3, updated_at=NOW() WHERE id=$4 RETURNING *`, [grade, grade_notes||null, txnResult.rows[0].id, id]);
     return res.json({ success: true, pending_transaction: updatedPt.rows[0], transaction: txnResult.rows[0], final_price_per_kg: adjustedPrice });
   } catch (err) { console.error('Review pending transaction error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
@@ -2265,7 +2225,7 @@ app.post('/api/pending-transactions/aggregator-purchase', async (req, res) => {
     if (!collCheck.rows.length) return res.status(400).json({ success: false, message: 'Collector not found' });
     const pricePer = price_per_kg ? parseFloat(price_per_kg) : 0;
     const totalPrice = parseFloat((kg * pricePer).toFixed(2));
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, collector_id, aggregator_operator_id, material_type, gross_weight_kg, price_per_kg, total_price, status) VALUES ('aggregator_purchase',$1,$2,$3,$4,$5,$6,'pending') RETURNING *`, [collector_id, aggregator_id, material_type.toUpperCase(), kg, pricePer, totalPrice]);
+    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, collector_id, aggregator_id, material_type, gross_weight_kg, price_per_kg, total_price, status) VALUES ('aggregator_purchase',$1,$2,$3,$4,$5,$6,'pending') RETURNING *`, [collector_id, aggregator_id, material_type.toUpperCase(), kg, pricePer, totalPrice]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { console.error('Aggregator purchase error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2285,7 +2245,7 @@ app.post('/api/pending-transactions/aggregator-sale', async (req, res) => {
     const totalPrice = parseFloat((kg * price).toFixed(2));
     const photosRequired = kg > 500;
     const dispatchApproved = photosRequired ? false : true;
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_operator_id, processor_buyer_id, converter_buyer_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,'pending',$8,false,$9,$10,$11) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, photo_urls||[], notes||null]);
+    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_id, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,'pending',$8,false,$9,$10,$11) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, photo_urls||[], notes||null]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0], photos_required: photosRequired });
   } catch (err) { console.error('Aggregator sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2293,7 +2253,7 @@ app.post('/api/pending-transactions/aggregator-sale', async (req, res) => {
 app.get('/api/pending-transactions/processor-queue', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_operator_id WHERE pt.processor_buyer_id=$1 AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Processor queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2307,7 +2267,7 @@ app.post('/api/pending-transactions/:id/dispatch-decision', requireAuth, async (
     const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id=$1`, [id]);
     if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
     const pt = ptResult.rows[0];
-    if (parseInt(pt.processor_buyer_id) !== parseInt(req.user.id)) return res.status(403).json({ success: false, message: 'Not authorised' });
+    if (parseInt(pt.processor_id) !== parseInt(req.user.id)) return res.status(403).json({ success: false, message: 'Not authorised' });
     if (pt.status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction is no longer pending' });
     if (decision === 'reject') {
       if (!rejection_reason?.trim()) return res.status(400).json({ success: false, message: 'Rejection reason is required' });
@@ -2320,7 +2280,7 @@ app.post('/api/pending-transactions/:id/dispatch-decision', requireAuth, async (
     const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_approved', dispatch_approved=true, dispatch_approved_at=NOW(), dispatch_approved_by_id=$1, dispatch_approved_by_type='processor', updated_at=NOW() WHERE id=$2 RETURNING *`, [req.user.id, id]);
     // Notify the sender (aggregator) that dispatch was approved
     try {
-      const aggRow = (await pool.query(`SELECT phone, name FROM aggregators WHERE id = $1`, [pt.aggregator_operator_id])).rows[0];
+      const aggRow = (await pool.query(`SELECT phone, name FROM aggregators WHERE id = $1`, [pt.aggregator_id])).rows[0];
       const procRow = (await pool.query(`SELECT name FROM processors WHERE id = $1`, [req.user.id])).rows[0];
       if (aggRow && aggRow.phone) {
         notify(EVENTS.DELIVERY_APPROVED, aggRow.phone, { receiver_name: procRow ? procRow.name : 'the processor', qty: pt.gross_weight_kg, material: pt.material_type });
@@ -2340,7 +2300,7 @@ app.post('/api/pending-transactions/:id/arrival-confirmation', requireAuth, asyn
     const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id=$1`, [id]);
     if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
     const pt = ptResult.rows[0];
-    if (parseInt(pt.processor_buyer_id) !== parseInt(req.user.id)) return res.status(403).json({ success: false, message: 'Not authorised' });
+    if (parseInt(pt.processor_id) !== parseInt(req.user.id)) return res.status(403).json({ success: false, message: 'Not authorised' });
     if (pt.status !== 'dispatch_approved') return res.status(400).json({ success: false, message: 'Dispatch must be approved before logging arrival' });
     const kg = parseFloat(actual_weight_kg);
     const basePrice = parseFloat(pt.price_per_kg||0);
@@ -2366,12 +2326,12 @@ app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, re
     if (recycler_id) {
       const recResult = await pool.query(`SELECT id FROM recyclers WHERE id=$1 AND is_active=true`, [recycler_id]);
       if (!recResult.rows.length) return res.status(400).json({ success: false, message: 'Recycler not found' });
-      const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_buyer_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, recycler_id, material_type, kg, price, kg*price, notes||null]);
+      const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, recycler_id, material_type, kg, price, kg*price, notes||null]);
       return res.status(201).json({ success: true, pending_transaction: result.rows[0] });
     }
     const convResult = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]);
     if (!convResult.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' });
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_buyer_id, converter_buyer_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
+    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { console.error('Processor sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2379,7 +2339,7 @@ app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, re
 app.get('/api/pending-transactions/processor-sales', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_buyer_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type='processor_sale' AND pt.processor_buyer_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type='processor_sale' AND pt.processor_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Get processor sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2389,7 +2349,7 @@ app.get('/api/pending-transactions/processor-sales', requireAuth, async (req, re
 app.get('/api/pending-transactions/recycler-queue', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
-    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_buyer_id WHERE pt.transaction_type='processor_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.transaction_type='processor_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Recycler queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2413,7 +2373,7 @@ app.post('/api/pending-transactions/:id/recycler-dispatch-decision', requireAuth
     const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_approved', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
     // Notify the sender (processor) that dispatch was approved
     try {
-      const procRow = (await pool.query(`SELECT phone, name FROM processors WHERE id = $1`, [pt.processor_buyer_id])).rows[0];
+      const procRow = (await pool.query(`SELECT phone, name FROM processors WHERE id = $1`, [pt.processor_id])).rows[0];
       const recRow = (await pool.query(`SELECT name FROM recyclers WHERE id = $1`, [req.user.id])).rows[0];
       if (procRow && procRow.phone) {
         notify(EVENTS.DELIVERY_APPROVED, procRow.phone, { receiver_name: recRow ? recRow.name : 'the recycler', qty: pt.gross_weight_kg, material: pt.material_type });
@@ -2458,7 +2418,7 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
     if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price' });
     const convResult = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]);
     if (!convResult.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' });
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, recycler_id, converter_buyer_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('recycler_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
+    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, recycler_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('recycler_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { console.error('Recycler sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2466,7 +2426,7 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
 app.get('/api/pending-transactions/recycler-sales', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
-    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_buyer_id WHERE pt.transaction_type='recycler_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='recycler_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Get recycler sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2477,7 +2437,7 @@ app.get('/api/pending-transactions/converter-queue', requireAuth, async (req, re
   try {
     if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
     const converterId = req.user.converter_id || req.user.id;
-    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_buyer_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type IN ('processor_sale','recycler_sale') AND pt.converter_buyer_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
+    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type IN ('processor_sale','recycler_sale') AND pt.converter_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Converter queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2492,7 +2452,7 @@ app.post('/api/pending-transactions/:id/converter-dispatch-decision', requireAut
     if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
     const pt = ptResult.rows[0];
     const converterId = req.user.converter_id || req.user.id;
-    if (parseInt(pt.converter_buyer_id) !== parseInt(converterId)) return res.status(403).json({ success: false, message: 'Not your delivery' });
+    if (parseInt(pt.converter_id) !== parseInt(converterId)) return res.status(403).json({ success: false, message: 'Not your delivery' });
     if (pt.status !== 'pending') return res.status(400).json({ success: false, message: 'Delivery is not in pending status' });
     if (decision === 'reject') {
       if (!rejection_reason?.trim()) return res.status(400).json({ success: false, message: 'rejection_reason required' });
@@ -2503,7 +2463,7 @@ app.post('/api/pending-transactions/:id/converter-dispatch-decision', requireAut
     // Notify the sender that dispatch was approved
     try {
       var senderTable = pt.recycler_id ? 'recyclers' : 'processors';
-      var senderId = pt.recycler_id || pt.processor_buyer_id;
+      var senderId = pt.recycler_id || pt.processor_id;
       var senderRow = (await pool.query(`SELECT phone, name FROM ${senderTable} WHERE id = $1`, [senderId])).rows[0];
       var convRow = (await pool.query(`SELECT name FROM converters WHERE id = $1`, [converterId])).rows[0];
       if (senderRow && senderRow.phone) {
@@ -2525,7 +2485,7 @@ app.post('/api/pending-transactions/:id/converter-arrival', requireAuth, async (
     if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
     const pt = ptResult.rows[0];
     const converterId = req.user.converter_id || req.user.id;
-    if (parseInt(pt.converter_buyer_id) !== parseInt(converterId)) return res.status(403).json({ success: false, message: 'Not your delivery' });
+    if (parseInt(pt.converter_id) !== parseInt(converterId)) return res.status(403).json({ success: false, message: 'Not your delivery' });
     if (pt.status !== 'dispatch_approved') return res.status(400).json({ success: false, message: 'Delivery must be in dispatch_approved status' });
     const totalPrice = kg * parseFloat(pt.price_per_kg);
     const updatedPt = await pool.query(`UPDATE pending_transactions SET status='arrived', gross_weight_kg=$1, total_price=$2, updated_at=NOW() WHERE id=$3 RETURNING *`, [kg, totalPrice, id]);

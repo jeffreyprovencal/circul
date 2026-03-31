@@ -205,18 +205,12 @@ Key principles that made prompts reliable:
 - **One commit per prompt** — keeps changes reviewable and rollback-friendly.
 - **Include verification steps** — `node -c server.js`, `grep` for orphaned references, etc.
 
-### Table Naming Mismatch: transactions vs pending_transactions (March 2026)
+### Column Naming Convention (March 2026)
 
-The two transaction tables use **different column naming conventions**:
+Both `transactions` and `pending_transactions` tables use the **SAME** column names:
+`collector_id`, `aggregator_id`, `processor_id`, `converter_id`
 
-| Role       | `transactions` column  | `pending_transactions` column |
-|------------|----------------------|-------------------------------|
-| Collector  | `collector_id`       | `collector_id`                |
-| Aggregator | `aggregator_id`      | `aggregator_operator_id`      |
-| Processor  | `processor_id`       | `processor_buyer_id`          |
-| Converter  | `converter_id`       | `converter_buyer_id`          |
-
-This caused the "converter_id does not exist" bug. Any future query touching `pending_transactions` must use the `_operator_id` / `_buyer_id` suffixed names. **Do not assume column names are the same across tables.**
+There is NO mismatch. The `_operator_` and `_buyer_` suffixes (e.g., `aggregator_operator_id`, `processor_buyer_id`) are relics from an old naming convention that was NEVER implemented in the database schema. All code must use the simple names above.
 
 ### FK References: aggregators vs operators (March 2026)
 
@@ -410,7 +404,7 @@ does NOT mean the feature works. You must test every user interaction.
 ### Common Pitfalls:
 - Fixing the MAIN route but not the SUB-ROUTES (same handler pattern,
   separate code paths — must fix ALL of them)
-- Column name mismatches between tables (transactions vs pending_transactions)
+- NEVER rename column references without checking the actual DB schema first
 - Frontend apiFetch URL prefix — some dashboards prepend /api/, some don't
 - Modal show/hide class mismatches (hidden vs active vs show)
 - scrollIntoView missing after dynamically showing a form
