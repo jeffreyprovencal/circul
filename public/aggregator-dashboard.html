@@ -914,7 +914,9 @@ var plExpandedRows = new Set();
 var plExpandedSubs = new Set();
 var plDeleteConfirm = null;
 
-async function loadPL(range) {
+var _plFailCount = 0;
+async function loadPL(range, manual) {
+  if (_plFailCount >= 3 && !manual) return; // stop auto-retrying after 3 failures
   var id = state.operator.id;
   try {
     var statsRes = await apiFetch('/api/aggregators/' + id + '/stats');
@@ -932,20 +934,14 @@ async function loadPL(range) {
     if (!expRes.ok) throw new Error(expRes.status);
     plExpenses = await expRes.json();
 
+    _plFailCount = 0; // reset on success
     renderPL();
   } catch (err) {
+    _plFailCount++;
     console.error('loadPL error:', err);
-    if (navigator.onLine) {
-      var plCard = document.getElementById('plCard');
-      if (plCard) {
-        var msg = plCard.querySelector('.empty');
-        if (!msg) {
-          var d = document.createElement('div');
-          d.className = 'empty';
-          d.innerHTML = '<p class="empty-action">Could not load P&amp;L data. Pull down to retry.</p>';
-          plCard.appendChild(d);
-        }
-      }
+    var plCard = document.getElementById('plCard');
+    if (plCard) {
+      plCard.innerHTML = '<div class="empty"><p class="empty-action">Unable to load P&amp;L data</p><p class="empty-hint">Please refresh the page to try again</p></div>';
     }
   }
 }
@@ -2731,7 +2727,7 @@ document.querySelectorAll('[data-pl-range]').forEach(function(btn) {
   btn.addEventListener('click', function() {
     document.querySelectorAll('[data-pl-range]').forEach(function(b) { b.classList.remove('active'); });
     btn.classList.add('active');
-    loadPL(btn.dataset.plRange);
+    loadPL(btn.dataset.plRange, true);
   });
 });
 
