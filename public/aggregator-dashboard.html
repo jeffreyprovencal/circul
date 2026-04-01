@@ -68,7 +68,7 @@
 <body>
 
 <!-- LOGIN OVERLAY -->
-<div class="login-overlay" id="loginOverlay">
+<div class="login-overlay hidden" id="loginOverlay">
   <div class="login-box">
     <div class="login-title">Sign in to Circul</div>
     <div class="login-sub">Aggregator access</div>
@@ -113,8 +113,8 @@
       </div>
     </div>
 
-    <!-- STATS -->
-    <div class="stats stats-3">
+    <!-- AT A GLANCE -->
+    <div class="stats stats-4">
       <div class="stat">
         <div class="stat-label">Volume Purchased</div>
         <div class="stat-val"><span id="statMonthKg">—</span> <small>kg this month</small></div>
@@ -124,16 +124,20 @@
         <div class="stat-val"><span id="statTotalKg">—</span> <small>kg since Jan</small></div>
       </div>
       <div class="stat">
+        <div class="stat-label">Pending</div>
+        <div class="stat-val" id="statPending">0</div>
+      </div>
+      <div class="stat">
         <div class="stat-label">Outstanding Payments</div>
         <div class="stat-val" id="statPendingVal">GH¢ 0.00</div>
       </div>
     </div>
 
-    <!-- TODAY'S WORK -->
+    <!-- INBOUND — COLLECTIONS -->
     <div class="section" id="incomingCard">
       <div class="section-head">
         <div>
-          <div class="section-title">Today's work</div>
+          <div class="section-title">Inbound — Collections</div>
         </div>
         <button class="btn-primary" onclick="toggleRegisterForm()">+ Register purchase</button>
       </div>
@@ -150,7 +154,33 @@
         <div class="form-grid" style="margin-bottom:12px;">
           <div class="form-group">
             <label class="form-label">Collector</label>
-            <select class="form-select" id="regCollector"><option value="">Select collector…</option></select>
+            <select class="form-select" id="regCollector" onchange="onRegCollectorChange()"><option value="">Select collector…</option></select>
+          </div>
+          <!-- Inline new collector registration (shown when "+ New Collector" selected) -->
+          <div id="newCollectorForm" class="hidden" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px;grid-column:1/-1">
+            <div style="font-weight:600;font-size:0.85rem;margin-bottom:12px;color:var(--accent)">Register new collector</div>
+            <div class="form-grid" style="margin-bottom:12px;">
+              <div class="form-group">
+                <label class="form-label">Full name</label>
+                <input class="form-input" type="text" id="newCollName" placeholder="e.g. Kofi Mensah">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone number</label>
+                <input class="form-input" type="tel" id="newCollPhone" placeholder="024XXXXXXX">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Region</label>
+                <select class="form-select" id="newCollRegion">
+                  <option value="">Select region…</option>
+                </select>
+              </div>
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-3);margin:-8px 0 14px;padding:6px 10px;background:rgba(255,215,64,0.06);border-radius:var(--r-sm)">Default PIN <strong style="color:#ffd740">0000</strong> will be assigned. Collector will be prompted to set their own PIN on first login.</div>
+            <div id="newCollMsg" class="hidden" style="margin-bottom:8px;"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-green" onclick="registerNewCollector()">Register &amp; select</button>
+              <button class="btn" onclick="cancelNewCollector()">Cancel</button>
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Material</label>
@@ -182,87 +212,28 @@
       </div>
     </div>
 
-    <!-- REGISTER A COLLECTOR (coming soon) -->
+    <!-- MY COLLECTORS (part of Inbound) -->
     <div class="section">
       <div class="section-head">
-        <div>
-          <div class="section-title">Register a collector</div>
-          <div class="section-sub">Onboard new collectors into your supply network</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="section-title">My collectors</div>
+          <span class="counter-badge" id="collectorCount"></span>
         </div>
       </div>
-      <div class="empty">
-        <p class="empty-action">Collector registration coming soon</p>
-        <p class="empty-hint">You will be able to register and onboard new collectors directly from your dashboard</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Location</th><th>Volume</th><th>Transactions</th><th>Rating</th><th></th></tr></thead>
+          <tbody id="collectorsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table>
       </div>
+      <div id="pendingBody"></div>
     </div>
 
-    <!-- TWO-COL: MY TOP SUPPLIERS & MY TOP BUYERS -->
-    <div class="two-col">
-
-      <!-- MY TOP SUPPLIERS -->
-      <div class="section">
-        <div class="section-head">
-          <div>
-            <div class="section-title">My top suppliers</div>
-          </div>
-          <div class="tabs">
-            <button class="tab" id="suppMonthBtn" onclick="switchTopSuppliers('month')">Month</button>
-            <button class="tab on" id="suppYTDBtn" onclick="switchTopSuppliers('ytd')">YTD</button>
-            <span class="view-all">View all</span>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>#</th><th>Collector</th><th>Volume YTD</th><th>Avg Paid</th><th>Transactions</th>
-            </tr></thead>
-            <tbody id="topSuppliersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- MY TOP BUYERS -->
-      <div class="section">
-        <div class="section-head">
-          <div>
-            <div class="section-title">My top buyers</div>
-          </div>
-          <div class="tabs">
-            <button class="tab" id="buyMonthBtn" onclick="switchTopBuyers('month')">Month</button>
-            <button class="tab on" id="buyYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
-            <span class="view-all">View all</span>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>#</th><th>Processor</th><th>Volume YTD</th><th>Avg Received</th><th>Transactions</th>
-            </tr></thead>
-            <tbody id="topBuyersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- POST PURCHASE PRICES -->
-    <div class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Post purchase prices</div>
-          <div class="section-sub">Current prices posted · GHS/kg</div>
-        </div>
-      </div>
-      <div class="price-grid" id="priceCards">
-        <!-- Rendered by renderPriceCards() -->
-      </div>
-    </div>
-
-    <!-- SEND BATCH TO A PROCESSOR -->
+    <!-- OUTBOUND — SALES -->
     <div class="section" id="sellCard">
       <div class="section-head">
         <div>
-          <div class="section-title">Send batch to a processor</div>
+          <div class="section-title">Outbound — Sales</div>
         </div>
         <button class="btn-submit" onclick="submitAggregatorSale()">Submit Sale</button>
       </div>
@@ -296,28 +267,190 @@
       <div id="sellMsg" class="hidden" style="margin-top:10px;"></div>
     </div>
 
-    <!-- MY COLLECTORS -->
-    <div class="section">
+    <!-- SALES HISTORY (part of Outbound) -->
+    <div class="section" id="myBatchSalesCard">
       <div class="section-head">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="section-title">My collectors</div>
-          <span class="counter-badge" id="collectorCount"></span>
+        <div>
+          <div class="section-title">Sales history</div>
         </div>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Name</th><th>Location</th><th>Volume</th><th>Transactions</th><th>Rating</th><th></th></tr></thead>
-          <tbody id="collectorsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
-        </table>
+      <div id="myBatchSalesList">
+        <div class="empty">No sales yet</div>
       </div>
-      <div id="pendingBody"></div>
     </div>
 
-    <!-- MY P&L -->
+    <!-- MARKETPLACE -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Marketplace — My Prices</div>
+          <div class="section-sub">Current prices posted · GHS/kg</div>
+        </div>
+      </div>
+      <div class="price-grid" id="priceCards">
+        <!-- Rendered by renderPriceCards() -->
+      </div>
+    </div>
+
+    <!-- MARKETPLACE — PROCESSOR BUYING PRICES -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Marketplace — Processor Buying Prices</div>
+          <div class="section-sub">What processors will pay for your materials</div>
+        </div>
+        <button class="btn" onclick="loadProcessorPrices()">Refresh</button>
+      </div>
+      <div id="processorPricesList">
+        <div class="empty">Loading processor prices...</div>
+      </div>
+    </div>
+
+    <!-- MY LISTINGS (part of Marketplace) -->
+    <div class="section" id="listings-section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Marketplace — My Listings</div>
+          <div class="section-sub">Post materials for sale on the marketplace</div>
+        </div>
+        <button class="btn btn-green" onclick="showCreateListing()">+ New Listing</button>
+      </div>
+
+      <div id="create-listing-form" class="hidden">
+        <div style="display:grid;gap:0.75rem;padding:1rem 0;">
+          <div>
+            <label class="form-label">Material Type</label>
+            <select id="listing-material" class="form-select">
+              <option value="PET">PET</option>
+              <option value="HDPE">HDPE</option>
+              <option value="LDPE">LDPE</option>
+              <option value="PP">PP</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Quantity (kg)</label>
+            <input type="number" id="listing-qty" class="form-input" min="500" step="0.01" placeholder="Minimum 500kg">
+            <small id="listing-qty-error" class="hidden" style="color:#ef5350;">Minimum quantity is 500kg for aggregators</small>
+          </div>
+          <div>
+            <label class="form-label">Price per kg (GH₵) — optional</label>
+            <input type="number" id="listing-price" class="form-input" step="0.01" placeholder="Leave blank for 'Make an offer'">
+          </div>
+          <div>
+            <label class="form-label">Location</label>
+            <input type="text" id="listing-location" class="form-input" placeholder="e.g. Accra, Kumasi">
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-green" onclick="submitListing()">Create Listing</button>
+            <button class="btn" onclick="hideCreateListing()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="my-listings-list">
+        <p style="color:var(--text-3);font-size:0.85rem;">Loading listings...</p>
+      </div>
+    </div>
+
+    <!-- DISCOVER MATERIALS (part of Marketplace) -->
+    <div class="section" id="discover-section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Marketplace — Discover</div>
+          <div class="section-sub">Browse collector listings and make offers</div>
+        </div>
+      </div>
+
+      <div class="discovery-filters">
+        <span class="pill pill-pet" onclick="toggleFilter('PET', this)">PET</span>
+        <span class="pill pill-hdpe" onclick="toggleFilter('HDPE', this)">HDPE</span>
+        <span class="pill pill-ldpe" onclick="toggleFilter('LDPE', this)">LDPE</span>
+        <span class="pill pill-pp" onclick="toggleFilter('PP', this)">PP</span>
+        <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
+        <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
+        <button class="btn" onclick="discSearch()">Search</button>
+      </div>
+
+      <div id="discover-listings">
+        <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
+      </div>
+
+      <div style="margin-top:1.5rem;">
+        <div class="section-title" style="font-size:0.9rem;">My Offers</div>
+        <div id="my-sent-offers">
+          <div class="empty"><p class="empty-action">Browse listings above and make an offer to get started</p><p class="empty-hint">Your sent offers and their status will appear here</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Transactions</div>
+          <div class="section-sub">Supplier and buyer summaries</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="date" id="tx-from" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
+          <span style="color:var(--text-3);font-size:0.75rem">to</span>
+          <input type="date" id="tx-to" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
+          <button class="btn btn-sm" onclick="exportToCSV('aggTxTables','circul-transactions')">↓ Export CSV</button>
+        </div>
+      </div>
+    </div>
+    <div class="two-col" id="aggTxTables">
+
+      <!-- TOP SUPPLIERS -->
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Suppliers</div>
+          </div>
+          <div class="tabs">
+            <button class="tab" id="suppMonthBtn" onclick="switchTopSuppliers('month')">Month</button>
+            <button class="tab on" id="suppYTDBtn" onclick="switchTopSuppliers('ytd')">YTD</button>
+            <span class="view-all">View all</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Collector</th><th>Volume YTD</th><th>Avg Paid</th><th>Transactions</th>
+            </tr></thead>
+            <tbody id="topSuppliersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TOP BUYERS -->
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Buyers</div>
+          </div>
+          <div class="tabs">
+            <button class="tab" id="buyMonthBtn" onclick="switchTopBuyers('month')">Month</button>
+            <button class="tab on" id="buyYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
+            <span class="view-all">View all</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Processor</th><th>Volume YTD</th><th>Avg Received</th><th>Transactions</th>
+            </tr></thead>
+            <tbody id="topBuyersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FINANCIALS -->
     <div class="section">
       <div class="pl-header">
         <div class="pl-header-left">
-          <h3>My P&amp;L</h3>
+          <h3>Financials</h3>
           <button class="btn-export" id="plExportBtn" title="Download as PDF">↓ PDF</button>
         </div>
         <div class="tab-toggle">
@@ -400,23 +533,11 @@
       </div>
     </div>
 
-    <!-- SALES HISTORY -->
-    <div class="section" id="myBatchSalesCard">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Sales history</div>
-        </div>
-      </div>
-      <div id="myBatchSalesList">
-        <div class="empty">No sales yet</div>
-      </div>
-    </div>
-
-    <!-- RATINGS FROM COLLECTORS -->
+    <!-- PROFILE -->
     <div class="section">
       <div class="section-head">
         <div>
-          <div class="section-title">Ratings from collectors</div>
+          <div class="section-title">Profile — Ratings</div>
         </div>
         <a id="ratingPill" class="rating-pill hidden" href="#" onclick="scrollToRating();return false;">
           <span class="dot"></span>
@@ -426,83 +547,6 @@
       </div>
       <div id="ratingsGiven"><div class="empty">No ratings yet</div></div>
       <div id="ratingsReceivedList"></div>
-    </div>
-
-    <!-- MY LISTINGS -->
-    <div class="section" id="listings-section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">My Listings</div>
-          <div class="section-sub">Post materials for sale on the marketplace</div>
-        </div>
-        <button class="btn btn-green" onclick="showCreateListing()">+ New Listing</button>
-      </div>
-
-      <div id="create-listing-form" class="hidden">
-        <div style="display:grid;gap:0.75rem;padding:1rem 0;">
-          <div>
-            <label class="form-label">Material Type</label>
-            <select id="listing-material" class="form-select">
-              <option value="PET">PET</option>
-              <option value="HDPE">HDPE</option>
-              <option value="LDPE">LDPE</option>
-              <option value="PP">PP</option>
-            </select>
-          </div>
-          <div>
-            <label class="form-label">Quantity (kg)</label>
-            <input type="number" id="listing-qty" class="form-input" min="500" step="0.01" placeholder="Minimum 500kg">
-            <small id="listing-qty-error" class="hidden" style="color:#ef5350;">Minimum quantity is 500kg for aggregators</small>
-          </div>
-          <div>
-            <label class="form-label">Price per kg (GH₵) — optional</label>
-            <input type="number" id="listing-price" class="form-input" step="0.01" placeholder="Leave blank for 'Make an offer'">
-          </div>
-          <div>
-            <label class="form-label">Location</label>
-            <input type="text" id="listing-location" class="form-input" placeholder="e.g. Accra, Kumasi">
-          </div>
-          <div style="display:flex;gap:0.5rem;">
-            <button class="btn btn-green" onclick="submitListing()">Create Listing</button>
-            <button class="btn" onclick="hideCreateListing()">Cancel</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="my-listings-list">
-        <p style="color:var(--text-3);font-size:0.85rem;">Loading listings...</p>
-      </div>
-    </div>
-
-    <!-- DISCOVER MATERIALS -->
-    <div class="section" id="discover-section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Discover Materials</div>
-          <div class="section-sub">Browse collector listings and make offers</div>
-        </div>
-      </div>
-
-      <div class="discovery-filters">
-        <span class="pill pill-pet" onclick="toggleFilter('PET', this)">PET</span>
-        <span class="pill pill-hdpe" onclick="toggleFilter('HDPE', this)">HDPE</span>
-        <span class="pill pill-ldpe" onclick="toggleFilter('LDPE', this)">LDPE</span>
-        <span class="pill pill-pp" onclick="toggleFilter('PP', this)">PP</span>
-        <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
-        <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
-        <button class="btn" onclick="discSearch()">Search</button>
-      </div>
-
-      <div id="discover-listings">
-        <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
-      </div>
-
-      <div style="margin-top:1.5rem;">
-        <div class="section-title" style="font-size:0.9rem;">My Offers</div>
-        <div id="my-sent-offers">
-          <div class="empty"><p class="empty-action">Browse listings above and make an offer to get started</p><p class="empty-hint">Your sent offers and their status will appear here</p></div>
-        </div>
-      </div>
     </div>
 
   </div><!-- /.page -->
@@ -754,6 +798,7 @@ function loadAll() {
     loadMyListings();
     loadSentOffers();
     loadDiscLocations();
+    loadProcessorPrices();
 }
 
 function renderPriceCards(prices) {
@@ -857,14 +902,14 @@ function loadPendingTxns() {
 function openPaymentForm(table, id, btn) {
     var form = document.getElementById('pay-form-' + table + '-' + id);
     if (!form) return;
-    form.classList.toggle('hidden');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 
 function toggleMoMo(table, id) {
     var cashRadio = document.querySelector('input[name="pm-' + id + '"][value="cash"]');
     var field = document.getElementById('momo-field-' + table + '-' + id);
     if (!field) return;
-    field.classList.toggle('hidden', !!(cashRadio && cashRadio.checked));
+    field.style.display = (cashRadio && cashRadio.checked) ? 'none' : 'block';
 }
 
 function submitPaymentInitiate(table, id) {
@@ -925,14 +970,20 @@ async function loadPL(range, manual) {
     var pl = (statsData.stats || {}).pl;
     plData = pl || { revenue:{amount:0,mom:0}, cogs:{amount:0,mom:0}, gross:{amount:0,mom:0,pct:0}, opex:{amount:0,mom:0}, net:{amount:0,mom:0,pct:0} };
 
-    var url = '/api/aggregators/' + id + '/expenses';
-    if (range === 'ytd') {
-      var jan1 = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10);
-      url += '?from=' + jan1;
+    // Expenses fetch is non-blocking — P&L renders even if expenses fail
+    try {
+      var url = '/api/aggregators/' + id + '/expenses';
+      if (range === 'ytd') {
+        var jan1 = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10);
+        url += '?from=' + jan1;
+      }
+      var expRes = await apiFetch(url);
+      if (!expRes.ok) throw new Error(expRes.status);
+      plExpenses = await expRes.json();
+    } catch (expErr) {
+      console.warn('Expenses fetch failed, rendering P&L without expense breakdown:', expErr);
+      plExpenses = null;
     }
-    var expRes = await apiFetch(url);
-    if (!expRes.ok) throw new Error(expRes.status);
-    plExpenses = await expRes.json();
 
     _plFailCount = 0; // reset on success
     renderPL();
@@ -1649,8 +1700,27 @@ function submitRating() {
             rating_direction: 'aggregator_rates_collector'
         })
     })
-    .then(function(r) { return r.json(); })
-    .then(function(data) { if (data.success) { closeRatingModal(); } else { alert(data.message); } });
+    .then(function(r) {
+        if (r.status === 409) { closeRatingModal(); showToast('Already rated this collector'); return Promise.resolve(null); }
+        return r.json();
+    })
+    .then(function(data) {
+        if (!data) return;
+        if (data.success) {
+            closeRatingModal();
+            showToast('Rating submitted!');
+            // Replace the Rate button with Rated pill for this collector
+            var btns = document.querySelectorAll('#collectorsBody button');
+            btns.forEach(function(b) {
+                if (b.onclick && b.onclick.toString().indexOf(state.currentRatingCollectorId) !== -1) {
+                    var pill = document.createElement('span');
+                    pill.className = 'pill pill-paid';
+                    pill.textContent = 'Rated \u2605';
+                    b.parentNode.replaceChild(pill, b);
+                }
+            });
+        } else { alert(data.message); }
+    });
 }
 
 document.getElementById('ratingModal').addEventListener('click', function(e) {
@@ -1857,11 +1927,85 @@ function toggleRegisterForm() {
 function populateRegisterCollectors() {
     var sel = document.getElementById('regCollector');
     var collectors = state.topCollectors || [];
-    sel.innerHTML = collectors.length
-        ? '<option value="">Select collector…</option>' + collectors.map(function(c) {
+    sel.innerHTML = '<option value="">Select collector…</option>' +
+        '<option value="new">+ New Collector</option>' +
+        collectors.map(function(c) {
             return '<option value="' + c.id + '">' + esc(((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.display_name) + '</option>';
-          }).join('')
-        : '<option value="">No collectors found yet</option>';
+        }).join('');
+    // Populate region dropdown from shared constant
+    var regionSel = document.getElementById('newCollRegion');
+    if (regionSel && regionSel.options.length <= 1) {
+        var regions = (typeof CirculRoles !== 'undefined' && CirculRoles.GHANA_REGIONS) || [];
+        regions.forEach(function(r) {
+            var opt = document.createElement('option');
+            opt.value = r; opt.textContent = r;
+            regionSel.appendChild(opt);
+        });
+    }
+}
+
+function onRegCollectorChange() {
+    var val = document.getElementById('regCollector').value;
+    var form = document.getElementById('newCollectorForm');
+    if (val === 'new') {
+        form.classList.remove('hidden');
+    } else {
+        form.classList.add('hidden');
+    }
+}
+
+function registerNewCollector() {
+    var name = (document.getElementById('newCollName').value || '').trim();
+    var phone = (document.getElementById('newCollPhone').value || '').trim();
+    var region = document.getElementById('newCollRegion').value;
+    var msg = document.getElementById('newCollMsg');
+
+    if (!name) { msg.textContent = 'Name is required.'; msg.className = 'msg-error'; msg.classList.remove('hidden'); return; }
+    if (!phone || !/^0\d{9}$/.test(phone)) { msg.textContent = 'Phone must be 10 digits starting with 0.'; msg.className = 'msg-error'; msg.classList.remove('hidden'); return; }
+    if (!region) { msg.textContent = 'Please select a region.'; msg.className = 'msg-error'; msg.classList.remove('hidden'); return; }
+
+    fetch('/api/aggregators/' + state.operator.id + '/register-collector', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, phone: phone, region: region })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            // Add to dropdown and auto-select
+            var sel = document.getElementById('regCollector');
+            var opt = document.createElement('option');
+            opt.value = data.id;
+            opt.textContent = esc(data.name);
+            sel.appendChild(opt);
+            sel.value = data.id;
+            // Hide inline form, clear fields
+            document.getElementById('newCollectorForm').classList.add('hidden');
+            document.getElementById('newCollName').value = '';
+            document.getElementById('newCollPhone').value = '';
+            document.getElementById('newCollRegion').value = '';
+            msg.classList.add('hidden');
+            showToast('Collector registered: ' + data.name);
+        } else {
+            msg.textContent = data.message || 'Error registering collector.';
+            msg.className = 'msg-error';
+            msg.classList.remove('hidden');
+        }
+    })
+    .catch(function() {
+        msg.textContent = 'Connection error. Please try again.';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
+    });
+}
+
+function cancelNewCollector() {
+    document.getElementById('newCollectorForm').classList.add('hidden');
+    document.getElementById('regCollector').value = '';
+    document.getElementById('newCollName').value = '';
+    document.getElementById('newCollPhone').value = '';
+    document.getElementById('newCollRegion').value = '';
+    document.getElementById('newCollMsg').classList.add('hidden');
 }
 
 function submitAggregatorPurchase() {
@@ -2179,6 +2323,12 @@ function fmtDate(iso) {
 function esc(s) {
     var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
 }
+function nameCell(name, code, visible) {
+  if (visible === false) return '<span class="counterparty-name-hidden">' + esc(code || '—') + '</span>';
+  var html = esc(name || '—');
+  if (code) html += '<span class="counterparty-code">' + esc(code) + '</span>';
+  return html;
+}
 
 /* ── discovery toast ── */
 function showDiscToast(type, title, message) {
@@ -2246,6 +2396,34 @@ function matPill(mat) {
 function rolePill(role) {
   if (!role) return '';
   return '<span class="pill" style="background:rgba(255,255,255,0.08);color:var(--text-2);font-size:0.65rem;">' + esc(role.toUpperCase()) + '</span>';
+}
+
+function loadProcessorPrices() {
+  apiFetch('/api/processor-prices')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var el = document.getElementById('processorPricesList');
+      if (!el) return;
+      if (!data.success || !data.prices || !data.prices.length) {
+        el.innerHTML = '<div class="empty">No processor buying prices posted yet</div>';
+        return;
+      }
+      el.innerHTML = '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Processor</th><th>Material</th><th>Buying Price</th><th>Last Updated</th></tr></thead><tbody>' +
+        data.prices.map(function(p) {
+          return '<tr>' +
+            '<td class="td-name">' + nameCell(p.processor_name, p.processor_code, p.name_visible) + '</td>' +
+            '<td>' + esc(p.material_type) + '</td>' +
+            '<td class="td-green">GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg</td>' +
+            '<td>' + fmtDate(p.updated_at) + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>';
+    })
+    .catch(function() {
+      var el = document.getElementById('processorPricesList');
+      if (el) el.innerHTML = '<div class="empty">Unable to load processor prices</div>';
+    });
 }
 
 function loadMyListings() {
@@ -2363,7 +2541,7 @@ function toggleOffers(listingId) {
     container.innerHTML = '<div class="offer-thread">' + offers.map(function(o) {
       var isMine = o.offered_by === 'seller';
       var bubbleCls = isMine ? 'offer-bubble mine' : 'offer-bubble';
-      var buyerLabel = esc(o.buyer_name || 'Buyer') + ' ' + rolePill(o.buyer_role);
+      var buyerLabel = nameCell(o.buyer_name, o.buyer_code, o.buyer_name_visible) + ' ' + rolePill(o.buyer_role);
       var header = '<div class="offer-bubble-header">' +
         '<span>' + (isMine ? 'You' : buyerLabel) + ' · Round ' + o.round + '</span>' +
         '<span>' + fmtDate(o.created_at) + '</span>' +
@@ -2519,7 +2697,7 @@ function loadDiscoverListings() {
       var priceHtml = l.price_per_kg
         ? '<span class="listing-card-price">GH₵ ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
         : '<span class="listing-card-price make-offer">Make an offer</span>';
-      var sellerName = esc(l.seller_name || 'Seller');
+      var sellerName = l.seller_name_visible === false ? esc(l.seller_code || 'Seller') : esc(l.seller_name || 'Seller');
       var rating = l.seller_rating ? parseFloat(l.seller_rating).toFixed(1) : null;
       var starsHtml = '';
       if (rating) {
@@ -2663,6 +2841,65 @@ function counterSentOffer(id) {
   .catch(function() { showToast('Error sending counter offer', true); });
 }
 
+/* ── CSV EXPORT ── */
+function exportToCSV(containerId, filenameBase) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var tables = container.querySelectorAll('table');
+  if (!tables.length) { showToast('No data to export', true); return; }
+  var fromVal = document.getElementById('tx-from') ? document.getElementById('tx-from').value : '';
+  var toVal = document.getElementById('tx-to') ? document.getElementById('tx-to').value : '';
+  var fromDate = fromVal ? new Date(fromVal) : null;
+  var toDate = toVal ? new Date(toVal + 'T23:59:59') : null;
+  var allRows = [];
+  tables.forEach(function(table) {
+    var headers = [];
+    var ths = table.querySelectorAll('thead th');
+    ths.forEach(function(th) { headers.push(th.textContent.trim()); });
+    if (allRows.length === 0 && headers.length) allRows.push(headers);
+    var trs = table.querySelectorAll('tbody tr');
+    trs.forEach(function(tr) {
+      if (tr.querySelector('.empty')) return;
+      var cells = tr.querySelectorAll('td');
+      var row = [];
+      cells.forEach(function(td, idx) {
+        var val = td.textContent.trim().replace(/\s+/g, ' ');
+        // Privacy: replace collector names with ID codes
+        if (idx === 1 && headers[1] && /collector/i.test(headers[1])) {
+          var idMatch = val.match(/C-(\d+)/);
+          if (idMatch) { val = 'COL-' + idMatch[1].padStart(4, '0'); }
+          else { val = 'COL-' + String(tr.rowIndex).padStart(4, '0'); }
+        }
+        row.push(val);
+      });
+      // Date filter: check first column for date
+      if (fromDate || toDate) {
+        var dateStr = row[0];
+        var parsed = dateStr ? new Date(dateStr) : null;
+        if (parsed && !isNaN(parsed.getTime())) {
+          if (fromDate && parsed < fromDate) return;
+          if (toDate && parsed > toDate) return;
+        }
+      }
+      if (row.length) allRows.push(row);
+    });
+  });
+  if (allRows.length <= 1) { showToast('No matching rows to export', true); return; }
+  var csv = allRows.map(function(row) {
+    return row.map(function(cell) {
+      var escaped = String(cell).replace(/"/g, '""');
+      return '"' + escaped + '"';
+    }).join(',');
+  }).join('\n');
+  var today = new Date().toISOString().slice(0, 10);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filenameBase + '-' + today + '.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 checkAuth();
 
 
@@ -2699,12 +2936,13 @@ function renderTopTable(tbody, rows, nameKey, cols) {
     return;
   }
   tbody.innerHTML = rows.slice(0,3).map(function(r,i) {
-    var name = esc(r[nameKey] || r.name || "—");
+    var code = r.collector_code || r.processor_code || r.partner_code || '';
+    var nm = nameCell(r[nameKey] || r.name, code, r.name_visible !== false);
     var vol = Math.round(r.ytd_kg || r.total_kg || 0) + " kg";
     var avg = r.avg_price ? "GH¢ " + parseFloat(r.avg_price).toFixed(2) + "/kg" : "—";
     var txns = r.transaction_count || r.count || 0;
     return "<tr><td style=\"color:var(--accent);font-weight:700\">" + (i+1) + "</td>" +
-           "<td class=\"td-name\">" + name + "</td>" +
+           "<td class=\"td-name\">" + nm + "</td>" +
            "<td>" + vol + "</td>" +
            "<td class=\"td-green\">" + avg + "</td>" +
            "<td>" + txns + "</td></tr>";

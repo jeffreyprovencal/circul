@@ -32,7 +32,7 @@
 .di-grade-btn.sel-c{border-color:#ef5350;color:#ef5350;font-weight:700}
 
 /* ── DISPATCH FORM ── */
-.dispatch-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:18px;margin-top:12px;display:none}
+.dispatch-form{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:18px;margin-top:12px}
 
 /* ── PROCESSOR SALE ROWS ── */
 .ps-sale-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px}
@@ -51,7 +51,7 @@
 <body>
 
 <!-- LOGIN OVERLAY -->
-<div class="login-overlay" id="loginOverlay">
+<div class="login-overlay hidden" id="loginOverlay">
   <div class="login-box">
     <div class="login-title">Sign in to Circul</div>
     <div class="login-subtitle" id="loginSubtitle">Processor access</div>
@@ -95,7 +95,7 @@
     </div>
   </div>
 
-  <!-- STATS -->
+  <!-- AT A GLANCE -->
   <div class="stats stats-3">
     <div class="stat">
       <div class="stat-label">Volume This Month</div>
@@ -111,133 +111,11 @@
     </div>
   </div>
 
-  <!-- TWO-COLUMN: TOP PARTNERS -->
-  <div class="two-col">
-    <!-- MY TOP SUPPLIERS -->
-    <div class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">My top suppliers</div>
-          <div class="section-sub">Aggregators · avg price paid</div>
-        </div>
-        <div class="tabs" id="top-suppliers-toggle">
-          <button class="tab ptoggle-btn" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
-          <button class="tab on ptoggle-btn" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
-          <span class="view-all">View all</span>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>#</th><th>Aggregator</th><th>Volume</th><th>Avg Paid</th><th>Txns</th>
-          </tr></thead>
-          <tbody id="topSuppliersBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
-        </table>
-      </div>
-      <div id="top-suppliers-list"></div>
-    </div>
-
-    <!-- MY TOP BUYERS -->
-    <div class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">My top buyers</div>
-          <div class="section-sub">Converters · avg price received</div>
-        </div>
-        <div class="tabs" id="top-buyers-toggle">
-          <button class="tab ptoggle-btn" data-period="month" onclick="switchTopBuyers('month')">Month</button>
-          <button class="tab on ptoggle-btn" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
-          <span class="view-all">View all</span>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>#</th><th>Converter</th><th>Volume</th><th>Avg Received</th><th>Txns</th>
-          </tr></thead>
-          <tbody id="topBuyersBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
-        </table>
-      </div>
-      <div id="top-buyers-list"></div>
-    </div>
-  </div>
-
-  <!-- POST PURCHASE PRICES -->
+  <!-- INBOUND — DELIVERIES -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">Post purchase prices</div>
-        <div class="section-sub">Current prices posted · GHS/kg</div>
-      </div>
-      <button class="btn btn-green" onclick="togglePriceForm()">+ Post Price</button>
-    </div>
-    <div id="create-price-form" class="hidden" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px">
-      <div style="display:flex;gap:12px;align-items:flex-end">
-        <div class="form-group" style="flex:2">
-          <label class="form-label">Material Type</label>
-          <select id="ppf-material" class="form-select">
-            <option value="PET">PET</option>
-            <option value="HDPE">HDPE</option>
-            <option value="LDPE">LDPE</option>
-            <option value="PP">PP</option>
-          </select>
-        </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Price per kg (GH₵)</label>
-          <input id="ppf-price" class="form-input" type="number" placeholder="0.00" step="0.01" min="0">
-        </div>
-        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
-          <button class="btn btn-green" onclick="submitPriceForm()">Post</button>
-          <button class="btn" onclick="togglePriceForm()">Cancel</button>
-        </div>
-      </div>
-    </div>
-    <div class="price-grid" id="priceCards"></div>
-  </div>
-
-  <!-- SELL TO CONVERTERS -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Sell to converters</div>
-        <div class="section-sub">Log a sale of processed material to a converter</div>
-      </div>
-      <button class="btn-green btn" onclick="openDispatchForm()">+ Log sale</button>
-    </div>
-    <div class="dispatch-form" id="procSaleForm">
-      <div class="form-grid" style="margin-bottom:12px">
-        <div class="form-group">
-          <label class="form-label">Converter</label>
-          <select class="form-select" id="ps-converter"><option value="">Select converter...</option></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Material Type</label>
-          <select class="form-select" id="ps-material"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Weight (kg)</label>
-          <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Price/kg (GH¢)</label>
-          <input class="form-input" id="ps-price" type="number" min="0" step="0.01" placeholder="0.00">
-        </div>
-      </div>
-      <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:12px">Total: <span id="ps-total" style="color:var(--accent);font-weight:600">GH¢ 0</span></div>
-      <div id="ps-msg" style="font-size:0.8rem;margin-bottom:8px"></div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-green btn" id="ps-submit-btn" onclick="submitProcessorSale()">Log Sale to Converter</button>
-        <button class="btn" onclick="cancelDispatchForm()">Cancel</button>
-      </div>
-    </div>
-    <div id="procSalesList" style="margin-top:16px"></div>
-  </div>
-
-  <!-- INCOMING DELIVERIES -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Incoming deliveries</div>
+        <div class="section-title">Inbound — Deliveries</div>
         <div class="section-sub">From aggregators — approve dispatch, confirm arrival, grade material</div>
       </div>
       <button class="btn" onclick="loadDeliveries()">Refresh</button>
@@ -266,14 +144,100 @@
     </div>
   </div>
 
-  <!-- SUPPLY CHAIN TRANSACTIONS -->
+  <!-- OUTBOUND — SALES -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">Recent transactions</div>
+        <div class="section-title">Outbound — Sales</div>
+        <div class="section-sub">Log a sale of processed material to a converter</div>
+      </div>
+      <button class="btn-green btn" onclick="openDispatchForm()">+ Log sale</button>
+    </div>
+    <div class="dispatch-form hidden" id="procSaleForm">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Converter</label>
+          <select class="form-select" id="ps-converter"><option value="">Select converter...</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Material Type</label>
+          <select class="form-select" id="ps-material"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Weight (kg)</label>
+          <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0" oninput="calcProcSaleTotal()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price/kg (GH¢)</label>
+          <input class="form-input" id="ps-price" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcProcSaleTotal()">
+        </div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:12px">Total: <span id="ps-total" style="color:var(--accent);font-weight:600">GH¢ 0</span></div>
+      <div style="margin-bottom:12px">
+        <textarea id="ps-notes" class="form-input" rows="2" placeholder="Notes (optional)" style="width:100%;resize:vertical"></textarea>
+      </div>
+      <div id="ps-msg" style="font-size:0.8rem;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-green btn" id="ps-submit-btn" onclick="submitProcessorSale()">Log Sale to Converter</button>
+        <button class="btn" onclick="cancelDispatchForm()">Cancel</button>
+      </div>
+    </div>
+    <div id="procSalesList" style="margin-top:16px"></div>
+  </div>
+
+  <!-- MARKETPLACE — MY BUYING PRICES -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Marketplace — My Buying Prices</div>
+        <div class="section-sub">Post what you'll pay for input materials. Visible to aggregators.</div>
+      </div>
+    </div>
+    <div class="price-grid" id="priceCards"></div>
+  </div>
+
+  <!-- MARKETPLACE — DISCOVER -->
+  <div class="section" id="discover-section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Marketplace — Discover</div>
+        <div class="section-sub">Browse aggregator listings and make offers</div>
+      </div>
+    </div>
+    <div class="discovery-filters">
+      <span class="pill pill-pet" onclick="toggleDiscFilter('PET', this)">PET</span>
+      <span class="pill pill-hdpe" onclick="toggleDiscFilter('HDPE', this)">HDPE</span>
+      <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
+      <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
+      <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
+      <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
+      <button class="btn" onclick="discSearch()">Search</button>
+    </div>
+    <div id="discover-listings">
+      <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <div class="section-title" style="font-size:0.9rem;">My Offers</div>
+      <div id="my-sent-offers">
+        <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS -->
+  <div class="section" id="procTxSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Transactions</div>
         <div class="section-sub">Full chain: Collector → Aggregator → You</div>
       </div>
-      <button class="btn" onclick="downloadCompliance()">EPR/CSRD report</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="tx-from" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
+        <span style="color:var(--text-3);font-size:0.75rem">to</span>
+        <input type="date" id="tx-to" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
+        <button class="btn btn-sm" onclick="exportToCSV('procTxSection','circul-transactions')">↓ Export CSV</button>
+        <button class="btn btn-sm" onclick="downloadCompliance()">EPR/CSRD</button>
+      </div>
     </div>
     <div class="table-wrap">
       <table>
@@ -285,11 +249,62 @@
     </div>
   </div>
 
-  <!-- RATE AGGREGATORS -->
+  <!-- TRANSACTIONS — PARTNERS -->
+  <div class="two-col">
+    <!-- TOP SUPPLIERS -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Transactions — Suppliers</div>
+          <div class="section-sub">Aggregators · avg price paid</div>
+        </div>
+        <div class="tabs" id="top-suppliers-toggle">
+          <button class="tab ptoggle-btn" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
+          <button class="tab on ptoggle-btn" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Aggregator</th><th>Volume</th><th>Avg Paid</th><th>Txns</th>
+          </tr></thead>
+          <tbody id="topSuppliersBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div id="top-suppliers-list"></div>
+    </div>
+
+    <!-- TOP BUYERS -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Transactions — Buyers</div>
+          <div class="section-sub">Converters · avg price received</div>
+        </div>
+        <div class="tabs" id="top-buyers-toggle">
+          <button class="tab ptoggle-btn" data-period="month" onclick="switchTopBuyers('month')">Month</button>
+          <button class="tab on ptoggle-btn" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Converter</th><th>Volume</th><th>Avg Received</th><th>Txns</th>
+          </tr></thead>
+          <tbody id="topBuyersBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div id="top-buyers-list"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE — RATINGS -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">Rate aggregators</div>
+        <div class="section-title">Profile — Ratings</div>
         <div class="section-sub">Your ratings help other processors choose reliable suppliers</div>
       </div>
       <a id="ratingPill" class="rating-pill hidden" href="#" onclick="scrollToRating();return false;">
@@ -307,34 +322,6 @@
       </table>
     </div>
   </div>
-
-    <!-- DISCOVER MATERIALS -->
-    <div class="section" id="discover-section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Discover Materials</div>
-          <div class="section-sub">Browse aggregator listings and make offers</div>
-        </div>
-      </div>
-      <div class="discovery-filters">
-        <span class="pill pill-pet" onclick="toggleDiscFilter('PET', this)">PET</span>
-        <span class="pill pill-hdpe" onclick="toggleDiscFilter('HDPE', this)">HDPE</span>
-        <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
-        <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
-        <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
-        <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
-        <button class="btn" onclick="discSearch()">Search</button>
-      </div>
-      <div id="discover-listings">
-        <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
-      </div>
-      <div style="margin-top:1.5rem;">
-        <div class="section-title" style="font-size:0.9rem;">My Offers</div>
-        <div id="my-sent-offers">
-          <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
-        </div>
-      </div>
-    </div>
 
 </div>
 </div>
@@ -584,11 +571,11 @@ function loadTxns() {
     fetch('/api/transactions?processor_id=' + state.operator.id + '&limit=30')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var tbody = document.getElementById('supplyBody') || document.getElementById('txnsList');
+            var tbody = document.getElementById('txnsList');
             if (!tbody) return;
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
-                var aggName = esc(t.aggregator_company || t.aggregator_name || t.seller_name || '—');
+                var aggName = nameCell(t.aggregator_company || t.aggregator_name || t.seller_name, t.aggregator_code, t.aggregator_name_visible);
                 var matClass = 'pill-' + (t.material_type || '').toLowerCase();
                 return '<tr>' +
                     '<td>' + fmtDate(t.transaction_date) + '</td>' +
@@ -606,7 +593,7 @@ function loadAggregators() {
     fetch('/api/transactions?processor_id=' + state.operator.id + '&limit=100')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var el = document.getElementById('aggregatorRatingsList') || document.getElementById('aggRatingsList');
+            var el = document.getElementById('aggRatingsList');
             if (!el) return;
             if (!data.success || !data.transactions.length) { el.innerHTML = '<tr><td colspan="4" class="empty">No transactions yet</td></tr>'; return; }
             // Unique aggregators from transactions
@@ -641,41 +628,35 @@ function renderPriceCards(prices) {
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p && p.price_per_kg_ghs ? 'GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg' : 'Not set';
+        var hasPrice = p && p.price_per_kg_ghs;
+        var current = hasPrice ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg' : 'Not posted';
+        var priceLabel = hasPrice ? 'Buying at' : 'Current price';
+        var priceClass = hasPrice ? ' class="pc-val"' : ' style="color:var(--text-3)"';
+        var updated = hasPrice && p.posted_at ? '<div class="pc-row"><span>Last updated</span><span>' + fmtDate(p.posted_at) + '</span></div>' : '';
+        var btnText = hasPrice ? 'Update' : 'Post';
+        var placeholder = hasPrice ? 'New price/kg' : 'Set price/kg';
         return '<div class="price-card">' +
-            '<div class="pc-label">Material</div>' +
+            '<div class="pc-label">I buy</div>' +
             '<div class="pc-name">' + mat + '</div>' +
-            '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
+            '<div class="pc-row"><span>' + priceLabel + '</span><span' + priceClass + '>' + current + '</span></div>' +
+            updated +
             '<div class="pc-inline">' +
-            '<input class="pc-input" type="number" id="price-ghs-' + mat + '" placeholder="GH¢/kg" step="0.01" min="0">' +
-            '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
+            '<input class="pc-input" type="number" id="price-ghs-' + mat + '" placeholder="' + placeholder + '" step="0.01" min="0" style="flex:1;margin:0">' +
+            '<button class="pc-post" onclick="postPrice(\'' + mat + '\')" style="width:auto;margin:0;padding:8px 16px">' + btnText + '</button>' +
             '</div></div>';
     }).join('');
 }
 
-function togglePriceForm() {
-    document.getElementById('create-price-form').classList.toggle('hidden');
-}
-function submitPriceForm() {
-    var mat = document.getElementById('ppf-material').value;
-    var ghs = document.getElementById('ppf-price').value;
-    if (!ghs || parseFloat(ghs) <= 0) { showProcToast('Enter a valid GH\u20B5 price', true); return; }
-    fetch('/api/prices', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poster_type: 'processor', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
-    }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.success) { togglePriceForm(); loadAll(); showProcToast('Price posted for ' + mat); }
-        else { showProcToast(data.message || 'Error posting price', true); }
-    }).catch(function() { showProcToast('Connection error', true); });
-}
-
 function postPrice(mat) {
     var ghs = document.getElementById('price-ghs-' + mat).value;
-    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH¢ price'); return; }
-    fetch('/api/prices', {
+    if (!ghs || parseFloat(ghs) <= 0) { showProcToast('Enter a valid GH¢ price', true); return; }
+    fetch('/api/processors/' + state.operator.id + '/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poster_type: 'processor', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
-    }).then(function(r) { return r.json(); }).then(function(data) { if (data.success) loadAll(); else alert(data.message); });
+        body: JSON.stringify({ material: mat, price_per_kg: parseFloat(ghs) })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.success) { loadAll(); showProcToast('Buying price posted for ' + mat); }
+        else { showProcToast(data.message || 'Error posting price', true); }
+    }).catch(function() { showProcToast('Connection error', true); });
 }
 
 function downloadCompliance(e) {
@@ -686,6 +667,12 @@ function downloadCompliance(e) {
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
 function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function nameCell(name, code, visible) {
+  if (visible === false) return '<span class="counterparty-name-hidden">' + esc(code || '—') + '</span>';
+  var html = esc(name || '—');
+  if (code) html += '<span class="counterparty-code">' + esc(code) + '</span>';
+  return html;
+}
 function paymentBadge(status) {
     if (status === 'paid') return '<span class="pill pill-paid">Paid</span>';
     if (status === 'payment_sent') return '<span class="pill pill-sent">Payment sent</span>';
@@ -798,7 +785,7 @@ function buildPendingCard(pt) {
     var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
     var hasPhotos = photos.length > 0;
     var bigBatch  = parseFloat(pt.gross_weight_kg) > 500;
-    var aggName   = esc(pt.aggregator_name || pt.aggregator_company || '—');
+    var aggName   = nameCell(pt.aggregator_name || pt.aggregator_company, pt.aggregator_code, pt.aggregator_name_visible);
     var matClass  = 'pill-' + (pt.material_type || '').toLowerCase();
     var photoHtml = hasPhotos
         ? '<span class="pill pill-paid">' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
@@ -827,7 +814,7 @@ function buildPendingCard(pt) {
 }
 
 function buildApprovedCard(pt) {
-    var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
+    var aggName = nameCell(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name, pt.aggregator_code, pt.aggregator_name_visible);
     var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
     return '<div class="del-card" id="dc-arr-' + pt.id + '">' +
         '<div class="del-row">' +
@@ -846,7 +833,7 @@ function buildApprovedCard(pt) {
 }
 
 function buildCompletedRow(pt) {
-    var aggName = esc(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name || '—');
+    var aggName = nameCell(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name, pt.aggregator_code, pt.aggregator_name_visible);
     var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
     var statusBadge = pt.status === 'arrived'
         ? '<span class="pill pill-arrived">Arrived</span>'
@@ -859,8 +846,7 @@ function buildCompletedRow(pt) {
         ? '<span class="pill pill-paid">Paid</span>'
         : ps === 'payment_sent'
         ? '<span class="pill pill-sent">Sent</span>'
-        : '<button class="btn" style="font-size:0.75rem;padding:4px 10px" onclick="openPTPayForm(' + pt.id + ')">Pay</button>' +
-          '<div id="pt-pay-form-' + pt.id + '" style="display:none;margin-top:6px">' + buildPTPaymentUI(pt) + '</div>';
+        : buildPTPaymentUI(pt);
     return '<tr>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
         '<td class="td-name">' + aggName + '</td>' +
@@ -981,13 +967,14 @@ function openArrivalForm(ptId) {
         '<button class="di-grade-btn" id="agB-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'B\')">Grade B<br><span class="grade-sub">5-15% contamination</span></button>' +
         '<button class="di-grade-btn" id="agC-' + ptId + '" onclick="selectArrivalGrade(' + ptId + ',\'C\')">Grade C<br><span class="grade-sub">&gt;15% contamination</span></button>' +
         '</div>' +
+        '<div id="grade-err-' + ptId + '" class="hidden" style="color:#ff5252;font-size:0.8rem;margin-top:0.5rem;margin-bottom:0.5rem">Please select a quality grade before confirming</div>' +
         '<div id="grade-c-warn-' + ptId + '" class="hidden" style="font-size:0.8rem;padding:7px 10px;background:rgba(255,193,7,0.1);color:#ffd740;border-radius:var(--r-sm);margin-bottom:10px">Grade C flags this delivery.</div>' +
         '<div id="grade-c-reason-' + ptId + '" class="hidden">' +
         '<label class="di-label">Rejection / flag reason <span class="label-hint">(optional)</span></label>' +
         '<textarea class="di-textarea" id="arr-reason-' + ptId + '" placeholder="Describe the issue..." rows="2"></textarea>' +
         '</div>' +
         '<div class="di-actions">' +
-        '<button class="di-confirm" id="arr-confirm-' + ptId + '" onclick="submitArrivalConfirmation(' + ptId + ')" disabled>Confirm Arrival</button>' +
+        '<button class="di-confirm" id="arr-confirm-' + ptId + '" onclick="submitArrivalConfirmation(' + ptId + ')">Confirm Arrival</button>' +
         '<button class="di-cancel" onclick="cancelArrivalForm(' + ptId + ')">Cancel</button>' +
         '</div><div class="di-msg" id="arrival-msg-' + ptId + '"></div>' +
     '</div>';
@@ -996,6 +983,8 @@ function openArrivalForm(ptId) {
 
 function selectArrivalGrade(ptId, grade) {
     arrivalGradeMap[ptId] = grade;
+    var gradeErr = document.getElementById('grade-err-' + ptId);
+    if (gradeErr) gradeErr.classList.add('hidden');
     ['A', 'B', 'C'].forEach(function(g) {
         var btn = document.getElementById('ag' + g + '-' + ptId);
         if (btn) btn.className = 'di-grade-btn' + (g === grade ? ' sel-' + g.toLowerCase() : '');
@@ -1020,7 +1009,11 @@ function submitArrivalConfirmation(ptId) {
     var weight = document.getElementById('arr-weight-' + ptId).value;
     var grade  = arrivalGradeMap[ptId];
     if (!weight || parseFloat(weight) <= 0) { msgEl.textContent = 'Enter a valid weight.'; msgEl.className = 'di-msg msg-error'; return; }
-    if (!grade) { msgEl.textContent = 'Select a grade.'; msgEl.className = 'di-msg msg-error'; return; }
+    if (!grade) {
+        var gradeErr = document.getElementById('grade-err-' + ptId);
+        if (gradeErr) gradeErr.classList.remove('hidden');
+        return;
+    }
     var body = { actual_weight_kg: parseFloat(weight), grade: grade };
     if (grade === 'C') {
         var reasonEl = document.getElementById('arr-reason-' + ptId);
@@ -1066,18 +1059,12 @@ function loadConverters() {
 function calcProcSaleTotal() {
     var w = parseFloat(document.getElementById('ps-weight').value);
     var p = parseFloat(document.getElementById('ps-price').value);
-    var box = document.getElementById('ps-total-box') || document.getElementById('ps-total');
-    if (!box) return;
+    var el = document.getElementById('ps-total');
+    if (!el) return;
     if (!isNaN(w) && w > 0 && !isNaN(p) && p > 0) {
-        var total = w * p;
-        var ghsEl = document.getElementById('ps-total-ghs');
-        var usdEl = document.getElementById('ps-total-usd');
-        if (ghsEl) ghsEl.textContent = 'GH¢ ' + fmt(total) + ' total';
-        if (usdEl) usdEl.textContent = '';
-        if (!ghsEl && !usdEl) box.textContent = 'GH¢ ' + fmt(total);
-        box.classList.remove('hidden');
+        el.textContent = 'GH¢ ' + fmt(w * p);
     } else {
-        box.classList.add('hidden');
+        el.textContent = 'GH¢ 0';
     }
 }
 
@@ -1119,7 +1106,7 @@ function submitProcessorSale() {
             document.getElementById('ps-weight').value    = '';
             document.getElementById('ps-price').value     = '';
             var pn = document.getElementById('ps-notes'); if (pn) pn.value = '';
-            var ptb = document.getElementById('ps-total-box') || document.getElementById('ps-total'); if (ptb) ptb.classList.add('hidden');
+            var ptb = document.getElementById('ps-total'); if (ptb) ptb.textContent = 'GH¢ 0';
             if (msgEl) msgEl.textContent = '';
             showProcToast('Sale logged — awaiting converter dispatch approval');
             loadProcessorSales();
@@ -1274,7 +1261,7 @@ function loadDiscoverListings() {
       var priceHtml = l.price_per_kg
         ? '<span class="listing-card-price">GH\u20b5 ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
         : '<span class="listing-card-price make-offer">Make an offer</span>';
-      var sellerName = esc(l.seller_name || 'Seller');
+      var sellerName = l.seller_name_visible === false ? esc(l.seller_code || 'Seller') : esc(l.seller_name || 'Seller');
       var starsHtml = '';
       if (l.seller_rating) {
         var full = Math.round(parseFloat(l.seller_rating));
@@ -1407,6 +1394,64 @@ function discCounterOffer(id) {
   .catch(function() { showDiscToast('warning', 'Counter Failed', 'Error sending counter offer'); });
 }
 
+/* ── CSV EXPORT ── */
+function exportToCSV(containerId, filenameBase) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var tables = container.querySelectorAll('table');
+  if (!tables.length) { showProcToast('No data to export', true); return; }
+  var fromVal = document.getElementById('tx-from') ? document.getElementById('tx-from').value : '';
+  var toVal = document.getElementById('tx-to') ? document.getElementById('tx-to').value : '';
+  var fromDate = fromVal ? new Date(fromVal) : null;
+  var toDate = toVal ? new Date(toVal + 'T23:59:59') : null;
+  var allRows = [];
+  tables.forEach(function(table) {
+    var headers = [];
+    var ths = table.querySelectorAll('thead th');
+    ths.forEach(function(th) { headers.push(th.textContent.trim()); });
+    if (allRows.length === 0 && headers.length) allRows.push(headers);
+    var trs = table.querySelectorAll('tbody tr');
+    trs.forEach(function(tr) {
+      if (tr.querySelector('.empty')) return;
+      var cells = tr.querySelectorAll('td');
+      var row = [];
+      cells.forEach(function(td, idx) {
+        var val = td.textContent.trim().replace(/\s+/g, ' ');
+        // Privacy: replace collector names with ID codes
+        if (headers[idx] && /collector/i.test(headers[idx])) {
+          var idMatch = val.match(/C-(\d+)/);
+          if (idMatch) { val = 'COL-' + idMatch[1].padStart(4, '0'); }
+          else { val = 'COL-' + String(tr.rowIndex).padStart(4, '0'); }
+        }
+        row.push(val);
+      });
+      // Date filter
+      if (fromDate || toDate) {
+        var dateStr = row[0];
+        var parsed = dateStr ? new Date(dateStr) : null;
+        if (parsed && !isNaN(parsed.getTime())) {
+          if (fromDate && parsed < fromDate) return;
+          if (toDate && parsed > toDate) return;
+        }
+      }
+      if (row.length) allRows.push(row);
+    });
+  });
+  if (allRows.length <= 1) { showProcToast('No matching rows to export', true); return; }
+  var csv = allRows.map(function(row) {
+    return row.map(function(cell) {
+      return '"' + String(cell).replace(/"/g, '""') + '"';
+    }).join(',');
+  }).join('\n');
+  var today = new Date().toISOString().slice(0, 10);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filenameBase + '-' + today + '.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 checkAuth();
 
 
@@ -1444,7 +1489,7 @@ function loadTopSuppliers(period) {
       el.innerHTML = items.slice(0,3).map(function(p,i) {
         return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
           "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
-          "<span class='td-name' style='flex:1'>" + (p.name||p.aggregator_name||"Unknown") + "</span>" +
+          "<span class='td-name' style='flex:1'>" + nameCell(p.name||p.aggregator_name, p.partner_code, p.name_visible) + "</span>" +
           "<span>" + formatVol(p.volume||p.total_volume||0) + " kg</span>" +
           "<span class='td-green'>GH¢ " + formatPrice(p.avg_price||p.avg_price_paid||0) + "/kg</span>" +
         "</div>";
@@ -1469,7 +1514,7 @@ function loadTopBuyers(period) {
       el.innerHTML = items.slice(0,3).map(function(p,i) {
         return "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem'>" +
           "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
-          "<span class='td-name' style='flex:1'>" + (p.name||p.converter_name||"Unknown") + "</span>" +
+          "<span class='td-name' style='flex:1'>" + nameCell(p.name||p.converter_name, p.partner_code, p.name_visible) + "</span>" +
           "<span>" + formatVol(p.volume||p.total_volume||0) + " kg</span>" +
           "<span class='td-green'>GH¢ " + formatPrice(p.avg_price||p.avg_price_received||0) + "/kg</span>" +
         "</div>";
@@ -1590,20 +1635,41 @@ function submitRating() {
   if (!_ratingStars) { showProcToast("Please select a star rating", true); return; }
   if (!_ratingTarget) return;
   var note = document.getElementById("rating-note") ? document.getElementById("rating-note").value : "";
-  fetch("/api/processor/rate-aggregator", {
+  var token = localStorage.getItem('circul_token') || '';
+  fetch("/api/ratings/operator", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
     body: JSON.stringify({
-      aggregator_id: _ratingTarget.id,
-      stars: _ratingStars,
+      rater_type: "processor",
+      rater_id: state.operator.id,
+      rated_type: "aggregator",
+      rated_id: _ratingTarget.id,
+      rating: _ratingStars,
       tags: _ratingTags,
-      note: note
+      notes: note || null,
+      rating_direction: "processor_rates_aggregator"
     })
   })
-  .then(function(r) { return r.json(); })
-  .then(function() {
+  .then(function(r) {
+    if (r.status === 409) { closeRatingModal(); showProcToast("Already rated this aggregator"); return Promise.resolve(null); }
+    return r.json();
+  })
+  .then(function(data) {
+    if (!data) return;
     closeRatingModal();
-    showProcToast("Rating submitted for " + _ratingTarget.name);
+    if (data.success) {
+      showProcToast("Rating submitted for " + _ratingTarget.name);
+      // Replace Rate button with Rated pill
+      var btns = document.querySelectorAll('#rateAggBody button');
+      btns.forEach(function(b) {
+        if (b.onclick && b.onclick.toString().indexOf(_ratingTarget.id) !== -1) {
+          var pill = document.createElement('span');
+          pill.className = 'pill pill-paid';
+          pill.textContent = 'Rated \u2605';
+          b.parentNode.replaceChild(pill, b);
+        }
+      });
+    } else { showProcToast(data.message || "Error submitting rating", true); }
   })
   .catch(function() {
     closeRatingModal();

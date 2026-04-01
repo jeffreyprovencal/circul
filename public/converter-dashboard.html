@@ -62,7 +62,7 @@
 <body>
 
 <!-- LOGIN OVERLAY -->
-<div class="login-overlay" id="loginOverlay">
+<div class="login-overlay hidden" id="loginOverlay">
   <div class="login-box">
     <h2>Circul</h2>
     <p>Sign in to your converter account</p>
@@ -108,7 +108,7 @@
     </div>
   </div>
 
-  <!-- STATS -->
+  <!-- AT A GLANCE -->
   <div class="stats stats-3">
     <div class="stat">
       <div class="stat-label">Volume This Month</div>
@@ -125,63 +125,36 @@
     </div>
   </div>
 
-  <!-- MY TOP SUPPLIERS -->
+  <!-- INBOUND — DELIVERIES -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">My top suppliers</div>
-        <div class="section-sub">Processors who supply to you · last 10 transactions</div>
-      </div>
-      <div class="tabs" id="top-suppliers-toggle">
-        <button class="tab" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
-        <button class="tab on" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
+        <div class="section-title">Inbound — Deliveries</div>
+        <div class="section-sub">Track material arriving from your suppliers</div>
       </div>
     </div>
-    <div class="table-wrap">
-      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
+
+    <div class="sub">
+      <div class="sub-title">Pending</div>
+      <div id="cvQueuePending"><div class="sub-empty">Loading...</div></div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-title">Approved</div>
+      <div id="cvQueueApproved"><div class="sub-empty">Loading...</div></div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-title">Completed</div>
+      <div id="cvQueueCompleted"><div class="sub-empty">Loading...</div></div>
     </div>
   </div>
 
-  <!-- POST PURCHASE PRICES -->
+  <!-- INBOUND — PLACE ORDER -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">Post purchase prices</div>
-        <div class="section-sub">Current prices posted · GHS/kg</div>
-      </div>
-      <button class="btn btn-green" onclick="togglePriceForm()">+ Post Price</button>
-    </div>
-    <div id="create-price-form-cv" class="hidden" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px">
-      <div style="display:flex;gap:12px;align-items:flex-end">
-        <div class="form-group" style="flex:2">
-          <label class="form-label">Material Type</label>
-          <select id="cv-material" class="form-select">
-            <option value="PET">PET</option>
-            <option value="HDPE">HDPE</option>
-            <option value="LDPE">LDPE</option>
-            <option value="PP">PP</option>
-          </select>
-        </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Price per kg (GH₵)</label>
-          <input id="cv-price" class="form-input" type="number" placeholder="0.00" step="0.01" min="0">
-        </div>
-        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
-          <button class="btn btn-green" onclick="submitPriceForm()">Post</button>
-          <button class="btn" onclick="togglePriceForm()">Cancel</button>
-        </div>
-      </div>
-    </div>
-    <div class="price-grid" id="priceCards">
-      <!-- populated by renderPriceCards() -->
-    </div>
-  </div>
-
-  <!-- PLACE PURCHASE ORDER -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Place purchase order</div>
+        <div class="section-title">Inbound — Place Order</div>
         <div class="section-sub">Request material from your suppliers</div>
       </div>
       <button class="btn-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
@@ -195,13 +168,13 @@
     <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr">
       <div class="form-group">
         <label class="form-label">Supplier</label>
-        <select class="form-select" id="ord-supplier">
+        <select class="form-select" id="ord-supplier" onchange="lookupSupplierPrice()">
           <option value="">Select supplier...</option>
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Material Type</label>
-        <select class="form-select" id="ord-material" onchange="calcOrderTotal()">
+        <select class="form-select" id="ord-material" onchange="lookupSupplierPrice(); calcOrderTotal()">
           <option value="">Select material...</option>
           <option value="PET">PET</option>
           <option value="HDPE">HDPE</option>
@@ -215,6 +188,15 @@
       </div>
     </div>
     <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Colour</label>
+        <select class="form-select" id="ord-colours">
+          <option value="">Any colour</option>
+          <option value="clear">Clear</option>
+          <option value="mixed">Mixed</option>
+          <option value="coloured">Coloured</option>
+        </select>
+      </div>
       <div class="form-group">
         <label class="form-label">Contamination Level</label>
         <select class="form-select" id="ord-contam">
@@ -234,47 +216,82 @@
         <input type="text" class="form-input" id="ord-notes" placeholder="Additional notes" />
       </div>
     </div>
-    <input type="hidden" id="ord-price" value="" />
-    <div class="order-total hidden" id="ord-total-box">
-      Estimated total: <strong id="ord-total-ghs">—</strong> GHS
-      <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+      <div class="form-group">
+        <label class="form-label">Price per kg (GH¢)</label>
+        <input type="number" class="form-input" id="ord-price" placeholder="Select supplier to see price" min="0" step="0.01" oninput="calcOrderTotal()" />
+      </div>
+      <div class="form-group" style="justify-content:flex-end">
+        <div class="order-total hidden" id="ord-total-box" style="margin:0;padding:8px 0">
+          Estimated total: <strong id="ord-total-ghs">—</strong> GHS
+          <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
+        </div>
+      </div>
     </div>
     <div class="msg-error" style="margin-bottom:8px" id="ord-msg"></div>
   </div>
 
-  <!-- INCOMING DELIVERIES -->
-  <div class="section">
-    <div class="section-title">Incoming deliveries</div>
-    <div class="section-sub" style="margin-bottom:14px">Track material arriving from your suppliers</div>
-
-    <div class="sub">
-      <div class="sub-title">Pending</div>
-      <div id="cvQueuePending"><div class="sub-empty">Loading...</div></div>
-    </div>
-
-    <div class="sub">
-      <div class="sub-title">Approved</div>
-      <div id="cvQueueApproved"><div class="sub-empty">Loading...</div></div>
-    </div>
-
-    <div class="sub">
-      <div class="sub-title">Completed</div>
-      <div id="cvQueueCompleted"><div class="sub-empty">Loading...</div></div>
-    </div>
-  </div>
-
-  <!-- SUPPLY CHAIN SECTION WITH TABS -->
+  <!-- MARKETPLACE — MY PRICES -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">Supply chain</div>
+        <div class="section-title">Marketplace — My Prices</div>
+        <div class="section-sub">Current prices posted · GHS/kg</div>
+      </div>
+    </div>
+    <div class="price-grid" id="priceCards">
+      <!-- populated by renderPriceCards() -->
+    </div>
+  </div>
+
+  <!-- MARKETPLACE — DISCOVER -->
+  <div class="section" id="discover-section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Marketplace — Discover</div>
+        <div class="section-sub">Browse aggregator listings and make offers</div>
+      </div>
+    </div>
+    <div class="discovery-filters">
+      <span class="pill pill-pet" onclick="toggleDiscFilter('PET', this)">PET</span>
+      <span class="pill pill-hdpe" onclick="toggleDiscFilter('HDPE', this)">HDPE</span>
+      <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
+      <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
+      <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
+      <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
+      <button class="btn" onclick="discSearch()">Search</button>
+    </div>
+    <div id="discover-listings">
+      <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <div class="section-title" style="font-size:0.9rem;">My Offers</div>
+      <div id="my-sent-offers">
+        <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS -->
+  <div class="section" id="cvTxSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Transactions</div>
         <div class="section-sub">Trace all materials from processor intake</div>
       </div>
-      <div class="tabs">
-        <button class="tab on" onclick="showTab('supply', this)">Supply Chain</button>
-        <button class="tab" onclick="showTab('prices', this)">Available Material</button>
-        <button class="tab" onclick="showTab('certs', this)">Traceability</button>
-        <button class="tab" onclick="showTab('ratings', this)">Ratings</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="tabs">
+          <button class="tab on" onclick="showTab('supply', this)">Supply Chain</button>
+          <button class="tab" onclick="showTab('prices', this)">Available Material</button>
+          <button class="tab" onclick="showTab('certs', this)">Traceability</button>
+          <button class="tab" onclick="showTab('ratings', this)">Ratings</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="date" id="tx-from" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
+          <span style="color:var(--text-3);font-size:0.75rem">to</span>
+          <input type="date" id="tx-to" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
+          <button class="btn btn-sm" onclick="exportToCSV('cvTxSection','circul-transactions')">↓ Export CSV</button>
+        </div>
       </div>
     </div>
 
@@ -318,44 +335,33 @@
     </div>
   </div>
 
-  <!-- MY ORDERS -->
+  <!-- TRANSACTIONS — SUPPLIERS -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">My Orders</div>
+        <div class="section-title">Transactions — Suppliers</div>
+        <div class="section-sub">Processors who supply to you · last 10 transactions</div>
+      </div>
+      <div class="tabs" id="top-suppliers-toggle">
+        <button class="tab" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
+        <button class="tab on" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS — MY ORDERS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Transactions — My Orders</div>
         <div class="section-sub">Your purchase orders and status</div>
       </div>
     </div>
     <div id="ordersList"></div>
   </div>
-
-    <!-- DISCOVER MATERIALS -->
-    <div class="section" id="discover-section">
-      <div class="section-head">
-        <div>
-          <div class="section-title">Discover Materials</div>
-          <div class="section-sub">Browse aggregator listings and make offers</div>
-        </div>
-      </div>
-      <div class="discovery-filters">
-        <span class="pill pill-pet" onclick="toggleDiscFilter('PET', this)">PET</span>
-        <span class="pill pill-hdpe" onclick="toggleDiscFilter('HDPE', this)">HDPE</span>
-        <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
-        <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
-        <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
-        <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
-        <button class="btn" onclick="discSearch()">Search</button>
-      </div>
-      <div id="discover-listings">
-        <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
-      </div>
-      <div style="margin-top:1.5rem;">
-        <div class="section-title" style="font-size:0.9rem;">My Offers</div>
-        <div id="my-sent-offers">
-          <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
-        </div>
-      </div>
-    </div>
 
 </div><!-- /.page -->
 
@@ -612,6 +618,38 @@ function calcOrderTotal() {
     }
 }
 
+function lookupSupplierPrice() {
+    var supplierId = document.getElementById('ord-supplier').value;
+    var material   = document.getElementById('ord-material').value;
+    var priceEl    = document.getElementById('ord-price');
+    if (!supplierId || !material) { priceEl.placeholder = 'Select supplier & material'; return; }
+    var tier = _orderTier || 'recycler';
+    var list = _supplierCache[tier] || [];
+    var supplier = list.find(function(s) { return String(s.id) === String(supplierId); });
+    // Try to find posted price from prices endpoint
+    fetch('/api/prices?poster_type=' + tier + '&poster_id=' + supplierId + '&material_type=' + material)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var prices = data.prices || data || [];
+            var match = Array.isArray(prices) ? prices.find(function(p) { return p.material_type === material; }) : null;
+            if (match && match.price_per_kg_ghs) {
+                priceEl.value = parseFloat(match.price_per_kg_ghs).toFixed(2);
+                priceEl.readOnly = true;
+                priceEl.placeholder = '';
+                calcOrderTotal();
+            } else {
+                priceEl.value = '';
+                priceEl.readOnly = false;
+                priceEl.placeholder = 'No price posted \u2014 enter manually';
+            }
+        })
+        .catch(function() {
+            priceEl.value = '';
+            priceEl.readOnly = false;
+            priceEl.placeholder = 'Enter price per kg';
+        });
+}
+
 function submitOrder() {
     var token = state.operator.token || localStorage.getItem('circul_token') || '';
     var msgEl = document.getElementById('ord-msg');
@@ -746,7 +784,7 @@ function loadConverterQueue() {
         } else {
             document.getElementById('cvQueueCompleted').innerHTML =
                 '<div class="table-wrap"><table><thead><tr>' +
-                '<th>Supplier</th><th>Tier</th><th>Material</th><th>Weight</th><th>Total (GH₵)</th><th>Status</th><th>Date</th>' +
+                '<th>Supplier</th><th>Tier</th><th>Material</th><th>Weight</th><th>Total (GH₵)</th><th>Status</th><th>Payment</th><th>Date</th>' +
                 '</tr></thead><tbody>' + completed.map(buildConvCompletedRow).join('') + '</tbody></table></div>';
         }
     })
@@ -758,7 +796,7 @@ function loadConverterQueue() {
 function buildConvPendingCard(pt) {
     var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
     var hasPhotos = photos.length > 0;
-    var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
+    var procName = nameCell(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name, pt.supplier_code || pt.processor_code || pt.recycler_code, pt.supplier_name_visible);
     var tierHtml = deliveryTierBadge(pt);
     var photoHtml = hasPhotos
         ? '<span class="badge badge-green">' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
@@ -782,12 +820,13 @@ function buildConvPendingCard(pt) {
         '<button class="btn-approve" onclick="openConvDispatchForm(' + pt.id + ',\'approve\')">Approve Dispatch</button>' +
         '<button class="btn-decline" onclick="openConvDispatchForm(' + pt.id + ',\'reject\')">Reject</button>' +
         '</div>' +
+        '<div style="padding:10px 0 4px 0">' + buildCvPaymentUI(pt) + '</div>' +
         '<div id="cvdispatch-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
 function buildConvApprovedCard(pt) {
-    var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
+    var procName = nameCell(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name, pt.supplier_code || pt.processor_code || pt.recycler_code, pt.supplier_name_visible);
     var tierHtml = deliveryTierBadge(pt);
     return '<div class="del-card" id="cvdc-arr-' + pt.id + '">' +
         '<div class="del-row">' +
@@ -801,12 +840,13 @@ function buildConvApprovedCard(pt) {
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-log-arrival" onclick="openConvArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
+        '<div style="padding:10px 0 4px 0">' + buildCvPaymentUI(pt) + '</div>' +
         '<div id="cvarr-form-' + pt.id + '" class="hidden"></div>' +
         '</div>';
 }
 
 function buildConvCompletedRow(pt) {
-    var procName = esc(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name || '—');
+    var procName = nameCell(pt.recycler_company || pt.recycler_name || pt.processor_company || pt.processor_name, pt.supplier_code || pt.processor_code || pt.recycler_code, pt.supplier_name_visible);
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
     var statusBadge = pt.status === 'arrived'
         ? '<span class="pill pill-arrived">Arrived</span>'
@@ -816,6 +856,7 @@ function buildConvCompletedRow(pt) {
     var rejNote = (pt.status === 'dispatch_rejected' && pt.rejection_reason)
         ? '<div style="font-size:0.74rem;color:#ef4444;margin-top:2px">' + esc(pt.rejection_reason) + '</div>'
         : '';
+    var payCell = buildCvPaymentUI(pt);
     return '<tr>' +
         '<td>' + procName + '</td>' +
         '<td>' + deliveryTierBadge(pt) + '</td>' +
@@ -823,6 +864,7 @@ function buildConvCompletedRow(pt) {
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
         '<td>GH₵ ' + fmt(total) + '</td>' +
         '<td>' + statusBadge + (rejNote ? '<br>' + rejNote : '') + '</td>' +
+        '<td>' + payCell + '</td>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
         '</tr>';
 }
@@ -965,7 +1007,7 @@ function loadTxns() {
             var tbody = document.getElementById('supplyBody');
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
-                var supplier = esc(t.recycler_company || t.recycler_name || t.processor_company || t.processor_name || t.seller_name || '—');
+                var supplier = nameCell(t.recycler_company || t.recycler_name || t.processor_company || t.processor_name || t.seller_name, t.supplier_code || t.processor_code || t.recycler_code, t.supplier_name_visible);
                 var priceKg = t.price_per_kg ? fmt(t.price_per_kg) : '—';
                 var matLower = (t.material_type || '').toLowerCase();
                 var pillClass = 'pill pill-' + matLower;
@@ -1093,11 +1135,25 @@ function submitCvRating() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor', tags: _cvSelectedTags, note: note || null })
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+        if (r.status === 409) { closeRateProcessorModal(); showCvToast('Already rated this processor'); return Promise.resolve(null); }
+        return r.json();
+    })
     .then(function(data) {
+        if (!data) return;
         if (data.success) {
             closeRateProcessorModal();
             showCvToast('Rating submitted!');
+            // Replace Rate button with Rated pill
+            var btns = document.querySelectorAll('#processorRatingsList button');
+            btns.forEach(function(b) {
+                if (b.onclick && b.onclick.toString().indexOf(_rateProcessorId) !== -1) {
+                    var pill = document.createElement('span');
+                    pill.className = 'pill pill-paid';
+                    pill.textContent = 'Rated \u2605';
+                    b.parentNode.replaceChild(pill, b);
+                }
+            });
         } else {
             var msg = document.getElementById('rateProcessorMsg');
             msg.textContent = data.message || 'Could not submit rating.';
@@ -1128,22 +1184,6 @@ function renderPriceCards(prices) {
     }).join('');
 }
 
-function togglePriceForm() {
-    document.getElementById('create-price-form-cv').classList.toggle('hidden');
-}
-function submitPriceForm() {
-    var mat = document.getElementById('cv-material').value;
-    var ghs = document.getElementById('cv-price').value;
-    if (!ghs || parseFloat(ghs) <= 0) { showCvToast('Enter a valid GH\u20B5 price'); return; }
-    fetch('/api/prices', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poster_type: 'converter', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
-    }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.success) { togglePriceForm(); loadAll(); showCvToast('Price posted for ' + mat); }
-        else { showCvToast(data.message || 'Error posting price'); }
-    }).catch(function() { showCvToast('Connection error'); });
-}
-
 function postPrice(mat) {
     var ghs = document.getElementById('price-ghs-' + mat).value;
     if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
@@ -1163,9 +1203,129 @@ function paymentBadge(ps) {
     if (ps === 'payment_sent') return '<span class="pill pill-sent">Payment Sent</span>';
     return '<span class="pill pill-pending">' + (ps || 'Unpaid') + '</span>';
 }
+
+function buildCvPaymentUI(pt) {
+    var ps = pt.payment_status || 'unpaid';
+    if (ps === 'paid') return paymentBadge(ps);
+    if (ps === 'payment_sent') return paymentBadge(ps) + ' <span style="font-size:0.75rem;color:var(--text-3)">Awaiting supplier confirmation</span>';
+    return paymentBadge(ps) +
+        ' <button class="btn" style="font-size:0.75rem;padding:5px 12px" onclick="openCvPayForm(' + pt.id + ')">Record Payment</button>' +
+        '<div id="cv-pay-form-' + pt.id + '" style="display:none;margin-top:8px;padding:10px;background:var(--surface-alt);border-radius:var(--r-sm);border:1px solid var(--border)">' +
+            '<label style="display:block;margin-bottom:8px;font-size:0.8rem;font-weight:600;color:var(--text-2)">Payment method</label>' +
+            '<label style="font-size:0.8rem;margin-right:16px;color:var(--text-2)"><input type="radio" name="cv-pm-' + pt.id + '" value="cash" onchange="toggleCvMoMo(' + pt.id + ')"> Cash</label>' +
+            '<label style="font-size:0.8rem;color:var(--text-2)"><input type="radio" name="cv-pm-' + pt.id + '" value="mobile_money" onchange="toggleCvMoMo(' + pt.id + ')"> Mobile Money</label>' +
+            '<div id="cv-momo-' + pt.id + '" style="display:none;margin-top:8px">' +
+                '<input type="text" id="cv-momo-ref-' + pt.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" class="form-input" style="font-size:0.8rem">' +
+            '</div>' +
+            '<div style="margin-top:10px;display:flex;gap:8px">' +
+                '<button class="di-confirm" onclick="submitCvPayInitiate(' + pt.id + ')">Confirm Payment</button>' +
+                '<button class="di-cancel" onclick="document.getElementById(\'cv-pay-form-' + pt.id + '\').style.display=\'none\'">Cancel</button>' +
+            '</div>' +
+        '</div>';
+}
+
+function openCvPayForm(id) {
+    var el = document.getElementById('cv-pay-form-' + id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleCvMoMo(id) {
+    var cashR = document.querySelector('input[name="cv-pm-' + id + '"][value="cash"]');
+    var el = document.getElementById('cv-momo-' + id);
+    if (el) el.style.display = (cashR && cashR.checked) ? 'none' : 'block';
+}
+
+function submitCvPayInitiate(id) {
+    var radios = document.querySelectorAll('input[name="cv-pm-' + id + '"]');
+    var method = '';
+    radios.forEach(function(r) { if (r.checked) method = r.value; });
+    if (!method) { alert('Please select a payment method.'); return; }
+    var body = { payment_method: method };
+    if (method === 'mobile_money') {
+        var ref = (document.getElementById('cv-momo-ref-' + id) || {}).value || '';
+        if (!ref.trim()) { alert('Please enter the MoMo transaction code.'); return; }
+        body.payment_reference = ref.trim();
+    }
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/pending-transactions/' + id + '/payment-initiate', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) loadConverterQueue();
+        else alert(d.message || 'Error recording payment.');
+    })
+    .catch(function() { alert('Connection error.'); });
+}
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
 function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function nameCell(name, code, visible) {
+  if (visible === false) return '<span class="counterparty-name-hidden">' + esc(code || '—') + '</span>';
+  var html = esc(name || '—');
+  if (code) html += '<span class="counterparty-code">' + esc(code) + '</span>';
+  return html;
+}
+
+/* ── CSV EXPORT ── */
+function exportToCSV(containerId, filenameBase) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var tables = container.querySelectorAll('table');
+  if (!tables.length) { showCvToast('No data to export'); return; }
+  var fromVal = document.getElementById('tx-from') ? document.getElementById('tx-from').value : '';
+  var toVal = document.getElementById('tx-to') ? document.getElementById('tx-to').value : '';
+  var fromDate = fromVal ? new Date(fromVal) : null;
+  var toDate = toVal ? new Date(toVal + 'T23:59:59') : null;
+  var allRows = [];
+  tables.forEach(function(table) {
+    var headers = [];
+    var ths = table.querySelectorAll('thead th');
+    ths.forEach(function(th) { headers.push(th.textContent.trim()); });
+    if (allRows.length === 0 && headers.length) allRows.push(headers);
+    var trs = table.querySelectorAll('tbody tr');
+    trs.forEach(function(tr) {
+      if (tr.querySelector('.empty') || tr.querySelector('.placeholder-cell')) return;
+      var cells = tr.querySelectorAll('td');
+      var row = [];
+      cells.forEach(function(td, idx) {
+        var val = td.textContent.trim().replace(/\s+/g, ' ');
+        // Privacy: replace collector names with ID codes
+        if (headers[idx] && /collector/i.test(headers[idx])) {
+          var idMatch = val.match(/C-(\d+)/);
+          if (idMatch) { val = 'COL-' + idMatch[1].padStart(4, '0'); }
+          else { val = 'COL-' + String(tr.rowIndex).padStart(4, '0'); }
+        }
+        row.push(val);
+      });
+      // Date filter
+      if (fromDate || toDate) {
+        var dateStr = row[0];
+        var parsed = dateStr ? new Date(dateStr) : null;
+        if (parsed && !isNaN(parsed.getTime())) {
+          if (fromDate && parsed < fromDate) return;
+          if (toDate && parsed > toDate) return;
+        }
+      }
+      if (row.length) allRows.push(row);
+    });
+  });
+  if (allRows.length <= 1) { showCvToast('No matching rows to export'); return; }
+  var csv = allRows.map(function(row) {
+    return row.map(function(cell) {
+      return '"' + String(cell).replace(/"/g, '""') + '"';
+    }).join(',');
+  }).join('\n');
+  var today = new Date().toISOString().slice(0, 10);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filenameBase + '-' + today + '.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
 
 checkAuth();
 
@@ -1255,17 +1415,17 @@ function loadTopSuppliers(period) {
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
       if (!items.length) { el.innerHTML = '<div class="empty"><p class="empty-action">Your top processor suppliers will appear after your first purchase</p></div>'; return; }
-      el.innerHTML = '<table><thead><tr><th>#</th><th>Supplier</th><th>Volume</th><th>Avg Paid</th><th>Tier</th></tr></thead><tbody>' +
+      el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>#</th><th>Supplier</th><th>Volume</th><th>Avg Paid</th><th>Tier</th></tr></thead><tbody>' +
         items.slice(0,10).map(function(p, i) {
           var tierHtml = p.tier ? tierBadge(p.tier) : '';
           return '<tr>' +
             '<td style="color:var(--accent);font-weight:700">' + (i+1) + '</td>' +
-            '<td class="td-name">' + esc(p.name || p.processor_name || 'Unknown') + '</td>' +
+            '<td class="td-name">' + nameCell(p.name || p.processor_name, p.partner_code, p.name_visible) + '</td>' +
             '<td>' + cvFmtVol(p.volume || p.total_volume || 0) + ' kg</td>' +
             '<td class="td-green">GHS ' + cvFmtPrice(p.avg_price || p.avg_price_paid || 0) + '/kg</td>' +
             '<td>' + tierHtml + '</td>' +
             '</tr>';
-        }).join('') + '</tbody></table>';
+        }).join('') + '</tbody></table></div>';
     })
     .catch(function() {
       el.innerHTML = cvRenderDemoSuppliers();
@@ -1278,7 +1438,7 @@ function cvRenderDemoSuppliers() {
     { name: "rePATRN Processing", volume: 3800, avg: 2.38, tier: "processor" },
     { name: "Green Collect GH", volume: 2100, avg: 2.52, tier: "aggregator" }
   ];
-  return '<table><thead><tr><th>#</th><th>Supplier</th><th>Volume</th><th>Avg Paid</th><th>Tier</th></tr></thead><tbody>' +
+  return '<div class="table-wrap"><table><thead><tr><th>#</th><th>Supplier</th><th>Volume</th><th>Avg Paid</th><th>Tier</th></tr></thead><tbody>' +
     demo.map(function(p, i) {
       return '<tr>' +
         '<td style="color:var(--accent);font-weight:700">' + (i+1) + '</td>' +
@@ -1287,7 +1447,7 @@ function cvRenderDemoSuppliers() {
         '<td class="td-green">GHS ' + p.avg.toFixed(2) + '/kg</td>' +
         '<td>' + tierBadge(p.tier) + '</td>' +
         '</tr>';
-    }).join('') + '</tbody></table>';
+    }).join('') + '</tbody></table></div>';
 }
 
 function cvFmtVol(n) {
@@ -1406,7 +1566,7 @@ function loadDiscoverListings() {
       var priceHtml = l.price_per_kg
         ? '<span class="listing-card-price">GH\u20b5 ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
         : '<span class="listing-card-price make-offer">Make an offer</span>';
-      var sellerName = esc(l.seller_name || 'Seller');
+      var sellerName = l.seller_name_visible === false ? esc(l.seller_code || 'Seller') : esc(l.seller_name || 'Seller');
       var starsHtml = '';
       if (l.seller_rating) {
         var full = Math.round(parseFloat(l.seller_rating));

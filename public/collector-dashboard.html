@@ -27,7 +27,7 @@
 <body>
 
 <!-- LOGIN OVERLAY -->
-<div class="login-overlay" id="loginOverlay">
+<div class="login-overlay hidden" id="loginOverlay">
   <div class="login-box">
     <div class="login-title">Sign in to Circul</div>
     <div class="login-sub">Collector access</div>
@@ -74,7 +74,7 @@
     <a class="btn-primary" href="/collect">+ Log a collection</a>
   </div>
 
-  <!-- STATS — VOLUME STRIP -->
+  <!-- AT A GLANCE -->
   <div class="stats stats-3">
     <div class="stat">
       <div class="stat-label">Volume Collected</div>
@@ -90,7 +90,7 @@
     </div>
   </div>
 
-  <!-- LIFETIME STATS -->
+  <!-- AT A GLANCE (continued) -->
   <div class="stats stats-4">
     <div class="stat">
       <div class="stat-label">Total KG Collected</div>
@@ -110,11 +110,11 @@
     </div>
   </div>
 
-  <!-- MY TOP BUYERS -->
+  <!-- OUTBOUND — COLLECTIONS -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">My top buyers</div>
+        <div class="section-title">Outbound — Collections</div>
         <div class="section-sub">Aggregators who buy from you · avg. price over last 10 txns</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
@@ -140,102 +140,18 @@
     </div>
   </div>
 
-  <!-- EARNINGS -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">My earnings</div>
-        <div class="section-sub">What you've earned by material</div>
-      </div>
-    </div>
-    <div class="pl-grid">
-      <div>
-        <div class="pl-col-title">This Month</div>
-        <div id="plMonthPills" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;"></div>
-        <div class="pl-row"><span>PET</span><span class="td-green" id="plMonthPET">—</span></div>
-        <div class="pl-row"><span>HDPE</span><span class="td-green" id="plMonthHDPE">—</span></div>
-        <div class="pl-row"><span>LDPE</span><span class="td-green" id="plMonthLDPE">—</span></div>
-        <div class="pl-row"><span>PP</span><span class="td-green" id="plMonthPP">—</span></div>
-        <div class="pl-total">
-          <span>Total this month</span>
-          <span class="pl-total-val" id="plMonthTotal">—</span>
-        </div>
-      </div>
-      <div>
-        <div class="pl-col-title">Year to Date</div>
-        <div id="plYearPills" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;"></div>
-        <div class="pl-row"><span>PET</span><span class="td-green" id="plYTDPET">—</span></div>
-        <div class="pl-row"><span>HDPE</span><span class="td-green" id="plYTDHDPE">—</span></div>
-        <div class="pl-row"><span>LDPE</span><span class="td-green" id="plYTDLDPE">—</span></div>
-        <div class="pl-row"><span>PP</span><span class="td-green" id="plYTDPP">—</span></div>
-        <div class="pl-total">
-          <span>Total YTD</span>
-          <span class="pl-total-val" id="plYTDTotal">—</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- COLLECTOR PASSPORT -->
-  <div class="section">
-    <div class="section-title">My collector passport</div>
-    <div class="section-sub" style="margin-bottom:14px">Your verified identity on the Circul network</div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <span class="passport-id" id="passportId">—</span>
-      <span class="badge" id="passportStatusText">ACTIVE</span>
-    </div>
-    <div class="passport-grid">
-      <div><div class="passport-label">Phone</div><div class="passport-val" id="passportPhone">—</div></div>
-      <div><div class="passport-label">Location</div><div class="passport-val" id="passportLocation">—</div></div>
-      <div><div class="passport-label">Member Since</div><div class="passport-val" id="passportSince">—</div></div>
-      <div><div class="passport-label">Status</div><div class="passport-val">Active</div></div>
-    </div>
-    <a href="#" class="passport-link" id="passportLink">View Collector Passport →</a>
-  </div>
-
-  <!-- WHO'S BUYING NEAR YOU -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Who's buying near you</div>
-        <div class="section-sub">Aggregator posted prices · GH¢/kg · sorted by highest PET price</div>
-      </div>
-    </div>
-    <div class="price-grid" id="pricesGrid">
-      <div class="placeholder-cell" style="grid-column:1/-1">Loading…</div>
-    </div>
-  </div>
-
-  <!-- PENDING PURCHASES -->
+  <!-- OUTBOUND — PENDING PURCHASES -->
   <div class="section hidden" id="pendAggCard">
     <div class="section-title">Pending purchases from aggregators</div>
     <div class="section-sub" style="margin-bottom:14px">Review and accept or decline</div>
     <div id="pendAggList"></div>
   </div>
 
-  <!-- RECENT TRANSACTIONS -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Recent transactions</div>
-        <div class="section-sub">Your last 10 drop-offs</div>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr>
-          <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Earned</th><th>Payment</th><th>Action</th>
-        </tr></thead>
-        <tbody id="txnBody"><tr><td colspan="7" class="placeholder-cell">Loading…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- MY LISTINGS -->
+  <!-- MARKETPLACE — MY LISTINGS -->
   <div class="section" id="listings-section">
     <div class="section-head">
       <div>
-        <div class="section-title">My Listings</div>
+        <div class="section-title">Marketplace — My Listings</div>
         <div class="section-sub">Post materials for sale on the marketplace</div>
       </div>
       <button class="btn btn-green" onclick="showCreateListing()">+ New Listing</button>
@@ -281,6 +197,90 @@
     </div>
   </div>
 
+  <!-- MARKETPLACE — AGGREGATOR PRICES -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Marketplace — Aggregator Prices</div>
+        <div class="section-sub">Aggregator posted prices · GH¢/kg · sorted by highest PET price</div>
+      </div>
+    </div>
+    <div class="price-grid" id="pricesGrid">
+      <div class="placeholder-cell" style="grid-column:1/-1">Loading…</div>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS -->
+  <div class="section" id="recentTxnSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Transactions</div>
+        <div class="section-sub">Your last 10 drop-offs · includes pending</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Status</th><th>Payment</th><th>Rating</th>
+        </tr></thead>
+        <tbody id="txnBody"><tr><td colspan="7" class="placeholder-cell">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FINANCIALS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Financials</div>
+        <div class="section-sub">What you've earned by material</div>
+      </div>
+    </div>
+    <div class="pl-grid">
+      <div>
+        <div class="pl-col-title">This Month</div>
+        <div id="plMonthPills" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;"></div>
+        <div class="pl-row"><span>PET</span><span class="td-green" id="plMonthPET">—</span></div>
+        <div class="pl-row"><span>HDPE</span><span class="td-green" id="plMonthHDPE">—</span></div>
+        <div class="pl-row"><span>LDPE</span><span class="td-green" id="plMonthLDPE">—</span></div>
+        <div class="pl-row"><span>PP</span><span class="td-green" id="plMonthPP">—</span></div>
+        <div class="pl-total">
+          <span>Total this month</span>
+          <span class="pl-total-val" id="plMonthTotal">—</span>
+        </div>
+      </div>
+      <div>
+        <div class="pl-col-title">Year to Date</div>
+        <div id="plYearPills" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;"></div>
+        <div class="pl-row"><span>PET</span><span class="td-green" id="plYTDPET">—</span></div>
+        <div class="pl-row"><span>HDPE</span><span class="td-green" id="plYTDHDPE">—</span></div>
+        <div class="pl-row"><span>LDPE</span><span class="td-green" id="plYTDLDPE">—</span></div>
+        <div class="pl-row"><span>PP</span><span class="td-green" id="plYTDPP">—</span></div>
+        <div class="pl-total">
+          <span>Total YTD</span>
+          <span class="pl-total-val" id="plYTDTotal">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="section">
+    <div class="section-title">Profile</div>
+    <div class="section-sub" style="margin-bottom:14px">Your verified identity on the Circul network</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span class="passport-id" id="passportId">—</span>
+      <span class="badge" id="passportStatusText">ACTIVE</span>
+    </div>
+    <div class="passport-grid">
+      <div><div class="passport-label">Phone</div><div class="passport-val" id="passportPhone">—</div></div>
+      <div><div class="passport-label">Location</div><div class="passport-val" id="passportLocation">—</div></div>
+      <div><div class="passport-label">Member Since</div><div class="passport-val" id="passportSince">—</div></div>
+      <div><div class="passport-label">Status</div><div class="passport-val">Active</div></div>
+    </div>
+    <a href="#" class="passport-link" id="passportLink" target="_blank">View Collector Passport →</a>
+  </div>
+
 </div>
 
 <!-- RATING MODAL -->
@@ -306,6 +306,28 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeRatingModal()">Cancel</button>
       <button class="btn-submit" onclick="submitRating()">Submit Rating</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN CHANGE MODAL -->
+<div class="rating-overlay hidden" id="pinChangeOverlay">
+  <div class="rating-box" style="max-width:360px">
+    <h3>Welcome! Set your PIN</h3>
+    <div class="sub">Please set a new PIN to secure your account.</div>
+    <div style="display:grid;gap:12px;margin:16px 0;">
+      <div>
+        <label class="form-label">New PIN (4 digits)</label>
+        <input type="password" id="newPin" class="form-input" maxlength="4" pattern="\d{4}" placeholder="••••" inputmode="numeric">
+      </div>
+      <div>
+        <label class="form-label">Confirm PIN</label>
+        <input type="password" id="confirmPin" class="form-input" maxlength="4" pattern="\d{4}" placeholder="••••" inputmode="numeric">
+      </div>
+    </div>
+    <div id="pinChangeError" class="hidden" style="color:var(--accent-red,#ff5252);font-size:0.8rem;margin-bottom:10px;"></div>
+    <div class="modal-actions">
+      <button class="btn-submit" onclick="submitPinChange()">Set PIN</button>
     </div>
   </div>
 </div>
@@ -389,7 +411,59 @@ function checkAuth() {
 
 function showDashboard() {
   document.getElementById('loginOverlay').classList.add('hidden');
+  // Check if collector needs to change default PIN
+  if (_collectorState && _collectorState.must_change_pin) {
+    document.getElementById('pinChangeOverlay').classList.remove('hidden');
+    return; // Don't load dashboard until PIN is changed
+  }
   loadAll();
+}
+
+function submitPinChange() {
+  var newPin = (document.getElementById('newPin').value || '').trim();
+  var confirmPin = (document.getElementById('confirmPin').value || '').trim();
+  var errEl = document.getElementById('pinChangeError');
+
+  if (!newPin || !/^\d{4}$/.test(newPin)) {
+    errEl.textContent = 'PIN must be exactly 4 digits.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (newPin !== confirmPin) {
+    errEl.textContent = 'PINs do not match.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (newPin === '0000') {
+    errEl.textContent = 'Please choose a PIN other than 0000.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  var id = _collectorState.collector_id || _collectorState.id;
+  var token = _collectorState.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/collectors/' + id + '/change-pin', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ pin: newPin })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      _collectorState.must_change_pin = false;
+      localStorage.setItem('circul_user', JSON.stringify(_collectorState));
+      document.getElementById('pinChangeOverlay').classList.add('hidden');
+      showToast('PIN changed successfully');
+      loadAll();
+    } else {
+      errEl.textContent = data.message || 'Error changing PIN.';
+      errEl.classList.remove('hidden');
+    }
+  })
+  .catch(function() {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.classList.remove('hidden');
+  });
 }
 
 function handleCollectorLogin() {
@@ -439,10 +513,10 @@ function apiFetch(path, opts={}) {
       return r.json();
     });
 }
-function fmtNum(n, dec=2) {
+function fmt(n) {
   const v = parseFloat(n);
   if (isNaN(v)) return '—';
-  return 'GH¢ ' + v.toFixed(dec);
+  return 'GH¢ ' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtDate(s) {
   if (!s) return '—';
@@ -467,29 +541,38 @@ function matPill(mat) {
   const cls = m === 'PET' ? 'pill-pet' : m === 'HDPE' ? 'pill-hdpe' : m === 'LDPE' ? 'pill-ldpe' : 'pill-pp';
   return '<span class="pill ' + cls + '">' + esc(m) + '</span>';
 }
+function nameCell(name, code, visible) {
+  if (visible === false) return '<span class="counterparty-name-hidden">' + esc(code || '—') + '</span>';
+  var html = esc(name || '—');
+  if (code) html += '<span class="counterparty-code">' + esc(code) + '</span>';
+  return html;
+}
 
 /* ── rating prompt ── */
 var _pendingRatingTxn = null;
 async function checkPendingRatings() {
   try {
     var data = await apiFetch('/ratings/pending');
-    if (!data || !data.pending || !data.pending.length) return;
-    var count = 0;
-    for (var i = 0; i < data.pending.length; i++) {
-      if (!_pendingRatingTxn) _pendingRatingTxn = data.pending[i];
-      count++;
+    var pill = document.getElementById('ratingPill');
+    var txt = document.getElementById('ratingPillText');
+    _pendingRatingTxn = null;
+    if (!data || !data.pending || !data.pending.length) {
+      if (pill) pill.classList.add('hidden');
+      return;
     }
-    if (count > 0) {
-      var pill = document.getElementById('ratingPill');
-      var txt = document.getElementById('ratingPillText');
-      if (txt) txt.textContent = count + ' unrated transaction' + (count > 1 ? 's' : '') + ' \u2014 rate now';
-      if (pill) pill.classList.remove('hidden');
-    }
+    var count = data.pending.length;
+    _pendingRatingTxn = data.pending[0];
+    if (txt) txt.textContent = count + ' unrated transaction' + (count > 1 ? 's' : '') + ' \u2014 rate now';
+    if (pill) pill.classList.remove('hidden');
   } catch(e) { console.warn('checkPendingRatings error', e); }
 }
 function scrollToRating() {
+  var section = document.getElementById('recentTxnSection');
+  if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (_pendingRatingTxn) {
-    openRateModal(_pendingRatingTxn.txn_id, _pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Aggregator');
+    setTimeout(function() {
+      openRateModal(_pendingRatingTxn.txn_id, _pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Aggregator');
+    }, 400);
   }
 }
 
@@ -584,7 +667,7 @@ async function populateStats() {
     const sc = document.getElementById('statTotalKgCard');
     if (sc) sc.innerHTML = Math.round(totalKg) + ' <small>kg</small>';
     const se = document.getElementById('statEarned');
-    if (se) se.textContent = fmtNum(earned);
+    if (se) se.textContent = fmt(earned);
     const sco = document.getElementById('statCollectionsCard');
     if (sco) sco.textContent = collections;
     const sr = document.getElementById('statRating');
@@ -644,13 +727,13 @@ async function populatePL() {
       monthTotal += mv; ytdTotal += yv;
       var mel = document.getElementById('plMonth' + m);
       var yel = document.getElementById('plYTD' + m);
-      if (mel) mel.textContent = fmtNum(mv);
-      if (yel) yel.textContent = fmtNum(yv);
+      if (mel) mel.textContent = fmt(mv);
+      if (yel) yel.textContent = fmt(yv);
     });
     var mt = document.getElementById('plMonthTotal');
     var yt = document.getElementById('plYTDTotal');
-    if (mt) mt.textContent = fmtNum(monthTotal);
-    if (yt) yt.textContent = fmtNum(ytdTotal);
+    if (mt) mt.textContent = fmt(monthTotal);
+    if (yt) yt.textContent = fmt(ytdTotal);
   } catch(e) {
     console.warn('PL endpoint not available, calculating from txns');
   }
@@ -676,9 +759,9 @@ function renderTopBuyers(rows) {
   tbody.innerHTML = rows.slice(0,5).map((r,i) => `
     <tr>
       <td style="color:${i===0?'var(--accent)':'var(--text-3)'};font-weight:700">${i+1}</td>
-      <td class="td-name">${esc(r.aggregator_name||'—')}</td>
+      <td class="td-name">${nameCell(r.aggregator_name, r.aggregator_code, r.name_visible)}</td>
       <td>${Math.round(r.ytd_kg||0)} kg</td>
-      <td class="td-green">${r.avg_price ? fmtNum(r.avg_price) + '/kg' : '—'}</td>
+      <td class="td-green">${r.avg_price ? fmt(r.avg_price) + '/kg' : '—'}</td>
       <td>${r.transaction_count||0}</td>
     </tr>
   `).join('');
@@ -694,32 +777,102 @@ function switchTopBuyers(mode) {
 /* ── transactions ── */
 async function populateTxns() {
   try {
-    const txns = await apiFetch('/collector/transactions');
-    const tbody = document.getElementById('txnBody');
+    var collectorId = (_collectorState && (_collectorState.collector_id || _collectorState.id)) || '';
+    var results = await Promise.all([
+      apiFetch('/collector/transactions').catch(function() { return []; }),
+      collectorId
+        ? apiFetch('/pending-transactions/collector-sales?collector_id=' + collectorId)
+            .catch(function() { return { pending_transactions: [] }; })
+        : Promise.resolve({ pending_transactions: [] })
+    ]);
+    var txns = results[0] || [];
+    var pendingSales = (results[1] && results[1].pending_transactions) || [];
+
+    // Normalize into a merged array
+    var rows = [];
+    txns.forEach(function(t) {
+      rows.push({
+        date: t.created_at || t.transaction_date || t.date,
+        aggregator_name: t.aggregator_name,
+        material_type: t.material_type,
+        weight: t.net_weight_kg,
+        status: 'completed',
+        payment_status: t.payment_status,
+        rated: t.rated,
+        id: t.id,
+        aggregator_id: t.aggregator_id,
+        total_price: t.total_price || t.amount,
+        _type: 'txn'
+      });
+    });
+    pendingSales.forEach(function(p) {
+      rows.push({
+        date: p.created_at,
+        aggregator_name: p.aggregator_name,
+        material_type: p.material_type,
+        weight: p.gross_weight_kg || p.net_weight_kg,
+        status: p.status,
+        payment_status: null,
+        rated: false,
+        id: p.id,
+        aggregator_id: p.aggregator_id,
+        total_price: p.total_price,
+        _type: 'pending'
+      });
+    });
+
+    // Sort by date descending, limit to 10
+    rows.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+    rows = rows.slice(0, 10);
+
+    var tbody = document.getElementById('txnBody');
     if (!tbody) return;
-    if (!txns || !txns.length) {
+    if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><p class="empty-action">Your drop-off history will appear here after your first sale</p></div></td></tr>';
       return;
     }
-    tbody.innerHTML = txns.map(t => {
-      const isPaid = t.payment_status === 'paid';
-      const isSent = t.payment_status === 'sent' || t.payment_status === 'payment_sent';
-      const pillCls = isPaid ? 'pill-paid' : isSent ? 'pill-sent' : 'pill-pending';
-      const pillText = isPaid ? 'Paid ✓' : isSent ? 'Payment sent' : 'Pending';
-      const action = isSent
-        ? `<button class="btn" onclick="confirmReceipt(${t.id})">Confirm receipt</button>`
-        : isPaid
-          ? `<button class="btn" onclick="openRateModal(${t.id}, ${t.aggregator_id||0}, '${esc(t.aggregator_name||'')}')">Rate</button>`
-          : '—';
-      return `<tr>
-        <td>${fmtDate(t.created_at||t.date)}</td>
-        <td class="td-name">${esc(t.aggregator_name||'—')}</td>
-        <td>${matPill(t.material_type)}</td>
-        <td>${t.net_weight_kg ? Math.round(t.net_weight_kg) + ' kg' : '—'}</td>
-        <td class="td-green">${fmtNum(t.total_price||t.amount)}</td>
-        <td><span class="pill ${pillCls}">${pillText}</span></td>
-        <td>${action}</td>
-      </tr>`;
+
+    tbody.innerHTML = rows.map(function(r) {
+      // Status column
+      var statusPill, statusCls;
+      if (r.status === 'completed') { statusCls = 'pill-paid'; statusPill = 'Completed'; }
+      else if (r.status === 'accepted') { statusCls = 'pill-sent'; statusPill = 'Accepted'; }
+      else if (r.status === 'declined' || r.status === 'rejected') { statusCls = 'pill-rejected'; statusPill = 'Rejected'; }
+      else { statusCls = 'pill-pending'; statusPill = 'Pending review'; }
+
+      // Payment column
+      var paymentHtml = '<span style="color:var(--text-3)">\u2014</span>';
+      if (r._type === 'txn') {
+        var isPaid = r.payment_status === 'paid';
+        var isSent = r.payment_status === 'sent' || r.payment_status === 'payment_sent';
+        var pCls = isPaid ? 'pill-paid' : isSent ? 'pill-sent' : 'pill-pending';
+        var pText = isPaid ? 'Paid \u2713' : isSent ? 'Payment sent' : 'Pending';
+        paymentHtml = '<span class="pill ' + pCls + '">' + pText + '</span>';
+      }
+
+      // Rating column
+      var ratingHtml = '<span style="color:var(--text-3)">\u2014</span>';
+      if (r._type === 'txn') {
+        var isTxnPaid = r.payment_status === 'paid';
+        var isTxnSent = r.payment_status === 'sent' || r.payment_status === 'payment_sent';
+        if (isTxnSent) {
+          ratingHtml = '<button class="btn" onclick="confirmReceipt(' + r.id + ')">Confirm receipt</button>';
+        } else if (isTxnPaid) {
+          ratingHtml = r.rated
+            ? '<span class="pill pill-paid">Rated \u2605</span>'
+            : '<button class="btn" onclick="openRateModal(' + r.id + ', ' + (r.aggregator_id||0) + ', \'' + esc(r.aggregator_name||'') + '\')">Rate</button>';
+        }
+      }
+
+      return '<tr>' +
+        '<td>' + fmtDate(r.date) + '</td>' +
+        '<td class="td-name">' + nameCell(r.aggregator_name, r.aggregator_code, r.aggregator_name_visible) + '</td>' +
+        '<td>' + matPill(r.material_type) + '</td>' +
+        '<td>' + (r.weight ? Math.round(r.weight) + ' kg' : '\u2014') + '</td>' +
+        '<td><span class="pill ' + statusCls + '">' + statusPill + '</span></td>' +
+        '<td>' + paymentHtml + '</td>' +
+        '<td>' + ratingHtml + '</td>' +
+      '</tr>';
     }).join('');
   } catch(e) { console.warn('txns error', e); }
 }
@@ -752,7 +905,7 @@ async function populatePrices() {
     });
     grid.innerHTML = sorted.slice(0,4).map(p => {
       const ps = p.prices || {};
-      const buyerName = esc(p.aggregator_name || p.name || '—');
+      const buyerName = p.name_visible === false ? esc(p.aggregator_code || '—') : esc(p.aggregator_name || p.name || '—');
       const rating = p.avg_rating ? parseFloat(p.avg_rating).toFixed(1) + ' · ' + (p.rating_count||0) + ' ratings' : '0.0 · 0 ratings';
       const mats = ['PET','HDPE','LDPE','PP'];
       const priceLines = mats.map(m => {
@@ -778,10 +931,10 @@ function preselectAndSell(aggId) {
     if (agg && agg.prices) _selectedAggPrices = agg.prices;
     showCreateListing();
     autofillListingPrice();
-    document.getElementById('create-listing-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('listings-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }).catch(function() {
     showCreateListing();
-    document.getElementById('create-listing-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('listings-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 
@@ -811,8 +964,8 @@ async function loadPendingFromAgg() {
       <div class="pend-item">
         <div class="pend-item-head">
           <div>
-            <div class="pend-item-title">${esc(p.aggregator_name||'—')} — ${matPill(p.material_type)} ${p.weight_kg ? Math.round(p.weight_kg) + ' kg' : ''}</div>
-            <div class="pend-item-sub">${fmtNum(p.total_price||p.amount)} · ${fmtDate(p.created_at)}</div>
+            <div class="pend-item-title">${nameCell(p.aggregator_name, p.aggregator_code, p.aggregator_name_visible !== false)} — ${matPill(p.material_type)} ${p.weight_kg ? Math.round(p.weight_kg) + ' kg' : ''}</div>
+            <div class="pend-item-sub">${fmt(p.total_price||p.amount)} · ${fmtDate(p.created_at)}</div>
           </div>
           <span class="pend-item-badge">Pending review</span>
         </div>
@@ -827,11 +980,14 @@ async function loadPendingFromAgg() {
 
 async function reviewPending(id, action) {
   try {
-    await apiFetch('/collector/pending-purchases/' + id + '/' + action, { method:'POST' });
+    await apiFetch('/collector/pending-purchases/' + id + '/' + action, { method:'POST', body: JSON.stringify({}) });
     showToast(action === 'accept' ? '✓ Purchase accepted' : 'Purchase declined');
     loadPendingFromAgg();
     populateTxns();
-  } catch(e) { showToast('Error processing request'); }
+  } catch(e) {
+    console.error('reviewPending error:', e);
+    showToast('Error: could not ' + action + ' purchase');
+  }
 }
 
 /* ── rating ── */
@@ -873,8 +1029,10 @@ function toggleTag(chip) {
 async function submitRating() {
   if (!_starValue) { showToast('Please select a star rating'); return; }
   try {
-    await apiFetch('/collector/rate-aggregator', {
+    var token = (_collectorState && _collectorState.token) || localStorage.getItem('circul_token') || '';
+    var r = await fetch(API + '/collector/rate-aggregator', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({
         transaction_id: _currentRatingTxnId,
         aggregator_id: _currentRatingAggId,
@@ -883,9 +1041,17 @@ async function submitRating() {
         note: document.getElementById('ratingNote').value,
       })
     });
+    var resp = await r.json();
     closeRatingModal();
-    showToast('✓ Rating submitted — thank you!');
+    if (r.status === 409) {
+      showToast('Already rated this transaction');
+    } else if (resp.success) {
+      showToast('✓ Rating submitted — thank you!');
+    } else {
+      showToast(resp.message || 'Error submitting rating');
+    }
     populateTxns();
+    checkPendingRatings();
   } catch(e) { showToast('Error submitting rating'); }
 }
 
@@ -958,7 +1124,7 @@ function loadMyListings() {
     .then(function(data) {
       var list = document.getElementById('my-listings-list');
       if (!list) return;
-      var listings = data.listings || data || [];
+      var listings = (data.listings || data || []).filter(function(l) { return l.status === 'active'; });
       if (!listings.length) {
         list.innerHTML = '<div class="empty"><p class="empty-action">Create your first listing to sell materials</p><p class="empty-hint">Aggregators near you will see your listing and make offers</p></div>';
         return;
@@ -1051,7 +1217,7 @@ function toggleOffers(listingId) {
         var isMine = o.offered_by === 'seller';
         var bubbleCls = isMine ? 'offer-bubble mine' : 'offer-bubble';
         var header = '<div class="offer-bubble-header">' +
-          '<span>' + (isMine ? 'You' : esc(o.buyer_name || 'Buyer')) + ' · Round ' + o.round + '</span>' +
+          '<span>' + (isMine ? 'You' : nameCell(o.buyer_name, o.buyer_code, o.buyer_name_visible)) + ' · Round ' + o.round + '</span>' +
           '<span>' + fmtDate(o.created_at) + '</span>' +
         '</div>';
         var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';

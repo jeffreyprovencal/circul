@@ -73,7 +73,7 @@
 <body>
 
 <!-- LOGIN OVERLAY -->
-<div class="login-overlay" id="loginOverlay">
+<div class="login-overlay hidden" id="loginOverlay">
   <div class="login-box">
     <h2>Circul</h2>
     <p>Sign in to your recycler account</p>
@@ -95,6 +95,7 @@
     <span class="nav-name" id="navName">&mdash;</span>
     <span class="nav-id" id="navRecId"></span>
     <a class="nav-link" href="/">Home</a>
+    <button id="switch-role-btn" class="btn btn-sm hidden" onclick="window.location.href='/converter-dashboard'">Switch to Converter</button>
     <button class="nav-logout" onclick="handleLogout()">Log out</button>
   </div>
 </nav>
@@ -118,7 +119,7 @@
     </div>
   </div>
 
-  <!-- STATS -->
+  <!-- AT A GLANCE -->
   <div class="stats stats-3">
     <div class="stat">
       <div class="stat-label">Volume This Month</div>
@@ -134,75 +135,36 @@
     </div>
   </div>
 
-  <!-- TWO-COL: TOP SUPPLIERS & TOP BUYERS -->
-  <div class="two-col">
-    <!-- MY TOP SUPPLIERS -->
-    <div class="section">
-      <div class="section-head">
-        <div><div class="section-title">My top suppliers</div></div>
-        <div class="tabs" id="top-suppliers-toggle">
-          <button class="tab" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
-          <button class="tab on" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
-          <span class="view-all">View all</span>
-        </div>
-      </div>
-      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
+  <!-- INBOUND — DELIVERIES -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Inbound — Deliveries</div></div>
     </div>
 
-    <!-- MY TOP BUYERS -->
-    <div class="section">
-      <div class="section-head">
-        <div><div class="section-title">My top buyers</div></div>
-        <div class="tabs" id="top-buyers-toggle">
-          <button class="tab" data-period="month" onclick="switchTopBuyers('month')">Month</button>
-          <button class="tab on" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
-          <span class="view-all">View all</span>
-        </div>
-      </div>
-      <div id="top-buyers-list"><div class="placeholder-cell">Loading...</div></div>
+    <!-- PENDING -->
+    <div class="sub">
+      <div class="sub-title">Pending</div>
+      <div id="recQueuePending"><div class="sub-empty">Loading...</div></div>
+    </div>
+
+    <!-- APPROVED -->
+    <div class="sub">
+      <div class="sub-title">Approved</div>
+      <div id="recQueueApproved"><div class="sub-empty">Loading...</div></div>
+    </div>
+
+    <!-- COMPLETED -->
+    <div class="sub">
+      <div class="sub-title">Completed</div>
+      <div id="recQueueCompleted"><div class="sub-empty">Loading...</div></div>
     </div>
   </div>
 
-  <!-- POST PURCHASE PRICES -->
+  <!-- OUTBOUND — ORDERS -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">Post purchase prices</div>
-        <div class="section-sub">Current prices posted &middot; GHS/kg</div>
-      </div>
-      <button class="btn btn-green" onclick="togglePriceForm()">+ Post Price</button>
-    </div>
-    <div id="create-price-form-rc" class="hidden" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px">
-      <div style="display:flex;gap:12px;align-items:flex-end">
-        <div class="form-group" style="flex:2">
-          <label class="form-label">Material Type</label>
-          <select id="rc-material" class="form-select">
-            <option value="PET">PET</option>
-            <option value="HDPE">HDPE</option>
-            <option value="LDPE">LDPE</option>
-            <option value="PP">PP</option>
-          </select>
-        </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Price per kg (GH₵)</label>
-          <input id="rc-price" class="form-input" type="number" placeholder="0.00" step="0.01" min="0">
-        </div>
-        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
-          <button class="btn btn-green" onclick="submitPriceForm()">Post</button>
-          <button class="btn" onclick="togglePriceForm()">Cancel</button>
-        </div>
-      </div>
-    </div>
-    <div class="price-grid" id="priceCards">
-      <!-- populated by renderPriceCards() -->
-    </div>
-  </div>
-
-  <!-- PLACE PURCHASE ORDER -->
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Place purchase order</div>
+        <div class="section-title">Outbound — Orders</div>
         <div class="section-sub">Request material from a processor</div>
       </div>
       <button class="btn-submit" id="ord-submit-btn" onclick="submitOrder()">Submit Order</button>
@@ -249,15 +211,22 @@
         <input class="form-input" type="text" id="ord-notes" placeholder="Any other requirements..." />
       </div>
     </div>
-    <input type="hidden" id="ord-price" value="" />
-    <div class="order-total hidden" id="ord-total-box">
-      Estimated total: <strong id="ord-total-ghs">&mdash;</strong>
-      <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+      <div class="form-group">
+        <label class="form-label">Price per kg (GH¢)</label>
+        <input type="number" class="form-input" id="ord-price" placeholder="e.g. 3.50" min="0" step="0.01" oninput="calcOrderTotal()" />
+      </div>
+      <div class="form-group" style="justify-content:flex-end">
+        <div class="order-total hidden" id="ord-total-box" style="margin:0;padding:8px 0">
+          Estimated total: <strong id="ord-total-ghs">&mdash;</strong>
+          <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
+        </div>
+      </div>
     </div>
     <div class="msg-error" style="margin-bottom:8px" id="ord-msg"></div>
   </div>
 
-  <!-- MY ORDERS -->
+  <!-- MY ORDERS (part of Outbound) -->
   <div class="section">
     <div class="section-head">
       <div><div class="section-title">My orders</div></div>
@@ -265,36 +234,11 @@
     <div id="ordersList"><div class="empty">Loading...</div></div>
   </div>
 
-  <!-- INCOMING DELIVERIES -->
-  <div class="section">
-    <div class="section-head">
-      <div><div class="section-title">Incoming deliveries</div></div>
-    </div>
-
-    <!-- PENDING -->
-    <div class="sub">
-      <div class="sub-title">Pending</div>
-      <div id="recQueuePending"><div class="sub-empty">Loading...</div></div>
-    </div>
-
-    <!-- APPROVED -->
-    <div class="sub">
-      <div class="sub-title">Approved</div>
-      <div id="recQueueApproved"><div class="sub-empty">Loading...</div></div>
-    </div>
-
-    <!-- COMPLETED -->
-    <div class="sub">
-      <div class="sub-title">Completed</div>
-      <div id="recQueueCompleted"><div class="sub-empty">Loading...</div></div>
-    </div>
-  </div>
-
-  <!-- SELL TO CONVERTER -->
+  <!-- OUTBOUND — SALES -->
   <div class="section">
     <div class="section-head">
       <div>
-        <div class="section-title">Sell to converter</div>
+        <div class="section-title">Outbound — Sales</div>
         <div class="section-sub">Log a sale of recycled material to a converter</div>
       </div>
       <button class="btn-submit" onclick="submitRecSale()">Submit Sale</button>
@@ -330,7 +274,7 @@
     <div class="msg-error" style="margin-top:8px;margin-bottom:8px" id="rec-sale-msg"></div>
   </div>
 
-  <!-- MY SALES -->
+  <!-- MY SALES (part of Outbound) -->
   <div class="section">
     <div class="section-head">
       <div><div class="section-title">My sales</div></div>
@@ -338,10 +282,73 @@
     <div id="recSalesList"><div class="empty">Loading...</div></div>
   </div>
 
-  <!-- SUPPLY CHAIN (bottom tabs) -->
+  <!-- MARKETPLACE — MY PRICES -->
   <div class="section">
     <div class="section-head">
-      <div><div class="section-title">Supply chain</div></div>
+      <div>
+        <div class="section-title">Marketplace — My Prices</div>
+        <div class="section-sub">Current prices posted &middot; GHS/kg</div>
+      </div>
+      <button class="btn btn-green" onclick="togglePriceForm()">+ Post Price</button>
+    </div>
+    <div id="create-price-form-rc" class="hidden" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px">
+      <div style="display:flex;gap:12px;align-items:flex-end">
+        <div class="form-group" style="flex:2">
+          <label class="form-label">Material Type</label>
+          <select id="rc-material" class="form-select">
+            <option value="PET">PET</option>
+            <option value="HDPE">HDPE</option>
+            <option value="LDPE">LDPE</option>
+            <option value="PP">PP</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Price per kg (GH₵)</label>
+          <input id="rc-price" class="form-input" type="number" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
+          <button class="btn btn-green" onclick="submitPriceForm()">Post</button>
+          <button class="btn" onclick="togglePriceForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="price-grid" id="priceCards">
+      <!-- populated by renderPriceCards() -->
+    </div>
+  </div>
+
+  <!-- MARKETPLACE — DISCOVER -->
+  <div class="section" id="discover-section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Marketplace — Discover</div>
+        <div class="section-sub">Browse aggregator listings and make offers</div>
+      </div>
+    </div>
+    <div class="discovery-filters">
+      <span class="pill pill-pet" onclick="toggleDiscFilter('PET', this)">PET</span>
+      <span class="pill pill-hdpe" onclick="toggleDiscFilter('HDPE', this)">HDPE</span>
+      <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
+      <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
+      <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
+      <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
+      <button class="btn" onclick="discSearch()">Search</button>
+    </div>
+    <div id="discover-listings">
+      <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <div class="section-title" style="font-size:0.9rem;">My Offers</div>
+      <div id="my-sent-offers">
+        <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS -->
+  <div class="section">
+    <div class="section-head">
+      <div><div class="section-title">Transactions</div></div>
       <div class="tabs">
         <button class="tab on" onclick="showTab('supply', this)">Supply Chain</button>
         <button class="tab" onclick="showTab('prices', this)">Available Material</button>
@@ -390,33 +397,34 @@
     </div>
   </div>
 
-    <!-- DISCOVER MATERIALS -->
-    <div class="section" id="discover-section">
+  <!-- TRANSACTIONS — PARTNERS -->
+  <div class="two-col">
+    <!-- TOP SUPPLIERS -->
+    <div class="section">
       <div class="section-head">
-        <div>
-          <div class="section-title">Discover Materials</div>
-          <div class="section-sub">Browse aggregator listings and make offers</div>
+        <div><div class="section-title">Transactions — Suppliers</div></div>
+        <div class="tabs" id="top-suppliers-toggle">
+          <button class="tab" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
+          <button class="tab on" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
         </div>
       </div>
-      <div class="discovery-filters">
-        <span class="pill pill-pet" onclick="toggleDiscFilter('PET', this)">PET</span>
-        <span class="pill pill-hdpe" onclick="toggleDiscFilter('HDPE', this)">HDPE</span>
-        <span class="pill pill-ldpe" onclick="toggleDiscFilter('LDPE', this)">LDPE</span>
-        <span class="pill pill-pp" onclick="toggleDiscFilter('PP', this)">PP</span>
-        <input type="number" id="discover-min-kg" class="form-input" placeholder="Min kg" style="width:100px;">
-        <select id="discLocationSelect" class="form-select" style="width:160px;"><option value="">All locations</option></select>
-        <button class="btn" onclick="discSearch()">Search</button>
-      </div>
-      <div id="discover-listings">
-        <p style="color:var(--text-3);font-size:0.85rem;">Select a material type to browse available listings.</p>
-      </div>
-      <div style="margin-top:1.5rem;">
-        <div class="section-title" style="font-size:0.9rem;">My Offers</div>
-        <div id="my-sent-offers">
-          <p style="color:var(--text-3);font-size:0.85rem;">No offers yet.</p>
-        </div>
-      </div>
+      <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
     </div>
+
+    <!-- TOP BUYERS -->
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">Transactions — Buyers</div></div>
+        <div class="tabs" id="top-buyers-toggle">
+          <button class="tab" data-period="month" onclick="switchTopBuyers('month')">Month</button>
+          <button class="tab on" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
+          <span class="view-all">View all</span>
+        </div>
+      </div>
+      <div id="top-buyers-list"><div class="placeholder-cell">Loading...</div></div>
+    </div>
+  </div>
 
 </div><!-- /.page -->
 
@@ -811,7 +819,7 @@ function loadRecyclerQueue() {
 function buildRecPendingCard(pt) {
     var photos = Array.isArray(pt.photo_urls) ? pt.photo_urls : [];
     var hasPhotos = photos.length > 0;
-    var procName = esc(pt.processor_company || pt.processor_name || '\u2014');
+    var procName = nameCell(pt.processor_company || pt.processor_name, pt.processor_code, pt.processor_name_visible);
     var photoHtml = hasPhotos
         ? '<span class="badge badge-green">\u2713 ' + photos.length + ' photo' + (photos.length > 1 ? 's' : '') + '</span>'
         : '<span class="badge badge-amber">\u26A0 No photos</span>';
@@ -838,7 +846,7 @@ function buildRecPendingCard(pt) {
 }
 
 function buildRecApprovedCard(pt) {
-    var procName = esc(pt.processor_company || pt.processor_name || '\u2014');
+    var procName = nameCell(pt.processor_company || pt.processor_name, pt.processor_code, pt.processor_name_visible);
     return '<div class="del-card" id="recdc-arr-' + pt.id + '">' +
         '<div class="del-row">' +
         '<span class="badge badge-green">\u2713 Approved</span>' +
@@ -855,7 +863,7 @@ function buildRecApprovedCard(pt) {
 }
 
 function buildRecCompletedRow(pt) {
-    var procName = esc(pt.processor_company || pt.processor_name || '\u2014');
+    var procName = nameCell(pt.processor_company || pt.processor_name, pt.processor_code, pt.processor_name_visible);
     var total = pt.total_price ? parseFloat(pt.total_price) : 0;
     var statusBadge = pt.status === 'arrived'
         ? '<span class="pill pill-arrived">Arrived</span>'
@@ -1061,7 +1069,7 @@ function loadRecSales() {
             sales.map(function(s) {
                 var statusCls = s.status === 'completed' ? 'status-completed' : (s.status === 'pending' ? 'status-pending' : 'status-approved');
                 return '<tr>' +
-                    '<td class="td-name">' + esc(s.converter_company || s.converter_name || '\u2014') + '</td>' +
+                    '<td class="td-name">' + nameCell(s.converter_company || s.converter_name, s.converter_code, s.converter_name_visible) + '</td>' +
                     '<td>' + esc(s.material_type || '\u2014') + '</td>' +
                     '<td>' + fmt(s.gross_weight_kg || 0) + ' kg</td>' +
                     '<td class="td-green">GH\u20B5 ' + fmt(s.price_per_kg || 0) + '</td>' +
@@ -1108,7 +1116,7 @@ function loadTxns() {
             tbody.innerHTML = txns.map(function(t) {
                 var statusCls = t.status === 'dispatch_approved' ? 'status-approved' : t.status === 'arrived' || t.status === 'completed' ? 'status-completed' : t.status === 'dispatch_rejected' ? 'status-rejected' : 'status-pending';
                 var statusBadge = '<span class="status-badge ' + statusCls + '">' + esc(t.status) + '</span>';
-                return '<tr><td>' + fmtDate(t.created_at) + '</td><td class="td-name">' + esc(t.processor_company || t.processor_name || '\u2014') + '</td><td><span class="pill pill-' + (t.material_type || '').toLowerCase() + '">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td class="td-green">GH\u20B5 ' + fmt(t.price_per_kg || 0) + '/kg</td><td class="td-green">GH\u20B5 ' + fmt(t.total_price || 0) + '</td><td>' + statusBadge + '</td></tr>';
+                return '<tr><td>' + fmtDate(t.created_at) + '</td><td class="td-name">' + nameCell(t.processor_company || t.processor_name, t.processor_code, t.processor_name_visible) + '</td><td><span class="pill pill-' + (t.material_type || '').toLowerCase() + '">' + esc(t.material_type) + '</span></td><td>' + fmt(t.gross_weight_kg) + ' kg</td><td class="td-green">GH\u20B5 ' + fmt(t.price_per_kg || 0) + '/kg</td><td class="td-green">GH\u20B5 ' + fmt(t.total_price || 0) + '</td><td>' + statusBadge + '</td></tr>';
             }).join('');
         })
         .catch(function() {
@@ -1232,10 +1240,21 @@ async function submitRecRating() {
                 note: note || null
             })
         });
+        if (r.status === 409) { closeRateProcessorModal(); showRecToast('Already rated this processor'); return; }
         var data = await r.json();
         if (data.success) {
             closeRateProcessorModal();
             showRecToast('Rating submitted!');
+            // Replace Rate button with Rated pill
+            var btns = document.querySelectorAll('#processorRatingsList button');
+            btns.forEach(function(b) {
+                if (b.onclick && b.onclick.toString().indexOf(_rateProcessorId) !== -1) {
+                    var pill = document.createElement('span');
+                    pill.className = 'pill pill-paid';
+                    pill.textContent = 'Rated \u2605';
+                    b.parentNode.replaceChild(pill, b);
+                }
+            });
         } else {
             var msg = document.getElementById('rateProcessorMsg');
             msg.textContent = data.message || 'Could not submit rating.';
@@ -1303,6 +1322,12 @@ function paymentBadge(ps) {
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
 function fmtDate(iso) { if (!iso) return '\u2014'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function nameCell(name, code, visible) {
+  if (visible === false) return '<span class="counterparty-name-hidden">' + esc(code || '—') + '</span>';
+  var html = esc(name || '—');
+  if (code) html += '<span class="counterparty-code">' + esc(code) + '</span>';
+  return html;
+}
 
 checkAuth();
 
@@ -1331,7 +1356,7 @@ function loadTopSuppliers(period) {
         return [
           '<div class="partner-row">',
           '  <span class="partner-rank">' + (i+1) + '</span>',
-          '  <span class="partner-name">' + (p.name || p.processor_name || "Unknown") + '</span>',
+          '  <span class="partner-name">' + nameCell(p.name || p.processor_name, p.partner_code, p.name_visible) + '</span>',
           '  <span class="partner-vol">' + recFmtVol(p.volume || p.total_volume || 0) + ' kg</span>',
           '  <div class="partner-price-block">',
           '    <span class="partner-price-label">AVG PRICE PAID</span>',
@@ -1393,7 +1418,7 @@ function loadTopBuyers(period) {
         return [
           '<div class="partner-row">',
           '  <span class="partner-rank">' + (i+1) + '</span>',
-          '  <span class="partner-name">' + (p.name || p.converter_name || "Unknown") + '</span>',
+          '  <span class="partner-name">' + nameCell(p.name || p.converter_name, p.partner_code, p.name_visible) + '</span>',
           '  <span class="partner-vol">' + recFmtVol(p.volume || p.total_volume || 0) + ' kg</span>',
           '  <div class="partner-price-block">',
           '    <span class="partner-price-label">AVG PRICE SOLD</span>',
@@ -1547,7 +1572,7 @@ function loadDiscoverListings() {
       var priceHtml = l.price_per_kg
         ? '<span class="listing-card-price">GH\u20b5 ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
         : '<span class="listing-card-price make-offer">Make an offer</span>';
-      var sellerName = esc(l.seller_name || 'Seller');
+      var sellerName = l.seller_name_visible === false ? esc(l.seller_code || 'Seller') : esc(l.seller_name || 'Seller');
       var starsHtml = '';
       if (l.seller_rating) {
         var full = Math.round(parseFloat(l.seller_rating));

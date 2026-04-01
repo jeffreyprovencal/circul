@@ -129,6 +129,43 @@
   // Roles that can post prices
   var PRICE_POSTER_ROLES = Object.keys(ROLES).filter(function (r) { return ROLES[r].canPostPrices; });
 
+  // ── Ghana regions (16) ──
+  var GHANA_REGIONS = [
+    'Greater Accra', 'Ashanti', 'Western', 'Central', 'Eastern',
+    'Volta', 'Northern', 'Upper East', 'Upper West', 'Bono',
+    'Bono East', 'Ahafo', 'Oti', 'Savannah', 'North East', 'Western North'
+  ];
+
+  // ── Tier adjacency map (for name privacy) ──
+  var ADJACENT_TIERS = {
+    collector: ['aggregator'],
+    aggregator: ['collector', 'processor'],
+    processor: ['aggregator', 'recycler', 'converter'],
+    recycler: ['processor', 'converter'],
+    converter: ['recycler', 'processor']
+  };
+
+  // ── Role → ID code prefix ──
+  var ROLE_PREFIX = {
+    collector: 'COL',
+    aggregator: 'AGG',
+    processor: 'PRC',
+    recycler: 'RCY',
+    converter: 'CNV'
+  };
+
+  // Generate Circul ID code from role + numeric id
+  function circulCode(role, id) {
+    var prefix = ROLE_PREFIX[role] || role.substring(0, 3).toUpperCase();
+    return prefix + '-' + String(id).padStart(4, '0');
+  }
+
+  // Check if viewerRole can see counterpartyRole's name by adjacency alone
+  function isAdjacentTier(viewerRole, counterpartyRole) {
+    var adj = ADJACENT_TIERS[viewerRole];
+    return adj ? adj.indexOf(counterpartyRole) !== -1 : false;
+  }
+
   // Discovery marketplace: buyer_role → seller_role whose listings they browse
   var DISCOVERY_TIERS = {
     aggregator: 'collector',
@@ -170,10 +207,15 @@
     PAID_ROLES: PAID_ROLES,
     FREE_ROLES: FREE_ROLES,
     PRICE_POSTER_ROLES: PRICE_POSTER_ROLES,
+    GHANA_REGIONS: GHANA_REGIONS,
+    ADJACENT_TIERS: ADJACENT_TIERS,
+    ROLE_PREFIX: ROLE_PREFIX,
     DISCOVERY_TIERS: DISCOVERY_TIERS,
     getPosterTypes: getPosterTypes,
     highestRole: highestRole,
     dashboardFor: dashboardFor,
-    pillStyle: pillStyle
+    pillStyle: pillStyle,
+    circulCode: circulCode,
+    isAdjacentTier: isAdjacentTier
   };
 });

@@ -121,6 +121,32 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// ── Name-privacy helper ──
+// Adjacent tiers always see real names. Non-adjacent tiers see names
+// only if they share a completed direct transaction.
+async function canSeeName(viewerRole, viewerId, counterpartyRole, counterpartyId) {
+  // Adjacent tiers → always visible
+  if (CirculRoles.isAdjacentTier(viewerRole, counterpartyRole)) return true;
+  // Same tier → visible
+  if (viewerRole === counterpartyRole) return true;
+  // Check for a direct completed transaction between these two users
+  const roleCol = (r) => r + '_id';
+  const vCol = roleCol(viewerRole);
+  const cCol = roleCol(counterpartyRole);
+  // Check transactions table (collector↔aggregator completions)
+  const txCheck = await pool.query(
+    `SELECT 1 FROM transactions WHERE ${vCol} = $1 AND ${cCol} = $2 LIMIT 1`,
+    [viewerId, counterpartyId]
+  ).catch(() => ({ rows: [] }));
+  if (txCheck.rows.length > 0) return true;
+  // Check pending_transactions table (all other tier completions)
+  const ptCheck = await pool.query(
+    `SELECT 1 FROM pending_transactions WHERE ${vCol} = $1 AND ${cCol} = $2 AND status = 'completed' LIMIT 1`,
+    [viewerId, counterpartyId]
+  ).catch(() => ({ rows: [] }));
+  return ptCheck.rows.length > 0;
+}
+
 // ============================================
 // COLLECTORS
 // ============================================
@@ -140,6 +166,46 @@ app.post('/api/collectors', async (req, res) => {
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ success: false, message: 'Phone number already registered' });
     console.error('Error creating collector:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Register a new collector from aggregator dashboard
+app.post('/api/aggregators/:id/register-collector', async (req, res) => {
+  try {
+    const { name, phone, region } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, message: 'Name is required' });
+    if (!phone || !/^0\d{9}$/.test(phone.trim())) return res.status(400).json({ success: false, message: 'Phone must be 10 digits starting with 0' });
+    if (!region || !CirculRoles.GHANA_REGIONS.includes(region)) return res.status(400).json({ success: false, message: 'Valid Ghana region is required' });
+    const parts = name.trim().split(/\s+/);
+    const first_name = parts[0];
+    const last_name = parts.slice(1).join(' ') || '';
+    const result = await pool.query(
+      `INSERT INTO collectors (first_name, last_name, phone, pin, region, must_change_pin)
+       VALUES ($1,$2,$3,$4,$5,true)
+       RETURNING id, first_name, last_name, phone, region`,
+      [first_name, last_name, phone.trim(), '0000', region]
+    );
+    const c = result.rows[0];
+    res.status(201).json({ success: true, id: c.id, name: ((c.first_name || '') + ' ' + (c.last_name || '')).trim(), phone: c.phone });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Phone number already registered' });
+    console.error('POST /api/aggregators/:id/register-collector error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Change collector PIN (first-login flow)
+app.patch('/api/collectors/:id/change-pin', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
+    if (parseInt(req.params.id) !== req.user.id) return res.status(403).json({ success: false, message: 'Can only change your own PIN' });
+    const { pin } = req.body;
+    if (!pin || !/^\d{4}$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be exactly 4 digits' });
+    await pool.query(`UPDATE collectors SET pin=$1, must_change_pin=false, updated_at=NOW() WHERE id=$2`, [pin, req.user.id]);
+    res.json({ success: true, message: 'PIN changed successfully' });
+  } catch (err) {
+    console.error('PATCH /api/collectors/:id/change-pin error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -290,13 +356,17 @@ app.get('/api/collector/transactions', requireAuth, async (req, res) => {
     const id = req.user.id;
     const result = await pool.query(
       `SELECT t.*, a.name as aggregator_name, a.company as aggregator_company,
-              'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display,
+              t.aggregator_id,
               EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id=t.id AND r.rater_type='collector' AND r.rater_id=$1) as rated
        FROM transactions t
        LEFT JOIN aggregators a ON a.id=t.aggregator_id
        WHERE t.collector_id=$1
        ORDER BY t.transaction_date DESC LIMIT 50`, [id]
     );
+    result.rows.forEach(r => {
+      r.aggregator_code = CirculRoles.circulCode('aggregator', r.aggregator_id);
+      r.aggregator_name_visible = true; // collector↔aggregator is adjacent
+    });
     res.json(result.rows);
   } catch (err) { console.error('GET /api/collector/transactions error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -314,6 +384,10 @@ app.get('/api/collector/prices', requireAuth, async (req, res) => {
        WHERE pp.poster_type='aggregator' AND pp.is_active=true AND pp.material_type IS NOT NULL
        GROUP BY pp.poster_id, a.id`
     );
+    result.rows.forEach(r => {
+      r.aggregator_code = CirculRoles.circulCode('aggregator', r.aggregator_id);
+      r.name_visible = true; // collector↔aggregator adjacent
+    });
     res.json(result.rows);
   } catch (err) { console.error('GET /api/collector/prices error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -338,6 +412,10 @@ app.get('/api/collector/top-buyers', requireAuth, async (req, res) => {
        GROUP BY a.id ORDER BY ytd_kg DESC LIMIT 5`,
       [id, since]
     );
+    result.rows.forEach(r => {
+      r.aggregator_code = CirculRoles.circulCode('aggregator', r.aggregator_id);
+      r.name_visible = true;
+    });
     res.json(result.rows);
   } catch (err) { console.error('GET /api/collector/top-buyers error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -440,24 +518,17 @@ app.post('/api/collector/rate-aggregator', requireAuth, async (req, res) => {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const { transaction_id, aggregator_id, rating, tags, note } = req.body;
     if (!rating || rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1-5' });
-    // Check if rating already exists for this transaction+rater combo
+    // Prevent duplicate ratings
     const existing = await pool.query(
       `SELECT id FROM ratings WHERE transaction_id=$1 AND rater_type='collector' AND rater_id=$2`, [transaction_id, req.user.id]
     );
+    if (existing.rows.length) return res.status(409).json({ success: false, message: 'You have already rated this transaction' });
     const pgTags = Array.isArray(tags) && tags.length ? '{' + tags.map(t => '"' + String(t).replace(/"/g, '\\"') + '"').join(',') + '}' : '{}';
-    let result;
-    if (existing.rows.length) {
-      result = await pool.query(
-        `UPDATE ratings SET rating=$1, tags=$2::TEXT[], notes=$3 WHERE id=$4 RETURNING *`,
-        [rating, pgTags, note || null, existing.rows[0].id]
-      );
-    } else {
-      result = await pool.query(
-        `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction)
-         VALUES ($1, 'collector', $2, 'aggregator', $3, $4, $5::TEXT[], $6, 'upward') RETURNING *`,
-        [transaction_id, req.user.id, aggregator_id, rating, pgTags, note || null]
-      );
-    }
+    const result = await pool.query(
+      `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction)
+       VALUES ($1, 'collector', $2, 'aggregator', $3, $4, $5::TEXT[], $6, 'upward') RETURNING *`,
+      [transaction_id, req.user.id, aggregator_id, rating, pgTags, note || null]
+    );
     res.json({ success: true, rating: result.rows[0] });
   } catch (err) { console.error('POST /api/collector/rate-aggregator error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -979,6 +1050,12 @@ app.get('/api/listings', requireAuth, async (req, res) => {
        ORDER BY l.created_at DESC`,
       params
     );
+    // Add seller codes and visibility flags
+    const buyerId = req.user.id;
+    for (const row of result.rows) {
+      row.seller_code = CirculRoles.circulCode(row.seller_role, row.seller_id);
+      row.seller_name_visible = await canSeeName(buyerRole, buyerId, row.seller_role, row.seller_id);
+    }
     res.json({ success: true, listings: result.rows });
   } catch (err) { console.error('GET /api/listings error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1114,6 +1191,10 @@ app.get('/api/listings/:id/offers', requireAuth, async (req, res) => {
        LEFT JOIN ${buyerTable} b ON b.id = o.buyer_id
        WHERE o.listing_id = $1 ORDER BY o.created_at DESC`, [req.params.id]
     )).rows;
+    for (const o of offers) {
+      o.buyer_code = CirculRoles.circulCode(o.buyer_role || buyerRole, o.buyer_id);
+      o.buyer_name_visible = await canSeeName(userRole, req.user.id, o.buyer_role || buyerRole, o.buyer_id);
+    }
     res.json({ success: true, offers: offers });
   } catch (err) { console.error('GET /api/listings/:id/offers error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1366,7 +1447,8 @@ app.get('/api/aggregator/top-suppliers', requireAuth, async (req, res) => {
       ? (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })()
       : new Date(new Date().getFullYear(), 0, 1).toISOString();
     const result = await pool.query(
-      `SELECT COALESCE(c.first_name || ' ' || c.last_name, 'Unknown') AS collector_name,
+      `SELECT c.id AS collector_id,
+              COALESCE(c.first_name || ' ' || c.last_name, 'Unknown') AS collector_name,
               COALESCE(c.first_name || ' ' || c.last_name, 'Unknown') AS name,
               SUM(t.net_weight_kg) AS ytd_kg,
               SUM(CASE WHEN t.transaction_date >= $2 THEN t.net_weight_kg ELSE 0 END) AS month_kg,
@@ -1375,9 +1457,13 @@ app.get('/api/aggregator/top-suppliers', requireAuth, async (req, res) => {
        FROM transactions t
        LEFT JOIN collectors c ON c.id = t.collector_id
        WHERE t.aggregator_id = $1 AND t.transaction_date >= $3
-       GROUP BY 1, 2 ORDER BY ytd_kg DESC LIMIT 5`,
+       GROUP BY c.id ORDER BY ytd_kg DESC LIMIT 5`,
       [aggId, since, new Date(new Date().getFullYear(), 0, 1).toISOString()]
     );
+    result.rows.forEach(r => {
+      r.collector_code = CirculRoles.circulCode('collector', r.collector_id);
+      r.name_visible = true; // aggregator↔collector adjacent
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Aggregator top-suppliers error:', err);
@@ -1394,7 +1480,8 @@ app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
       ? (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })()
       : new Date(new Date().getFullYear(), 0, 1).toISOString();
     const result = await pool.query(
-      `SELECT COALESCE(p.company, p.name, 'Unknown') AS processor_name,
+      `SELECT p.id AS processor_id,
+              COALESCE(p.company, p.name, 'Unknown') AS processor_name,
               COALESCE(p.company, p.name, 'Unknown') AS name,
               SUM(pt.gross_weight_kg) AS ytd_kg,
               SUM(CASE WHEN pt.created_at >= $2 THEN pt.gross_weight_kg ELSE 0 END) AS month_kg,
@@ -1403,9 +1490,13 @@ app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN processors p ON p.id = pt.processor_id
        WHERE pt.aggregator_id = $1 AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $3
-       GROUP BY 1, 2 ORDER BY ytd_kg DESC LIMIT 5`,
+       GROUP BY p.id ORDER BY ytd_kg DESC LIMIT 5`,
       [aggId, since, new Date(new Date().getFullYear(), 0, 1).toISOString()]
     );
+    result.rows.forEach(r => {
+      r.processor_code = CirculRoles.circulCode('processor', r.processor_id);
+      r.name_visible = true; // aggregator↔processor adjacent
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Aggregator top-buyers error:', err);
@@ -1470,6 +1561,59 @@ app.get('/api/processors/:id/stats', async (req, res) => {
   }
 });
 
+// Processor buying prices — per-processor
+app.post('/api/processors/:id/prices', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { material, price_per_kg, currency } = req.body;
+    if (!material || !price_per_kg) return res.status(400).json({ success: false, message: 'material and price_per_kg required' });
+    const validMaterials = ['PET','HDPE','LDPE','PP'];
+    if (!validMaterials.includes(material.toUpperCase())) return res.status(400).json({ success: false, message: 'Invalid material type' });
+    const ghs = parseFloat(price_per_kg);
+    if (isNaN(ghs) || ghs <= 0) return res.status(400).json({ success: false, message: 'price_per_kg must be a positive number' });
+    const now = new Date();
+    const expiresAt = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59);
+    let city = null, region = null, country = 'Ghana';
+    const loc = await pool.query('SELECT city, region, country FROM processors WHERE id=$1', [id]);
+    if (loc.rows.length) { city = loc.rows[0].city; region = loc.rows[0].region; country = loc.rows[0].country; }
+    const result = await pool.query(
+      `INSERT INTO posted_prices (poster_type, poster_id, material_type, price_per_kg_ghs, city, region, country, expires_at)
+       VALUES ('processor',$1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (poster_type, poster_id, material_type)
+       DO UPDATE SET price_per_kg_ghs=$3, posted_at=NOW(), is_active=true, expires_at=$7
+       RETURNING *`,
+      [id, material.toUpperCase(), ghs, city, region, country||'Ghana', expiresAt.toISOString()]
+    );
+    res.json({ success: true, price: result.rows[0] });
+  } catch (err) { console.error('Processor post price error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/processors/:id/prices', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = await pool.query('SELECT * FROM posted_prices WHERE poster_type=\'processor\' AND poster_id=$1 AND is_active=true ORDER BY material_type', [id]);
+    res.json({ success: true, prices: result.rows });
+  } catch (err) { console.error('Processor get prices error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// All processor buying prices — public endpoint for aggregator marketplace
+app.get('/api/processor-prices', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_id as processor_id,
+              (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) as processor_name
+       FROM posted_prices pp
+       WHERE pp.poster_type='processor' AND pp.is_active=true
+       ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`
+    );
+    result.rows.forEach(r => {
+      r.processor_code = CirculRoles.circulCode('processor', r.processor_id);
+      r.name_visible = true; // public price listings show processor name
+    });
+    res.json({ success: true, prices: result.rows });
+  } catch (err) { console.error('Processor prices error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 app.get('/api/processor/top-suppliers', async (req, res) => {
   try {
     const { period } = req.query;
@@ -1477,14 +1621,18 @@ app.get('/api/processor/top-suppliers', async (req, res) => {
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
       : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
     const result = await pool.query(
-      `SELECT COALESCE(a.company, a.name, 'Unknown') AS name, 'aggregator' AS tier,
+      `SELECT a.id AS partner_id, COALESCE(a.company, a.name, 'Unknown') AS name, 'aggregator' AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
        LEFT JOIN aggregators a ON a.id = pt.aggregator_id
        WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $1
-       GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
+       GROUP BY a.id ORDER BY volume DESC LIMIT 5`,
       [since]
     );
+    result.rows.forEach(r => {
+      r.partner_code = CirculRoles.circulCode(r.tier, r.partner_id);
+      r.name_visible = true; // processor↔aggregator adjacent
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Processor top-suppliers error:', err);
@@ -1499,16 +1647,21 @@ app.get('/api/processor/top-buyers', async (req, res) => {
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
       : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
     const result = await pool.query(
-      `SELECT COALESCE(c.company, c.name, r.company, r.name, 'Unknown') AS name,
+      `SELECT COALESCE(c.id, r.id) AS partner_id,
+              COALESCE(c.company, c.name, r.company, r.name, 'Unknown') AS name,
               CASE WHEN pt.recycler_id IS NOT NULL THEN 'recycler' ELSE 'converter' END AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
        LEFT JOIN converters c ON c.id = pt.converter_id
        LEFT JOIN recyclers r ON r.id = pt.recycler_id
        WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
-       GROUP BY 1, 2 ORDER BY volume DESC LIMIT 5`,
+       GROUP BY 1, 2, 3 ORDER BY volume DESC LIMIT 5`,
       [since]
     );
+    result.rows.forEach(r => {
+      r.partner_code = CirculRoles.circulCode(r.tier, r.partner_id);
+      r.name_visible = true; // processor↔recycler/converter adjacent
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Processor top-buyers error:', err);
@@ -1523,6 +1676,7 @@ app.get('/api/processor/transactions', requireAuth, async (req, res) => {
     const result = await pool.query(
       `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.price_per_kg, pt.total_price,
               pt.status, pt.transaction_type, pt.created_at,
+              pt.aggregator_id, pt.converter_id, pt.recycler_id,
               COALESCE(a.company, a.name, 'Unknown') AS aggregator_name,
               COALESCE(c.company, c.name, r.company, r.name, 'Unknown') AS buyer_name
        FROM pending_transactions pt
@@ -1533,6 +1687,13 @@ app.get('/api/processor/transactions', requireAuth, async (req, res) => {
        ORDER BY pt.created_at DESC LIMIT 30`,
       [procId]
     );
+    result.rows.forEach(r => {
+      if (r.aggregator_id) r.aggregator_code = CirculRoles.circulCode('aggregator', r.aggregator_id);
+      if (r.converter_id) r.buyer_code = CirculRoles.circulCode('converter', r.converter_id);
+      else if (r.recycler_id) r.buyer_code = CirculRoles.circulCode('recycler', r.recycler_id);
+      r.aggregator_name_visible = true; // processor↔aggregator adjacent
+      r.buyer_name_visible = true; // processor↔converter/recycler adjacent
+    });
     res.json({ success: true, transactions: result.rows });
   } catch (err) { console.error('GET /api/processor/transactions error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1544,6 +1705,7 @@ app.get('/api/recycler/transactions', requireAuth, async (req, res) => {
     const result = await pool.query(
       `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.price_per_kg, pt.total_price,
               pt.status, pt.transaction_type, pt.created_at,
+              pt.processor_id, pt.converter_id,
               COALESCE(p.company, p.name, 'Unknown') AS processor_name,
               COALESCE(c.company, c.name, 'Unknown') AS converter_name
        FROM pending_transactions pt
@@ -1553,6 +1715,12 @@ app.get('/api/recycler/transactions', requireAuth, async (req, res) => {
        ORDER BY pt.created_at DESC LIMIT 30`,
       [recId]
     );
+    result.rows.forEach(r => {
+      if (r.processor_id) r.processor_code = CirculRoles.circulCode('processor', r.processor_id);
+      if (r.converter_id) r.converter_code = CirculRoles.circulCode('converter', r.converter_id);
+      r.processor_name_visible = true; // recycler↔processor adjacent
+      r.converter_name_visible = true; // recycler↔converter adjacent
+    });
     res.json({ success: true, transactions: result.rows });
   } catch (err) { console.error('GET /api/recycler/transactions error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1564,7 +1732,7 @@ app.get('/api/recycler/transactions', requireAuth, async (req, res) => {
 app.get('/api/converters', async (req, res) => {
   try {
     const { country } = req.query;
-    const params = []; let where = `WHERE is_active=true AND LOWER(COALESCE(company,name,'')) NOT LIKE '%miniplast%'`;
+    const params = []; let where = `WHERE is_active=true`;
     if (country) { params.push(country); where += ` AND country=$${params.length}`; }
     const result = await pool.query(
       `SELECT id, name, company, email, phone, city, region, country, is_active, created_at FROM converters ${where} ORDER BY company, name`,
@@ -1644,6 +1812,7 @@ app.get('/api/converter/top-suppliers', async (req, res) => {
       : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
     const result = await pool.query(
       `SELECT
+         COALESCE(p.id, r.id) AS partner_id,
          COALESCE(p.company, p.name, r.company, r.name, 'Unknown') AS name,
          CASE WHEN pt.recycler_id IS NOT NULL THEN 'recycler' ELSE 'processor' END AS tier,
          SUM(pt.gross_weight_kg) AS volume,
@@ -1654,11 +1823,15 @@ app.get('/api/converter/top-suppliers', async (req, res) => {
        WHERE pt.converter_id IS NOT NULL
          AND pt.transaction_type IN ('processor_sale','recycler_sale')
          AND pt.created_at >= $1
-       GROUP BY 1, 2
+       GROUP BY 1, 2, 3
        ORDER BY volume DESC
        LIMIT 5`,
       [since]
     );
+    result.rows.forEach(r => {
+      r.partner_code = CirculRoles.circulCode(r.tier, r.partner_id);
+      r.name_visible = true; // converter↔processor/recycler adjacent
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Converter top-suppliers error:', err);
@@ -1727,14 +1900,18 @@ app.get('/api/recycler/top-suppliers', async (req, res) => {
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
       : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
     const result = await pool.query(
-      `SELECT COALESCE(p.company, p.name, 'Unknown') AS name, 'processor' AS tier,
+      `SELECT p.id AS partner_id, COALESCE(p.company, p.name, 'Unknown') AS name, 'processor' AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
        LEFT JOIN processors p ON p.id = pt.processor_id
        WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
-       GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
+       GROUP BY p.id ORDER BY volume DESC LIMIT 5`,
       [since]
     );
+    result.rows.forEach(r => {
+      r.partner_code = CirculRoles.circulCode('processor', r.partner_id);
+      r.name_visible = true; // recycler↔processor adjacent
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Recycler top-suppliers error:', err);
@@ -1749,14 +1926,18 @@ app.get('/api/recycler/top-buyers', async (req, res) => {
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
       : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString(); })();
     const result = await pool.query(
-      `SELECT COALESCE(c.company, c.name, 'Unknown') AS name, 'converter' AS tier,
+      `SELECT c.id AS partner_id, COALESCE(c.company, c.name, 'Unknown') AS name, 'converter' AS tier,
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
        LEFT JOIN converters c ON c.id = pt.converter_id
        WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'recycler_sale' AND pt.created_at >= $1
-       GROUP BY 1 ORDER BY volume DESC LIMIT 5`,
+       GROUP BY c.id ORDER BY volume DESC LIMIT 5`,
       [since]
     );
+    result.rows.forEach(r => {
+      r.partner_code = CirculRoles.circulCode('converter', r.partner_id);
+      r.name_visible = true; // recycler↔converter adjacent
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Recycler top-buyers error:', err);
@@ -1852,6 +2033,11 @@ app.post('/api/ratings/operator', async (req, res) => {
     if (!finalRaterId) return res.status(400).json({ success: false, message: 'rater_id is required' });
     if (!finalRaterId || !finalRatedId || !rating) return res.status(400).json({ success: false, message: 'rater, rated, and rating are required' });
     if (rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1-5' });
+    // Prevent duplicate ratings
+    if (transaction_id) {
+      const dup = await pool.query(`SELECT id FROM ratings WHERE transaction_id=$1 AND rater_type=$2 AND rater_id=$3`, [transaction_id, finalRaterType, finalRaterId]);
+      if (dup.rows.length) return res.status(409).json({ success: false, message: 'You have already rated this transaction' });
+    }
     const windowExpires = new Date(); windowExpires.setDate(windowExpires.getDate() + 30);
     let result;
     try {
@@ -2728,12 +2914,12 @@ app.post('/api/auth/login', async (req, res) => {
       if (!phone || !pin) return res.status(400).json({ success: false, message: 'Phone and PIN required' });
 
       // 1. Collectors
-      const collResult = await pool.query(`SELECT id, first_name, last_name, phone FROM collectors WHERE phone=$1 AND pin=$2 AND is_active=true`, [phone.trim(), pin.trim()]);
+      const collResult = await pool.query(`SELECT id, first_name, last_name, phone, must_change_pin FROM collectors WHERE phone=$1 AND pin=$2 AND is_active=true`, [phone.trim(), pin.trim()]);
       if (collResult.rows.length) {
         const c = collResult.rows[0];
         const name = ((c.first_name||'') + (c.last_name ? ' '+c.last_name : '')).trim();
         const token = generateToken({ type: 'collector', id: c.id, phone: c.phone, role: 'collector' }, AUTH_SECRET);
-        return res.json({ success: true, role: 'collector', roles: null, token, user: { id: c.id, name, phone: c.phone, role: 'collector' } });
+        return res.json({ success: true, role: 'collector', roles: null, token, user: { id: c.id, name, phone: c.phone, role: 'collector', must_change_pin: !!c.must_change_pin } });
       }
 
       // 2. Aggregators
@@ -3131,6 +3317,7 @@ app.get('/converter-dashboard',  (req, res) => res.sendFile(path.join(__dirname,
 app.get('/recycler-dashboard',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'recycler-dashboard.html')));
 app.get('/report',               (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
 app.get('/passport',             (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
+app.get('/collector-passport/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'collector-dashboard.html')));
 app.get('/login',                (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/prices',               (req, res) => res.redirect('/'));
 
