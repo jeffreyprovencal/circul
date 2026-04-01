@@ -3450,6 +3450,7 @@ app.get('/report',               (req, res) => res.sendFile(path.join(__dirname,
 app.get('/passport',             (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
 app.get('/collector-passport/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'collector-dashboard.html')));
 app.get('/login',                (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/register',             (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
 app.get('/prices',               (req, res) => res.redirect('/'));
 
 // ============================================
