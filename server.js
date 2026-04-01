@@ -233,7 +233,7 @@ app.post('/api/aggregators/:id/register-collector', async (req, res) => {
       `INSERT INTO collectors (first_name, last_name, phone, pin, region, must_change_pin)
        VALUES ($1,$2,$3,$4,$5,true)
        RETURNING id, first_name, last_name, phone, region`,
-      [first_name, last_name, phone.trim(), '0000', region]
+      [first_name, last_name, phone.trim(), await hashPassword('0000'), region]
     );
     const c = result.rows[0];
     res.status(201).json({ success: true, id: c.id, name: ((c.first_name || '') + ' ' + (c.last_name || '')).trim(), phone: c.phone });
@@ -251,7 +251,8 @@ app.patch('/api/collectors/:id/change-pin', requireAuth, async (req, res) => {
     if (parseInt(req.params.id) !== req.user.id) return res.status(403).json({ success: false, message: 'Can only change your own PIN' });
     const { pin } = req.body;
     if (!pin || !/^\d{4}$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be exactly 4 digits' });
-    await pool.query(`UPDATE collectors SET pin=$1, must_change_pin=false, updated_at=NOW() WHERE id=$2`, [pin, req.user.id]);
+    const hashedPin = await hashPassword(pin);
+    await pool.query(`UPDATE collectors SET pin=$1, must_change_pin=false, updated_at=NOW() WHERE id=$2`, [hashedPin, req.user.id]);
     res.json({ success: true, message: 'PIN changed successfully' });
   } catch (err) {
     console.error('PATCH /api/collectors/:id/change-pin error:', err);
@@ -266,16 +267,22 @@ app.post('/api/collectors/login', async (req, res) => {
     const rl = checkRateLimit(phone.trim());
     if (rl.blocked) return res.status(429).json({ success: false, message: 'Too many failed attempts. Try again in ' + rl.remainMin + ' minutes.' });
     const result = await pool.query(
-      `SELECT id, first_name, last_name, phone, region, average_rating, created_at
-       FROM collectors WHERE phone=$1 AND pin=$2 AND is_active=true`,
-      [phone, pin]
+      `SELECT id, first_name, last_name, phone, pin, region, average_rating, created_at
+       FROM collectors WHERE phone=$1 AND is_active=true`,
+      [phone]
     );
     if (!result.rows.length) {
       recordFailedLogin(phone.trim());
       return res.status(401).json({ success: false, message: 'Invalid phone or PIN' });
     }
+    const pinValid = await verifyPassword(pin, result.rows[0].pin);
+    if (!pinValid) {
+      recordFailedLogin(phone.trim());
+      return res.status(401).json({ success: false, message: 'Invalid phone or PIN' });
+    }
     clearLoginAttempts(phone.trim());
     const collector = result.rows[0];
+    delete collector.pin;
     res.json({ success: true, collector: { ...collector, role: 'collector' } });
   } catch (err) {
     console.error('Error logging in collector:', err);
@@ -584,7 +591,10 @@ app.post('/api/collector/rate-aggregator', requireAuth, async (req, res) => {
       [transaction_id, req.user.id, aggregator_id, rating, pgTags, note || null]
     );
     res.json({ success: true, rating: result.rows[0] });
-  } catch (err) { console.error('POST /api/collector/rate-aggregator error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, message: 'You have already rated this transaction' });
+    console.error('POST /api/collector/rate-aggregator error:', err); res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 // ============================================
@@ -2125,6 +2135,7 @@ app.post('/api/ratings/operator', async (req, res) => {
     } catch (notifyErr) { console.warn('Notification error (rating_received):', notifyErr.message); }
     res.status(201).json({ success: true, rating: result.rows[0] });
   } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, message: 'You have already rated this transaction' });
     console.error('Rating error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -2250,7 +2261,7 @@ async function handleUnregisteredUssd(parts, phone) {
 async function handleRegisteredUssd(parts, collector) {
   const level = parts.length;
   if (level === 0) return `CON Welcome ${collector.first_name}!\nEnter your PIN:`;
-  if (parts[0] !== collector.pin) return 'END Invalid PIN.\nDial again to retry.';
+  if (!(await verifyPassword(parts[0], collector.pin))) return 'END Invalid PIN.\nDial again to retry.';
   if (level === 1) return 'CON 1. Log Collection\n2. Check Balance\n3. Exit';
   const menu = parts[1];
   if (menu === '3') return `END Thank you, ${collector.first_name}!`;
@@ -2406,7 +2417,19 @@ app.get('/api/pending-transactions/aggregator-sales', requireAuth, async (req, r
     var aggregator_id = req.query.aggregator_id;
     if (req.user.id !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id required' });
-    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, p.name AS processor_name, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
+    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, p.name AS processor_name, p.id AS processor_id, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name, c.id AS converter_id FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
+    for (const row of result.rows) {
+      if (row.processor_id) {
+        var pCode = CirculRoles.circulCode('processor', row.processor_id);
+        var pVis = await canSeeName('aggregator', parseInt(aggregator_id), 'processor', row.processor_id);
+        row.processor_code = pCode; row.processor_name_visible = pVis;
+      }
+      if (row.converter_id) {
+        var cCode = CirculRoles.circulCode('converter', row.converter_id);
+        var cVis = await canSeeName('aggregator', parseInt(aggregator_id), 'converter', row.converter_id);
+        row.converter_code = cCode; row.converter_name_visible = cVis;
+      }
+    }
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/aggregator-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2594,7 +2617,17 @@ app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, re
 app.get('/api/pending-transactions/processor-sales', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type='processor_sale' AND pt.processor_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company, c.id AS converter_id, r.name AS recycler_name, r.company AS recycler_company, r.id AS recycler_id FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type='processor_sale' AND pt.processor_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    for (const row of result.rows) {
+      if (row.converter_id) {
+        row.converter_code = CirculRoles.circulCode('converter', row.converter_id);
+        row.converter_name_visible = await canSeeName('processor', req.user.id, 'converter', row.converter_id);
+      }
+      if (row.recycler_id) {
+        row.recycler_code = CirculRoles.circulCode('recycler', row.recycler_id);
+        row.recycler_name_visible = await canSeeName('processor', req.user.id, 'recycler', row.recycler_id);
+      }
+    }
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Get processor sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2681,7 +2714,13 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
 app.get('/api/pending-transactions/recycler-sales', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
-    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='recycler_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, c.name AS converter_name, c.company AS converter_company, c.id AS converter_id FROM pending_transactions pt LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='recycler_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [req.user.id]);
+    for (const row of result.rows) {
+      if (row.converter_id) {
+        row.converter_code = CirculRoles.circulCode('converter', row.converter_id);
+        row.converter_name_visible = await canSeeName('recycler', req.user.id, 'converter', row.converter_id);
+      }
+    }
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Get recycler sales error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2692,7 +2731,17 @@ app.get('/api/pending-transactions/converter-queue', requireAuth, async (req, re
   try {
     if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
     const converterId = req.user.converter_id || req.user.id;
-    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company, r.name AS recycler_name, r.company AS recycler_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type IN ('processor_sale','recycler_sale') AND pt.converter_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
+    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company, p.id AS processor_id, r.name AS recycler_name, r.company AS recycler_company, r.id AS recycler_id FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type IN ('processor_sale','recycler_sale') AND pt.converter_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
+    for (const row of result.rows) {
+      if (row.processor_id) {
+        row.processor_code = CirculRoles.circulCode('processor', row.processor_id);
+        row.processor_name_visible = await canSeeName('converter', converterId, 'processor', row.processor_id);
+      }
+      if (row.recycler_id) {
+        row.recycler_code = CirculRoles.circulCode('recycler', row.recycler_id);
+        row.recycler_name_visible = await canSeeName('converter', converterId, 'recycler', row.recycler_id);
+      }
+    }
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Converter queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2753,6 +2802,7 @@ app.post('/api/pending-transactions/:id/converter-arrival', requireAuth, async (
 // ============================================
 
 app.patch('/api/transactions/:id/payment-initiate', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const { payment_method, payment_reference } = req.body;
@@ -2768,34 +2818,38 @@ app.patch('/api/transactions/:id/payment-initiate', async (req, res) => {
     } else {
       ref = 'CASH';
     }
-    const existing = await pool.query('SELECT payment_status FROM transactions WHERE id=$1', [id]);
-    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
-    if (existing.rows[0].payment_status !== 'unpaid')
-      return res.status(400).json({ success: false, message: 'Payment already recorded' });
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const existing = await client.query('SELECT payment_status FROM transactions WHERE id=$1 FOR UPDATE', [id]);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Transaction not found' }); }
+    if (existing.rows[0].payment_status !== 'unpaid') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'Payment already recorded' }); }
+    const result = await client.query(
       `UPDATE transactions SET payment_status='payment_sent', payment_method=$1, payment_reference=$2, payment_initiated_at=NOW() WHERE id=$3 RETURNING *`,
       [payment_method, ref, id]
     );
+    await client.query('COMMIT');
     res.json({ success: true, transaction: result.rows[0] });
-  } catch (err) { console.error('Payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('Payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
 
 app.patch('/api/transactions/:id/payment-confirm', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    const existing = await pool.query('SELECT payment_status FROM transactions WHERE id=$1', [id]);
-    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
-    if (existing.rows[0].payment_status !== 'payment_sent')
-      return res.status(400).json({ success: false, message: 'No payment to confirm' });
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const existing = await client.query('SELECT payment_status FROM transactions WHERE id=$1 FOR UPDATE', [id]);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Transaction not found' }); }
+    if (existing.rows[0].payment_status !== 'payment_sent') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'No payment to confirm' }); }
+    const result = await client.query(
       `UPDATE transactions SET payment_status='paid', payment_completed_at=NOW() WHERE id=$1 RETURNING *`,
       [id]
     );
+    await client.query('COMMIT');
     res.json({ success: true, transaction: result.rows[0] });
-  } catch (err) { console.error('Payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('Payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
 
 app.patch('/api/pending-transactions/:id/payment-initiate', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const { payment_method, payment_reference } = req.body;
@@ -2811,31 +2865,34 @@ app.patch('/api/pending-transactions/:id/payment-initiate', async (req, res) => 
     } else {
       ref = 'CASH';
     }
-    const existing = await pool.query('SELECT payment_status FROM pending_transactions WHERE id=$1', [id]);
-    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
-    if (existing.rows[0].payment_status !== 'unpaid')
-      return res.status(400).json({ success: false, message: 'Payment already recorded' });
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const existing = await client.query('SELECT payment_status FROM pending_transactions WHERE id=$1 FOR UPDATE', [id]);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Pending transaction not found' }); }
+    if (existing.rows[0].payment_status !== 'unpaid') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'Payment already recorded' }); }
+    const result = await client.query(
       `UPDATE pending_transactions SET payment_status='payment_sent', payment_method=$1, payment_reference=$2, payment_initiated_at=NOW() WHERE id=$3 RETURNING *`,
       [payment_method, ref, id]
     );
+    await client.query('COMMIT');
     res.json({ success: true, pending_transaction: result.rows[0] });
-  } catch (err) { console.error('PT payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('PT payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
 
 app.patch('/api/pending-transactions/:id/payment-confirm', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    const existing = await pool.query('SELECT payment_status FROM pending_transactions WHERE id=$1', [id]);
-    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
-    if (existing.rows[0].payment_status !== 'payment_sent')
-      return res.status(400).json({ success: false, message: 'No payment to confirm' });
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const existing = await client.query('SELECT payment_status FROM pending_transactions WHERE id=$1 FOR UPDATE', [id]);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Pending transaction not found' }); }
+    if (existing.rows[0].payment_status !== 'payment_sent') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'No payment to confirm' }); }
+    const result = await client.query(
       `UPDATE pending_transactions SET payment_status='paid', payment_completed_at=NOW() WHERE id=$1 RETURNING *`,
       [id]
     );
+    await client.query('COMMIT');
     res.json({ success: true, pending_transaction: result.rows[0] });
-  } catch (err) { console.error('PT payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('PT payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
 
 // ============================================
@@ -2985,8 +3042,8 @@ app.post('/api/auth/login', async (req, res) => {
       if (rl.blocked) return res.status(429).json({ success: false, message: 'Too many failed attempts. Try again in ' + rl.remainMin + ' minutes.' });
 
       // 1. Collectors
-      const collResult = await pool.query(`SELECT id, first_name, last_name, phone, must_change_pin FROM collectors WHERE phone=$1 AND pin=$2 AND is_active=true`, [phone.trim(), pin.trim()]);
-      if (collResult.rows.length) {
+      const collResult = await pool.query(`SELECT id, first_name, last_name, phone, pin, must_change_pin FROM collectors WHERE phone=$1 AND is_active=true`, [phone.trim()]);
+      if (collResult.rows.length && await verifyPassword(pin.trim(), collResult.rows[0].pin)) {
         clearLoginAttempts(phone.trim());
         const c = collResult.rows[0];
         const name = ((c.first_name||'') + (c.last_name ? ' '+c.last_name : '')).trim();

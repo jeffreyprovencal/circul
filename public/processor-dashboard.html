@@ -1205,7 +1205,7 @@ function showDiscToast(type, title, message) {
   var toast = document.createElement('div');
   toast.className = 'disc-toast toast-' + type;
   var icons = { success: '\u2713', warning: '\u26a0', info: '\u2139' };
-  toast.innerHTML = '<span class="disc-toast-icon">' + (icons[type] || '\u2139') + '</span><div class="disc-toast-body"><div class="disc-toast-title">' + title + '</div><div class="disc-toast-message">' + message + '</div></div>';
+  toast.innerHTML = '<span class="disc-toast-icon">' + (icons[type] || '\u2139') + '</span><div class="disc-toast-body"><div class="disc-toast-title">' + esc(title) + '</div><div class="disc-toast-message">' + esc(message) + '</div></div>';
   container.appendChild(toast);
   setTimeout(function() { toast.remove(); }, 5000);
 }
