@@ -1221,29 +1221,29 @@ function buildCvPaymentUI(pt) {
     if (ps === 'payment_sent') return paymentBadge(ps) + ' <span style="font-size:0.75rem;color:var(--text-3)">Awaiting supplier confirmation</span>';
     return paymentBadge(ps) +
         ' <button class="btn" style="font-size:0.75rem;padding:5px 12px" onclick="openCvPayForm(' + pt.id + ')">Record Payment</button>' +
-        '<div id="cv-pay-form-' + pt.id + '" style="display:none;margin-top:8px;padding:10px;background:var(--surface-alt);border-radius:var(--r-sm);border:1px solid var(--border)">' +
+        '<div id="cv-pay-form-' + pt.id + '" class="hidden" style="margin-top:8px;padding:10px;background:var(--surface-alt);border-radius:var(--r-sm);border:1px solid var(--border)">' +
             '<label style="display:block;margin-bottom:8px;font-size:0.8rem;font-weight:600;color:var(--text-2)">Payment method</label>' +
             '<label style="font-size:0.8rem;margin-right:16px;color:var(--text-2)"><input type="radio" name="cv-pm-' + pt.id + '" value="cash" onchange="toggleCvMoMo(' + pt.id + ')"> Cash</label>' +
             '<label style="font-size:0.8rem;color:var(--text-2)"><input type="radio" name="cv-pm-' + pt.id + '" value="mobile_money" onchange="toggleCvMoMo(' + pt.id + ')"> Mobile Money</label>' +
-            '<div id="cv-momo-' + pt.id + '" style="display:none;margin-top:8px">' +
+            '<div id="cv-momo-' + pt.id + '" class="hidden" style="margin-top:8px">' +
                 '<input type="text" id="cv-momo-ref-' + pt.id + '" maxlength="50" placeholder="Transaction code from your MoMo confirmation SMS" class="form-input" style="font-size:0.8rem">' +
             '</div>' +
             '<div style="margin-top:10px;display:flex;gap:8px">' +
                 '<button class="di-confirm" onclick="submitCvPayInitiate(' + pt.id + ')">Confirm Payment</button>' +
-                '<button class="di-cancel" onclick="document.getElementById(\'cv-pay-form-' + pt.id + '\').style.display=\'none\'">Cancel</button>' +
+                '<button class="di-cancel" onclick="document.getElementById(\'cv-pay-form-' + pt.id + '\').classList.add(\'hidden\')">Cancel</button>' +
             '</div>' +
         '</div>';
 }
 
 function openCvPayForm(id) {
     var el = document.getElementById('cv-pay-form-' + id);
-    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    if (el) el.classList.toggle('hidden');
 }
 
 function toggleCvMoMo(id) {
     var cashR = document.querySelector('input[name="cv-pm-' + id + '"][value="cash"]');
     var el = document.getElementById('cv-momo-' + id);
-    if (el) el.style.display = (cashR && cashR.checked) ? 'none' : 'block';
+    if (el) { if (cashR && cashR.checked) el.classList.add('hidden'); else el.classList.remove('hidden'); }
 }
 
 function submitCvPayInitiate(id) {

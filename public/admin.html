@@ -258,7 +258,7 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       .then(function(rows){ renderPending(rows); })
       .catch(function(){ document.getElementById('pending-body').innerHTML = '<tr><td colspan="5" style="color:#f87171;padding:20px;">Failed to load pending requests.</td></tr>'; });
 
-    function fmtNum(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
+    function fmt(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
     function fmtDate(d) { if (!d) return '--'; var dt = new Date(d); return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 
     function renderFullStats(data) {
@@ -270,11 +270,11 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       el = document.getElementById('txnMonth'); if (el) el.textContent = data.transactions ? data.transactions.this_month : 0;
       el = document.getElementById('txnTotal'); if (el) el.textContent = data.transactions ? data.transactions.total : 0;
       // Volume
-      el = document.getElementById('volMonth'); if (el) el.textContent = data.volume ? fmtNum(data.volume.this_month_kg) : '0';
-      el = document.getElementById('volYtd'); if (el) el.textContent = data.volume ? fmtNum(data.volume.ytd_kg) : '0';
+      el = document.getElementById('volMonth'); if (el) el.textContent = data.volume ? fmt(data.volume.this_month_kg) : '0';
+      el = document.getElementById('volYtd'); if (el) el.textContent = data.volume ? fmt(data.volume.ytd_kg) : '0';
       // Revenue
-      el = document.getElementById('revMonth'); if (el) el.textContent = data.revenue ? 'GH\u20b5 ' + fmtNum(data.revenue.this_month) : 'GH\u20b5 0';
-      el = document.getElementById('revYtd'); if (el) el.textContent = data.revenue ? 'GH\u20b5 ' + fmtNum(data.revenue.ytd) : 'GH\u20b5 0';
+      el = document.getElementById('revMonth'); if (el) el.textContent = data.revenue ? 'GH\u20b5 ' + fmt(data.revenue.this_month) : 'GH\u20b5 0';
+      el = document.getElementById('revYtd'); if (el) el.textContent = data.revenue ? 'GH\u20b5 ' + fmt(data.revenue.ytd) : 'GH\u20b5 0';
       // Discovery
       if (data.discovery) {
         el = document.getElementById('discListings'); if (el) el.textContent = data.discovery.active_listings;
@@ -292,8 +292,8 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
             '<td>' + esc(t.seller_name || '--') + '</td>' +
             '<td>' + esc(t.buyer_name || '--') + '</td>' +
             '<td>' + esc(t.material_type || '--') + '</td>' +
-            '<td>' + (t.net_weight_kg ? fmtNum(t.net_weight_kg) + ' kg' : '--') + '</td>' +
-            '<td>' + (t.total_price ? 'GH\u20b5 ' + fmtNum(t.total_price) : '--') + '</td>' +
+            '<td>' + (t.net_weight_kg ? fmt(t.net_weight_kg) + ' kg' : '--') + '</td>' +
+            '<td>' + (t.total_price ? 'GH\u20b5 ' + fmt(t.total_price) : '--') + '</td>' +
             '<td><span class="pill ' + statusCls + '">' + statusText + '</span></td>' +
           '</tr>';
         }).join('');

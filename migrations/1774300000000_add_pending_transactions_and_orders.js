@@ -1,3 +1,12 @@
+/**
+ * SUPERSEDED — This migration is fully superseded by 1774500000000_restructure_tiers.js,
+ * which drops and recreates both pending_transactions and orders tables with the correct
+ * column names (aggregator_id, processor_id, converter_id instead of the old
+ * aggregator_operator_id, processor_buyer_id, converter_buyer_id).
+ *
+ * This file is kept because the migration runner (_migrations table) tracks it by name.
+ * Deleting it would cause errors on existing databases that have already run it.
+ */
 'use strict';
 
 module.exports = {
