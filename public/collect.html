@@ -287,7 +287,10 @@
       var card = document.getElementById('mySalesCard');
       var list = document.getElementById('mySalesList');
 
-      fetch('/api/pending-transactions/collector-sales?collector_id=' + collectorId)
+      var _token = localStorage.getItem('circul_token') || '';
+      fetch('/api/pending-transactions/collector-sales?collector_id=' + collectorId, {
+        headers: _token ? { 'Authorization': 'Bearer ' + _token } : {}
+      })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var rows = data.pending_transactions || [];

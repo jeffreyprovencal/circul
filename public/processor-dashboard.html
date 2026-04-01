@@ -390,12 +390,23 @@ var state = { operator: null };
 var MATERIALS = ['PET', 'HDPE', 'LDPE', 'PP'];
 var deliveries = [];
 
-/* ── 503 retry wrapper ── */
+/* ── 503 retry + auth wrapper ── */
 function apiFetch(url, opts) {
-  return fetch(url, opts || {}).then(function(r) {
+  var token = localStorage.getItem('circul_token') || '';
+  var merged = Object.assign({}, opts || {});
+  if (token) {
+    merged.headers = Object.assign({ 'Authorization': 'Bearer ' + token }, merged.headers || {});
+  }
+  return fetch(url, merged).then(function(r) {
+    if (r.status === 401) {
+      localStorage.removeItem('circul_token');
+      localStorage.removeItem('circul_user');
+      window.location.href = '/login';
+      return r;
+    }
     if (r.status === 503) {
       return new Promise(function(resolve) { setTimeout(resolve, 1000); })
-        .then(function() { return fetch(url, opts || {}); });
+        .then(function() { return fetch(url, merged); });
     }
     return r;
   });

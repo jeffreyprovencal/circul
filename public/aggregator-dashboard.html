@@ -635,13 +635,30 @@ var refreshTimer = null;
 
 /* ── 503 retry wrapper ── */
 function apiFetch(url, opts) {
-  return fetch(url, opts || {}).then(function(r) {
+  var token = localStorage.getItem('circul_token') || '';
+  var merged = Object.assign({}, opts || {});
+  if (token) {
+    merged.headers = Object.assign({ 'Authorization': 'Bearer ' + token }, merged.headers || {});
+  }
+  return fetch(url, merged).then(function(r) {
+    if (r.status === 401) {
+      localStorage.removeItem('circul_token');
+      localStorage.removeItem('circul_user');
+      window.location.href = '/login';
+      return r;
+    }
     if (r.status === 503) {
       return new Promise(function(resolve) { setTimeout(resolve, 1000); })
-        .then(function() { return fetch(url, opts || {}); });
+        .then(function() { return fetch(url, merged); });
     }
     return r;
   });
+}
+function authHeaders(extra) {
+  var token = localStorage.getItem('circul_token') || '';
+  var h = { 'Content-Type': 'application/json' };
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  return Object.assign(h, extra || {});
 }
 var postedPriceMap  = {};  // material_type → price_per_kg_ghs (string)
 var pendingMap      = {};  // ptId → pending_transaction row
@@ -825,7 +842,7 @@ function postPrice(mat) {
     var ghs = document.getElementById('price-ghs-' + mat).value;
     if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH¢ price'); return; }
     fetch('/api/prices', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ poster_type: 'aggregator', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
     })
     .then(function(r) { return r.json(); })
@@ -1357,6 +1374,7 @@ async function syncOfflineQueue() {
 
       var resp = await fetch('/api/aggregators/' + state.operator.id + '/expenses', {
         method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('circul_token') || '') },
         body: formData
       });
       if (resp.status === 404 || resp.status === 500) {
@@ -1444,6 +1462,7 @@ async function submitExpense() {
   try {
     var resp = await fetch('/api/aggregators/' + state.operator.id + '/expenses', {
       method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('circul_token') || '') },
       body: formData
     });
     if (!resp.ok) throw new Error('Failed to save');
@@ -1688,7 +1707,7 @@ function toggleTag(chip) {
 function submitRating() {
     if (!state.currentRatingStar) return;
     fetch('/api/ratings/operator', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders(),
         body: JSON.stringify({
             rater_type: 'aggregator',
             rater_id: state.operator.id,
@@ -1879,7 +1898,7 @@ function submitReview(ptId, action) {
 
     fetch('/api/pending-transactions/' + ptId + '/review', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(body)
     })
     .then(function(r) { return r.json(); })
@@ -1966,7 +1985,7 @@ function registerNewCollector() {
 
     fetch('/api/aggregators/' + state.operator.id + '/register-collector', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ name: name, phone: phone, region: region })
     })
     .then(function(r) { return r.json(); })
@@ -2032,7 +2051,7 @@ function submitAggregatorPurchase() {
 
     fetch('/api/pending-transactions/aggregator-purchase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(body)
     })
     .then(function(r) { return r.json(); })
@@ -2149,7 +2168,7 @@ function submitAggregatorSale() {
 
     fetch('/api/pending-transactions/aggregator-sale', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: (function() {
             var sel = document.getElementById('sellProcessor');
             var opt = sel.options[sel.selectedIndex];

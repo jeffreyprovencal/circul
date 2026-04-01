@@ -60,11 +60,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 // AUTH HELPERS
 // ============================================
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'circul-admin-secret-2026';
-const AUTH_SECRET  = process.env.AUTH_SECRET  || process.env.BUYER_SECRET || 'circul-buyer-secret-2026';
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const AUTH_SECRET  = process.env.AUTH_SECRET || process.env.BUYER_SECRET;
+
+if (!ADMIN_SECRET || !AUTH_SECRET) {
+  console.error('FATAL: ADMIN_SECRET and AUTH_SECRET environment variables are required.');
+  console.error('Set them in your Render environment or .env file.');
+  process.exit(1);
+}
 
 function generateToken(payload, secret) {
-  const data = JSON.stringify(payload);
+  const withExp = { ...payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) };
+  const data = JSON.stringify(withExp);
   const b64  = Buffer.from(data).toString('base64url');
   const sig  = crypto.createHmac('sha256', secret).update(b64).digest('base64url');
   return b64 + '.' + sig;
@@ -75,7 +82,9 @@ function verifyToken(token, secret) {
     const [b64, sig] = token.split('.');
     const expected = crypto.createHmac('sha256', secret).update(b64).digest('base64url');
     if (sig !== expected) return null;
-    return JSON.parse(Buffer.from(b64, 'base64url').toString());
+    const decoded = JSON.parse(Buffer.from(b64, 'base64url').toString());
+    if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) return null;
+    return decoded;
   } catch { return null; }
 }
 
@@ -120,6 +129,46 @@ function requireAuth(req, res, next) {
     req.user.role === r || (Array.isArray(req.user.roles) && req.user.roles.includes(r));
   next();
 }
+
+// ── Login rate limiting ──
+const loginAttempts = new Map(); // phone → { count, firstAttempt }
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRateLimit(phone) {
+  const entry = loginAttempts.get(phone);
+  if (!entry) return { blocked: false };
+  if (Date.now() - entry.firstAttempt > LOCKOUT_DURATION_MS) {
+    loginAttempts.delete(phone);
+    return { blocked: false };
+  }
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    const remainMs = LOCKOUT_DURATION_MS - (Date.now() - entry.firstAttempt);
+    return { blocked: true, remainMin: Math.ceil(remainMs / 60000) };
+  }
+  return { blocked: false };
+}
+
+function recordFailedLogin(phone) {
+  const entry = loginAttempts.get(phone);
+  if (!entry) {
+    loginAttempts.set(phone, { count: 1, firstAttempt: Date.now() });
+  } else {
+    entry.count++;
+  }
+}
+
+function clearLoginAttempts(phone) {
+  loginAttempts.delete(phone);
+}
+
+// Clean up stale rate-limit entries every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [phone, entry] of loginAttempts) {
+    if (now - entry.firstAttempt > LOCKOUT_DURATION_MS) loginAttempts.delete(phone);
+  }
+}, 60 * 60 * 1000);
 
 // ── Name-privacy helper ──
 // Adjacent tiers always see real names. Non-adjacent tiers see names
@@ -214,12 +263,18 @@ app.post('/api/collectors/login', async (req, res) => {
   try {
     const { phone, pin } = req.body;
     if (!phone || !pin) return res.status(400).json({ success: false, message: 'Phone and PIN required' });
+    const rl = checkRateLimit(phone.trim());
+    if (rl.blocked) return res.status(429).json({ success: false, message: 'Too many failed attempts. Try again in ' + rl.remainMin + ' minutes.' });
     const result = await pool.query(
       `SELECT id, first_name, last_name, phone, region, average_rating, created_at
        FROM collectors WHERE phone=$1 AND pin=$2 AND is_active=true`,
       [phone, pin]
     );
-    if (!result.rows.length) return res.status(401).json({ success: false, message: 'Invalid phone or PIN' });
+    if (!result.rows.length) {
+      recordFailedLogin(phone.trim());
+      return res.status(401).json({ success: false, message: 'Invalid phone or PIN' });
+    }
+    clearLoginAttempts(phone.trim());
     const collector = result.rows[0];
     res.json({ success: true, collector: { ...collector, role: 'collector' } });
   } catch (err) {
@@ -230,14 +285,13 @@ app.post('/api/collectors/login', async (req, res) => {
 
 app.get('/api/collectors', async (req, res) => {
   try {
-    const { phone, include_login } = req.query;
+    const { phone } = req.query;
     const params = [];
     let whereExtra = '';
     if (phone) { params.push(phone.trim()); whereExtra = ` AND c.phone=$${params.length}`; }
-    const pinField = include_login === 'true' ? ', c.pin' : '';
     const result = await pool.query(
       `SELECT c.id, c.first_name, c.last_name, c.phone, c.city, c.region, c.average_rating,
-              c.is_active, c.id_verified, c.created_at${pinField},
+              c.is_active, c.id_verified, c.created_at,
               'C-' || LPAD(c.id::text, 4, '0') AS display_name,
               COALESCE(SUM(t.net_weight_kg),0) as total_weight_kg,
               COUNT(t.id) as transaction_count
@@ -845,9 +899,10 @@ app.patch('/api/expense-categories/:id/reject', async (req, res) => {
 // EXPENSE ENTRIES
 // ============================================
 
-app.post('/api/aggregators/:id/expenses', receiptUpload.single('receipt'), async (req, res) => {
+app.post('/api/aggregators/:id/expenses', requireAuth, receiptUpload.single('receipt'), async (req, res) => {
   try {
     const aggregator_id = parseInt(req.params.id);
+    if (req.user.id !== aggregator_id) return res.status(403).json({ success: false, message: 'Access denied' });
     const { category_id, amount, note, expense_date } = req.body;
 
     if (!category_id || !amount || isNaN(parseFloat(amount))) {
@@ -887,9 +942,10 @@ app.post('/api/aggregators/:id/expenses', receiptUpload.single('receipt'), async
   }
 });
 
-app.get('/api/aggregators/:id/expenses', async (req, res) => {
+app.get('/api/aggregators/:id/expenses', requireAuth, async (req, res) => {
   try {
     const aggregator_id = parseInt(req.params.id);
+    if (req.user.id !== aggregator_id) return res.status(403).json({ success: false, message: 'Access denied' });
     if (isNaN(aggregator_id)) return res.status(400).json({ success: false, message: 'Invalid aggregator ID' });
     const { from, to } = req.query;
 
@@ -955,9 +1011,10 @@ app.get('/api/aggregators/:id/expenses', async (req, res) => {
   }
 });
 
-app.delete('/api/aggregators/:id/expenses/:eid', async (req, res) => {
+app.delete('/api/aggregators/:id/expenses/:eid', requireAuth, async (req, res) => {
   try {
     const { id, eid } = req.params;
+    if (req.user.id !== parseInt(id)) return res.status(403).json({ success: false, message: 'Access denied' });
     const { rows } = await pool.query(
       `DELETE FROM expense_entries WHERE id = $1 AND aggregator_id = $2 RETURNING *`,
       [eid, id]
@@ -1949,10 +2006,13 @@ app.get('/api/recycler/top-buyers', async (req, res) => {
 // TRANSACTIONS
 // ============================================
 
-app.post('/api/transactions', async (req, res) => {
+app.post('/api/transactions', requireAuth, async (req, res) => {
   try {
     const { collector_id, aggregator_id, material_type, gross_weight_kg, contamination_deduction_percent = 0, contamination_types = [], quality_notes, price_per_kg, lat, lng, notes } = req.body;
     if (!collector_id || !material_type || !gross_weight_kg) return res.status(400).json({ success: false, message: 'collector_id, material_type, and gross_weight_kg are required' });
+    // Verify the requester is the collector or aggregator
+    const userId = req.user.id;
+    if (userId !== parseInt(collector_id) && userId !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     const validMaterials = ['PET','HDPE','LDPE','PP'];
     if (!validMaterials.includes(material_type.toUpperCase())) return res.status(400).json({ success: false, message: `Invalid material type. Must be one of: ${validMaterials.join(', ')}` });
     const _wkg = parseFloat(gross_weight_kg);
@@ -2331,34 +2391,37 @@ app.get('/api/pending-transactions', async (req, res) => {
   } catch (err) { console.error('GET /api/pending-transactions error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.get('/api/pending-transactions/collector-sales', async (req, res) => {
+app.get('/api/pending-transactions/collector-sales', requireAuth, async (req, res) => {
   try {
     const { collector_id } = req.query;
+    if (req.user.id !== parseInt(collector_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     if (!collector_id) return res.status(400).json({ success: false, message: 'collector_id required' });
     const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, t.price_per_kg AS final_price_per_kg, t.total_price AS final_total_price FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id LEFT JOIN transactions t ON t.id=pt.transaction_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/collector-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.get('/api/pending-transactions/aggregator-sales', async (req, res) => {
+app.get('/api/pending-transactions/aggregator-sales', requireAuth, async (req, res) => {
   try {
     var aggregator_id = req.query.aggregator_id;
+    if (req.user.id !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id required' });
     const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, p.name AS processor_name, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/aggregator-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.get('/api/pending-transactions/aggregator-purchases', async (req, res) => {
+app.get('/api/pending-transactions/aggregator-purchases', requireAuth, async (req, res) => {
   try {
     var aggregator_id = req.query.aggregator_id;
+    if (req.user.id !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id required' });
     var result = await pool.query(`SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.collector_id IS NOT NULL AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/aggregator-purchases error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.patch('/api/pending-transactions/:id/review', async (req, res) => {
+app.patch('/api/pending-transactions/:id/review', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { action, grade, grade_notes, rejection_reason, price_per_kg } = req.body;
@@ -2366,6 +2429,10 @@ app.patch('/api/pending-transactions/:id/review', async (req, res) => {
     const ptResult = await pool.query(`SELECT * FROM pending_transactions WHERE id=$1`, [id]);
     if (!ptResult.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
     const pt = ptResult.rows[0];
+    // Verify the reviewer is a party to this transaction
+    const userId = req.user.id;
+    const isParty = pt.collector_id === userId || pt.aggregator_id === userId || pt.processor_id === userId || pt.recycler_id === userId || pt.converter_id === userId;
+    if (!isParty) return res.status(403).json({ success: false, message: 'Access denied' });
     if (pt.status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction is no longer pending' });
     if (pt.transaction_type === 'aggregator_purchase') {
       if (action === 'reject') {
@@ -2399,10 +2466,11 @@ app.patch('/api/pending-transactions/:id/review', async (req, res) => {
   } catch (err) { console.error('Review pending transaction error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.post('/api/pending-transactions/aggregator-purchase', async (req, res) => {
+app.post('/api/pending-transactions/aggregator-purchase', requireAuth, async (req, res) => {
   try {
     const { aggregator_id, collector_id, material_type, gross_weight_kg, price_per_kg } = req.body;
     if (!aggregator_id || !collector_id || !material_type || !gross_weight_kg) return res.status(400).json({ success: false, message: 'aggregator_id, collector_id, material_type, and gross_weight_kg are required' });
+    if (req.user.id !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     const kg = parseFloat(gross_weight_kg);
     if (isNaN(kg) || kg <= 0 || kg > 500) return res.status(400).json({ success: false, message: 'gross_weight_kg must be > 0 and at most 500 kg' });
     const aggCheck = await pool.query(`SELECT id FROM aggregators WHERE id=$1 AND is_active=true`, [aggregator_id]);
@@ -2416,10 +2484,11 @@ app.post('/api/pending-transactions/aggregator-purchase', async (req, res) => {
   } catch (err) { console.error('Aggregator purchase error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.post('/api/pending-transactions/aggregator-sale', async (req, res) => {
+app.post('/api/pending-transactions/aggregator-sale', requireAuth, async (req, res) => {
   try {
     const { aggregator_id, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, notes, photo_urls } = req.body;
     if (!aggregator_id || (!processor_id && !converter_id) || !material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'aggregator_id, processor_id or converter_id, material_type, gross_weight_kg, and price_per_kg are required' });
+    if (req.user.id !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     const kg = parseFloat(gross_weight_kg);
     if (isNaN(kg) || kg <= 0 || kg > 4000) return res.status(400).json({ success: false, message: 'gross_weight_kg must be > 0 and at most 4000 kg' });
     const aggCheck = await pool.query(`SELECT id FROM aggregators WHERE id=$1 AND is_active=true`, [aggregator_id]);
@@ -2912,10 +2981,13 @@ app.post('/api/auth/login', async (req, res) => {
 
     } else {
       if (!phone || !pin) return res.status(400).json({ success: false, message: 'Phone and PIN required' });
+      const rl = checkRateLimit(phone.trim());
+      if (rl.blocked) return res.status(429).json({ success: false, message: 'Too many failed attempts. Try again in ' + rl.remainMin + ' minutes.' });
 
       // 1. Collectors
       const collResult = await pool.query(`SELECT id, first_name, last_name, phone, must_change_pin FROM collectors WHERE phone=$1 AND pin=$2 AND is_active=true`, [phone.trim(), pin.trim()]);
       if (collResult.rows.length) {
+        clearLoginAttempts(phone.trim());
         const c = collResult.rows[0];
         const name = ((c.first_name||'') + (c.last_name ? ' '+c.last_name : '')).trim();
         const token = generateToken({ type: 'collector', id: c.id, phone: c.phone, role: 'collector' }, AUTH_SECRET);
@@ -2925,11 +2997,13 @@ app.post('/api/auth/login', async (req, res) => {
       // 2. Aggregators
       const aggResult = await pool.query(`SELECT id, name, company, phone FROM aggregators WHERE phone=$1 AND pin=$2 AND is_active=true`, [phone.trim(), pin.trim()]);
       if (aggResult.rows.length) {
+        clearLoginAttempts(phone.trim());
         const a = aggResult.rows[0];
         const token = generateToken({ type: 'aggregator', id: a.id, phone: a.phone, role: 'aggregator' }, AUTH_SECRET);
         return res.json({ success: true, role: 'aggregator', roles: null, token, user: { id: a.id, name: a.name, company: a.company||null, phone: a.phone, role: 'aggregator' } });
       }
 
+      recordFailedLogin(phone.trim());
       return res.status(401).json({ success: false, message: 'Invalid phone number or PIN' });
     }
   } catch (err) { console.error('Unified auth login error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
