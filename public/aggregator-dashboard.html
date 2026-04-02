@@ -1377,8 +1377,13 @@ async function syncOfflineQueue() {
         headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('circul_token') || '') },
         body: formData
       });
-      if (resp.status === 404 || resp.status === 500) {
-        console.warn('Expense API error (' + resp.status + '), discarding queued item');
+      if (resp.status === 404) {
+        console.warn('Expense API 404, discarding queued item (endpoint not found)');
+        continue;
+      }
+      if (resp.status === 500) {
+        console.warn('Expense API 500, keeping for retry');
+        remaining.push(expense);
         continue;
       }
       if (!resp.ok) throw new Error('Sync failed');
@@ -1838,7 +1843,7 @@ function buildReviewPanel(ptId, pt, basePrice) {
         '</div>' +
         '</div>' +
         '<div class="review-actions">' +
-        '<button class="btn-green btn" id="accept-btn-' + ptId + '" onclick="submitReview(' + ptId + ',\'accept\')" disabled>Accept</button>' +
+        '<button class="btn-green btn btn-pending-grade" id="accept-btn-' + ptId + '" onclick="submitReview(' + ptId + ',\'accept\')">Accept</button>' +
         '<button class="btn-reject-toggle" onclick="toggleRejectBlock(' + ptId + ')">Reject</button>' +
         '<button class="btn-cancel-review" onclick="openReview(' + ptId + ')">Cancel</button>' +
         '</div>' +
@@ -1856,7 +1861,8 @@ function selectGrade(ptId, grade) {
         var b = document.getElementById('gb' + g + '-' + ptId);
         if (b) b.className = 'grade-btn' + (g === grade ? ' sel-' + g.toLowerCase() : '');
     });
-    document.getElementById('accept-btn-' + ptId).disabled = false;
+    var acceptBtn = document.getElementById('accept-btn-' + ptId);
+    if (acceptBtn) { acceptBtn.classList.remove('btn-pending-grade'); acceptBtn.classList.add('btn-ready'); }
     updatePricePreview(ptId);
 }
 

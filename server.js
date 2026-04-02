@@ -557,7 +557,13 @@ app.post('/api/collector/pending-purchases/:id/accept', requireAuth, async (req,
       `UPDATE pending_transactions SET status='accepted', updated_at=NOW() WHERE id=$1 AND collector_id=$2 AND status='pending' RETURNING *`,
       [req.params.id, req.user.id]
     );
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    if (!result.rows.length) {
+      const check = await pool.query(`SELECT id, collector_id, status FROM pending_transactions WHERE id=$1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+      if (check.rows[0].collector_id !== req.user.id) return res.status(403).json({ success: false, message: 'This transaction belongs to a different collector' });
+      if (check.rows[0].status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction already ' + check.rows[0].status });
+      return res.status(404).json({ success: false, message: 'Could not accept transaction' });
+    }
     res.json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { console.error('POST /api/collector/pending-purchases/:id/accept error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -569,7 +575,13 @@ app.post('/api/collector/pending-purchases/:id/decline', requireAuth, async (req
       `UPDATE pending_transactions SET status='declined', updated_at=NOW() WHERE id=$1 AND collector_id=$2 AND status='pending' RETURNING *`,
       [req.params.id, req.user.id]
     );
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+    if (!result.rows.length) {
+      const check = await pool.query(`SELECT id, collector_id, status FROM pending_transactions WHERE id=$1`, [req.params.id]);
+      if (!check.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
+      if (check.rows[0].collector_id !== req.user.id) return res.status(403).json({ success: false, message: 'This transaction belongs to a different collector' });
+      if (check.rows[0].status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction already ' + check.rows[0].status });
+      return res.status(404).json({ success: false, message: 'Could not decline transaction' });
+    }
     res.json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { console.error('POST /api/collector/pending-purchases/:id/decline error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -1668,7 +1680,7 @@ app.get('/api/processor-prices', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_id as processor_id,
-              (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) as processor_name
+              (SELECT COALESCE(company, name) FROM processors WHERE id=pp.poster_id LIMIT 1) as processor_name
        FROM posted_prices pp
        WHERE pp.poster_type='processor' AND pp.is_active=true
        ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`

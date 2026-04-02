@@ -540,7 +540,7 @@ function checkPendingRatings() {
 }
 function scrollToRating() {
     if (_pendingRatingTxn) {
-        openRatingModal(_pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Aggregator');
+        openRatingModal(_pendingRatingTxn.txn_id, _pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Aggregator');
     }
 }
 
@@ -619,7 +619,7 @@ function loadAggregators() {
                     '<td class="td-name">' + esc(seen[id]) + '</td>' +
                     '<td>—</td>' +
                     '<td>—</td>' +
-                    '<td><button class="btn" onclick="openRatingModal(' + id + ',\'' + esc(seen[id]).replace(/'/g, "\\'") + '\')">Rate</button></td>' +
+                    '<td><button class="btn" onclick="openRatingModal(null,' + id + ',\'' + esc(seen[id]).replace(/'/g, "\\'") + '\')">Rate</button></td>' +
                     '</tr>';
             }).join('');
         });
@@ -1593,8 +1593,8 @@ var PROC_RATING_TAGS = [
   { label: "Late delivery", type: "negative" }
 ];
 
-function openRatingModal(aggregatorId, aggregatorName) {
-  _ratingTarget = { id: aggregatorId, name: aggregatorName };
+function openRatingModal(transactionId, aggregatorId, aggregatorName) {
+  _ratingTarget = { txn_id: transactionId, id: aggregatorId, name: aggregatorName };
   _ratingStars = 0;
   _ratingTags = [];
   var modal = document.getElementById("rating-modal");
@@ -1651,6 +1651,7 @@ function submitRating() {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
     body: JSON.stringify({
+      transaction_id: _ratingTarget.txn_id || null,
       rater_type: "processor",
       rater_id: state.operator.id,
       rated_type: "aggregator",
