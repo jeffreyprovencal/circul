@@ -189,7 +189,7 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 }
 
 /* ── UTILITY ── */
-.hidden{display:none}
+.hidden{display:none!important}
 
 /* ── TOAST ── */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-md);padding:12px 24px;font-size:0.85rem;color:var(--text-1);z-index:300;opacity:0;transition:opacity 0.3s}

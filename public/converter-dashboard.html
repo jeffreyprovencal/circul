@@ -638,11 +638,11 @@ function lookupSupplierPrice() {
     var list = _supplierCache[tier] || [];
     var supplier = list.find(function(s) { return String(s.id) === String(supplierId); });
     // Try to find posted price from prices endpoint
-    fetch('/api/prices?poster_type=' + tier + '&poster_id=' + supplierId + '&material_type=' + material)
+    fetch('/api/prices?role=' + tier + '&material=' + material)
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var prices = data.prices || data || [];
-            var match = Array.isArray(prices) ? prices.find(function(p) { return p.material_type === material; }) : null;
+            var prices = data.all_prices || data.near_prices || [];
+            var match = Array.isArray(prices) ? prices.find(function(p) { return p.material_type === material && String(p.aggregator_id) === String(supplierId); }) : null;
             if (match && match.price_per_kg_ghs) {
                 priceEl.value = parseFloat(match.price_per_kg_ghs).toFixed(2);
                 priceEl.readOnly = true;

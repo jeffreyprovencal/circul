@@ -2403,7 +2403,7 @@ app.get('/api/pending-transactions', async (req, res) => {
       query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [processor_id];
     } else if (type === 'aggregator_sale') {
-      query = `SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     } else {
       query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC`;
@@ -2429,7 +2429,7 @@ app.get('/api/pending-transactions/aggregator-sales', requireAuth, async (req, r
     var aggregator_id = req.query.aggregator_id;
     if (req.user.id !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id required' });
-    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, p.name AS processor_name, p.id AS processor_id, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name, c.id AS converter_id FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
+    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_company, COALESCE(p.company, p.name) AS processor_name, p.id AS processor_id, COALESCE(c.company, c.name) AS converter_company, c.name AS converter_name, c.id AS converter_id FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN converters c ON c.id=pt.converter_id WHERE pt.transaction_type='aggregator_sale' AND pt.aggregator_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [aggregator_id]);
     for (const row of result.rows) {
       if (row.processor_id) {
         var pCode = CirculRoles.circulCode('processor', row.processor_id);
@@ -2571,7 +2571,7 @@ app.post('/api/pending-transactions/:id/dispatch-decision', requireAuth, async (
     // Notify the sender (aggregator) that dispatch was approved
     try {
       const aggRow = (await pool.query(`SELECT phone, name FROM aggregators WHERE id = $1`, [pt.aggregator_id])).rows[0];
-      const procRow = (await pool.query(`SELECT name FROM processors WHERE id = $1`, [req.user.id])).rows[0];
+      const procRow = (await pool.query(`SELECT COALESCE(company, name) AS name FROM processors WHERE id = $1`, [req.user.id])).rows[0];
       if (aggRow && aggRow.phone) {
         notify(EVENTS.DELIVERY_APPROVED, aggRow.phone, { receiver_name: procRow ? procRow.name : 'the processor', qty: pt.gross_weight_kg, material: pt.material_type });
       }
@@ -2649,7 +2649,7 @@ app.get('/api/pending-transactions/processor-sales', requireAuth, async (req, re
 app.get('/api/pending-transactions/recycler-queue', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
-    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.transaction_type='processor_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.transaction_type='processor_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Recycler queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2673,7 +2673,7 @@ app.post('/api/pending-transactions/:id/recycler-dispatch-decision', requireAuth
     const updated = await pool.query(`UPDATE pending_transactions SET status='dispatch_approved', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
     // Notify the sender (processor) that dispatch was approved
     try {
-      const procRow = (await pool.query(`SELECT phone, name FROM processors WHERE id = $1`, [pt.processor_id])).rows[0];
+      const procRow = (await pool.query(`SELECT phone, COALESCE(company, name) AS name FROM processors WHERE id = $1`, [pt.processor_id])).rows[0];
       const recRow = (await pool.query(`SELECT name FROM recyclers WHERE id = $1`, [req.user.id])).rows[0];
       if (procRow && procRow.phone) {
         notify(EVENTS.DELIVERY_APPROVED, procRow.phone, { receiver_name: recRow ? recRow.name : 'the recycler', qty: pt.gross_weight_kg, material: pt.material_type });
@@ -2743,7 +2743,7 @@ app.get('/api/pending-transactions/converter-queue', requireAuth, async (req, re
   try {
     if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
     const converterId = req.user.converter_id || req.user.id;
-    const result = await pool.query(`SELECT pt.*, p.name AS processor_name, p.company AS processor_company, p.id AS processor_id, r.name AS recycler_name, r.company AS recycler_company, r.id AS recycler_id FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type IN ('processor_sale','recycler_sale') AND pt.converter_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
+    const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company, p.id AS processor_id, r.name AS recycler_name, r.company AS recycler_company, r.id AS recycler_id FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id LEFT JOIN recyclers r ON r.id=pt.recycler_id WHERE pt.transaction_type IN ('processor_sale','recycler_sale') AND pt.converter_id=$1 ORDER BY pt.created_at DESC`, [converterId]);
     for (const row of result.rows) {
       if (row.processor_id) {
         row.processor_code = CirculRoles.circulCode('processor', row.processor_id);
@@ -3344,9 +3344,9 @@ app.get('/api/prices', async (req, res) => {
     let nearPrices = { rows: [] };
     if (city) {
       const nearParams = [...params, city];
-      nearPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'recycler' THEN (SELECT name FROM recyclers WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true AND pp.city=$${nearParams.length}${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, nearParams);
+      nearPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT COALESCE(company, name) FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'recycler' THEN (SELECT name FROM recyclers WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true AND pp.city=$${nearParams.length}${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, nearParams);
     }
-    const allPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT name FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'recycler' THEN (SELECT name FROM recyclers WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, params);
+    const allPrices = await pool.query(`SELECT pp.material_type, pp.price_per_kg_ghs, pp.posted_at as updated_at, pp.poster_type as operator_role, pp.city, pp.poster_id as aggregator_id, CASE pp.poster_type WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id=pp.poster_id LIMIT 1) WHEN 'processor' THEN (SELECT COALESCE(company, name) FROM processors WHERE id=pp.poster_id LIMIT 1) WHEN 'recycler' THEN (SELECT name FROM recyclers WHERE id=pp.poster_id LIMIT 1) WHEN 'converter' THEN (SELECT name FROM converters WHERE id=pp.poster_id LIMIT 1) END as operator_name FROM posted_prices pp WHERE pp.poster_type=ANY($1) AND pp.is_active=true${whereExtra} ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`, params);
     const nationalAvg = await pool.query(`SELECT material_type, AVG(price_per_kg_ghs) as avg_usd, COUNT(DISTINCT poster_id) as buyer_count FROM posted_prices WHERE poster_type=ANY($1) AND is_active=true${whereExtra.replace(/pp\./g,'')} GROUP BY material_type ORDER BY material_type`, params);
     let nearRows = nearPrices.rows;
     if (nearRows.length === 0 && allPrices.rows.length > 0) {

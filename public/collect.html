@@ -218,6 +218,12 @@
             sel.value = preselect;
             sessionStorage.removeItem('preselectAggregatorId');
           }
+          // Pre-select aggregator if ?agg= param is present
+          var params = new URLSearchParams(window.location.search);
+          var aggParam = params.get('agg');
+          if (aggParam) {
+            sel.value = aggParam;
+          }
         })
         .catch(function () {
           document.getElementById('aggregatorSelect').innerHTML =

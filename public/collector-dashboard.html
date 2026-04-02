@@ -930,23 +930,9 @@ async function populatePrices() {
 }
 
 var _selectedAggPrices = null;
-// TODO: When an inline Log a Collection form is added to the collector dashboard,
-// update preselectAndSell to scroll there and pre-select the aggregator dropdown.
-// Currently uses the Discovery listing form as the sell-to flow.
 function preselectAndSell(aggId) {
-  _selectedAggPrices = null;
-  apiFetch('/collector/prices').then(function(prices) {
-    var agg = (prices || []).find(function(p) { return (p.aggregator_id || p.id) == aggId; });
-    if (agg && agg.prices) _selectedAggPrices = agg.prices;
-    showCreateListing();
-    autofillListingPrice();
-    var sec = document.getElementById('listings-section');
-    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }).catch(function() {
-    showCreateListing();
-    var sec = document.getElementById('listings-section');
-    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  // Navigate to the Log a Collection page with the aggregator pre-selected
+  window.location.href = '/collect?agg=' + aggId;
 }
 
 function autofillListingPrice() {
