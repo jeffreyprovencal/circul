@@ -1699,12 +1699,6 @@ function submitRating() {
   });
 }
 
-// ── INIT TOP PARTNERS ON LOAD ─────────────────────────────────────
-document.addEventListener("DOMContentLoaded", function() {
-  setTimeout(function() {
-    loadTopSuppliers("month");
-    loadTopBuyers("month");
-  }, 600);
-});
+/* Top suppliers/buyers now loaded inside loadAll() — no delayed workaround needed */
 </script>
 </html>

@@ -671,6 +671,8 @@ function loadAll() {
     loadConverterDropdown();
     loadSentOffers();
     loadDiscLocations();
+    loadTopSuppliers('month');
+    loadTopBuyers('month');
 }
 
 // -- PURCHASE ORDERS --
@@ -1717,11 +1719,6 @@ function discCounterOffer(id) {
 }
 
 // -- INIT --
-document.addEventListener("DOMContentLoaded", function() {
-  setTimeout(function() {
-    loadTopSuppliers("month");
-    loadTopBuyers("month");
-  }, 700);
-});
+/* Top suppliers/buyers now loaded inside loadAll() — no delayed workaround needed */
 </script>
 </html>

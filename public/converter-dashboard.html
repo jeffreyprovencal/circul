@@ -611,6 +611,7 @@ function loadAll() {
     loadConverterQueue();
     loadSentOffers();
     loadDiscLocations();
+    loadTopSuppliers('month');
 }
 
 // ── PURCHASE ORDERS ────────────────────────────────────────────────────────────
@@ -1712,9 +1713,7 @@ function discCounterOffer(id) {
 
 // ── INIT ─────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", function() {
-  setTimeout(function() {
-    loadTopSuppliers("month");
-  }, 700);
+  /* Top suppliers now loaded inside loadAll() — no delayed workaround needed */
   loadSupplierDropdown('recycler');
 });
 </script>
