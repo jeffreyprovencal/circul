@@ -610,7 +610,7 @@ function loadAggregators() {
             // Unique aggregators from transactions
             var seen = {};
             data.transactions.forEach(function(t) {
-                if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_name || t.aggregator_display_name;
+                if (t.aggregator_id && !seen[t.aggregator_id]) seen[t.aggregator_id] = t.aggregator_company || t.aggregator_name;
             });
             var aggs = Object.keys(seen);
             if (!aggs.length) { el.innerHTML = '<tr><td colspan="4" class="empty">No aggregators to rate yet</td></tr>'; return; }
@@ -825,7 +825,7 @@ function buildPendingCard(pt) {
 }
 
 function buildApprovedCard(pt) {
-    var aggName = nameCell(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name, pt.aggregator_code, pt.aggregator_name_visible);
+    var aggName = nameCell(pt.aggregator_company || pt.aggregator_name, pt.aggregator_code, true);
     var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
     return '<div class="del-card" id="dc-arr-' + pt.id + '">' +
         '<div class="del-row">' +
@@ -844,7 +844,7 @@ function buildApprovedCard(pt) {
 }
 
 function buildCompletedRow(pt) {
-    var aggName = nameCell(pt.aggregator_display_name || pt.aggregator_company || pt.aggregator_name, pt.aggregator_code, pt.aggregator_name_visible);
+    var aggName = nameCell(pt.aggregator_company || pt.aggregator_name, pt.aggregator_code, true);
     var matClass = 'pill-' + (pt.material_type || '').toLowerCase();
     var statusBadge = pt.status === 'arrived'
         ? '<span class="pill pill-arrived">Arrived</span>'
@@ -1153,7 +1153,17 @@ function renderProcessorSales() {
         return;
     }
     el.innerHTML = processorSales.map(function(s) {
-        var convName = esc(s.converter_company || s.converter_name || '—');
+        var buyerName, buyerCode, buyerVisible;
+        if (s.converter_id) {
+            buyerName = s.converter_company || s.converter_name;
+            buyerCode = s.converter_code;
+            buyerVisible = s.converter_name_visible;
+        } else if (s.recycler_id) {
+            buyerName = s.recycler_company || s.recycler_name;
+            buyerCode = s.recycler_code;
+            buyerVisible = s.recycler_name_visible;
+        }
+        var convName = nameCell(buyerName || 'Unknown', buyerCode, buyerVisible);
         var matClass = 'pill-' + (s.material_type || '').toLowerCase();
         var statusBadge = buildProcSaleStatusBadge(s.status);
         var total = s.total_price ? 'GH¢ ' + fmt(s.total_price) : '—';

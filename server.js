@@ -1719,8 +1719,9 @@ app.get('/api/processor/top-suppliers', async (req, res) => {
   }
 });
 
-app.get('/api/processor/top-buyers', async (req, res) => {
+app.get('/api/processor/top-buyers', requireAuth, async (req, res) => {
   try {
+    if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
     const { period } = req.query;
     const since = period === 'ytd'
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
@@ -1733,9 +1734,9 @@ app.get('/api/processor/top-buyers', async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN converters c ON c.id = pt.converter_id
        LEFT JOIN recyclers r ON r.id = pt.recycler_id
-       WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
+       WHERE pt.processor_id = $2 AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
        GROUP BY 1, 2, 3 ORDER BY volume DESC LIMIT 5`,
-      [since]
+      [since, req.user.id]
     );
     result.rows.forEach(r => {
       r.partner_code = CirculRoles.circulCode(r.tier, r.partner_id);
@@ -1883,8 +1884,10 @@ app.get('/api/converters/:id/stats', async (req, res) => {
   }
 });
 
-app.get('/api/converter/top-suppliers', async (req, res) => {
+app.get('/api/converter/top-suppliers', requireAuth, async (req, res) => {
   try {
+    if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
+    const converterId = req.user.converter_id || req.user.id;
     const { period } = req.query;
     const since = period === 'ytd'
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
@@ -1899,13 +1902,13 @@ app.get('/api/converter/top-suppliers', async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN processors p ON p.id = pt.processor_id
        LEFT JOIN recyclers r ON r.id = pt.recycler_id
-       WHERE pt.converter_id IS NOT NULL
+       WHERE pt.converter_id = $2
          AND pt.transaction_type IN ('processor_sale','recycler_sale')
          AND pt.created_at >= $1
        GROUP BY 1, 2, 3
        ORDER BY volume DESC
        LIMIT 5`,
-      [since]
+      [since, converterId]
     );
     result.rows.forEach(r => {
       r.partner_code = CirculRoles.circulCode(r.tier, r.partner_id);
@@ -1972,8 +1975,9 @@ app.get('/api/recyclers/:id/stats', async (req, res) => {
   }
 });
 
-app.get('/api/recycler/top-suppliers', async (req, res) => {
+app.get('/api/recycler/top-suppliers', requireAuth, async (req, res) => {
   try {
+    if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
     const { period } = req.query;
     const since = period === 'ytd'
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
@@ -1983,9 +1987,9 @@ app.get('/api/recycler/top-suppliers', async (req, res) => {
               SUM(pt.gross_weight_kg) AS volume, AVG(pt.price_per_kg) AS avg_price_paid
        FROM pending_transactions pt
        LEFT JOIN processors p ON p.id = pt.processor_id
-       WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
+       WHERE pt.recycler_id = $2 AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
        GROUP BY p.id ORDER BY volume DESC LIMIT 5`,
-      [since]
+      [since, req.user.id]
     );
     result.rows.forEach(r => {
       r.partner_code = CirculRoles.circulCode('processor', r.partner_id);
@@ -2057,10 +2061,50 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/converter/transactions', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
+    const converterId = req.user.converter_id || req.user.id;
+    const { start_date, end_date, limit = 30, offset = 0 } = req.query;
+    let query = `SELECT pt.id, pt.material_type, pt.gross_weight_kg AS net_weight_kg, pt.price_per_kg, pt.total_price,
+                        pt.status AS payment_status, pt.transaction_type, pt.created_at AS transaction_date,
+                        pt.processor_id, pt.recycler_id,
+                        COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company,
+                        COALESCE(r.company, r.name) AS recycler_name, r.company AS recycler_company
+                 FROM pending_transactions pt
+                 LEFT JOIN processors p ON p.id = pt.processor_id
+                 LEFT JOIN recyclers r ON r.id = pt.recycler_id
+                 WHERE pt.converter_id = $1
+                   AND pt.transaction_type IN ('processor_sale','recycler_sale')`;
+    const params = [converterId];
+    if (start_date) { params.push(start_date); query += ` AND pt.created_at >= $${params.length}::timestamptz`; }
+    if (end_date) { params.push(end_date); query += ` AND pt.created_at <= $${params.length}::timestamptz`; }
+    query += ` ORDER BY pt.created_at DESC`;
+    params.push(parseInt(limit)); query += ` LIMIT $${params.length}`;
+    const result = await pool.query(query, params);
+    for (const row of result.rows) {
+      if (row.processor_id) {
+        row.processor_code = CirculRoles.circulCode('processor', row.processor_id);
+        row.supplier_code = row.processor_code;
+        row.supplier_name_visible = true;
+      }
+      if (row.recycler_id) {
+        row.recycler_code = CirculRoles.circulCode('recycler', row.recycler_id);
+        row.supplier_code = row.recycler_code;
+        row.supplier_name_visible = true;
+      }
+    }
+    res.json({ success: true, transactions: result.rows, total: result.rows.length });
+  } catch (err) {
+    console.error('GET /api/converter/transactions error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.get('/api/transactions', async (req, res) => {
   try {
     const { collector_id, aggregator_id, material_type, start_date, end_date, payment_status, limit = 100, offset = 0 } = req.query;
-    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
+    let query = `SELECT t.*, c.first_name as collector_first_name, c.last_name as collector_last_name, c.phone as collector_phone, c.average_rating as collector_rating, 'C-' || LPAD(c.id::text, 4, '0') AS collector_display_name, a.name as aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_code FROM transactions t LEFT JOIN collectors c ON c.id=t.collector_id LEFT JOIN aggregators a ON a.id=t.aggregator_id WHERE 1=1`;
     const params = [];
     if (collector_id) { params.push(collector_id); query += ` AND t.collector_id=$${params.length}`; }
     if (aggregator_id) { params.push(aggregator_id); query += ` AND t.aggregator_id=$${params.length}`; }
@@ -2397,10 +2441,10 @@ app.get('/api/pending-transactions', async (req, res) => {
     if (!collector_id && !aggregator_id && !processor_id && !converter_id) return res.status(400).json({ success: false, message: 'collector_id, aggregator_id, processor_id, or converter_id required' });
     let query, params;
     if (collector_id) {
-      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.collector_id=$1 AND pt.status='pending' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_code FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.collector_id=$1 AND pt.status='pending' ORDER BY pt.created_at DESC`;
       params = [collector_id];
     } else if (processor_id) {
-      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, a.name AS aggregator_name, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_code FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [processor_id];
     } else if (type === 'aggregator_sale') {
       query = `SELECT pt.*, COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
@@ -2543,7 +2587,7 @@ app.post('/api/pending-transactions/aggregator-sale', requireAuth, async (req, r
 app.get('/api/pending-transactions/processor-queue', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_display_name FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`, [req.user.id]);
+    const result = await pool.query(`SELECT pt.*, COALESCE(a.company, a.name) AS aggregator_name, a.company AS aggregator_company, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_code FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`, [req.user.id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Processor queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
