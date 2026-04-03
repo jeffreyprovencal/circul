@@ -1693,7 +1693,7 @@ app.get('/api/processor-prices', async (req, res) => {
   } catch (err) { console.error('Processor prices error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-app.get('/api/processor/top-suppliers', async (req, res) => {
+app.get('/api/processor/top-suppliers', requireAuth, async (req, res) => {
   try {
     const { period } = req.query;
     const since = period === 'ytd'
@@ -2002,7 +2002,7 @@ app.get('/api/recycler/top-suppliers', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/recycler/top-buyers', async (req, res) => {
+app.get('/api/recycler/top-buyers', requireAuth, async (req, res) => {
   try {
     const { period } = req.query;
     const since = period === 'ytd'

@@ -1502,7 +1502,7 @@ function loadTopSuppliers(period) {
   el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>Loading...</div>";
   var tbody = document.getElementById("topSuppliersBody");
   if (tbody) tbody.innerHTML = "";
-  fetch("/api/processor/top-suppliers?period=" + period)
+  apiFetch("/api/processor/top-suppliers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
@@ -1527,7 +1527,7 @@ function loadTopBuyers(period) {
   el.innerHTML = "<div style='color:var(--text-3);font-size:0.8rem;padding:12px 0'>Loading...</div>";
   var tbody = document.getElementById("topBuyersBody");
   if (tbody) tbody.innerHTML = "";
-  fetch("/api/processor/top-buyers?period=" + period)
+  apiFetch("/api/processor/top-buyers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);

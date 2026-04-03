@@ -1360,7 +1360,7 @@ function loadTopSuppliers(period) {
   var el = document.getElementById("top-suppliers-list");
   if (!el) return;
   el.innerHTML = '<div class="placeholder-cell">Loading...</div>';
-  fetch("/api/recycler/top-suppliers?period=" + period)
+  apiFetch("/api/recycler/top-suppliers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
@@ -1422,7 +1422,7 @@ function loadTopBuyers(period) {
   var el = document.getElementById("top-buyers-list");
   if (!el) return;
   el.innerHTML = '<div class="placeholder-cell">Loading...</div>';
-  fetch("/api/recycler/top-buyers?period=" + period)
+  apiFetch("/api/recycler/top-buyers?period=" + period)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);
