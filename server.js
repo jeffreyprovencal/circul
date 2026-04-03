@@ -2588,6 +2588,12 @@ app.get('/api/pending-transactions/processor-queue', requireAuth, async (req, re
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
     const result = await pool.query(`SELECT pt.*, COALESCE(a.company, a.name) AS aggregator_name, a.company AS aggregator_company, 'A-' || LPAD(a.id::text, 4, '0') AS aggregator_code FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.processor_id=$1 AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`, [req.user.id]);
+    for (const row of result.rows) {
+      if (row.aggregator_id) {
+        row.aggregator_code = CirculRoles.circulCode('aggregator', row.aggregator_id);
+        row.aggregator_name_visible = await canSeeName('processor', req.user.id, 'aggregator', row.aggregator_id);
+      }
+    }
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Processor queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -2694,6 +2700,12 @@ app.get('/api/pending-transactions/recycler-queue', requireAuth, async (req, res
   try {
     if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
     const result = await pool.query(`SELECT pt.*, COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.transaction_type='processor_sale' AND pt.recycler_id=$1 ORDER BY pt.created_at DESC`, [req.user.id]);
+    for (const row of result.rows) {
+      if (row.processor_id) {
+        row.processor_code = CirculRoles.circulCode('processor', row.processor_id);
+        row.processor_name_visible = await canSeeName('recycler', req.user.id, 'processor', row.processor_id);
+      }
+    }
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('Recycler queue error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
