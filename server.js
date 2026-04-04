@@ -2149,11 +2149,12 @@ app.get('/api/stats', async (req, res) => {
 // RATINGS
 // ============================================
 
-app.post('/api/ratings/operator', async (req, res) => {
+app.post('/api/ratings/operator', requireAuth, async (req, res) => {
   try {
     const { transaction_id, rater_type, rater_id, rated_type, rated_id, rater_operator_id, rated_operator_id, rater_collector_id, rated_collector_id, rating, tags, notes, rating_direction } = req.body;
-    const finalRaterType = rater_type || (rater_operator_id ? 'aggregator' : 'collector');
-    const finalRaterId   = rater_id   || rater_operator_id || rater_collector_id;
+    // Fall back to token-derived user when body fields are missing
+    const finalRaterType = rater_type || req.user.role || (rater_operator_id ? 'aggregator' : 'collector');
+    const finalRaterId   = rater_id   || req.user.id || rater_operator_id || rater_collector_id;
     const finalRatedType = rated_type || (rated_operator_id ? 'aggregator' : 'collector');
     const finalRatedId   = rated_id   || rated_operator_id || rated_collector_id;
     if (!finalRaterId) return res.status(400).json({ success: false, message: 'rater_id is required' });

@@ -612,6 +612,9 @@ function loadAll() {
     loadSentOffers();
     loadDiscLocations();
     loadTopSuppliers('month');
+    loadProcessorPrices();
+    loadTxnCerts();
+    loadRatings();
 }
 
 // ── PURCHASE ORDERS ────────────────────────────────────────────────────────────
@@ -1035,8 +1038,9 @@ function loadTxns() {
 
 function loadProcessorPrices() {
     var city = state.operator.city || '';
-    document.getElementById('priceCity').textContent = city || 'National';
-    fetch('/api/prices?role=converter' + (city ? '&city=' + encodeURIComponent(city) : ''))
+    var cityEl = document.getElementById('priceCity');
+    if (cityEl) cityEl.textContent = city || 'National';
+    apiFetch('/api/prices?role=converter' + (city ? '&city=' + encodeURIComponent(city) : ''))
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('processorPrices');
@@ -1061,6 +1065,11 @@ function loadProcessorPrices() {
                         '<td style="color:var(--text-3)">' + (p.actual_avg_price_30d ? 'GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td>' +
                         '</tr>';
                 }).join('') + '</tbody></table></div>';
+        })
+        .catch(function(e) {
+            console.error('loadProcessorPrices error:', e);
+            var el = document.getElementById('processorPrices');
+            if (el) el.innerHTML = '<div class="empty">Unable to load prices</div>';
         });
 }
 
@@ -1082,6 +1091,11 @@ function loadTxnCerts() {
                     var pillClass = 'pill pill-' + matLower;
                     return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--accent);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
                 }).join('') + '</tbody></table></div>';
+        })
+        .catch(function(e) {
+            console.error('loadTxnCerts error:', e);
+            var el = document.getElementById('txnCerts');
+            if (el) el.innerHTML = '<div class="empty">No transactions yet</div>';
         });
 }
 
@@ -1098,6 +1112,11 @@ function loadRatings() {
             el.innerHTML = procs.map(function(id) {
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-submit" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
             }).join('');
+        })
+        .catch(function(e) {
+            console.error('loadRatings error:', e);
+            var el = document.getElementById('processorRatingsList');
+            if (el) el.innerHTML = '<div class="empty">No transactions yet</div>';
         });
     fetch('/api/ratings/operator/' + state.operator.id)
         .then(function(r) { return r.json(); })
@@ -1140,11 +1159,10 @@ function submitCvRating() {
         msg.classList.remove('hidden');
         return;
     }
-    var token = localStorage.getItem('circul_token');
     var note = document.getElementById('cv-rating-note').value.trim();
-    fetch('/api/ratings/operator', {
+    apiFetch('/api/ratings/operator', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor', tags: _cvSelectedTags, note: note || null })
     })
     .then(function(r) {

@@ -628,7 +628,7 @@ function loadAggregators() {
 function rateAggregator(aggId, name) {
     var r = prompt('Rate ' + name + ' (1-5 stars):');
     if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
-    fetch('/api/ratings/operator', {
+    apiFetch('/api/ratings/operator', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rater_type: 'processor', rater_id: state.operator.id, rated_type: 'aggregator', rated_id: aggId, rating: parseInt(r), rating_direction: 'processor_rates_aggregator' })
     }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
@@ -1656,10 +1656,9 @@ function submitRating() {
   if (!_ratingStars) { showProcToast("Please select a star rating", true); return; }
   if (!_ratingTarget) return;
   var note = document.getElementById("rating-note") ? document.getElementById("rating-note").value : "";
-  var token = localStorage.getItem('circul_token') || '';
-  fetch("/api/ratings/operator", {
+  apiFetch("/api/ratings/operator", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       transaction_id: _ratingTarget.txn_id || null,
       rater_type: "processor",
@@ -1693,9 +1692,10 @@ function submitRating() {
       });
     } else { showProcToast(data.message || "Error submitting rating", true); }
   })
-  .catch(function() {
+  .catch(function(err) {
     closeRatingModal();
-    showProcToast("Rating submitted for " + _ratingTarget.name);
+    console.error('Rating submission error:', err);
+    showProcToast("Could not submit rating — please try again", true);
   });
 }
 

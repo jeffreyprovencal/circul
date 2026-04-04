@@ -1237,11 +1237,10 @@ async function submitRecRating() {
         return;
     }
     try {
-        var token = localStorage.getItem('circul_token');
         var note = document.getElementById('rec-rating-note').value.trim();
-        var r = await fetch('/api/ratings/operator', {
+        var r = await apiFetch('/api/ratings/operator', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 rater_type: 'recycler',
                 rater_id: state.operator.id,
