@@ -136,9 +136,9 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Amount</th><th>Payment</th>
+            <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Amount</th><th>Payment</th><th>Requirement</th><th>Compliance</th>
           </tr></thead>
-          <tbody id="queueCompleted"><tr><td colspan="6" class="empty">No completed deliveries yet</td></tr></tbody>
+          <tbody id="queueCompleted"><tr><td colspan="8" class="empty">No completed deliveries yet</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -297,6 +297,74 @@
         </table>
       </div>
       <div id="top-buyers-list"></div>
+    </div>
+  </div>
+
+  <!-- SUPPLY REQUIREMENTS (Batch 9) -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Supply Requirements</div>
+        <div class="section-sub">What you need from your aggregators</div>
+      </div>
+      <button class="btn btn-green" onclick="toggleReqForm()">+ Add Requirement</button>
+    </div>
+
+    <!-- Add Requirement Form (hidden) -->
+    <div id="addReqForm" class="hidden" style="padding:12px 0;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label class="form-label">Material Type</label>
+          <select class="form-input" id="reqMaterial">
+            <option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Accepted Forms</label>
+          <div style="display:flex;gap:10px;padding-top:6px;">
+            <label style="font-size:0.8rem;color:var(--text-2);"><input type="checkbox" id="reqFormLoose" value="Loose" checked> Loose</label>
+            <label style="font-size:0.8rem;color:var(--text-2);"><input type="checkbox" id="reqFormBales" value="Bales"> Bales</label>
+            <label style="font-size:0.8rem;color:var(--text-2);"><input type="checkbox" id="reqFormFlakes" value="Flakes"> Flakes</label>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Accepted Colours (comma-separated)</label>
+          <input class="form-input" id="reqColours" placeholder="e.g. Clear, Blue, White">
+        </div>
+        <div>
+          <label class="form-label">Max Contamination %</label>
+          <input class="form-input" id="reqContam" type="number" step="0.1" min="0" max="100" placeholder="e.g. 3.0">
+        </div>
+        <div>
+          <label class="form-label">Max Moisture %</label>
+          <input class="form-input" id="reqMoisture" type="number" step="0.1" min="0" max="100" placeholder="e.g. 5.0">
+        </div>
+        <div>
+          <label class="form-label">Min Quantity (kg)</label>
+          <input class="form-input" id="reqMinQty" type="number" step="1" min="0" placeholder="e.g. 200">
+        </div>
+        <div>
+          <label class="form-label">Price Premium %</label>
+          <input class="form-input" id="reqPremium" type="number" step="0.1" min="0" placeholder="e.g. 5.0">
+        </div>
+        <div>
+          <label class="form-label">Client / PO Reference (private)</label>
+          <input class="form-input" id="reqClientRef" placeholder="e.g. Poly Recycling — PO #PR-2026-041">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Sorting Notes</label>
+          <textarea class="form-input" id="reqSortNotes" rows="2" placeholder="Instructions for aggregators/collectors…"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-green" onclick="submitRequirement()">Create Requirement</button>
+        <button class="btn" onclick="toggleReqForm()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Requirements List -->
+    <div id="reqList" style="display:grid;gap:12px;">
+      <div style="color:var(--text-3);font-size:0.85rem;">Loading requirements…</div>
     </div>
   </div>
 
@@ -576,6 +644,7 @@ function loadAll() {
     loadTopBuyers('month');
     loadSentOffers();
     loadDiscLocations();
+    loadSupplyRequirements();
 }
 
 function loadTxns() {
@@ -597,6 +666,10 @@ function loadTxns() {
                     '<td>' + paymentBadge(t.payment_status) + '</td>' +
                     '</tr>';
             }).join('');
+        })
+        .catch(function() {
+            var tbody = document.getElementById('txnsList');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty">Could not load transactions.</td></tr>';
         });
 }
 
@@ -622,6 +695,10 @@ function loadAggregators() {
                     '<td><button class="btn" onclick="openRatingModal(null,' + id + ',\'' + esc(seen[id]).replace(/'/g, "\\'") + '\')">Rate</button></td>' +
                     '</tr>';
             }).join('');
+        })
+        .catch(function() {
+            var el = document.getElementById('aggRatingsList');
+            if (el) el.innerHTML = '<tr><td colspan="4" class="empty">Could not load aggregators.</td></tr>';
         });
 }
 
@@ -719,7 +796,7 @@ function loadDeliveries() {
         document.getElementById('queuePending').innerHTML  = pending.length  ? pending.map(buildPendingCard).join('')   : '<div class="sub-empty">No pending deliveries awaiting review.</div>';
         document.getElementById('queueApproved').innerHTML = approved.length ? approved.map(buildApprovedCard).join('') : '<div class="sub-empty">No deliveries awaiting arrival confirmation.</div>';
         if (!completed.length) {
-            document.getElementById('queueCompleted').innerHTML = '<tr><td colspan="6" class="empty">No completed or flagged deliveries yet.</td></tr>';
+            document.getElementById('queueCompleted').innerHTML = '<tr><td colspan="8" class="empty">No completed or flagged deliveries yet.</td></tr>';
         } else {
             document.getElementById('queueCompleted').innerHTML = completed.map(buildCompletedRow).join('');
         }
@@ -858,6 +935,30 @@ function buildCompletedRow(pt) {
         : ps === 'payment_sent'
         ? '<span class="pill pill-sent">Sent</span>'
         : buildPTPaymentUI(pt);
+    // Spec-linked columns
+    var reqDropdown = '<select class="form-input" style="font-size:0.75rem;padding:4px 6px;min-width:100px;" onchange="linkRequirement(' + pt.id + ', this.value)">'
+        + '<option value="">—</option>';
+    (window._procRequirements || []).forEach(function(r) {
+        var label = esc(r.material_type) + ' — ' + (r.accepted_colours || []).join(', ');
+        var sel = pt.requirement_id == r.id ? ' selected' : '';
+        reqDropdown += '<option value="' + r.id + '"' + sel + '>' + label + '</option>';
+    });
+    reqDropdown += '</select>';
+
+    var complianceCell = '';
+    if (pt.spec_compliance) {
+        var cc = pt.spec_compliance;
+        var ccClass = cc === 'meets' ? 'pill-paid' : cc === 'partial' ? 'pill-sent' : 'pill-pending';
+        var ccLabel = cc.charAt(0).toUpperCase() + cc.slice(1);
+        complianceCell = '<span class="pill ' + ccClass + '">' + ccLabel + '</span>';
+    }
+    complianceCell += '<select class="form-input" style="font-size:0.75rem;padding:4px 6px;min-width:80px;margin-top:4px;" onchange="setCompliance(' + pt.id + ', this.value)">'
+        + '<option value="">Set…</option>'
+        + '<option value="meets"' + (pt.spec_compliance === 'meets' ? ' selected' : '') + '>Meets</option>'
+        + '<option value="partial"' + (pt.spec_compliance === 'partial' ? ' selected' : '') + '>Partial</option>'
+        + '<option value="below"' + (pt.spec_compliance === 'below' ? ' selected' : '') + '>Below</option>'
+        + '</select>';
+
     return '<tr>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
         '<td class="td-name">' + aggName + '</td>' +
@@ -865,6 +966,8 @@ function buildCompletedRow(pt) {
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
         '<td class="td-green">' + total + '</td>' +
         '<td>' + payCell + '</td>' +
+        '<td>' + reqDropdown + '</td>' +
+        '<td>' + complianceCell + '</td>' +
     '</tr>';
 }
 
@@ -1700,5 +1803,147 @@ function submitRating() {
 }
 
 /* Top suppliers/buyers now loaded inside loadAll() — no delayed workaround needed */
+
+/* ── Supply Requirements (Batch 9) ── */
+window._procRequirements = [];
+
+function toggleReqForm() {
+  document.getElementById('addReqForm').classList.toggle('hidden');
+}
+
+function loadSupplyRequirements() {
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  apiFetch('/api/supply-requirements', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) return;
+      window._procRequirements = data.requirements || [];
+      renderReqList(data.requirements);
+      // Reload deliveries so dropdowns have requirement options
+      loadDeliveries();
+    })
+    .catch(function(e) {
+      console.error('Supply requirements load failed:', e);
+      document.getElementById('reqList').innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">Could not load requirements.</div>';
+    });
+}
+
+function renderReqList(reqs) {
+  var container = document.getElementById('reqList');
+  if (!reqs || !reqs.length) {
+    container.innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">No supply requirements yet. Add one above.</div>';
+    return;
+  }
+  container.innerHTML = reqs.map(function(r) {
+    var forms = (r.accepted_forms || []).join(', ') || '—';
+    var colours = (r.accepted_colours || []).join(', ') || 'Any';
+    var contam = r.max_contamination_pct != null ? r.max_contamination_pct + '%' : '—';
+    var moisture = r.max_moisture_pct != null ? r.max_moisture_pct + '%' : '—';
+    var minQty = r.min_quantity_kg != null ? r.min_quantity_kg + ' kg' : '—';
+    var premium = r.price_premium_pct ? '+' + r.price_premium_pct + '% premium' : '';
+    var clientRef = r.client_reference ? '<div style="margin-top:6px;font-size:0.78rem;color:var(--text-3);"><span style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;font-size:0.7rem;">PRIVATE</span> ' + esc(r.client_reference) + '</div>' : '';
+    return '<div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+      + '<span class="material-pill material-' + esc(r.material_type) + '">' + esc(r.material_type) + '</span>'
+      + (premium ? '<span style="margin-left:auto;font-size:0.75rem;font-weight:600;color:#00e676;background:rgba(0,230,118,0.12);padding:2px 8px;border-radius:10px;">' + premium + '</span>' : '')
+      + '<button class="btn" style="font-size:0.7rem;padding:3px 8px;margin-left:' + (premium ? '8px' : 'auto') + ';" onclick="deleteRequirement(' + r.id + ')">Remove</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:0.8rem;color:var(--text-2);">'
+      + '<div><span style="color:var(--text-3);">Forms:</span> ' + esc(forms) + '</div>'
+      + '<div><span style="color:var(--text-3);">Colours:</span> ' + esc(colours) + '</div>'
+      + '<div><span style="color:var(--text-3);">Max Contam.:</span> ' + contam + '</div>'
+      + '<div><span style="color:var(--text-3);">Max Moisture:</span> ' + moisture + '</div>'
+      + '<div><span style="color:var(--text-3);">Min Qty:</span> ' + minQty + '</div>'
+      + '</div>'
+      + clientRef
+      + (r.sorting_notes ? '<div style="margin-top:8px;font-size:0.78rem;color:var(--text-3);font-style:italic;">' + esc(r.sorting_notes) + '</div>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function submitRequirement() {
+  var forms = [];
+  if (document.getElementById('reqFormLoose').checked) forms.push('Loose');
+  if (document.getElementById('reqFormBales').checked) forms.push('Bales');
+  if (document.getElementById('reqFormFlakes').checked) forms.push('Flakes');
+  if (!forms.length) { showProcToast('Select at least one accepted form', true); return; }
+  var coloursRaw = (document.getElementById('reqColours').value || '').trim();
+  var colours = coloursRaw ? coloursRaw.split(',').map(function(c) { return c.trim(); }).filter(Boolean) : null;
+  var body = {
+    material_type: document.getElementById('reqMaterial').value,
+    accepted_forms: forms,
+    accepted_colours: colours,
+    max_contamination_pct: parseFloat(document.getElementById('reqContam').value) || null,
+    max_moisture_pct: parseFloat(document.getElementById('reqMoisture').value) || null,
+    min_quantity_kg: parseFloat(document.getElementById('reqMinQty').value) || null,
+    price_premium_pct: parseFloat(document.getElementById('reqPremium').value) || null,
+    client_reference: document.getElementById('reqClientRef').value.trim() || null,
+    sorting_notes: document.getElementById('reqSortNotes').value.trim() || null
+  };
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  apiFetch('/api/supply-requirements', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify(body)
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showProcToast('Requirement created');
+        toggleReqForm();
+        document.getElementById('reqColours').value = '';
+        document.getElementById('reqContam').value = '';
+        document.getElementById('reqMoisture').value = '';
+        document.getElementById('reqMinQty').value = '';
+        document.getElementById('reqPremium').value = '';
+        document.getElementById('reqClientRef').value = '';
+        document.getElementById('reqSortNotes').value = '';
+        loadSupplyRequirements();
+      } else { showProcToast(data.message || 'Error creating requirement', true); }
+    })
+    .catch(function(e) { showProcToast('Error creating requirement', true); console.error(e); });
+}
+
+function deleteRequirement(id) {
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  apiFetch('/api/supply-requirements/' + id, {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) { showProcToast('Requirement removed'); loadSupplyRequirements(); }
+      else { showProcToast(data.message || 'Error removing', true); }
+    })
+    .catch(function(e) { showProcToast('Error removing requirement', true); console.error(e); });
+}
+
+function linkRequirement(ptId, reqId) {
+  if (!reqId) return;
+  // First set requirement, then prompt for compliance
+  var compSel = event.target.closest('tr').querySelector('select[onchange*="setCompliance"]');
+  if (compSel) compSel.focus();
+}
+
+function setCompliance(ptId, compliance) {
+  if (!compliance) return;
+  // Find the requirement dropdown in the same row
+  var row = event.target.closest('tr');
+  var reqSel = row.querySelector('select[onchange*="linkRequirement"]');
+  var reqId = reqSel ? reqSel.value : '';
+  if (!reqId) { showProcToast('Select a requirement first', true); return; }
+  var token = state.operator.token || localStorage.getItem('circul_token') || '';
+  apiFetch('/api/pending-transactions/' + ptId + '/link-requirement', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ requirement_id: parseInt(reqId), spec_compliance: compliance })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) { showProcToast('Spec compliance saved'); loadDeliveries(); }
+      else { showProcToast(data.message || 'Error linking requirement', true); }
+    })
+    .catch(function(e) { showProcToast('Error linking requirement', true); console.error(e); });
+}
 </script>
 </html>

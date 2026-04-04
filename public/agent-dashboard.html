@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Dashboard — Circul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<style>
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
+.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
+.login-error{margin-bottom:12px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#000;padding:12px 20px;border-radius:var(--r-md);font-weight:600;font-size:0.85rem;z-index:1000;opacity:0;transition:opacity 0.3s}
+#toast.show{opacity:1}
+
+/* ── NAV PILL (AGENT) ── */
+.nav-pill-agent{background:var(--surface);border:1px solid #26c6da;color:#26c6da}
+</style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay hidden" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-title">Sign in to Circul</div>
+    <div class="login-sub">Agent access</div>
+    <div class="login-error" id="loginError"></div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Phone number</label>
+      <input class="form-input" id="loginPhone" type="tel" placeholder="0241 000 001">
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">4-digit PIN</label>
+      <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')handleAgentLogin()">
+    </div>
+    <button class="form-submit" id="loginBtn" onclick="handleAgentLogin()">Sign in</button>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <span class="nav-spacer"></span>
+  <div class="nav-right">
+    <span class="nav-pill nav-pill-agent">AGENT</span>
+    <span class="nav-name" id="agentName">—</span>
+    <span class="nav-id" id="agentId"></span>
+    <span style="font-size:0.75rem;color:var(--text-3);" id="agentAggLabel"></span>
+    <a class="nav-link" href="/">Home</a>
+    <button class="nav-logout" onclick="signOut()">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- HERO STATS (3 cards) -->
+  <div class="stats stats-3">
+    <div class="stat">
+      <div class="stat-label">Today's Collections</div>
+      <div class="stat-val" id="statTodayCount">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">This Month</div>
+      <div class="stat-val" id="statMonthKg">— <small>kg</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">This Month Value</div>
+      <div class="stat-val" id="statMonthValue">—</div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: LOG A COLLECTION -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Log a Collection</div>
+        <div class="section-sub">Record material collected from a collector</div>
+      </div>
+    </div>
+    <div style="display:grid;gap:0.75rem;padding:1rem 0;">
+      <div>
+        <label class="form-label">Collector</label>
+        <select id="collectorSelect" class="form-input">
+          <option value="">Loading collectors…</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Material Type</label>
+        <select id="materialType" class="form-input">
+          <option value="PET">PET</option>
+          <option value="HDPE">HDPE</option>
+          <option value="LDPE">LDPE</option>
+          <option value="PP">PP</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Weight (kg)</label>
+        <input type="number" id="grossWeightKg" class="form-input" min="0" step="0.01" placeholder="Enter weight">
+      </div>
+      <div>
+        <label class="form-label">Price per kg (GH₵)</label>
+        <input type="number" id="pricePerKg" class="form-input" min="0" step="0.01" placeholder="Enter price">
+      </div>
+      <div style="display:flex;gap:0.5rem;">
+        <button class="btn btn-green" onclick="submitCollection()">Log Collection</button>
+        <button class="btn" onclick="clearCollectionForm()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: REGISTER NEW COLLECTOR -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Register New Collector</div>
+        <div class="section-sub">Add a new collector under your aggregator</div>
+      </div>
+    </div>
+    <div style="display:grid;gap:0.75rem;padding:1rem 0;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <div>
+          <label class="form-label">First Name</label>
+          <input type="text" id="collFirstName" class="form-input" placeholder="First name">
+        </div>
+        <div>
+          <label class="form-label">Last Name</label>
+          <input type="text" id="collLastName" class="form-input" placeholder="Last name">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Phone</label>
+        <input type="tel" id="collPhone" class="form-input" placeholder="0241 000 001">
+      </div>
+      <div>
+        <label class="form-label">4-digit PIN</label>
+        <input type="password" id="collPin" class="form-input" maxlength="4" placeholder="••••">
+      </div>
+      <div>
+        <label class="form-label">City</label>
+        <select id="collCity" class="form-input">
+          <option value="">Select city…</option>
+          <option>Accra</option><option>Tema</option><option>Kumasi</option><option>Takoradi</option><option>Tamale</option>
+          <option>Cape Coast</option><option>Koforidua</option><option>Sunyani</option><option>Ho</option><option>Bolgatanga</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Ghana Card (optional)</label>
+        <input type="text" id="collGhanaCard" class="form-input" placeholder="GHA-XXXXXXXXX-X">
+      </div>
+      <div style="display:flex;gap:0.5rem;">
+        <button class="btn btn-green" onclick="submitCollectorRegistration()">Register Collector</button>
+        <button class="btn" onclick="clearCollectorForm()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: RECENT COLLECTIONS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Recent Collections</div>
+        <div class="section-sub">Last 20 transactions logged by you</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Collector</th><th>Material</th><th>Weight</th><th>Price/kg</th><th>Total</th>
+        </tr></thead>
+        <tbody id="collectionsBody"><tr><td colspan="6" class="placeholder-cell">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 4: PROFILE -->
+  <div class="section">
+    <div class="section-title">Profile</div>
+    <div class="section-sub" style="margin-bottom:14px">Your account information</div>
+    <div class="passport-grid">
+      <div><div class="passport-label">Agent Name</div><div class="passport-val" id="profileAgentName">—</div></div>
+      <div><div class="passport-label">Phone</div><div class="passport-val" id="profilePhone">—</div></div>
+      <div><div class="passport-label">City</div><div class="passport-val" id="profileCity">—</div></div>
+      <div><div class="passport-label">Region</div><div class="passport-val" id="profileRegion">—</div></div>
+      <div style="grid-column:1/-1"><div class="passport-label">Parent Aggregator</div><div class="passport-val" id="profileAggregator">—</div></div>
+      <div style="grid-column:1/-1">
+        <div class="passport-label">Ghana Card (optional)</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+          <input type="text" id="ghanaCardInput" class="form-input" placeholder="GHA-XXXXXXXXX-X" style="flex:1">
+          <button class="btn btn-green" onclick="updateGhanaCard()" style="margin:0">Update</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="/shared/roles.js"></script>
+<script>
+/* ═══════════════════════════════════════════════
+   CIRCUL — AGENT DASHBOARD
+   ═══════════════════════════════════════════════ */
+
+const API = '/api';
+let _agentState = {};
+let _collectors = [];
+
+/* ── auth ── */
+function checkAuth() {
+  var saved = localStorage.getItem('circul_user');
+  if (saved) {
+    try {
+      _agentState = JSON.parse(saved);
+      var t = localStorage.getItem('circul_token');
+      if (t && !_agentState.token) _agentState.token = t;
+      if (_agentState.role !== 'agent') {
+        var route = CirculRoles.ROLE_ROUTES[_agentState.role];
+        if (route) { window.location.href = route; return; }
+      }
+      showDashboard();
+      return;
+    } catch (e) { localStorage.removeItem('circul_user'); }
+  }
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  loadAll();
+}
+
+function handleAgentLogin() {
+  var phone = document.getElementById('loginPhone').value.trim();
+  var pin = document.getElementById('loginPin').value.trim();
+  if (!phone || !pin) return;
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  var errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, pin: pin, type: 'phone' }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        var user = data.user || data.agent;
+        _agentState = user;
+        if (data.token) { _agentState.token = data.token; localStorage.setItem('circul_token', data.token); }
+        localStorage.setItem('circul_user', JSON.stringify(_agentState));
+        if (user.role !== 'agent') {
+          var route = CirculRoles.ROLE_ROUTES[user.role];
+          if (route) { window.location.href = route; return; }
+        }
+        showDashboard();
+      } else {
+        errEl.textContent = data.message || 'Invalid phone or PIN';
+        errEl.classList.remove('hidden');
+      }
+    })
+    .catch(function() { errEl.textContent = 'Connection error.'; errEl.classList.remove('hidden'); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
+}
+
+/* ── helpers ── */
+function apiFetch(path, opts={}) {
+  var token = (_agentState && _agentState.token) || localStorage.getItem('circul_token') || '';
+  var headers = { 'Content-Type':'application/json', ...(opts.headers||{}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  var fetchOpts = { ...opts, headers: headers };
+  return fetch(API + path, fetchOpts)
+    .then(r => {
+      if (r.status === 401) {
+        localStorage.removeItem('circul_token');
+        localStorage.removeItem('circul_user');
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
+      if (r.status === 503) {
+        return new Promise(resolve => setTimeout(resolve, 1000))
+          .then(() => fetch(API + path, fetchOpts))
+          .then(r2 => { if (!r2.ok) throw new Error(r2.status); return r2.json(); });
+      }
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    });
+}
+function fmt(n) {
+  const v = parseFloat(n);
+  if (isNaN(v)) return '—';
+  return 'GH¢ ' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showAgentToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isError ? '#ef5350' : 'var(--accent)';
+  t.style.color = isError ? '#fff' : '#000';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ── load all ── */
+async function loadAll() {
+  try {
+    var me = await apiFetch('/agent/me');
+    populateHeader(me);
+    populateStats(me);
+    populateProfile(me);
+    await loadCollectors();
+    await loadCollections();
+  } catch (err) {
+    console.warn('Error loading dashboard:', err);
+    var fallback = _agentState || {};
+    populateHeader(fallback);
+    populateProfile(fallback);
+  }
+}
+
+/* ── populate header & stats ── */
+function populateHeader(agent) {
+  var a = agent.agent || agent;
+  document.getElementById('agentName').textContent = a.first_name || a.name || '—';
+  var agentId = a.id || '';
+  document.getElementById('agentId').textContent = agentId ? CirculRoles.circulCode('agent', agentId) : '';
+  if (a.aggregator_name) {
+    document.getElementById('agentAggLabel').textContent = 'for ' + a.aggregator_name;
+  }
+}
+
+function populateStats(data) {
+  var a = data.agent || data;
+  // Stats will come from collections — for now show placeholders
+  document.getElementById('statTodayCount').textContent = a.collections_today || '0';
+  document.getElementById('statMonthKg').innerHTML = (a.month_kg ? parseFloat(a.month_kg).toFixed(1) : '0') + ' <small>kg</small>';
+  document.getElementById('statMonthValue').textContent = fmt(a.month_value || 0);
+}
+
+function populateProfile(data) {
+  var a = data.agent || data;
+  document.getElementById('profileAgentName').textContent = ((a.first_name || '') + ' ' + (a.last_name || '')).trim() || a.name || '—';
+  document.getElementById('profilePhone').textContent = a.phone || '—';
+  document.getElementById('profileCity').textContent = a.city || '—';
+  document.getElementById('profileRegion').textContent = a.region || '—';
+  document.getElementById('profileAggregator').textContent = a.aggregator_name || '—';
+  if (a.ghana_card) {
+    document.getElementById('ghanaCardInput').value = a.ghana_card;
+  }
+}
+
+/* ── load collectors (for the collection form dropdown) ── */
+async function loadCollectors() {
+  try {
+    // Use the aggregator's collectors list via the transactions endpoint
+    var aggId = _agentState.aggregator_id;
+    var response = await apiFetch('/aggregators/' + aggId + '/stats');
+    _collectors = response.top_collectors || [];
+    var select = document.getElementById('collectorSelect');
+    select.innerHTML = '<option value="">Select a collector…</option>';
+    _collectors.forEach(c => {
+      var option = document.createElement('option');
+      option.value = c.id;
+      option.textContent = ((c.first_name || '') + ' ' + (c.last_name || '') + ' (' + (c.phone || c.display_name || '') + ')').trim();
+      select.appendChild(option);
+    });
+    if (!_collectors.length) {
+      select.innerHTML = '<option value="">No collectors found — register one below</option>';
+    }
+  } catch (err) {
+    console.warn('Error loading collectors:', err);
+    document.getElementById('collectorSelect').innerHTML = '<option value="">Could not load collectors</option>';
+  }
+}
+
+/* ── log collection ── */
+function clearCollectionForm() {
+  document.getElementById('collectorSelect').value = '';
+  document.getElementById('materialType').value = 'PET';
+  document.getElementById('grossWeightKg').value = '';
+  document.getElementById('pricePerKg').value = '';
+}
+
+async function submitCollection() {
+  var collectorId = document.getElementById('collectorSelect').value;
+  var material = document.getElementById('materialType').value;
+  var grossWeightKg = parseFloat(document.getElementById('grossWeightKg').value);
+  var pricePerKg = parseFloat(document.getElementById('pricePerKg').value);
+
+  if (!collectorId) { showAgentToast('Please select a collector', true); return; }
+  if (!grossWeightKg || grossWeightKg <= 0) { showAgentToast('Please enter a valid weight', true); return; }
+  if (!pricePerKg || pricePerKg <= 0) { showAgentToast('Please enter a valid price per kg', true); return; }
+
+  try {
+    var response = await apiFetch('/agent/log-collection', {
+      method: 'POST',
+      body: JSON.stringify({
+        collector_id: collectorId,
+        material_type: material,
+        gross_weight_kg: grossWeightKg,
+        price_per_kg: pricePerKg
+      })
+    });
+    if (response.success) {
+      showAgentToast('Collection logged successfully');
+      clearCollectionForm();
+      loadCollections(_agentState);
+    } else {
+      showAgentToast(response.message || 'Error logging collection', true);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    showAgentToast('Error logging collection', true);
+  }
+}
+
+/* ── register collector ── */
+function clearCollectorForm() {
+  document.getElementById('collFirstName').value = '';
+  document.getElementById('collLastName').value = '';
+  document.getElementById('collPhone').value = '';
+  document.getElementById('collPin').value = '';
+  document.getElementById('collCity').value = '';
+  document.getElementById('collGhanaCard').value = '';
+}
+
+async function submitCollectorRegistration() {
+  var firstName = document.getElementById('collFirstName').value.trim();
+  var lastName = document.getElementById('collLastName').value.trim();
+  var phone = document.getElementById('collPhone').value.trim();
+  var pin = document.getElementById('collPin').value.trim();
+  var city = document.getElementById('collCity').value;
+  var ghanaCard = document.getElementById('collGhanaCard').value.trim();
+
+  if (!firstName) { showAgentToast('Please enter first name', true); return; }
+  if (!lastName) { showAgentToast('Please enter last name', true); return; }
+  if (!phone) { showAgentToast('Please enter phone number', true); return; }
+  if (!/^\d{4}$/.test(pin)) { showAgentToast('PIN must be exactly 4 digits', true); return; }
+  if (!city) { showAgentToast('Please select a city', true); return; }
+
+  try {
+    var response = await apiFetch('/agent/register-collector', {
+      method: 'POST',
+      body: JSON.stringify({
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone,
+        pin: pin,
+        city: city,
+        ghana_card: ghanaCard || null
+      })
+    });
+    if (response.success) {
+      showAgentToast('Collector registered successfully');
+      clearCollectorForm();
+      loadCollectors();
+    } else {
+      showAgentToast(response.message || 'Error registering collector', true);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    showAgentToast('Error registering collector', true);
+  }
+}
+
+/* ── load collections (recent transactions logged by this agent's aggregator) ── */
+async function loadCollections() {
+  try {
+    var aggId = _agentState.aggregator_id;
+    var response = await apiFetch('/transactions?aggregator_id=' + aggId + '&limit=20');
+    var txns = response.transactions || [];
+    var tbody = document.getElementById('collectionsBody');
+
+    if (txns.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-3);">No collections logged yet</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = txns.slice(0, 20).map(function(c) {
+      var total = parseFloat(c.total_price) || ((parseFloat(c.weight_kg) || 0) * (parseFloat(c.price_per_kg) || 0));
+      var name = c.collector_name || ((c.collector_first_name || '') + ' ' + (c.collector_last_name || '')).trim() || c.seller_name || '—';
+      return '<tr>' +
+        '<td>' + fmtDate(c.transaction_date || c.created_at) + '</td>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td><span class="pill pill-' + (c.material_type || 'pet').toLowerCase() + '">' + (c.material_type || '—') + '</span></td>' +
+        '<td>' + parseFloat(c.net_weight_kg || c.weight_kg || 0).toFixed(2) + ' kg</td>' +
+        '<td>' + fmt(c.price_per_kg || 0) + '</td>' +
+        '<td>' + fmt(total) + '</td>' +
+        '</tr>';
+    }).join('');
+  } catch (err) {
+    console.warn('Error loading collections:', err);
+    document.getElementById('collectionsBody').innerHTML = '<tr><td colspan="6" class="placeholder-cell">Error loading collections</td></tr>';
+  }
+}
+
+/* ── update ghana card ── */
+async function updateGhanaCard() {
+  var ghanaCard = document.getElementById('ghanaCardInput').value.trim();
+  if (!ghanaCard) { showAgentToast('Please enter a Ghana Card number', true); return; }
+
+  try {
+    var response = await apiFetch('/profile/ghana-card', {
+      method: 'PATCH',
+      body: JSON.stringify({ ghana_card: ghanaCard })
+    });
+    if (response.success) {
+      showAgentToast('Ghana Card updated successfully');
+      if (_agentState) {
+        _agentState.ghana_card = ghanaCard;
+        localStorage.setItem('circul_user', JSON.stringify(_agentState));
+      }
+    } else {
+      showAgentToast(response.message || 'Error updating Ghana Card', true);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    showAgentToast('Error updating Ghana Card', true);
+  }
+}
+
+/* ── sign out ── */
+function signOut() {
+  _agentState = {};
+  localStorage.removeItem('circul_user');
+  localStorage.removeItem('circul_token');
+  window.location.href = '/login';
+}
+
+document.addEventListener('DOMContentLoaded', checkAuth);
+</script>
+</body>
+</html>

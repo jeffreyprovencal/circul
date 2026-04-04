@@ -107,6 +107,19 @@
       posterTypes: [],
       canPostPrices: false,
       description: 'Field operator'
+    },
+    agent: {
+      label: 'Agent',
+      tier: 4,
+      dashboard: '/agent-dashboard',
+      table: 'agents',
+      pillColor: '#26c6da',
+      pillBg: '#0a1e2e',
+      authType: 'phone',
+      isFree: true,
+      posterTypes: ['aggregator'],
+      canPostPrices: false,
+      description: 'Aggregator field ops'
     }
   };
 
@@ -138,8 +151,9 @@
 
   // ── Tier adjacency map (for name privacy) ──
   var ADJACENT_TIERS = {
-    collector: ['aggregator'],
-    aggregator: ['collector', 'processor'],
+    collector: ['aggregator', 'agent'],
+    aggregator: ['collector', 'processor', 'agent'],
+    agent: ['aggregator', 'collector'],
     processor: ['aggregator', 'recycler', 'converter'],
     recycler: ['processor', 'converter'],
     converter: ['recycler', 'processor']
@@ -149,6 +163,7 @@
   var ROLE_PREFIX = {
     collector: 'COL',
     aggregator: 'AGG',
+    agent: 'AGT',
     processor: 'PRC',
     recycler: 'RCY',
     converter: 'CNV'

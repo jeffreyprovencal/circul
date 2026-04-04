@@ -547,6 +547,90 @@
       </div>
       <div id="ratingsGiven"><div class="empty">No ratings yet</div></div>
       <div id="ratingsReceivedList"></div>
+
+      <!-- Identity Verification -->
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-weight:600;font-size:0.9rem;margin-bottom:10px;">Identity Verification — Ghana Card</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
+          <div>
+            <label class="form-label">Ghana Card Number</label>
+            <input class="form-input" id="ghanaCardNumber" type="text" placeholder="GHA-XXXXXXXXX-X" maxlength="15">
+            <small id="ghanaCardError" class="hidden" style="color:#ef5350;font-size:0.75rem;">Invalid format. Expected GHA-XXXXXXXXX-X</small>
+          </div>
+          <div>
+            <button class="btn btn-green" onclick="saveGhanaCard()" style="padding:8px 16px;">Save Ghana Card</button>
+          </div>
+        </div>
+        <div id="ghanaCardStatus" style="font-size:0.8rem;color:var(--text-3);margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <!-- MY FIELD AGENTS -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My Field Agents</div>
+          <div class="section-sub">Sub-accounts that collect on your behalf</div>
+        </div>
+        <button class="btn btn-green" onclick="toggleAgentForm()">+ Register Agent</button>
+      </div>
+
+      <!-- Register Agent Form (hidden) -->
+      <div id="registerAgentForm" class="hidden" style="padding:12px 0;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div><label class="form-label">First Name</label><input class="form-input" id="agentFirstName" placeholder="First name"></div>
+          <div><label class="form-label">Last Name</label><input class="form-input" id="agentLastName" placeholder="Last name"></div>
+          <div><label class="form-label">Phone</label><input class="form-input" id="agentPhone" type="tel" placeholder="0241 000 000"></div>
+          <div><label class="form-label">PIN (min 4 digits)</label><input class="form-input" id="agentPin" type="password" maxlength="6" placeholder="••••"></div>
+          <div>
+            <label class="form-label">City</label>
+            <select class="form-input" id="agentCity">
+              <option value="">Select city…</option>
+              <option>Accra</option><option>Tema</option><option>Kumasi</option><option>Takoradi</option><option>Tamale</option>
+              <option>Cape Coast</option><option>Koforidua</option><option>Sunyani</option><option>Ho</option><option>Bolgatanga</option>
+            </select>
+          </div>
+          <div><label class="form-label">Ghana Card (optional)</label><input class="form-input" id="agentGhanaCard" placeholder="GHA-XXXXXXXXX-X" maxlength="15"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-green" onclick="submitAgentRegistration()">Register Agent</button>
+          <button class="btn" onclick="toggleAgentForm()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Agent List -->
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>City</th><th>Status</th><th>Since</th></tr></thead>
+          <tbody id="agentsBody"><tr><td colspan="5" class="placeholder-cell">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AGENT ACTIVITY -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Agent Activity</div>
+          <div class="section-sub">Recent actions by your field agents</div>
+        </div>
+      </div>
+      <div id="agentActivityFeed" style="display:grid;gap:8px;">
+        <div style="color:var(--text-3);font-size:0.85rem;">Loading…</div>
+      </div>
+    </div>
+
+    <!-- PROCESSOR REQUIREMENTS -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Processor Requirements</div>
+          <div class="section-sub">What processors need — sort to these specs for premium prices</div>
+        </div>
+      </div>
+      <div id="aggRequirementsGrid" style="display:grid;gap:12px;">
+        <div style="color:var(--text-3);font-size:0.85rem;">Loading requirements…</div>
+      </div>
     </div>
 
   </div><!-- /.page -->
@@ -816,6 +900,10 @@ function loadAll() {
     loadSentOffers();
     loadDiscLocations();
     loadProcessorPrices();
+    loadGhanaCard();
+    loadAgents();
+    loadAgentActivity();
+    loadAggRequirements();
 }
 
 function renderPriceCards(prices) {
@@ -3001,5 +3089,168 @@ document.addEventListener("DOMContentLoaded", function() {
     window.showDashboard = function(data) { orig(data); loadTopPartners(); };
   }
 });
+
+/* ── Ghana Card ── */
+function loadGhanaCard() {
+  apiFetch('/api/profile/ghana-card')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success && data.ghana_card) {
+        document.getElementById('ghanaCardNumber').value = data.ghana_card;
+        document.getElementById('ghanaCardStatus').textContent = 'Ghana Card on file: ' + data.ghana_card;
+      }
+    })
+    .catch(function(e) { console.warn('Ghana Card load failed:', e); });
+}
+
+function saveGhanaCard() {
+  var num = (document.getElementById('ghanaCardNumber').value || '').trim();
+  var errEl = document.getElementById('ghanaCardError');
+  if (!num) { errEl.classList.remove('hidden'); return; }
+  if (!/^GHA-\d{9}-\d$/.test(num)) { errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  apiFetch('/api/profile/ghana-card', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ghana_card: num })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showToast('Ghana Card saved');
+        document.getElementById('ghanaCardStatus').textContent = 'Ghana Card on file: ' + num;
+      } else { showToast(data.message || 'Error saving'); }
+    })
+    .catch(function(e) { showToast('Error saving Ghana Card'); console.error(e); });
+}
+
+/* ── Agent Management ── */
+function toggleAgentForm() {
+  document.getElementById('registerAgentForm').classList.toggle('hidden');
+}
+
+function loadAgents() {
+  apiFetch('/api/agents')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) return;
+      var tbody = document.getElementById('agentsBody');
+      if (!data.agents || !data.agents.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">No agents registered yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.agents.map(function(a) {
+        var name = esc(a.first_name + ' ' + a.last_name);
+        var status = a.is_active ? '<span class="badge">ACTIVE</span>' : '<span class="badge" style="color:#ef5350;">INACTIVE</span>';
+        var since = a.created_at ? new Date(a.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        return '<tr><td class="td-name">' + name + '</td><td>' + esc(a.phone) + '</td><td>' + esc(a.city || '—') + '</td><td>' + status + '</td><td>' + since + '</td></tr>';
+      }).join('');
+    })
+    .catch(function(e) { console.error('Load agents failed:', e); });
+}
+
+function submitAgentRegistration() {
+  var first = (document.getElementById('agentFirstName').value || '').trim();
+  var last = (document.getElementById('agentLastName').value || '').trim();
+  var phone = (document.getElementById('agentPhone').value || '').trim();
+  var pin = (document.getElementById('agentPin').value || '').trim();
+  var city = document.getElementById('agentCity').value;
+  var gc = (document.getElementById('agentGhanaCard').value || '').trim();
+  if (!first || !last || !phone || !pin) { showToast('All required fields must be filled'); return; }
+  if (pin.length < 4) { showToast('PIN must be at least 4 digits'); return; }
+  apiFetch('/api/agents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ first_name: first, last_name: last, phone: phone, pin: pin, city: city || null, ghana_card: gc || null })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showToast('Agent registered successfully');
+        toggleAgentForm();
+        document.getElementById('agentFirstName').value = '';
+        document.getElementById('agentLastName').value = '';
+        document.getElementById('agentPhone').value = '';
+        document.getElementById('agentPin').value = '';
+        document.getElementById('agentCity').value = '';
+        document.getElementById('agentGhanaCard').value = '';
+        loadAgents();
+        loadAgentActivity();
+      } else { showToast(data.message || 'Error registering agent'); }
+    })
+    .catch(function(e) { showToast('Error registering agent'); console.error(e); });
+}
+
+/* ── Agent Activity Feed ── */
+function loadAgentActivity() {
+  apiFetch('/api/aggregator/agent-activity')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var container = document.getElementById('agentActivityFeed');
+      if (!data.success || !data.activity || !data.activity.length) {
+        container.innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">No agent activity yet.</div>';
+        return;
+      }
+      container.innerHTML = data.activity.map(function(a) {
+        var ago = timeAgo(a.created_at);
+        return '<div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+          + '<span><span style="color:#26c6da;font-weight:600;">' + esc(a.agent_name) + '</span> — ' + esc(a.description || a.action_type) + '</span>'
+          + '<span style="font-size:0.75rem;color:var(--text-3);">' + ago + '</span>'
+          + '</div></div>';
+      }).join('');
+    })
+    .catch(function(e) { console.error('Agent activity load failed:', e); });
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  var diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+/* ── Processor Requirements (downstream view) ── */
+function loadAggRequirements() {
+  apiFetch('/api/supply-requirements')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var container = document.getElementById('aggRequirementsGrid');
+      if (!data.success || !data.requirements || !data.requirements.length) {
+        container.innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">No processor requirements posted yet.</div>';
+        return;
+      }
+      container.innerHTML = data.requirements.map(function(r) {
+        var forms = (r.accepted_forms || []).join(', ') || '—';
+        var colours = (r.accepted_colours || []).join(', ') || 'Any';
+        var contam = r.max_contamination_pct != null ? r.max_contamination_pct + '%' : '—';
+        var moisture = r.max_moisture_pct != null ? r.max_moisture_pct + '%' : '—';
+        var minQty = r.min_quantity_kg != null ? r.min_quantity_kg + ' kg' : '—';
+        var premium = r.price_premium_pct ? '+' + r.price_premium_pct + '% premium' : '';
+        var procName = r.processor_name ? '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(r.processor_name) + '</span>' : '';
+        return '<div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;">'
+          + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+          + '<span class="material-pill material-' + esc(r.material_type) + '">' + esc(r.material_type) + '</span>'
+          + procName
+          + (premium ? '<span style="margin-left:auto;font-size:0.75rem;font-weight:600;color:#00e676;background:rgba(0,230,118,0.12);padding:2px 8px;border-radius:10px;">' + premium + '</span>' : '')
+          + '</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:0.8rem;color:var(--text-2);">'
+          + '<div><span style="color:var(--text-3);">Forms:</span> ' + esc(forms) + '</div>'
+          + '<div><span style="color:var(--text-3);">Colours:</span> ' + esc(colours) + '</div>'
+          + '<div><span style="color:var(--text-3);">Max Contam.:</span> ' + contam + '</div>'
+          + '<div><span style="color:var(--text-3);">Max Moisture:</span> ' + moisture + '</div>'
+          + '<div><span style="color:var(--text-3);">Min Qty:</span> ' + minQty + '</div>'
+          + '</div>'
+          + (r.sorting_notes ? '<div style="margin-top:8px;font-size:0.78rem;color:var(--text-3);font-style:italic;">' + esc(r.sorting_notes) + '</div>' : '')
+          + '</div>';
+      }).join('');
+    })
+    .catch(function(e) {
+      console.error('Requirements load failed:', e);
+      document.getElementById('aggRequirementsGrid').innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">Could not load requirements.</div>';
+    });
+}
 </script>
 </html>

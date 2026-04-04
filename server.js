@@ -3129,6 +3129,28 @@ app.post('/api/auth/login', async (req, res) => {
         return res.json({ success: true, role: 'aggregator', roles: null, token, user: { id: a.id, name: a.name, company: a.company||null, phone: a.phone, role: 'aggregator' } });
       }
 
+      // 3. Agents (sub-accounts under aggregators)
+      const agentResult = await pool.query(
+        `SELECT id, aggregator_id, first_name, last_name, phone, pin, city, region, must_change_pin
+         FROM agents WHERE phone=$1 AND is_active=true`, [phone.trim()]
+      );
+      if (agentResult.rows.length) {
+        const ag = agentResult.rows[0];
+        if (await verifyPassword(pin.trim(), ag.pin)) {
+          clearLoginAttempts(phone.trim());
+          const token = generateToken({
+            type: 'agent', id: ag.id, aggregator_id: ag.aggregator_id,
+            phone: ag.phone, role: 'agent'
+          }, AUTH_SECRET);
+          return res.json({
+            success: true, role: 'agent', roles: null, token,
+            user: { id: ag.id, name: ag.first_name + ' ' + ag.last_name,
+                    phone: ag.phone, role: 'agent', aggregator_id: ag.aggregator_id,
+                    must_change_pin: ag.must_change_pin }
+          });
+        }
+      }
+
       recordFailedLogin(phone.trim());
       return res.status(401).json({ success: false, message: 'Invalid phone number or PIN' });
     }
@@ -3726,6 +3748,275 @@ app.get('/api/error-log', requireAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ============================================
+// BATCH 8b + 9: Ghana Card, Agents, Supply Requirements
+// ============================================
+
+// Serve agent dashboard
+app.get('/agent-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'agent-dashboard.html'));
+});
+
+// GET /api/profile/ghana-card — get current user's Ghana Card info
+app.get('/api/profile/ghana-card', requireAuth, async (req, res) => {
+  try {
+    const role = req.user.role;
+    const tableMap = { collector: 'collectors', aggregator: 'aggregators', agent: 'agents' };
+    const table = tableMap[role];
+    if (!table) return res.status(403).json({ success: false, message: 'Ghana Card not applicable for this role' });
+    const result = await pool.query(
+      `SELECT ghana_card, ghana_card_photo FROM ${table} WHERE id=$1`, [req.user.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, ghana_card: result.rows[0].ghana_card, ghana_card_photo: result.rows[0].ghana_card_photo });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// PATCH /api/profile/ghana-card — update Ghana Card number and/or photo
+app.patch('/api/profile/ghana-card', requireAuth, async (req, res) => {
+  try {
+    const role = req.user.role;
+    const tableMap = { collector: 'collectors', aggregator: 'aggregators', agent: 'agents' };
+    const table = tableMap[role];
+    if (!table) return res.status(403).json({ success: false, message: 'Ghana Card not applicable for this role' });
+    const { ghana_card, ghana_card_photo } = req.body;
+    if (ghana_card && !/^GHA-\d{9}-\d$/.test(ghana_card)) {
+      return res.status(400).json({ success: false, message: 'Invalid Ghana Card format. Expected GHA-XXXXXXXXX-X' });
+    }
+    const sets = [];
+    const vals = [];
+    let idx = 1;
+    if (ghana_card !== undefined) { sets.push(`ghana_card=$${idx++}`); vals.push(ghana_card); }
+    if (ghana_card_photo !== undefined) { sets.push(`ghana_card_photo=$${idx++}`); vals.push(ghana_card_photo); }
+    if (!sets.length) return res.status(400).json({ success: false, message: 'No fields to update' });
+    vals.push(req.user.id);
+    await pool.query(`UPDATE ${table} SET ${sets.join(', ')} WHERE id=$${idx}`, vals);
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/agents — aggregator gets their agents
+app.get('/api/agents', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'aggregator') return res.status(403).json({ success: false, message: 'Aggregators only' });
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, phone, city, region, ghana_card, is_active, created_at
+       FROM agents WHERE aggregator_id=$1 ORDER BY created_at DESC`, [req.user.id]
+    );
+    res.json({ success: true, agents: result.rows });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// POST /api/agents — aggregator registers a new agent
+app.post('/api/agents', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'aggregator') return res.status(403).json({ success: false, message: 'Aggregators only' });
+    const { first_name, last_name, phone, pin, city, region, ghana_card } = req.body;
+    if (!first_name || !last_name || !phone || !pin) {
+      return res.status(400).json({ success: false, message: 'first_name, last_name, phone, pin required' });
+    }
+    if (pin.length < 4) return res.status(400).json({ success: false, message: 'PIN must be at least 4 digits' });
+    const hashedPin = await hashPassword(pin.trim());
+    const result = await pool.query(
+      `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, first_name, last_name, phone, city`,
+      [req.user.id, first_name.trim(), last_name.trim(), phone.trim(), hashedPin, city||null, region||null, ghana_card||null]
+    );
+    await pool.query(
+      `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description)
+       VALUES ($1,$2,'registered','Agent registered by aggregator')`,
+      [result.rows[0].id, req.user.id]
+    );
+    res.status(201).json({ success: true, agent: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Phone number already registered' });
+    console.error(err); res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/agent/me — agent gets their own profile
+app.get('/api/agent/me', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'agent') return res.status(403).json({ success: false, message: 'Agents only' });
+    const result = await pool.query(
+      `SELECT a.id, a.first_name, a.last_name, a.phone, a.city, a.region, a.ghana_card, a.ghana_card_photo,
+              a.aggregator_id, agg.name AS aggregator_name
+       FROM agents a JOIN aggregators agg ON a.aggregator_id = agg.id
+       WHERE a.id=$1`, [req.user.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false });
+    res.json({ success: true, agent: result.rows[0] });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// POST /api/agent/log-collection — agent logs a collection
+app.post('/api/agent/log-collection', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'agent') return res.status(403).json({ success: false, message: 'Agents only' });
+    const { collector_id, material_type, gross_weight_kg, price_per_kg } = req.body;
+    if (!collector_id || !material_type || !gross_weight_kg) {
+      return res.status(400).json({ success: false, message: 'collector_id, material_type, gross_weight_kg required' });
+    }
+    const total = (gross_weight_kg * (price_per_kg || 0)).toFixed(2);
+    const result = await pool.query(
+      `INSERT INTO pending_transactions (collector_id, aggregator_id, material_type, gross_weight_kg, price_per_kg, total_price, status, transaction_type, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'completed', 'aggregator_sale', NOW()) RETURNING id`,
+      [collector_id, req.user.aggregator_id, material_type, gross_weight_kg, price_per_kg || 0, total]
+    );
+    await pool.query(
+      `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1,$2,'collection',$3,$4,'transaction')`,
+      [req.user.id, req.user.aggregator_id,
+       `Logged ${gross_weight_kg} kg ${material_type} from collector ${collector_id}`,
+       result.rows[0].id]
+    );
+    res.status(201).json({ success: true, transaction_id: result.rows[0].id });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// POST /api/agent/register-collector — agent registers a new collector
+app.post('/api/agent/register-collector', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'agent') return res.status(403).json({ success: false, message: 'Agents only' });
+    const { first_name, last_name, phone, pin, city, region, ghana_card } = req.body;
+    if (!first_name || !last_name || !phone || !pin) {
+      return res.status(400).json({ success: false, message: 'first_name, last_name, phone, pin required' });
+    }
+    const hashedPin = await hashPassword(pin.trim());
+    const result = await pool.query(
+      `INSERT INTO collectors (first_name, last_name, phone, pin, city, ghana_card, region)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, first_name, last_name, phone`,
+      [first_name.trim(), last_name.trim(), phone.trim(), hashedPin, city||null, ghana_card||null, region||null]
+    );
+    await pool.query(
+      `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1,$2,'registered_collector',$3,$4,'collector')`,
+      [req.user.id, req.user.aggregator_id,
+       `Registered collector ${first_name} ${last_name} (${phone})`,
+       result.rows[0].id]
+    );
+    res.status(201).json({ success: true, collector: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Phone number already registered' });
+    console.error(err); res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/aggregator/agent-activity — aggregator sees agent activity feed
+app.get('/api/aggregator/agent-activity', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'aggregator') return res.status(403).json({ success: false, message: 'Aggregators only' });
+    const result = await pool.query(
+      `SELECT aa.*, a.first_name || ' ' || a.last_name AS agent_name
+       FROM agent_activity aa JOIN agents a ON aa.agent_id = a.id
+       WHERE aa.aggregator_id=$1 ORDER BY aa.created_at DESC LIMIT 50`, [req.user.id]
+    );
+    res.json({ success: true, activity: result.rows });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/supply-requirements — processor gets their own requirements; aggregator/collector/agent see downstream
+app.get('/api/supply-requirements', requireAuth, async (req, res) => {
+  try {
+    if (!['processor','aggregator','collector','agent'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Not applicable' });
+    }
+    let processorId;
+    if (req.user.role === 'processor') {
+      processorId = req.user.id;
+    } else {
+      processorId = req.query.processor_id;
+      if (!processorId) {
+        const result = await pool.query(
+          `SELECT sr.id, sr.material_type, sr.accepted_forms, sr.accepted_colours,
+                  sr.max_contamination_pct, sr.max_moisture_pct, sr.min_quantity_kg,
+                  sr.price_premium_pct, sr.sorting_notes, sr.is_active,
+                  p.company AS processor_name
+           FROM supply_requirements sr JOIN processors p ON sr.processor_id = p.id
+           WHERE sr.is_active = true ORDER BY sr.material_type`
+        );
+        return res.json({ success: true, requirements: result.rows });
+      }
+    }
+    const includeClient = req.user.role === 'processor';
+    const fields = `id, material_type, accepted_forms, accepted_colours, max_contamination_pct, max_moisture_pct, min_quantity_kg, price_premium_pct, sorting_notes, is_active${includeClient ? ', client_reference' : ''}`;
+    const result = await pool.query(
+      `SELECT ${fields} FROM supply_requirements WHERE processor_id=$1 AND is_active=true ORDER BY material_type`,
+      [processorId]
+    );
+    res.json({ success: true, requirements: result.rows });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// POST /api/supply-requirements — processor creates a requirement
+app.post('/api/supply-requirements', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'processor') return res.status(403).json({ success: false, message: 'Processors only' });
+    const { material_type, accepted_forms, accepted_colours, max_contamination_pct, max_moisture_pct, min_quantity_kg, price_premium_pct, client_reference, sorting_notes } = req.body;
+    if (!material_type || !accepted_forms || !accepted_forms.length) {
+      return res.status(400).json({ success: false, message: 'material_type and accepted_forms required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO supply_requirements (processor_id, material_type, accepted_forms, accepted_colours, max_contamination_pct, max_moisture_pct, min_quantity_kg, price_premium_pct, client_reference, sorting_notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [req.user.id, material_type, accepted_forms, accepted_colours||null, max_contamination_pct||null, max_moisture_pct||null, min_quantity_kg||null, price_premium_pct||null, client_reference||null, sorting_notes||null]
+    );
+    res.status(201).json({ success: true, requirement: result.rows[0] });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// PATCH /api/supply-requirements/:id — processor updates a requirement
+app.patch('/api/supply-requirements/:id', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'processor') return res.status(403).json({ success: false, message: 'Processors only' });
+    const fields = ['material_type','accepted_forms','accepted_colours','max_contamination_pct','max_moisture_pct','min_quantity_kg','price_premium_pct','client_reference','sorting_notes','is_active'];
+    const sets = []; const vals = []; let idx = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) { sets.push(`${f}=$${idx++}`); vals.push(req.body[f]); }
+    }
+    if (!sets.length) return res.status(400).json({ success: false, message: 'No fields to update' });
+    sets.push(`updated_at=NOW()`);
+    vals.push(req.params.id, req.user.id);
+    const result = await pool.query(
+      `UPDATE supply_requirements SET ${sets.join(', ')} WHERE id=$${idx} AND processor_id=$${idx+1} RETURNING *`, vals
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Requirement not found' });
+    res.json({ success: true, requirement: result.rows[0] });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// DELETE /api/supply-requirements/:id — processor deactivates a requirement
+app.delete('/api/supply-requirements/:id', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'processor') return res.status(403).json({ success: false, message: 'Processors only' });
+    await pool.query(
+      `UPDATE supply_requirements SET is_active=false, updated_at=NOW() WHERE id=$1 AND processor_id=$2`,
+      [req.params.id, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// PATCH /api/pending-transactions/:id/link-requirement — processor links a delivery to a requirement
+app.patch('/api/pending-transactions/:id/link-requirement', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'processor') return res.status(403).json({ success: false, message: 'Processors only' });
+    const { requirement_id, spec_compliance } = req.body;
+    if (!requirement_id || !spec_compliance) {
+      return res.status(400).json({ success: false, message: 'requirement_id and spec_compliance required' });
+    }
+    if (!['meets','partial','below'].includes(spec_compliance)) {
+      return res.status(400).json({ success: false, message: 'spec_compliance must be meets, partial, or below' });
+    }
+    const result = await pool.query(
+      `UPDATE pending_transactions SET requirement_id=$1, spec_compliance=$2 WHERE id=$3 RETURNING id`,
+      [requirement_id, spec_compliance, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 // Express error-handling middleware — log server errors to error_log table

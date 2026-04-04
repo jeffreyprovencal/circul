@@ -279,6 +279,35 @@
       <div><div class="passport-label">Status</div><div class="passport-val">Active</div></div>
     </div>
     <a href="#" class="passport-link" id="passportLink" target="_blank">View Collector Passport →</a>
+
+    <!-- Identity Verification -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <div style="font-weight:600;font-size:0.9rem;margin-bottom:10px;">Identity Verification — Ghana Card</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
+        <div>
+          <label class="form-label">Ghana Card Number</label>
+          <input class="form-input" id="ghanaCardNumber" type="text" placeholder="GHA-XXXXXXXXX-X" maxlength="15">
+          <small id="ghanaCardError" class="hidden" style="color:#ef5350;font-size:0.75rem;">Invalid format. Expected GHA-XXXXXXXXX-X</small>
+        </div>
+        <div>
+          <button class="btn btn-green" onclick="saveGhanaCard()" style="padding:8px 16px;">Save Ghana Card</button>
+        </div>
+      </div>
+      <div id="ghanaCardStatus" style="font-size:0.8rem;color:var(--text-3);margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <!-- WHAT TO COLLECT (Batch 9 — Requirement Visibility) -->
+  <div class="section" id="whatToCollectSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">What to Collect</div>
+        <div class="section-sub">Your processor's requirements — sort to these specs for premium prices</div>
+      </div>
+    </div>
+    <div id="requirementsGrid" style="display:grid;gap:12px;">
+      <div style="color:var(--text-3);font-size:0.85rem;">Loading requirements…</div>
+    </div>
   </div>
 
 </div>
@@ -603,6 +632,8 @@ async function loadAll() {
       loadMyListings(),
       loadListingLocations(),
       checkPendingRatings(),
+      loadGhanaCard(),
+      loadRequirements(),
     ]);
   } catch(e) {
     console.error('loadAll error', e);
@@ -1292,6 +1323,70 @@ function signOut() {
   localStorage.removeItem('circul_user');
   localStorage.removeItem('circul_token');
   window.location.href = '/login';
+}
+
+/* ── Ghana Card ── */
+function loadGhanaCard() {
+  return apiFetch('/profile/ghana-card')
+    .then(function(data) {
+      if (data.success && data.ghana_card) {
+        document.getElementById('ghanaCardNumber').value = data.ghana_card;
+        document.getElementById('ghanaCardStatus').textContent = 'Ghana Card on file: ' + data.ghana_card;
+      }
+    })
+    .catch(function(e) { console.warn('Ghana Card load failed:', e); });
+}
+
+function saveGhanaCard() {
+  var num = (document.getElementById('ghanaCardNumber').value || '').trim();
+  var errEl = document.getElementById('ghanaCardError');
+  if (!num) { errEl.classList.remove('hidden'); return; }
+  if (!/^GHA-\d{9}-\d$/.test(num)) { errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  apiFetch('/profile/ghana-card', { method: 'PATCH', body: JSON.stringify({ ghana_card: num }) })
+    .then(function(data) {
+      if (data.success) {
+        showToast('Ghana Card saved');
+        document.getElementById('ghanaCardStatus').textContent = 'Ghana Card on file: ' + num;
+      } else { showToast(data.message || 'Error saving'); }
+    })
+    .catch(function(e) { showToast('Error saving Ghana Card'); console.error(e); });
+}
+
+/* ── What to Collect (Requirement Visibility) ── */
+function loadRequirements() {
+  return apiFetch('/supply-requirements')
+    .then(function(data) {
+      if (!data.success || !data.requirements || !data.requirements.length) {
+        document.getElementById('requirementsGrid').innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">No processor requirements posted yet.</div>';
+        return;
+      }
+      var html = '';
+      data.requirements.forEach(function(r) {
+        var colours = (r.accepted_colours || []).join(', ') || 'Any';
+        var contam = r.max_contamination_pct != null ? r.max_contamination_pct + '%' : '—';
+        var premium = r.price_premium_pct ? '+' + r.price_premium_pct + '% premium' : '';
+        var procName = r.processor_name ? '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(r.processor_name) + '</span>' : '';
+        html += '<div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;">'
+          + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+          + '<span class="material-pill material-' + esc(r.material_type) + '">' + esc(r.material_type) + '</span>'
+          + procName
+          + (premium ? '<span style="margin-left:auto;font-size:0.75rem;font-weight:600;color:#00e676;background:rgba(0,230,118,0.12);padding:2px 8px;border-radius:10px;">' + premium + '</span>' : '')
+          + '</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.8rem;color:var(--text-2);">'
+          + '<div><span style="color:var(--text-3);">Your Form:</span> Loose</div>'
+          + '<div><span style="color:var(--text-3);">Colours:</span> ' + esc(colours) + '</div>'
+          + '<div><span style="color:var(--text-3);">Max Contamination:</span> ' + contam + '</div>'
+          + '</div>'
+          + (r.sorting_notes ? '<div style="margin-top:8px;font-size:0.78rem;color:var(--text-3);font-style:italic;">' + esc(r.sorting_notes) + '</div>' : '')
+          + '</div>';
+      });
+      document.getElementById('requirementsGrid').innerHTML = html;
+    })
+    .catch(function(e) {
+      console.error('Requirements load failed:', e);
+      document.getElementById('requirementsGrid').innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">Could not load requirements.</div>';
+    });
 }
 
 /* ── init ── */
