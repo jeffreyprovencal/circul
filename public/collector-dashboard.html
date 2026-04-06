@@ -651,7 +651,7 @@ function populateProfile(me) {
   const navName = document.getElementById('collectorName');
   if (navName) navName.textContent = name;
   const navId = document.getElementById('collectorId');
-  if (navId && id) navId.textContent = 'C-' + String(id).padStart(4,'0');
+  if (navId && id) navId.textContent = 'COL-' + String(id).padStart(4,'0');
 
   const heroName = document.getElementById('collectorNameHero');
   if (heroName) heroName.textContent = name;
@@ -668,7 +668,7 @@ function populateProfile(me) {
   }
 
   const fields = {
-    passportId: id ? 'C-' + String(id).padStart(4,'0') : '—',
+    passportId: id ? 'COL-' + String(id).padStart(4,'0') : '—',
     passportPhone: phone || '—',
     passportLocation: region || '—',
     passportSince: me.created_at ? fmtMonthYear(me.created_at) : '—',

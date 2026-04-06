@@ -209,7 +209,7 @@
           }
           sel.innerHTML = '<option value="">Select aggregator…</option>' +
             aggs.map(function (a) {
-              var label = (a.name || a.company || ('A-' + String(a.id).padStart(4, '0')));
+              var label = (a.name || a.company || ('AGG-' + String(a.id).padStart(4, '0')));
               if (a.city) label += ' — ' + a.city;
               return '<option value="' + a.id + '">' + label + '</option>';
             }).join('');

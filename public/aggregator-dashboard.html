@@ -767,7 +767,7 @@ function checkAuth() {
 }
 
 function fmtAggId(id) {
-    return 'A-' + String(id).padStart(4, '0');
+    return 'AGG-' + String(id).padStart(4, '0');
 }
 
 function showDashboard() {
@@ -2333,7 +2333,7 @@ function loadMyBatchSales() {
         })
         .catch(function(err) {
             console.error('loadMyBatchSales failed:', err);
-            document.getElementById('myBatchSalesList').innerHTML = '<div class="empty">Could not load batch sales.</div>';
+            document.getElementById('myBatchSalesList').innerHTML = '<div class="empty">Could not load sales history.</div>';
         });
 }
 

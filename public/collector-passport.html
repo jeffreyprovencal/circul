@@ -161,7 +161,7 @@
   }
 
   function render(p) {
-    var code = 'C-' + ('0000' + (p.collector.id || 0)).slice(-4);
+    var code = 'COL-' + ('0000' + (p.collector.id || 0)).slice(-4);
     document.getElementById('ppCode').textContent = code;
     document.getElementById('ppCity').textContent = p.collector.city || 'Unknown location';
     document.getElementById('ppSince').textContent = p.active_since ? 'Since ' + fmtDate(p.active_since) : '';
