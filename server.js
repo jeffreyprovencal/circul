@@ -2293,6 +2293,16 @@ function getPhoneVariants(normalizedPhone) {
   return variants;
 }
 
+function parsePaginatedSelection(menuParts) {
+  let page = 0;
+  let idx = 0;
+  while (idx < menuParts.length && menuParts[idx] === '4') {
+    page++;
+    idx++;
+  }
+  return { page, offset: page * 3, remaining: menuParts.slice(idx) };
+}
+
 const USSD_MATERIALS = { '1': 'PET', '2': 'HDPE', '3': 'LDPE', '4': 'PP' };
 const USSD_CITIES = {
   '1': { city: 'Accra', region: 'Greater Accra' },
@@ -2359,13 +2369,19 @@ async function handleRegisteredUssd(parts, collector) {
   const m = parts.slice(pinIndex + 1);
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Log Drop-off\n2. My Stats\n3. Prices Near Me\n0. Exit';
+  if (depth === 0) return 'CON 1. Log Drop-off\n2. Sell My Material\n3. Discovery\n4. My Stats\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${collector.first_name}!`;
 
+  // ── Sell My Material ──
+  if (m[0] === '2') return await handleCollectorSell(m.slice(1), collector);
+
+  // ── Discovery ──
+  if (m[0] === '3') return await handleCollectorDiscovery(m.slice(1), collector);
+
   // ── My Stats ──
-  if (m[0] === '2') {
+  if (m[0] === '4') {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
     const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
@@ -2384,28 +2400,6 @@ async function handleRegisteredUssd(parts, collector) {
     ]);
     const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
     return `END My Stats\n\nThis month: ${parseFloat(c.month_kg).toFixed(1)} kg\nYear to date: ${parseFloat(c.ytd_kg).toFixed(1)} kg\nEarned: GH₵${parseFloat(c.total_earned).toFixed(2)}\nAvg price: GH₵${parseFloat(c.avg_price).toFixed(2)}/kg\nRating: ${parseFloat(r.avg) > 0 ? '★' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'No ratings yet'}\n\n${c.total_txns} confirmed, ${p.count} pending`;
-  }
-
-  // ── Prices Near Me ──
-  if (m[0] === '3') {
-    const city = collector.city || 'Accra';
-    const prices = await pool.query(
-      `SELECT DISTINCT ON (pp.material_type)
-              pp.material_type, pp.price_per_kg_ghs, a.name
-       FROM posted_prices pp
-       JOIN aggregators a ON a.id = pp.poster_id
-       WHERE pp.poster_type = 'aggregator' AND pp.is_active = true AND a.city = $1
-       ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`,
-      [city]
-    );
-    if (!prices.rows.length) return `END No prices posted near ${city}.\nCheck back later.`;
-    let msg = `END Prices Near Me (${city})\n\n`;
-    prices.rows.forEach(function(p) {
-      var name = (p.name || '').length > 10 ? p.name.substring(0, 9) + '.' : (p.name || '—');
-      msg += p.material_type.padEnd(6) + 'GH₵' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg  ' + name + '\n';
-    });
-    msg += '\nDial again to log a drop-off.';
-    return msg;
   }
 
   // ── Log Drop-off ──
@@ -2532,13 +2526,16 @@ async function handleAggregatorUssd(parts, aggregator) {
   const m = parts.slice(pinIndex + 1);
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. My Stats\n0. Exit';
+  if (depth === 0) return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. Marketplace\n4. My Stats\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
 
+  // ── Marketplace ──
+  if (m[0] === '3') return await handleAggregatorMarketplace(m.slice(1), aggregator);
+
   // ── My Stats ──
-  if (m[0] === '3') {
+  if (m[0] === '4') {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
     const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
@@ -3305,6 +3302,661 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
         throw err;
       }
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleCollectorSell(m, collector) {
+  if (m.length === 0) return 'CON Sell My Material:\n1. Post New Listing\n2. My Listings\n3. My Offers\n0. Back';
+
+  if (m[0] === '0') return 'CON 1. Log Drop-off\n2. Sell My Material\n3. Discovery\n4. My Stats\n0. Exit';
+  if (m[0] === '1') return await handleCollectorPostListing(m.slice(1), collector);
+  if (m[0] === '2') return await handleCollectorMyListings(m.slice(1), collector);
+  if (m[0] === '3') return await handleCollectorMyOffers(m.slice(1), collector);
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleCollectorPostListing(m, collector) {
+  const depth = m.length;
+
+  if (depth === 0) return 'CON What material?\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const material = USSD_MATERIALS[m[0]];
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  if (depth === 1) return `CON How many kg of ${material}\ndo you have to sell?\n\n(minimum 30 kg)\n\nEnter weight in kg:`;
+
+  const qty = parseFloat(m[1]);
+  if (isNaN(qty) || qty <= 0 || qty > 99999) return 'END Invalid quantity.\nDial again to retry.';
+  if (qty < 30) return 'END Minimum listing is\n30 kg for collectors.\n\nCollect more material\nand try again.';
+
+  if (depth === 2) return `CON Your asking price\nper kg? (GH\u20b5)\n\n(Enter 0 if open\nto offers)`;
+
+  const priceInput = parseFloat(m[2]);
+  if (isNaN(priceInput) || priceInput < 0 || priceInput > 999) return 'END Invalid price.\nDial again to retry.';
+  const price = priceInput === 0 ? null : priceInput;
+  const priceStr = price ? `GH\u20b5 ${price.toFixed(2)}/kg` : 'Open to offers';
+  const location = collector.city || 'Ghana';
+
+  if (depth === 3) {
+    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n2. Cancel`;
+  }
+
+  if (depth === 4) {
+    if (m[3] === '2') return 'END Cancelled.';
+    if (m[3] === '1') {
+      await pool.query(
+        `INSERT INTO listings (seller_id, seller_role, material_type, quantity_kg, original_qty_kg, price_per_kg, location, expires_at)
+         VALUES ($1, 'collector', $2, $3, $3, $4, $5, NOW() + INTERVAL '7 days') RETURNING id`,
+        [collector.id, material, qty, price, location]
+      );
+      return `END LISTING POSTED!\n\n${qty} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nAggregators can now see\nyour listing. You'll be\nnotified when offers\ncome in.`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleCollectorMyListings(m, collector) {
+  const { page, offset, remaining } = parsePaginatedSelection(m);
+
+  const listings = await pool.query(
+    `SELECT l.id, l.material_type, l.quantity_kg, l.price_per_kg, l.expires_at,
+            (SELECT COUNT(*) FROM offers o WHERE o.listing_id = l.id AND o.status = 'pending') as pending_offers
+     FROM listings l
+     WHERE l.seller_id = $1 AND l.seller_role = 'collector' AND l.status = 'active'
+     ORDER BY l.created_at DESC
+     LIMIT 4 OFFSET $2`,
+    [collector.id, offset]
+  );
+
+  if (!listings.rows.length && page === 0) return 'END No active listings.\n\nUse "Post New Listing"\nto advertise your\nmaterial to buyers.';
+  if (!listings.rows.length) return 'END No more listings.';
+
+  const hasMore = listings.rows.length > 3;
+  const display = listings.rows.slice(0, 3);
+
+  if (remaining.length === 0) {
+    let msg = 'CON Your listings:\n';
+    display.forEach(function(l, i) {
+      const priceStr = l.price_per_kg ? 'GH\u20b5' + parseFloat(l.price_per_kg).toFixed(2) + '/kg' : '(open)';
+      const daysLeft = Math.max(0, Math.ceil((new Date(l.expires_at) - new Date()) / 86400000));
+      msg += (i + 1) + '. ' + parseFloat(l.quantity_kg).toFixed(0) + 'kg ' + l.material_type + ' ' + priceStr + '\n   Expires in ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + '\n';
+    });
+    if (hasMore) msg += '4. More results \u2192\n';
+    msg += '0. Back';
+    return msg;
+  }
+
+  const sel = remaining[0];
+  if (sel === '0') return 'CON Sell My Material:\n1. Post New Listing\n2. My Listings\n3. My Offers\n0. Back';
+
+  const selIdx = parseInt(sel) - 1;
+  const selected = display[selIdx];
+  if (!selected) return 'END Invalid choice.\nDial again to retry.';
+
+  const priceStr = selected.price_per_kg ? 'GH\u20b5' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : '(open)';
+  const daysLeft = Math.max(0, Math.ceil((new Date(selected.expires_at) - new Date()) / 86400000));
+
+  if (remaining.length === 1) {
+    return `CON ${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} ${priceStr}\nLocation: ${collector.city || 'Ghana'}\nExpires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}\n${selected.pending_offers} pending offer${parseInt(selected.pending_offers) !== 1 ? 's' : ''}\n\n1. Renew (+7 days)\n2. Close listing\n0. Back`;
+  }
+
+  if (remaining.length === 2) {
+    if (remaining[1] === '0') return 'CON Sell My Material:\n1. Post New Listing\n2. My Listings\n3. My Offers\n0. Back';
+    if (remaining[1] === '1') {
+      await pool.query(
+        `UPDATE listings SET expires_at = expires_at + INTERVAL '7 days', renewal_count = renewal_count + 1, updated_at = NOW() WHERE id = $1`,
+        [selected.id]
+      );
+      const newDays = daysLeft + 7;
+      return `END Listing renewed!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} ${priceStr}\nNow expires in ${newDays} days.`;
+    }
+    if (remaining[1] === '2') {
+      await pool.query(
+        `UPDATE listings SET status = 'closed', updated_at = NOW() WHERE id = $1`,
+        [selected.id]
+      );
+      await pool.query(
+        `UPDATE offers SET status = 'rejected', responded_at = NOW() WHERE listing_id = $1 AND status = 'pending'`,
+        [selected.id]
+      );
+      return `END Listing closed.\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type}\nPending offers declined.`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleCollectorMyOffers(m, collector) {
+  const { page, offset, remaining } = parsePaginatedSelection(m);
+
+  const offers = await pool.query(
+    `SELECT o.id, o.price_per_kg, o.quantity_kg, o.status, o.buyer_id, o.buyer_role, o.listing_id,
+            l.material_type,
+            CASE WHEN o.buyer_role = 'aggregator' THEN (SELECT name FROM aggregators WHERE id = o.buyer_id) ELSE 'Buyer' END as buyer_name,
+            'AGG-' || LPAD(o.buyer_id::text, 4, '0') as buyer_code
+     FROM offers o
+     JOIN listings l ON o.listing_id = l.id
+     WHERE l.seller_id = $1 AND l.seller_role = 'collector' AND o.status = 'pending'
+     ORDER BY o.created_at DESC
+     LIMIT 4 OFFSET $2`,
+    [collector.id, offset]
+  );
+
+  if (!offers.rows.length && page === 0) return 'END No pending offers.\n\nPost a listing to start\nreceiving offers from\naggregators.';
+  if (!offers.rows.length) return 'END No more offers.';
+
+  const hasMore = offers.rows.length > 3;
+  const display = offers.rows.slice(0, 3);
+
+  if (remaining.length === 0) {
+    let msg = 'CON Offers received:\n';
+    display.forEach(function(o, i) {
+      const name = (o.buyer_name || o.buyer_code).length > 16 ? (o.buyer_name || o.buyer_code).substring(0, 15) + '.' : (o.buyer_name || o.buyer_code);
+      msg += (i + 1) + '. ' + name + '\n   ' + parseFloat(o.quantity_kg).toFixed(0) + 'kg ' + o.material_type + ' @GH\u20b5' + parseFloat(o.price_per_kg).toFixed(2) + '/kg\n';
+    });
+    if (hasMore) msg += '4. More results \u2192\n';
+    msg += '0. Back';
+    return msg;
+  }
+
+  const sel = remaining[0];
+  if (sel === '0') return 'CON Sell My Material:\n1. Post New Listing\n2. My Listings\n3. My Offers\n0. Back';
+
+  const selIdx = parseInt(sel) - 1;
+  const selected = display[selIdx];
+  if (!selected) return 'END Invalid choice.\nDial again to retry.';
+
+  const total = (parseFloat(selected.quantity_kg) * parseFloat(selected.price_per_kg)).toFixed(2);
+
+  if (remaining.length === 1) {
+    return `CON Offer from:\n${selected.buyer_name} (${selected.buyer_code})\nMaterial: ${selected.material_type}\nQty: ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
+  }
+
+  if (remaining.length === 2) {
+    if (remaining[1] === '0') return 'CON Sell My Material:\n1. Post New Listing\n2. My Listings\n3. My Offers\n0. Back';
+
+    if (remaining[1] === '2') {
+      await pool.query(`UPDATE offers SET status = 'rejected', responded_at = NOW() WHERE id = $1`, [selected.id]);
+      return 'END Offer declined.\n\nYour listing remains\nactive for other buyers.';
+    }
+
+    if (remaining[1] === '1') {
+      const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [selected.listing_id])).rows[0];
+      if (!listing) return 'END Error: listing not found.\nDial again to retry.';
+
+      const offerQty = parseFloat(selected.quantity_kg);
+      if (offerQty > parseFloat(listing.quantity_kg)) return 'END Quantity no longer\navailable. Listing has\nbeen partially filled.';
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`UPDATE offers SET status = 'accepted', responded_at = NOW() WHERE id = $1`, [selected.id]);
+        const remainingQty = parseFloat(listing.quantity_kg) - offerQty;
+        if (remainingQty <= 0) {
+          await client.query(`UPDATE listings SET quantity_kg = 0, status = 'closed', updated_at = NOW() WHERE id = $1`, [listing.id]);
+        } else {
+          await client.query(`UPDATE listings SET quantity_kg = $1, updated_at = NOW() WHERE id = $2`, [remainingQty, listing.id]);
+        }
+
+        const sellerCol = ptColForRole(listing.seller_role);
+        const buyerCol = ptColForRole(selected.buyer_role);
+        const txnType = txnTypeForRoles(listing.seller_role, selected.buyer_role);
+        const totalPrice = parseFloat((offerQty * parseFloat(selected.price_per_kg)).toFixed(2));
+        const cols = ['transaction_type', 'status', 'material_type', 'gross_weight_kg', 'price_per_kg', 'total_price', 'source'];
+        const vals = [txnType, 'pending', listing.material_type, offerQty, parseFloat(selected.price_per_kg), totalPrice, 'discovery'];
+        if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
+        if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(selected.buyer_id); }
+        const placeholders = vals.map(function(_, i) { return '$' + (i + 1); }).join(', ');
+        await client.query(`INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
+
+      let buyerPhone = '', buyerCity = '';
+      if (selected.buyer_role === 'aggregator') {
+        const agg = (await pool.query(`SELECT phone, city FROM aggregators WHERE id = $1`, [selected.buyer_id])).rows[0];
+        if (agg) { buyerPhone = agg.phone || ''; buyerCity = agg.city || ''; }
+      }
+
+      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\nContact buyer:\n${selected.buyer_name}\nPhone: ${buyerPhone}\nLocation: ${buyerCity}\n\nCall to arrange drop-off.\nTransaction logged.`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleCollectorDiscovery(m, collector) {
+  if (m.length === 0) return 'CON Discovery:\n1. Browse Buyers\n2. Prices Near Me\n0. Back';
+
+  if (m[0] === '0') return 'CON 1. Log Drop-off\n2. Sell My Material\n3. Discovery\n4. My Stats\n0. Exit';
+  if (m[0] === '1') return await handleCollectorBrowseBuyers(m.slice(1), collector);
+
+  if (m[0] === '2') {
+    const city = collector.city || 'Accra';
+    const prices = await pool.query(
+      `SELECT DISTINCT ON (pp.material_type)
+              pp.material_type, pp.price_per_kg_ghs, a.name
+       FROM posted_prices pp
+       JOIN aggregators a ON a.id = pp.poster_id
+       WHERE pp.poster_type = 'aggregator' AND pp.is_active = true AND a.city = $1
+       ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`,
+      [city]
+    );
+    if (!prices.rows.length) return `END No prices posted near ${city}.\nCheck back later.`;
+    let msg = `END Prices Near Me (${city})\n\n`;
+    prices.rows.forEach(function(p) {
+      var name = (p.name || '').length > 10 ? p.name.substring(0, 9) + '.' : (p.name || '\u2014');
+      msg += p.material_type.padEnd(6) + 'GH\u20b5' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg  ' + name + '\n';
+    });
+    msg += '\nDial again to log a drop-off.';
+    return msg;
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleCollectorBrowseBuyers(m, collector) {
+  const depth = m.length;
+
+  if (depth === 0) return 'CON Browse buyers for:\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const material = USSD_MATERIALS[m[0]];
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  const city = collector.city || 'Accra';
+
+  const subParts = m.slice(1);
+  const { page, offset, remaining } = parsePaginatedSelection(subParts);
+
+  const buyers = await pool.query(
+    `SELECT o.id, o.target_quantity_kg, o.price_per_kg, o.buyer_id, o.buyer_role,
+            a.name as buyer_name, a.phone as buyer_phone, a.city as buyer_city
+     FROM orders o
+     JOIN aggregators a ON o.buyer_id = a.id AND o.buyer_role = 'aggregator'
+     WHERE o.material_type = $1 AND o.status = 'open' AND a.city = $2
+     ORDER BY o.created_at DESC
+     LIMIT 4 OFFSET $3`,
+    [material, city, offset]
+  );
+
+  if (!buyers.rows.length && page === 0) return `END No ${material} buyers near\n${city} right now.\n\nTry another material or\ncheck back later.`;
+  if (!buyers.rows.length) return 'END No more results.';
+
+  const hasMore = buyers.rows.length > 3;
+  const display = buyers.rows.slice(0, 3);
+
+  if (remaining.length === 0) {
+    let msg = `CON ${material} buyers (${city}):\n`;
+    display.forEach(function(b, i) {
+      const name = (b.buyer_name || '').length > 16 ? b.buyer_name.substring(0, 15) + '.' : (b.buyer_name || 'Buyer');
+      const priceStr = b.price_per_kg && parseFloat(b.price_per_kg) > 0 ? '@GH\u20b5' + parseFloat(b.price_per_kg).toFixed(2) : '(open)';
+      msg += (i + 1) + '. ' + name + '\n   Wants ' + parseFloat(b.target_quantity_kg).toFixed(0) + 'kg ' + priceStr + '\n';
+    });
+    if (hasMore) msg += '4. More results \u2192\n';
+    msg += '0. Back';
+    return msg;
+  }
+
+  const sel = remaining[0];
+  if (sel === '0') return 'CON Browse buyers for:\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const selIdx = parseInt(sel) - 1;
+  const selected = display[selIdx];
+  if (!selected) return 'END Invalid choice.\nDial again to retry.';
+
+  const priceStr = selected.price_per_kg && parseFloat(selected.price_per_kg) > 0 ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'Open to negotiation';
+
+  if (remaining.length === 1) {
+    return `CON ${selected.buyer_name}\nWants: ${parseFloat(selected.target_quantity_kg).toFixed(0)}kg ${material}\nPrice: ${priceStr}\nLocation: ${selected.buyer_city || city}\n\n1. I have this material\n   (shares your phone)\n2. Not interested\n0. Back`;
+  }
+
+  if (remaining.length === 2) {
+    if (remaining[1] === '0' || remaining[1] === '2') return `CON ${material} buyers (${city}):\n` + display.map(function(b, i) { return (i+1) + '. ' + (b.buyer_name || 'Buyer'); }).join('\n') + '\n0. Back';
+
+    if (remaining[1] === '1') {
+      return `END Interest sent!\n\nYour details shared with\n${selected.buyer_name}.\n\nBuyer contact:\nPhone: ${selected.buyer_phone || 'N/A'}\nLocation: ${selected.buyer_city || ''}\n\nThey may call you to\narrange a pickup.`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAggregatorMarketplace(m, aggregator) {
+  if (m.length === 0) return 'CON Marketplace:\n1. Browse Sellers\n2. Post Buy Request\n3. Sell to Processors\n4. My Offers\n0. Back';
+
+  if (m[0] === '0') return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. Marketplace\n4. My Stats\n0. Exit';
+  if (m[0] === '1') return await handleAggregatorBrowseSellers(m.slice(1), aggregator);
+  if (m[0] === '2') return await handleAggregatorPostBuyRequest(m.slice(1), aggregator);
+  if (m[0] === '3') return await handleAggregatorSellToProcessors(m.slice(1), aggregator);
+  if (m[0] === '4') return await handleAggregatorMyOffers(m.slice(1), aggregator);
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAggregatorBrowseSellers(m, aggregator) {
+  const depth = m.length;
+
+  if (depth === 0) return 'CON Browse sellers for:\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const material = USSD_MATERIALS[m[0]];
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  const city = aggregator.city || 'Accra';
+  const subParts = m.slice(1);
+  const { page, offset, remaining } = parsePaginatedSelection(subParts);
+
+  const listings = await pool.query(
+    `SELECT l.id, l.quantity_kg, l.price_per_kg, l.expires_at, l.seller_id,
+            'COL-' || LPAD(l.seller_id::text, 4, '0') as seller_code
+     FROM listings l
+     WHERE l.seller_role = 'collector' AND l.status = 'active' AND l.material_type = $1
+     AND l.location = $2
+     ORDER BY l.created_at DESC
+     LIMIT 4 OFFSET $3`,
+    [material, city, offset]
+  );
+
+  if (!listings.rows.length && page === 0) return `END No ${material} listings near\n${city} right now.\n\nTry another material or\ncheck back later.`;
+  if (!listings.rows.length) return 'END No more results.';
+
+  const hasMore = listings.rows.length > 3;
+  const display = listings.rows.slice(0, 3);
+
+  if (remaining.length === 0) {
+    let msg = `CON ${material} sellers (${city}):\n`;
+    display.forEach(function(l, i) {
+      const priceStr = l.price_per_kg ? '@GH\u20b5' + parseFloat(l.price_per_kg).toFixed(2) + '/kg' : '(open price)';
+      const daysLeft = Math.max(0, Math.ceil((new Date(l.expires_at) - new Date()) / 86400000));
+      msg += (i + 1) + '. ' + l.seller_code + '\n   ' + parseFloat(l.quantity_kg).toFixed(0) + 'kg ' + priceStr + '\n   ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left\n';
+    });
+    if (hasMore) msg += '4. More results \u2192\n';
+    msg += '0. Back';
+    return msg;
+  }
+
+  const sel = remaining[0];
+  if (sel === '0') return 'CON Marketplace:\n1. Browse Sellers\n2. Post Buy Request\n3. Sell to Processors\n4. My Offers\n0. Back';
+
+  const selIdx = parseInt(sel) - 1;
+  const selected = display[selIdx];
+  if (!selected) return 'END Invalid choice.\nDial again to retry.';
+
+  const listingPrice = selected.price_per_kg ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'open price';
+
+  if (remaining.length === 1) {
+    return `CON ${selected.seller_code} listing:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${material} @ ${listingPrice}\nLocation: ${city}\n\nYour offer price/kg?\n(Enter 0 to match\ntheir asking price)\n\nGH\u20b5 per kg:`;
+  }
+
+  if (remaining.length === 2) {
+    let offerPrice = parseFloat(remaining[1]);
+    if (isNaN(offerPrice) || offerPrice < 0 || offerPrice > 999) return 'END Invalid price.\nDial again to retry.';
+    if (offerPrice === 0) {
+      if (selected.price_per_kg && parseFloat(selected.price_per_kg) > 0) {
+        offerPrice = parseFloat(selected.price_per_kg);
+      } else {
+        return 'END Listing has no asking\nprice. Enter your offer\nprice.\n\nDial again to retry.';
+      }
+    }
+    const qty = parseFloat(selected.quantity_kg);
+    const total = (qty * offerPrice).toFixed(2);
+    return `CON Confirm offer:\nTo: ${selected.seller_code}\nMaterial: ${material}, ${qty.toFixed(0)} kg\nYour offer: GH\u20b5 ${offerPrice.toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Send offer\n2. Cancel`;
+  }
+
+  if (remaining.length === 3) {
+    if (remaining[2] === '2') return 'END Cancelled.';
+    if (remaining[2] === '1') {
+      let offerPrice = parseFloat(remaining[1]);
+      if (offerPrice === 0 && selected.price_per_kg) offerPrice = parseFloat(selected.price_per_kg);
+      const qty = parseFloat(selected.quantity_kg);
+
+      const existing = await pool.query(
+        `SELECT id FROM offers WHERE listing_id = $1 AND buyer_id = $2 AND buyer_role = 'aggregator' AND status = 'pending'`,
+        [selected.id, aggregator.id]
+      );
+      if (existing.rows.length) return 'END You already have a\npending offer on this\nlisting.\n\nCheck "My Offers" for\nstatus.';
+
+      await pool.query(
+        `INSERT INTO offers (listing_id, buyer_id, buyer_role, price_per_kg, quantity_kg, round, is_final, offered_by, status)
+         VALUES ($1, $2, 'aggregator', $3, $4, 1, false, 'buyer', 'pending')`,
+        [selected.id, aggregator.id, offerPrice, qty]
+      );
+
+      return `END OFFER SENT!\n\nGH\u20b5 ${offerPrice.toFixed(2)}/kg for ${qty.toFixed(0)}kg ${material}\nto ${selected.seller_code}.\n\nThe collector will be\nnotified. You'll receive\ntheir contact details\nwhen they accept.\n\nCheck "My Offers" for\nstatus updates.`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAggregatorPostBuyRequest(m, aggregator) {
+  const depth = m.length;
+
+  if (depth === 0) return 'CON What material do\nyou need?\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const material = USSD_MATERIALS[m[0]];
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  if (depth === 1) return `CON How many kg of ${material}\ndo you need?\n\nEnter quantity in kg:`;
+
+  const qty = parseFloat(m[1]);
+  if (isNaN(qty) || qty <= 0 || qty > 99999) return 'END Invalid quantity.\nDial again to retry.';
+
+  if (depth === 2) return 'CON Your buying price\nper kg? (GH\u20b5)\n\n(Enter 0 if open\nto negotiation)';
+
+  const priceInput = parseFloat(m[2]);
+  if (isNaN(priceInput) || priceInput < 0 || priceInput > 999) return 'END Invalid price.\nDial again to retry.';
+  const price = priceInput === 0 ? null : priceInput;
+  const priceStr = price ? `GH\u20b5 ${price.toFixed(2)}/kg` : 'Open to negotiation';
+  const location = aggregator.city || 'Ghana';
+
+  if (depth === 3) {
+    return `CON Confirm buy request:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  if (depth === 4) {
+    if (m[3] === '2') return 'END Cancelled.';
+    if (m[3] === '1') {
+      await pool.query(
+        `INSERT INTO orders (buyer_id, buyer_role, material_type, target_quantity_kg, price_per_kg, status)
+         VALUES ($1, 'aggregator', $2, $3, $4, 'open')`,
+        [aggregator.id, material, qty, price || 0]
+      );
+      return `END BUY REQUEST POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ''}\nLocation: ${location}\n\nCollectors can now see\nyour request and respond.\nYou'll be notified when\nsomeone has material.`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAggregatorSellToProcessors(m, aggregator) {
+  const depth = m.length;
+
+  if (depth === 0) return 'CON What material are\nyou selling?\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const material = USSD_MATERIALS[m[0]];
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  if (depth === 1) return `CON How many kg of ${material}\ndo you have to sell?\n\n(minimum 500 kg)\n\nEnter weight in kg:`;
+
+  const qty = parseFloat(m[1]);
+  if (isNaN(qty) || qty <= 0 || qty > 99999) return 'END Invalid quantity.\nDial again to retry.';
+  if (qty < 500) return 'END Minimum listing is\n500 kg for aggregators.\n\nConsolidate more material\nand try again.';
+
+  if (depth === 2) return `CON Your asking price\nper kg? (GH\u20b5)\n\n(Enter 0 if open\nto offers)`;
+
+  const priceInput = parseFloat(m[2]);
+  if (isNaN(priceInput) || priceInput < 0 || priceInput > 999) return 'END Invalid price.\nDial again to retry.';
+  const price = priceInput === 0 ? null : priceInput;
+  const priceStr = price ? `GH\u20b5 ${price.toFixed(2)}/kg` : 'Open to offers';
+  const location = aggregator.city || 'Ghana';
+
+  if (depth === 3) {
+    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n2. Cancel`;
+  }
+
+  if (depth === 4) {
+    if (m[3] === '2') return 'END Cancelled.';
+    if (m[3] === '1') {
+      await pool.query(
+        `INSERT INTO listings (seller_id, seller_role, material_type, quantity_kg, original_qty_kg, price_per_kg, location, expires_at)
+         VALUES ($1, 'aggregator', $2, $3, $3, $4, $5, NOW() + INTERVAL '7 days') RETURNING id`,
+        [aggregator.id, material, qty, price, location]
+      );
+      return `END LISTING POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nProcessors and recyclers\ncan now see your listing\nand make offers.`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAggregatorMyOffers(m, aggregator) {
+  const { page, offset, remaining } = parsePaginatedSelection(m);
+
+  const sentOffers = await pool.query(
+    `SELECT o.id, o.price_per_kg, o.quantity_kg, o.status, o.listing_id,
+            l.material_type,
+            'COL-' || LPAD(l.seller_id::text, 4, '0') as other_code,
+            'sent' as direction
+     FROM offers o
+     JOIN listings l ON o.listing_id = l.id
+     WHERE o.buyer_id = $1 AND o.buyer_role = 'aggregator'
+     AND o.status IN ('pending', 'accepted')
+     ORDER BY o.created_at DESC
+     LIMIT 10`,
+    [aggregator.id]
+  );
+
+  const recvOffers = await pool.query(
+    `SELECT o.id, o.price_per_kg, o.quantity_kg, o.status, o.buyer_id, o.buyer_role, o.listing_id,
+            l.material_type,
+            CASE
+              WHEN o.buyer_role = 'processor' THEN (SELECT name FROM processors WHERE id = o.buyer_id)
+              WHEN o.buyer_role = 'recycler' THEN (SELECT name FROM recyclers WHERE id = o.buyer_id)
+              WHEN o.buyer_role = 'converter' THEN (SELECT name FROM converters WHERE id = o.buyer_id)
+              ELSE 'Buyer'
+            END as other_name,
+            'recv' as direction
+     FROM offers o
+     JOIN listings l ON o.listing_id = l.id
+     WHERE l.seller_id = $1 AND l.seller_role = 'aggregator'
+     AND o.status = 'pending'
+     ORDER BY o.created_at DESC
+     LIMIT 10`,
+    [aggregator.id]
+  );
+
+  const allOffers = recvOffers.rows.concat(sentOffers.rows);
+  const paginated = allOffers.slice(offset, offset + 4);
+
+  if (!paginated.length && page === 0) return 'END No offers yet.\n\nBrowse seller listings\nto find material and\nmake offers.';
+  if (!paginated.length) return 'END No more offers.';
+
+  const hasMore = paginated.length > 3;
+  const display = paginated.slice(0, 3);
+
+  if (remaining.length === 0) {
+    let msg = 'CON My offers:\n';
+    display.forEach(function(o, i) {
+      const dirLabel = o.direction === 'sent' ? 'SENT' : 'RECV';
+      const code = o.other_code || (o.other_name || 'Buyer');
+      const name = code.length > 12 ? code.substring(0, 11) + '.' : code;
+      const statusStr = o.direction === 'recv' ? '\u2605 NEW' : o.status;
+      msg += (i + 1) + '. ' + dirLabel + ' ' + name + '\n   ' + parseFloat(o.quantity_kg).toFixed(0) + 'kg ' + o.material_type + ' ' + statusStr + '\n';
+    });
+    if (hasMore) msg += '4. More results \u2192\n';
+    msg += '0. Back';
+    return msg;
+  }
+
+  const sel = remaining[0];
+  if (sel === '0') return 'CON Marketplace:\n1. Browse Sellers\n2. Post Buy Request\n3. Sell to Processors\n4. My Offers\n0. Back';
+
+  const selIdx = parseInt(sel) - 1;
+  const selected = display[selIdx];
+  if (!selected) return 'END Invalid choice.\nDial again to retry.';
+
+  if (selected.direction === 'sent') {
+    const statusMsg = selected.status === 'accepted' ? 'ACCEPTED!' : selected.status === 'pending' ? 'Pending' : selected.status;
+    let msg = `END Your offer to ${selected.other_code}:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nStatus: ${statusMsg}`;
+    if (selected.status === 'accepted') {
+      const sellerId = parseInt(selected.other_code.replace('COL-', ''));
+      const coll = (await pool.query(`SELECT first_name, last_name, phone, city FROM collectors WHERE id = $1`, [sellerId])).rows[0];
+      if (coll) {
+        const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
+        msg += `\n\nContact seller:\n${collName}\nPhone: ${coll.phone}\nLocation: ${coll.city || ''}`;
+      }
+    } else {
+      msg += '\n\nYou\'ll be notified when\nthe collector responds.';
+    }
+    return msg;
+  }
+
+  const total = (parseFloat(selected.quantity_kg) * parseFloat(selected.price_per_kg)).toFixed(2);
+
+  if (remaining.length === 1) {
+    return `CON Offer from:\n${selected.other_name || 'Buyer'}\nMaterial: ${selected.material_type}, ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
+  }
+
+  if (remaining.length === 2) {
+    if (remaining[1] === '0') return 'CON Marketplace:\n1. Browse Sellers\n2. Post Buy Request\n3. Sell to Processors\n4. My Offers\n0. Back';
+
+    if (remaining[1] === '2') {
+      await pool.query(`UPDATE offers SET status = 'rejected', responded_at = NOW() WHERE id = $1`, [selected.id]);
+      return 'END Offer declined.\n\nYour listing remains\nactive for other buyers.';
+    }
+
+    if (remaining[1] === '1') {
+      const listing = (await pool.query(`SELECT * FROM listings WHERE id = $1`, [selected.listing_id])).rows[0];
+      if (!listing) return 'END Error: listing not found.\nDial again to retry.';
+      const offerQty = parseFloat(selected.quantity_kg);
+      if (offerQty > parseFloat(listing.quantity_kg)) return 'END Quantity no longer\navailable.';
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`UPDATE offers SET status = 'accepted', responded_at = NOW() WHERE id = $1`, [selected.id]);
+        const remainingQty = parseFloat(listing.quantity_kg) - offerQty;
+        if (remainingQty <= 0) {
+          await client.query(`UPDATE listings SET quantity_kg = 0, status = 'closed', updated_at = NOW() WHERE id = $1`, [listing.id]);
+        } else {
+          await client.query(`UPDATE listings SET quantity_kg = $1, updated_at = NOW() WHERE id = $2`, [remainingQty, listing.id]);
+        }
+        const sellerCol = ptColForRole(listing.seller_role);
+        const buyerCol = ptColForRole(selected.buyer_role);
+        const txnType = txnTypeForRoles(listing.seller_role, selected.buyer_role);
+        const totalPrice = parseFloat((offerQty * parseFloat(selected.price_per_kg)).toFixed(2));
+        const cols = ['transaction_type', 'status', 'material_type', 'gross_weight_kg', 'price_per_kg', 'total_price', 'source'];
+        const vals = [txnType, 'pending', listing.material_type, offerQty, parseFloat(selected.price_per_kg), totalPrice, 'discovery'];
+        if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
+        if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(selected.buyer_id); }
+        const placeholders = vals.map(function(_, i) { return '$' + (i + 1); }).join(', ');
+        await client.query(`INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
+
+      let buyerPhone = '', buyerLocation = '';
+      const buyerTable = selected.buyer_role === 'processor' ? 'processors' : selected.buyer_role === 'recycler' ? 'recyclers' : 'converters';
+      try {
+        const buyer = (await pool.query(`SELECT phone, city FROM ${buyerTable} WHERE id = $1`, [selected.buyer_id])).rows[0];
+        if (buyer) { buyerPhone = buyer.phone || ''; buyerLocation = buyer.city || ''; }
+      } catch (_) {}
+
+      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\nContact buyer:\n${selected.other_name || 'Buyer'}\nPhone: ${buyerPhone}\nLocation: ${buyerLocation}\n\nTransaction logged.`;
     }
   }
 
