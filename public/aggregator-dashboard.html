@@ -383,6 +383,51 @@
       </div>
     </div>
 
+    <!-- BUY REQUESTS (part of Marketplace) -->
+    <div class="section" id="buyrequests-section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Marketplace — Buy Requests</div>
+          <div class="section-sub">Post buy requests visible to collectors on web and USSD</div>
+        </div>
+        <button class="btn btn-green" onclick="showCreateBuyRequest()">+ New Buy Request</button>
+      </div>
+
+      <div id="create-buyrequest-form" class="hidden">
+        <div style="display:grid;gap:0.75rem;padding:1rem 0;">
+          <div>
+            <label class="form-label">Material</label>
+            <select id="br-material" class="form-select">
+              <option value="PET">PET</option>
+              <option value="HDPE">HDPE</option>
+              <option value="LDPE">LDPE</option>
+              <option value="PP">PP</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Target quantity (kg)</label>
+            <input type="number" id="br-qty" class="form-input" min="1" step="0.01" placeholder="e.g. 1500">
+          </div>
+          <div>
+            <label class="form-label">Price per kg (GH₵)</label>
+            <input type="number" id="br-price" class="form-input" step="0.01" placeholder="e.g. 3.50">
+          </div>
+          <div>
+            <label class="form-label">Notes (optional)</label>
+            <textarea id="br-notes" class="form-input" rows="2" placeholder="e.g. Clean, sorted PET only. Pickup possible."></textarea>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-green" onclick="submitBuyRequest()">Post Buy Request</button>
+            <button class="btn" onclick="hideCreateBuyRequest()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="my-buyrequests-list">
+        <p style="color:var(--text-3);font-size:0.85rem;">Loading buy requests...</p>
+      </div>
+    </div>
+
     <!-- TRANSACTIONS -->
     <div class="section">
       <div class="section-head">
@@ -896,6 +941,7 @@ function loadAll() {
     loadTopSuppliers('ytd');
     loadTopBuyers('ytd');
     loadMyListings();
+    loadMyBuyRequests();
     loadSentOffers();
     loadDiscLocations();
     loadProcessorPrices();
@@ -2539,6 +2585,91 @@ function loadProcessorPrices() {
       var el = document.getElementById('processorPricesList');
       if (el) el.innerHTML = '<div class="empty">Unable to load processor prices</div>';
     });
+}
+
+// ── BUY REQUESTS ─────────────────────────────────────────────
+function showCreateBuyRequest(){ document.getElementById('create-buyrequest-form').classList.remove('hidden'); }
+function hideCreateBuyRequest(){
+  document.getElementById('create-buyrequest-form').classList.add('hidden');
+  ['br-qty','br-price','br-notes'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+}
+
+async function submitBuyRequest(){
+  var material = document.getElementById('br-material').value;
+  var qty = parseFloat(document.getElementById('br-qty').value);
+  var price = parseFloat(document.getElementById('br-price').value);
+  var notes = document.getElementById('br-notes').value.trim();
+  if (!qty || qty <= 0) return showToast('Enter a valid quantity', true);
+  if (!price || price <= 0) return showToast('Enter a valid price', true);
+  try {
+    var token = localStorage.getItem('circul_token') || '';
+    var r = await fetch('/api/orders', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+      body: JSON.stringify({ material_type: material, target_quantity_kg: qty, price_per_kg: price, notes: notes || null })
+    });
+    var data = await r.json();
+    if (!data.success) return showToast(data.message || 'Failed to post', true);
+    showToast('Buy request posted');
+    hideCreateBuyRequest();
+    loadMyBuyRequests();
+  } catch (e) { showToast('Network error', true); }
+}
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+async function loadMyBuyRequests(){
+  var el = document.getElementById('my-buyrequests-list');
+  if (!el) return;
+  try {
+    var token = localStorage.getItem('circul_token') || '';
+    var r = await fetch('/api/orders/my', { headers:{ 'Authorization':'Bearer '+token } });
+    var data = await r.json();
+    var orders = (data && data.orders) || [];
+    if (!orders.length) {
+      el.innerHTML = '<div class="empty"><p class="empty-action">No buy requests yet</p><p class="empty-hint">Post one above to let collectors know what you\'re buying</p></div>';
+      return;
+    }
+    var matPill = function(m){ return '<span class="pill pill-'+(m||'').toLowerCase()+'">'+m+'</span>'; };
+    var statusPill = function(s){
+      if (s==='open') return '<span class="pill pill-open">Open</span>';
+      if (s==='fulfilled' || s==='partially_fulfilled') return '<span class="pill pill-completed">'+s.replace('_',' ')+'</span>';
+      if (s==='cancelled') return '<span class="pill pill-rejected">Cancelled</span>';
+      return '<span class="pill">'+s+'</span>';
+    };
+    var fmtDate = function(d){ return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}); };
+    var rows = orders.map(function(o){
+      return '<tr>'
+        + '<td>'+fmtDate(o.created_at)+'</td>'
+        + '<td>'+matPill(o.material_type)+'</td>'
+        + '<td>'+parseFloat(o.target_quantity_kg).toLocaleString()+' kg</td>'
+        + '<td class="td-green">GHS '+parseFloat(o.price_per_kg).toFixed(2)+'</td>'
+        + '<td style="color:var(--text-2);font-size:0.78rem;max-width:240px;white-space:normal">'+(o.notes ? escapeHtml(o.notes) : '<span style="color:var(--text-3)">—</span>')+'</td>'
+        + '<td>'+statusPill(o.status)+'</td>'
+        + '<td>'+(o.status==='open' ? '<button class="btn" onclick="cancelBuyRequest('+o.id+')">Cancel</button>' : '')+'</td>'
+        + '</tr>';
+    }).join('');
+    el.innerHTML = '<div class="table-wrap"><table>'
+      + '<thead><tr><th>Posted</th><th>Material</th><th>Qty</th><th>Price/kg</th><th>Notes</th><th>Status</th><th></th></tr></thead>'
+      + '<tbody>'+rows+'</tbody></table></div>';
+  } catch (e) {
+    el.innerHTML = '<div class="empty"><p class="empty-hint">Failed to load buy requests</p></div>';
+  }
+}
+
+async function cancelBuyRequest(id){
+  if (!confirm('Cancel this buy request?')) return;
+  try {
+    var token = localStorage.getItem('circul_token') || '';
+    var r = await fetch('/api/orders/'+id+'/cancel', {
+      method:'POST',
+      headers:{ 'Authorization':'Bearer '+token }
+    });
+    var data = await r.json();
+    if (!data.success) return showToast(data.message || 'Cancel failed', true);
+    showToast('Buy request cancelled');
+    loadMyBuyRequests();
+  } catch (e) { showToast('Network error', true); }
 }
 
 function loadMyListings() {

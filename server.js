@@ -3766,11 +3766,13 @@ async function handleAggregatorPostBuyRequest(m, aggregator) {
   if (depth === 4) {
     if (m[3] === '2') return 'END Cancelled.';
     if (m[3] === '1') {
-      await pool.query(
-        `INSERT INTO orders (buyer_id, buyer_role, material_type, target_quantity_kg, price_per_kg, status)
-         VALUES ($1, 'aggregator', $2, $3, $4, 'open')`,
-        [aggregator.id, material, qty, price || 0]
-      );
+      await createOrder({
+        buyerId: aggregator.id,
+        buyerRole: 'aggregator',
+        material_type: material,
+        target_quantity_kg: qty,
+        price_per_kg: price || 0
+      });
       return `END BUY REQUEST POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ''}\nLocation: ${location}\n\nCollectors can now see\nyour request and respond.\nYou'll be notified when\nsomeone has material.`;
     }
   }
@@ -4627,28 +4629,70 @@ app.patch('/api/pending-transactions/:id/payment-confirm', async (req, res) => {
 // ORDERS API
 // ============================================
 
+// ── Shared order creation (used by both POST /api/orders and USSD aggregator handler) ──
+async function createOrder({ buyerId, buyerRole, material_type, target_quantity_kg, price_per_kg, notes, accepted_colours, excluded_contaminants, max_contamination_pct, supplier_tier, supplier_id }) {
+  if (!buyerId) throw new Error('createOrder: buyerId required');
+  if (!buyerRole) throw new Error('createOrder: buyerRole required');
+  if (!material_type) throw new Error('createOrder: material_type required');
+  const qty = parseFloat(target_quantity_kg);
+  const price = parseFloat(price_per_kg);
+  if (isNaN(qty) || qty <= 0) throw new Error('Invalid target_quantity_kg');
+  if (isNaN(price) || price < 0) throw new Error('Invalid price_per_kg');
+
+  const tableCheck = await pool.query(
+    `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'orders')`
+  ).catch(() => ({ rows: [{ exists: false }] }));
+  if (!tableCheck.rows[0].exists) throw new Error('Orders table not yet deployed');
+
+  const result = await pool.query(
+    `INSERT INTO orders (buyer_id, buyer_role, material_type, target_quantity_kg, price_per_kg,
+                         accepted_colours, excluded_contaminants, max_contamination_pct,
+                         supplier_tier, supplier_id, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [buyerId, buyerRole, material_type, qty, price,
+     accepted_colours || null,
+     excluded_contaminants || null,
+     (max_contamination_pct != null && max_contamination_pct !== '') ? parseFloat(max_contamination_pct) : null,
+     supplier_tier || null,
+     supplier_id || null,
+     notes || null]
+  );
+  return result.rows[0];
+}
+
 app.post('/api/orders', requireAuth, async (req, res) => {
   try {
-    if (!req.user.hasRole('converter') && !req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Converter or recycler access only' });
+    if (!req.user.hasRole('converter') && !req.user.hasRole('recycler') && !req.user.hasRole('aggregator'))
+      return res.status(403).json({ success: false, message: 'Converter, recycler, or aggregator access only' });
+
     const { material_type, target_quantity_kg, price_per_kg, accepted_colours, excluded_contaminants, max_contamination_pct, notes, supplier_tier, supplier_id } = req.body;
-    if (!material_type || !target_quantity_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'material_type, target_quantity_kg, price_per_kg required' });
-    const qty = parseFloat(target_quantity_kg), price = parseFloat(price_per_kg);
-    if (isNaN(qty) || qty <= 0) return res.status(400).json({ success: false, message: 'Invalid target_quantity_kg' });
-    if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price_per_kg' });
-    // Check if orders table exists
-    const tableCheck = await pool.query(`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'orders')`).catch(() => ({ rows: [{ exists: false }] }));
-    if (!tableCheck.rows[0].exists) return res.status(503).json({ success: false, message: 'Orders feature is being deployed. Please try again in a few minutes.' });
-    // Determine buyer identity and role
-    const buyerRole = req.user.hasRole('converter') ? 'converter' : 'recycler';
-    const buyerId = buyerRole === 'converter' ? (req.user.converter_id || req.user.id) : req.user.id;
-    const result = await pool.query(
-      `INSERT INTO orders (buyer_id, buyer_role, material_type, target_quantity_kg, price_per_kg, accepted_colours, excluded_contaminants, max_contamination_pct, supplier_tier, supplier_id, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [buyerId, buyerRole, material_type, qty, price, accepted_colours||null, excluded_contaminants||null,
-       max_contamination_pct != null && max_contamination_pct !== '' ? parseFloat(max_contamination_pct) : null,
-       supplier_tier||null, supplier_id||null, notes||null]
-    );
-    res.status(201).json({ success: true, order: result.rows[0] });
+    if (!material_type || !target_quantity_kg || !price_per_kg)
+      return res.status(400).json({ success: false, message: 'material_type, target_quantity_kg, price_per_kg required' });
+
+    let buyerRole, buyerId;
+    if (req.user.hasRole('converter')) {
+      buyerRole = 'converter';
+      buyerId = req.user.converter_id || req.user.id;
+    } else if (req.user.hasRole('recycler')) {
+      buyerRole = 'recycler';
+      buyerId = req.user.id;
+    } else {
+      buyerRole = 'aggregator';
+      buyerId = req.user.id;
+    }
+
+    try {
+      const order = await createOrder({
+        buyerId, buyerRole, material_type, target_quantity_kg, price_per_kg,
+        notes, accepted_colours, excluded_contaminants, max_contamination_pct, supplier_tier, supplier_id
+      });
+      res.status(201).json({ success: true, order });
+    } catch (e) {
+      const msg = String(e && e.message || e);
+      if (msg.includes('not yet deployed')) return res.status(503).json({ success: false, message: 'Orders feature is being deployed. Please try again in a few minutes.' });
+      if (msg.startsWith('Invalid') || msg.startsWith('createOrder:')) return res.status(400).json({ success: false, message: msg });
+      throw e;
+    }
   } catch (err) { console.error('Create order error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -4664,9 +4708,14 @@ app.get('/api/orders/my', async (req, res) => {
     if (!user || typeof user !== 'object') return res.json({ success: true, orders: [] });
 
     // Determine buyer identity based on role
-    const isConverter = user.role === 'converter' || (Array.isArray(user.roles) && user.roles.includes('converter'));
-    const isRecycler = user.role === 'recycler' || (Array.isArray(user.roles) && user.roles.includes('recycler'));
-    const buyerId = isConverter ? (user.converter_id || user.id) : user.id;
+    const isConverter  = user.role === 'converter'  || (Array.isArray(user.roles) && user.roles.includes('converter'));
+    const isRecycler   = user.role === 'recycler'   || (Array.isArray(user.roles) && user.roles.includes('recycler'));
+    const isAggregator = user.role === 'aggregator' || (Array.isArray(user.roles) && user.roles.includes('aggregator'));
+    if (!isConverter && !isRecycler && !isAggregator) return res.json({ success: true, orders: [] });
+    let buyerId, buyerRole;
+    if (isConverter)        { buyerRole = 'converter';  buyerId = user.converter_id || user.id; }
+    else if (isRecycler)    { buyerRole = 'recycler';   buyerId = user.id; }
+    else                    { buyerRole = 'aggregator'; buyerId = user.id; }
     if (!buyerId) return res.json({ success: true, orders: [] });
 
     // Check if orders table exists before querying
@@ -4676,10 +4725,36 @@ app.get('/api/orders/my', async (req, res) => {
     if (!tableCheck.rows[0].exists) return res.json({ success: true, orders: [] });
 
     const result = await pool.query(
-      `SELECT * FROM orders WHERE buyer_id=$1 ORDER BY created_at DESC LIMIT 50`, [buyerId]
+      `SELECT * FROM orders WHERE buyer_id=$1 AND buyer_role=$2 ORDER BY created_at DESC LIMIT 50`, [buyerId, buyerRole]
     ).catch(() => ({ rows: [] }));
     res.json({ success: true, orders: result.rows });
   } catch (err) { console.error('GET /api/orders/my error:', err); res.json({ success: true, orders: [] }); }
+});
+
+// Cancel a buy request — owner-only.
+app.post('/api/orders/:id/cancel', requireAuth, async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id, 10);
+    if (!orderId) return res.status(400).json({ success: false, message: 'Invalid order id' });
+
+    let buyerRole, buyerId;
+    if (req.user.hasRole('converter'))       { buyerRole = 'converter';  buyerId = req.user.converter_id || req.user.id; }
+    else if (req.user.hasRole('recycler'))   { buyerRole = 'recycler';   buyerId = req.user.id; }
+    else if (req.user.hasRole('aggregator')) { buyerRole = 'aggregator'; buyerId = req.user.id; }
+    else return res.status(403).json({ success: false, message: 'Not allowed' });
+
+    const r = await pool.query(
+      `UPDATE orders SET status='cancelled', updated_at=NOW()
+         WHERE id=$1 AND buyer_id=$2 AND buyer_role=$3 AND status='open'
+         RETURNING *`,
+      [orderId, buyerId, buyerRole]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'Order not found or not cancellable' });
+    res.json({ success: true, order: r.rows[0] });
+  } catch (err) {
+    console.error('Cancel order error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 // ============================================
