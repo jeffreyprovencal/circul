@@ -841,24 +841,23 @@ function checkPendingRatings() {
     apiFetch('/api/ratings/pending', opts)
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (!data || !data.pending || !data.pending.length) return;
-            var count = 0;
-            for (var i = 0; i < data.pending.length; i++) {
-                if (!_pendingRatingTxn) _pendingRatingTxn = data.pending[i];
-                count++;
+            var pill = document.getElementById('ratingPill');
+            var txt = document.getElementById('ratingPillText');
+            _pendingRatingTxn = null;
+            if (!data || !data.pending || !data.pending.length) {
+                if (pill) pill.classList.add('hidden');
+                return;
             }
-            if (count > 0) {
-                var pill = document.getElementById('ratingPill');
-                var txt = document.getElementById('ratingPillText');
-                if (txt) txt.textContent = count + ' unrated transaction' + (count > 1 ? 's' : '') + ' \u2014 rate now';
-                if (pill) pill.classList.remove('hidden');
-            }
+            var count = data.pending.length;
+            _pendingRatingTxn = data.pending[0];
+            if (txt) txt.textContent = count + ' unrated transaction' + (count > 1 ? 's' : '') + ' \u2014 rate now';
+            if (pill) pill.classList.remove('hidden');
         })
         .catch(function(e) { console.warn('checkPendingRatings error', e); });
 }
 function scrollToRating() {
     if (_pendingRatingTxn) {
-        openRatingModal(_pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Collector');
+        openRatingModal(_pendingRatingTxn.peer_id, _pendingRatingTxn.peer_name || 'Collector', _pendingRatingTxn.txn_id);
     }
 }
 
@@ -1768,8 +1767,9 @@ function renderRatingsReceived(ratings) {
 }
 
 // RATING MODAL
-function openRatingModal(collectorId, name) {
+function openRatingModal(collectorId, name, txnId) {
     state.currentRatingCollectorId = collectorId;
+    state.currentRatingTxnId = txnId || null;
     state.currentRatingStar = 0;
     state.selectedTags = [];
     document.getElementById('ratingCollectorName').textContent = name;
@@ -1802,6 +1802,7 @@ function submitRating() {
     fetch('/api/ratings/operator', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({
+            transaction_id: state.currentRatingTxnId || null,
             rater_type: 'aggregator',
             rater_id: state.operator.id,
             rated_type: 'collector',
@@ -1821,6 +1822,7 @@ function submitRating() {
         if (data.success) {
             closeRatingModal();
             showToast('Rating submitted!');
+            checkPendingRatings();
             // Replace the Rate button with Rated pill for this collector
             var btns = document.querySelectorAll('#collectorsBody button');
             btns.forEach(function(b) {
