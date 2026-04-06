@@ -2510,18 +2510,413 @@ async function handleRegisteredUssd(parts, collector) {
   return 'END Invalid option.\nDial again to retry.';
 }
 
+async function handleAggregatorUssd(parts, aggregator) {
+  if (parts.length === 0) return `CON Welcome ${aggregator.name}!\n(Aggregator)\nEnter your PIN:`;
+
+  // ── PIN validation with retry (max 3 attempts) ──
+  let pinIndex = -1;
+  for (let i = 0; i < Math.min(parts.length, 3); i++) {
+    if (await verifyPassword(parts[i], aggregator.pin)) {
+      pinIndex = i;
+      break;
+    }
+  }
+  if (pinIndex === -1) {
+    const attempts = parts.length;
+    if (attempts >= 3) return 'END Too many wrong PINs.\nDial again to retry.';
+    const remaining = 3 - attempts;
+    return `CON Wrong PIN.\n${remaining} attempt${remaining > 1 ? 's' : ''} remaining.\nEnter your PIN:`;
+  }
+
+  // ── Menu navigation (parts after valid PIN) ──
+  const m = parts.slice(pinIndex + 1);
+  const depth = m.length;
+
+  if (depth === 0) return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. My Stats\n0. Exit';
+
+  // ── Exit ──
+  if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
+
+  // ── My Stats ──
+  if (m[0] === '3') {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+    const [volume, unpaid, rating, collCount, pendingCount] = await Promise.all([
+      pool.query(
+        `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
+                COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
+                COALESCE(SUM(total_price), 0) as revenue
+         FROM transactions WHERE aggregator_id = $1 AND transaction_date >= $3`,
+        [aggregator.id, monthStart, yearStart]
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0) as value
+         FROM transactions WHERE aggregator_id = $1 AND payment_status = 'unpaid' AND total_price > 0`,
+        [aggregator.id]
+      ),
+      pool.query(
+        `SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count
+         FROM ratings WHERE rated_type = 'aggregator' AND rated_id = $1`,
+        [aggregator.id]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT collector_id) as count FROM transactions WHERE aggregator_id = $1`,
+        [aggregator.id]
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count FROM pending_transactions
+         WHERE aggregator_id = $1 AND status = 'pending'
+           AND transaction_type IN ('collector_sale','aggregator_purchase')`,
+        [aggregator.id]
+      )
+    ]);
+    const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
+    return `END My Stats — ${aggregator.name}\n\nThis month: ${parseFloat(v.month_kg).toFixed(1)} kg\nYear to date: ${parseFloat(v.ytd_kg).toFixed(1)} kg\nRevenue: GH₵${parseFloat(v.revenue).toFixed(2)}\nOutstanding: GH₵${parseFloat(u.value).toFixed(2)} (${u.count} unpaid)\nRating: ${parseFloat(r.avg) > 0 ? '★' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'No ratings yet'}\n\nCollectors: ${cc.count} active\nPending inbound: ${pc.count}`;
+  }
+
+  // ── Pending Drop-offs ──
+  if (m[0] === '2') {
+    return await handleAggregatorPending(m.slice(1), aggregator);
+  }
+
+  // ── Log Purchase ──
+  if (m[0] === '1') {
+    return await handleAggregatorPurchase(m.slice(1), aggregator);
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAggregatorPurchase(m, aggregator) {
+  const depth = m.length;
+
+  // depth 0: select collector (show list + phone lookup option)
+  if (depth === 0) {
+    const collectors = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.phone,
+              'COL-' || LPAD(c.id::text, 4, '0') AS display_name,
+              COUNT(t.id) as txns
+       FROM collectors c
+       JOIN transactions t ON t.collector_id = c.id
+       WHERE t.aggregator_id = $1
+       GROUP BY c.id
+       ORDER BY txns DESC
+       LIMIT 3`,
+      [aggregator.id]
+    );
+    if (!collectors.rows.length) {
+      // Empty state: first-time aggregator, no transaction history
+      return 'CON No previous collectors.\nEnter collector phone\nnumber:';
+    }
+    let msg = 'CON Select collector:\n';
+    collectors.rows.forEach(function(c, i) {
+      var name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.display_name;
+      msg += (i + 1) + '. ' + name + '\n   ' + c.display_name + ' · ' + c.txns + ' txn' + (c.txns > 1 ? 's' : '') + '\n';
+    });
+    msg += (collectors.rows.length + 1) + '. Enter phone number\n0. Cancel';
+    return msg;
+  }
+
+  const resolved = await resolveCollectorForPurchase(m, aggregator);
+  if (resolved.response) return resolved.response;
+  if (!resolved.collector) return 'END Error resolving collector.\nDial again to retry.';
+
+  const collector = resolved.collector;
+  const mp = resolved.menuParts;
+  const mpDepth = mp.length;
+
+  // Select material
+  if (mpDepth === 0) return 'CON Select material:\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const material = USSD_MATERIALS[mp[0]];
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  // Enter weight
+  if (mpDepth === 1) return 'CON Enter weight in kg:';
+
+  const weight = parseFloat(mp[1]);
+  if (isNaN(weight) || weight <= 0 || weight > 9999) return 'END Invalid weight.\nDial again to retry.';
+
+  // Enter price per kg
+  if (mpDepth === 2) return 'CON Enter price per kg\n(GH₵):';
+
+  const price = parseFloat(mp[2]);
+  if (isNaN(price) || price <= 0 || price > 999) return 'END Invalid price.\nDial again to retry.';
+
+  // Confirm
+  const total = (weight * price).toFixed(2);
+  const collName = ((collector.first_name || '') + ' ' + (collector.last_name || '')).trim();
+  const collCode = 'COL-' + String(collector.id).padStart(4, '0');
+
+  if (mpDepth === 3) {
+    return `CON Confirm purchase:\n${weight}kg ${material}\nFrom: ${collName} (${collCode})\nPrice: GH₵${price.toFixed(2)}/kg\nTotal: GH₵${total}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  // Execute
+  if (mpDepth === 4) {
+    if (mp[3] === '2') return 'END Cancelled.';
+    if (mp[3] === '1') {
+      const result = await pool.query(
+        `INSERT INTO pending_transactions
+          (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
+           price_per_kg, total_price, status, transaction_type, source)
+         VALUES ($1, $2, $3, $4, $4, $5, $6, 'pending', 'aggregator_purchase', 'ussd')
+         RETURNING id`,
+        [collector.id, aggregator.id, material, weight, price, parseFloat(total)]
+      );
+      const txnId = result.rows[0].id;
+      const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
+      return `END PURCHASE LOGGED\nRef: ${ref}\n${weight}kg ${material} from ${collName}\nTotal: GH₵${total}\nStatus: Pending\nCollector: ${collector.phone}, ${collector.city || ''}`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function resolveCollectorForPurchase(m, aggregator) {
+  // First, check if the aggregator has any previous collectors
+  const collectors = await pool.query(
+    `SELECT c.id, c.first_name, c.last_name, c.phone, c.city,
+            COUNT(t.id) as txns
+     FROM collectors c
+     JOIN transactions t ON t.collector_id = c.id
+     WHERE t.aggregator_id = $1
+     GROUP BY c.id
+     ORDER BY txns DESC
+     LIMIT 3`,
+    [aggregator.id]
+  );
+
+  const hasList = collectors.rows.length > 0;
+  const phoneOptionIndex = hasList ? collectors.rows.length + 1 : null;
+
+  // ── Empty state: m[0] is a phone number directly ──
+  if (!hasList) {
+    if (m.length === 0) return { response: null };
+
+    // m[0] = phone number
+    const phoneVariants = getPhoneVariants(normalizeGhanaPhone(m[0]));
+    const found = await pool.query(
+      `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+    if (!found.rows.length) {
+      return { response: 'END Collector not registered.\nAsk them to dial *920*123#\nto register first.' };
+    }
+    const coll = found.rows[0];
+    const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
+    const collCode = 'COL-' + String(coll.id).padStart(4, '0');
+    if (m.length === 1) {
+      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm — proceed\n2. Try different number\n0. Cancel` };
+    }
+    if (m[1] === '0') return { response: 'END Cancelled.' };
+    if (m[1] === '2') return { response: 'CON Enter collector phone\nnumber:' };
+    return { collector: coll, menuParts: m.slice(2) };
+  }
+
+  // ── Has list: m[0] is either a collector index, the phone option, or cancel ──
+  if (m[0] === '0') return { response: 'END Cancelled.' };
+
+  const choice = parseInt(m[0]);
+
+  // Phone lookup option (last numbered option in list)
+  if (choice === phoneOptionIndex) {
+    if (m.length === 1) return { response: 'CON Enter collector phone\nnumber:' };
+    const phoneVariants = getPhoneVariants(normalizeGhanaPhone(m[1]));
+    const found = await pool.query(
+      `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+    if (!found.rows.length) {
+      return { response: 'END Collector not registered.\nAsk them to dial *920*123#\nto register first.' };
+    }
+    const coll = found.rows[0];
+    const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
+    const collCode = 'COL-' + String(coll.id).padStart(4, '0');
+    if (m.length === 2) {
+      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm — proceed\n2. Try different number\n0. Cancel` };
+    }
+    if (m[2] === '0') return { response: 'END Cancelled.' };
+    if (m[2] === '2') return { response: 'CON Enter collector phone\nnumber:' };
+    return { collector: coll, menuParts: m.slice(3) };
+  }
+
+  // List selection
+  const selectedCollector = collectors.rows[choice - 1];
+  if (!selectedCollector) return { response: 'END Invalid choice.\nDial again to retry.' };
+
+  const fullColl = await pool.query(
+    `SELECT id, first_name, last_name, phone, city FROM collectors WHERE id = $1`,
+    [selectedCollector.id]
+  );
+  return { collector: fullColl.rows[0], menuParts: m.slice(1) };
+}
+
+async function handleAggregatorPending(m, aggregator) {
+  const depth = m.length;
+
+  const REJECTION_REASONS = {
+    '1': 'Weight mismatch',
+    '2': 'Wrong material',
+    '3': 'Contaminated',
+    '4': 'Not received'
+  };
+
+  // depth 0: list pending drop-offs
+  if (depth === 0) {
+    const pending = await pool.query(
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.created_at,
+              c.first_name AS collector_first_name, c.last_name AS collector_last_name,
+              c.phone AS collector_phone, c.city AS collector_city,
+              'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
+       FROM pending_transactions pt
+       LEFT JOIN collectors c ON c.id = pt.collector_id
+       WHERE pt.aggregator_id = $1 AND pt.status = 'pending'
+         AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+       ORDER BY pt.created_at DESC
+       LIMIT 4`,
+      [aggregator.id]
+    );
+    if (!pending.rows.length) return 'END No pending drop-offs.';
+    let msg = 'CON Pending drop-offs:\n';
+    pending.rows.forEach(function(p, i) {
+      var name = ((p.collector_first_name || '') + ' ' + (p.collector_last_name || '')).trim() || p.collector_code;
+      var date = new Date(p.created_at);
+      var dateStr = date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+      msg += (i + 1) + '. ' + name + '\n   ' + parseFloat(p.gross_weight_kg).toFixed(0) + 'kg ' + p.material_type + ' · ' + dateStr + '\n';
+    });
+    msg += '0. Back';
+    return msg;
+  }
+
+  // depth 1: show details of selected drop-off
+  const choice = parseInt(m[0]);
+  if (m[0] === '0') return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. My Stats\n0. Exit';
+
+  // Re-fetch pending list to get the selected item
+  const pending = await pool.query(
+    `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.created_at,
+            c.first_name AS collector_first_name, c.last_name AS collector_last_name,
+            c.phone AS collector_phone, c.city AS collector_city,
+            'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
+     FROM pending_transactions pt
+     LEFT JOIN collectors c ON c.id = pt.collector_id
+     WHERE pt.aggregator_id = $1 AND pt.status = 'pending'
+       AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+     ORDER BY pt.created_at DESC
+     LIMIT 4`,
+    [aggregator.id]
+  );
+  const selected = pending.rows[choice - 1];
+  if (!selected) return 'END Invalid choice.\nDial again to retry.';
+
+  if (depth === 1) {
+    var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
+    var date = new Date(selected.created_at);
+    var dateStr = date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+    return `CON Drop-off details:\n${name} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}\nSubmitted: ${dateStr}\nPhone: ${selected.collector_phone || '—'}\n\n1. Confirm receipt\n2. Reject\n0. Back`;
+  }
+
+  // depth 2: confirm or reject
+  if (depth === 2) {
+    if (m[1] === '0') return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. My Stats\n0. Exit';
+
+    if (m[1] === '1') {
+      // Confirm
+      await pool.query(
+        `UPDATE pending_transactions SET status = 'confirmed', updated_at = NOW() WHERE id = $1`,
+        [selected.id]
+      );
+      const remainCount = await pool.query(
+        `SELECT COUNT(*) as count FROM pending_transactions
+         WHERE aggregator_id = $1 AND status = 'pending'
+           AND transaction_type IN ('collector_sale', 'aggregator_purchase')`,
+        [aggregator.id]
+      );
+      var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
+      return `END DROP-OFF CONFIRMED\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type} from ${name}\nStatus: Confirmed\n\nRemaining pending: ${remainCount.rows[0].count}`;
+    }
+
+    if (m[1] === '2') {
+      // Rejection reason selection
+      return 'CON Reason for rejection:\n1. Weight mismatch\n2. Wrong material\n3. Contaminated\n4. Not received';
+    }
+  }
+
+  // depth 3: execute rejection
+  if (depth === 3 && m[1] === '2') {
+    const reason = REJECTION_REASONS[m[2]];
+    if (!reason) return 'END Invalid choice.\nDial again to retry.';
+    await pool.query(
+      `UPDATE pending_transactions SET status = 'rejected', rejection_reason = $1, updated_at = NOW() WHERE id = $2`,
+      [reason, selected.id]
+    );
+    const remainCount = await pool.query(
+      `SELECT COUNT(*) as count FROM pending_transactions
+       WHERE aggregator_id = $1 AND status = 'pending'
+         AND transaction_type IN ('collector_sale', 'aggregator_purchase')`,
+      [aggregator.id]
+    );
+    var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
+    return `END DROP-OFF REJECTED\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type} from ${name}\nReason: ${reason}\n\nRemaining pending: ${remainCount.rows[0].count}`;
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
 app.post('/api/ussd', async (req, res) => {
   const { sessionId, serviceCode, phoneNumber, text } = req.body;
   const phone = normalizeGhanaPhone(phoneNumber);
   const parts = text ? text.split('*') : [];
-  let response = '', collectorId = null;
+  let response = '', collectorId = null, aggregatorId = null, agentId = null;
   try {
     const phoneVariants = getPhoneVariants(phone);
-    const result = await pool.query(`SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`, [phoneVariants]);
-    if (!result.rows.length) response = await handleUnregisteredUssd(parts, phone);
-    else { collectorId = result.rows[0].id; response = await handleRegisteredUssd(parts, result.rows[0]); }
+
+    // 1. Check collectors first (largest USSD user group)
+    const collResult = await pool.query(
+      `SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+    if (collResult.rows.length) {
+      collectorId = collResult.rows[0].id;
+      response = await handleRegisteredUssd(parts, collResult.rows[0]);
+    } else {
+      // 2. Check aggregators
+      const aggResult = await pool.query(
+        `SELECT id, name, company, phone, pin, city, region FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+        [phoneVariants]
+      );
+      if (aggResult.rows.length) {
+        aggregatorId = aggResult.rows[0].id;
+        response = await handleAggregatorUssd(parts, aggResult.rows[0]);
+      } else {
+        // 3. Check agents
+        const agentResult = await pool.query(
+          `SELECT id, aggregator_id, first_name, last_name, phone, pin, city, region FROM agents WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+          [phoneVariants]
+        );
+        if (agentResult.rows.length) {
+          agentId = agentResult.rows[0].id;
+          // Agent handler will be added in Phase 3 — for now, show a message
+          response = 'END Agent USSD coming soon.\nUse the web dashboard for now.';
+        } else {
+          // 4. Unregistered — collector self-registration
+          response = await handleUnregisteredUssd(parts, phone);
+        }
+      }
+    }
   } catch (err) { console.error('[USSD] Error:', err); response = 'END System error. Try again later.'; }
-  try { await pool.query(`INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, text_input, response) VALUES ($1,$2,$3,$4,$5,$6)`, [sessionId, phone, serviceCode, collectorId, text||'', response]); } catch (logErr) { console.error('[USSD] Log error:', logErr); }
+
+  // Log session with role-specific ID
+  try {
+    await pool.query(
+      `INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, aggregator_id, agent_id, text_input, response)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [sessionId, phone, serviceCode, collectorId, aggregatorId, agentId, text||'', response]
+    );
+  } catch (logErr) { console.error('[USSD] Log error:', logErr); }
+
   res.set('Content-Type', 'text/plain');
   res.send(response);
 });
@@ -3284,8 +3679,11 @@ app.post('/api/auth/login', async (req, res) => {
       }
 
       // 2. Aggregators
-      const aggResult = await pool.query(`SELECT id, name, company, phone FROM aggregators WHERE phone=$1 AND pin=$2 AND is_active=true`, [phone.trim(), pin.trim()]);
-      if (aggResult.rows.length) {
+      const aggResult = await pool.query(
+        `SELECT id, name, company, phone, pin FROM aggregators WHERE phone=$1 AND is_active=true`,
+        [phone.trim()]
+      );
+      if (aggResult.rows.length && await verifyPassword(pin.trim(), aggResult.rows[0].pin)) {
         clearLoginAttempts(phone.trim());
         const a = aggResult.rows[0];
         const token = generateToken({ type: 'aggregator', id: a.id, phone: a.phone, role: 'aggregator' }, AUTH_SECRET);
