@@ -2865,6 +2865,452 @@ async function handleAggregatorPending(m, aggregator) {
   return 'END Invalid option.\nDial again to retry.';
 }
 
+async function handleAgentUssd(parts, agent) {
+  if (parts.length === 0) return `CON Welcome ${agent.first_name}!\n(Agent)\nEnter your PIN:`;
+
+  // ── PIN validation with retry (max 3 attempts) ──
+  let pinIndex = -1;
+  for (let i = 0; i < Math.min(parts.length, 3); i++) {
+    if (await verifyPassword(parts[i], agent.pin)) {
+      pinIndex = i;
+      break;
+    }
+  }
+  if (pinIndex === -1) {
+    const attempts = parts.length;
+    if (attempts >= 3) return 'END Too many wrong PINs.\nDial again to retry.';
+    const remaining = 3 - attempts;
+    return `CON Wrong PIN.\n${remaining} attempt${remaining > 1 ? 's' : ''} remaining.\nEnter your PIN:`;
+  }
+
+  const m = parts.slice(pinIndex + 1);
+  const depth = m.length;
+
+  // Main menu — 4 items (at the spec max)
+  if (depth === 0) return `CON Working for: ${agent.aggregator_name}\n1. Log Collection\n2. Record Payment\n3. Register Collector\n4. My Stats\n0. Exit`;
+
+  // ── Exit ──
+  if (m[0] === '0') return `END Thank you, ${agent.first_name}!\nWorking for: ${agent.aggregator_name}\n\nQuestions? Call your\naggregator: ${agent.aggregator_phone}`;
+
+  // ── Log Collection ──
+  if (m[0] === '1') return await handleAgentCollection(m.slice(1), agent);
+
+  // ── Record Payment ──
+  if (m[0] === '2') return await handleAgentPayment(m.slice(1), agent);
+
+  // ── Register Collector ──
+  if (m[0] === '3') return await handleAgentRegister(m.slice(1), agent, null);
+
+  // ── My Stats ──
+  if (m[0] === '4') {
+    const [todayStats, weekStats, regCount] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) as count, COALESCE(SUM(pt.gross_weight_kg), 0) as kg
+         FROM agent_activity aa
+         JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
+         WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+         AND aa.created_at >= CURRENT_DATE`,
+        [agent.id]
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count, COALESCE(SUM(pt.gross_weight_kg), 0) as kg
+         FROM agent_activity aa
+         JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
+         WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+         AND aa.created_at >= date_trunc('week', CURRENT_DATE)`,
+        [agent.id]
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count FROM agent_activity WHERE agent_id = $1 AND action_type = 'registered_collector'`,
+        [agent.id]
+      )
+    ]);
+    const t = todayStats.rows[0], w = weekStats.rows[0], rc = regCount.rows[0];
+    let msg = `END Your stats, ${agent.first_name}:\n\nToday: ${t.count} collections, ${parseFloat(t.kg).toFixed(1)} kg\nThis week: ${w.count} collections, ${parseFloat(w.kg).toFixed(1)} kg\nRegistered: ${rc.count} collectors\n\nWorking for: ${agent.aggregator_name}`;
+    if (parseInt(t.count) === 0 && parseInt(w.count) === 0) msg += '\nStart by logging a\ncollection!';
+    return msg;
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAgentCollection(m, agent) {
+  const depth = m.length;
+
+  // depth 0: select collector (show list + phone lookup option)
+  if (depth === 0) {
+    const collectors = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.phone,
+              'COL-' || LPAD(c.id::text, 4, '0') AS display_code,
+              COUNT(t.id) as txns
+       FROM collectors c
+       JOIN pending_transactions t ON t.collector_id = c.id
+       WHERE t.aggregator_id = $1
+       GROUP BY c.id
+       ORDER BY MAX(t.created_at) DESC
+       LIMIT 3`,
+      [agent.aggregator_id]
+    );
+    if (!collectors.rows.length) {
+      return 'CON No previous collectors.\nEnter collector phone\nnumber:';
+    }
+    let msg = 'CON Select collector:\n';
+    collectors.rows.forEach(function(c, i) {
+      var name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || c.display_code;
+      msg += (i + 1) + '. ' + name + '\n   ' + c.display_code + ' \u00b7 ' + c.txns + ' txn' + (parseInt(c.txns) > 1 ? 's' : '') + '\n';
+    });
+    msg += (collectors.rows.length + 1) + '. Enter phone number\n0. Cancel';
+    return msg;
+  }
+
+  const resolved = await resolveCollectorForAgent(m, agent);
+  if (resolved.response) return resolved.response;
+  if (!resolved.collector) return 'END Error resolving collector.\nDial again to retry.';
+
+  const collector = resolved.collector;
+  const mp = resolved.menuParts;
+  const mpDepth = mp.length;
+
+  // Select material
+  if (mpDepth === 0) return 'CON Select material:\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+  const material = USSD_MATERIALS[mp[0]];
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  // Enter weight
+  if (mpDepth === 1) return 'CON Enter weight in kg:';
+
+  const weight = parseFloat(mp[1]);
+  if (isNaN(weight) || weight <= 0 || weight > 9999) return 'END Invalid weight.\nDial again to retry.';
+
+  // Enter price per kg
+  if (mpDepth === 2) return 'CON Enter price per kg\n(GH\u20b5):';
+
+  const price = parseFloat(mp[2]);
+  if (isNaN(price) || price <= 0 || price > 999) return 'END Invalid price.\nDial again to retry.';
+
+  // Confirm
+  const total = (weight * price).toFixed(2);
+  const collName = ((collector.first_name || '') + ' ' + (collector.last_name || '')).trim();
+  const collCode = 'COL-' + String(collector.id).padStart(4, '0');
+
+  if (mpDepth === 3) {
+    return `CON Confirm collection:\n${weight}kg ${material}\nFrom: ${collName} (${collCode})\nPrice: GH\u20b5${price.toFixed(2)}/kg\nTotal: GH\u20b5${total}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  // Execute
+  if (mpDepth === 4) {
+    if (mp[3] === '2') return 'END Cancelled.';
+    if (mp[3] === '1') {
+      const result = await pool.query(
+        `INSERT INTO pending_transactions
+          (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
+           price_per_kg, total_price, status, transaction_type, source)
+         VALUES ($1, $2, $3, $4, $4, $5, $6, 'completed', 'aggregator_sale', 'ussd')
+         RETURNING id`,
+        [collector.id, agent.aggregator_id, material, weight, price, parseFloat(total)]
+      );
+      const txnId = result.rows[0].id;
+      const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
+      // Log to agent_activity
+      await pool.query(
+        `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
+         VALUES ($1, $2, 'collection', $3, $4, 'transaction')`,
+        [agent.id, agent.aggregator_id,
+         `Logged ${weight} kg ${material} from collector ${collector.id} via USSD`,
+         txnId]
+      );
+      return `END COLLECTION LOGGED\nRef: ${ref}\n${weight}kg ${material}\nFrom: ${collName}\nPhone: ${collector.phone}\nCity: ${collector.city || ''}\nTotal: GH\u20b5${total}\n\nFor: ${agent.aggregator_name}`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function resolveCollectorForAgent(m, agent) {
+  const collectors = await pool.query(
+    `SELECT c.id, c.first_name, c.last_name, c.phone, c.city,
+            COUNT(t.id) as txns
+     FROM collectors c
+     JOIN pending_transactions t ON t.collector_id = c.id
+     WHERE t.aggregator_id = $1
+     GROUP BY c.id
+     ORDER BY MAX(t.created_at) DESC
+     LIMIT 3`,
+    [agent.aggregator_id]
+  );
+
+  const hasList = collectors.rows.length > 0;
+  const phoneOptionIndex = hasList ? collectors.rows.length + 1 : null;
+
+  // ── Empty state: m[0] is a phone number directly ──
+  if (!hasList) {
+    if (m.length === 0) return { response: null };
+
+    const phoneVariants = getPhoneVariants(normalizeGhanaPhone(m[0]));
+    const found = await pool.query(
+      `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+    if (!found.rows.length) {
+      // Not registered — offer to register (difference from aggregator flow)
+      if (m.length === 1) return { response: `CON No collector found\nwith that phone.\n\n1. Register them now\n0. Cancel` };
+      if (m[1] === '0') return { response: 'END Cancelled.' };
+      if (m[1] === '1') {
+        // Redirect into register flow with phone pre-filled
+        return { response: await handleAgentRegister(m.slice(2), agent, m[0]) };
+      }
+      return { response: 'END Invalid option.\nDial again to retry.' };
+    }
+    const coll = found.rows[0];
+    const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
+    const collCode = 'COL-' + String(coll.id).padStart(4, '0');
+    if (m.length === 1) {
+      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm \u2014 proceed\n2. Try different number\n0. Cancel` };
+    }
+    if (m[1] === '0') return { response: 'END Cancelled.' };
+    if (m[1] === '2') return { response: 'CON Enter collector phone\nnumber:' };
+    return { collector: coll, menuParts: m.slice(2) };
+  }
+
+  // ── Has list ──
+  if (m[0] === '0') return { response: 'END Cancelled.' };
+
+  const choice = parseInt(m[0]);
+
+  // Phone lookup option
+  if (choice === phoneOptionIndex) {
+    if (m.length === 1) return { response: 'CON Enter collector phone\nnumber:' };
+    const phoneVariants = getPhoneVariants(normalizeGhanaPhone(m[1]));
+    const found = await pool.query(
+      `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+    if (!found.rows.length) {
+      if (m.length === 2) return { response: `CON No collector found\nwith that phone.\n\n1. Register them now\n0. Cancel` };
+      if (m[2] === '0') return { response: 'END Cancelled.' };
+      if (m[2] === '1') {
+        return { response: await handleAgentRegister(m.slice(3), agent, m[1]) };
+      }
+      return { response: 'END Invalid option.\nDial again to retry.' };
+    }
+    const coll = found.rows[0];
+    const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
+    const collCode = 'COL-' + String(coll.id).padStart(4, '0');
+    if (m.length === 2) {
+      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm \u2014 proceed\n2. Try different number\n0. Cancel` };
+    }
+    if (m[2] === '0') return { response: 'END Cancelled.' };
+    if (m[2] === '2') return { response: 'CON Enter collector phone\nnumber:' };
+    return { collector: coll, menuParts: m.slice(3) };
+  }
+
+  // List selection
+  const selectedCollector = collectors.rows[choice - 1];
+  if (!selectedCollector) return { response: 'END Invalid choice.\nDial again to retry.' };
+
+  const fullColl = await pool.query(
+    `SELECT id, first_name, last_name, phone, city FROM collectors WHERE id = $1`,
+    [selectedCollector.id]
+  );
+  return { collector: fullColl.rows[0], menuParts: m.slice(1) };
+}
+
+async function handleAgentPayment(m, agent) {
+  const depth = m.length;
+
+  // depth 0: list unpaid collections (agent-specific via agent_activity)
+  if (depth === 0) {
+    const unpaid = await pool.query(
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price,
+              c.first_name, c.last_name, c.phone,
+              'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
+       FROM agent_activity aa
+       JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
+       JOIN collectors c ON pt.collector_id = c.id
+       WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+       AND pt.payment_status = 'unpaid'
+       ORDER BY pt.created_at DESC
+       LIMIT 3`,
+      [agent.id]
+    );
+    if (!unpaid.rows.length) return 'END No unpaid collections.\n\nLog a collection first,\nthen come back to\nrecord the payment.';
+    let msg = 'CON Unpaid collections:\n';
+    unpaid.rows.forEach(function(u, i) {
+      var name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim();
+      var shortName = name.length > 12 ? name.split(' ')[0] + ' ' + (name.split(' ')[1] || '').charAt(0) + '.' : name;
+      msg += (i + 1) + '. ' + shortName + ' ' + parseFloat(u.gross_weight_kg).toFixed(0) + 'kg ' + u.material_type + '\n   GH\u20b5 ' + parseFloat(u.total_price).toFixed(2) + '\n';
+    });
+    msg += '0. Back';
+    return msg;
+  }
+
+  if (m[0] === '0') return `CON Working for: ${agent.aggregator_name}\n1. Log Collection\n2. Record Payment\n3. Register Collector\n4. My Stats\n0. Exit`;
+
+  // Re-fetch to get selected item
+  const unpaid = await pool.query(
+    `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price,
+            c.id AS collector_id, c.first_name, c.last_name, c.phone, c.city,
+            'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
+     FROM agent_activity aa
+     JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
+     JOIN collectors c ON pt.collector_id = c.id
+     WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+     AND pt.payment_status = 'unpaid'
+     ORDER BY pt.created_at DESC
+     LIMIT 3`,
+    [agent.id]
+  );
+
+  const choiceIdx = parseInt(m[0]) - 1;
+  const selected = unpaid.rows[choiceIdx];
+  if (!selected) return 'END Invalid choice.\nDial again to retry.';
+
+  const collName = ((selected.first_name || '') + ' ' + (selected.last_name || '')).trim();
+
+  // depth 1: confirm payment
+  if (depth === 1) {
+    return `CON Pay collector:\n${collName} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)} kg ${selected.material_type}\nAmount: GH\u20b5 ${parseFloat(selected.total_price).toFixed(2)}\n\n1. Confirm payment\n2. Cancel`;
+  }
+
+  // depth 2: execute
+  if (depth === 2) {
+    if (m[1] === '2') return 'END Cancelled.';
+    if (m[1] === '1') {
+      await pool.query(
+        `UPDATE pending_transactions
+         SET payment_status = 'paid', payment_method = 'cash',
+             payment_completed_at = NOW(), updated_at = NOW()
+         WHERE id = $1 AND payment_status = 'unpaid'`,
+        [selected.id]
+      );
+      await pool.query(
+        `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
+         VALUES ($1, $2, 'payment', $3, $4, 'transaction')`,
+        [agent.id, agent.aggregator_id,
+         `Paid GH\u20b5${parseFloat(selected.total_price).toFixed(2)} to ${collName} for ${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}`,
+         selected.id]
+      );
+      const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(selected.id).padStart(4, '0');
+      return `END Payment recorded!\nRef: ${ref}\n\nGH\u20b5 ${parseFloat(selected.total_price).toFixed(2)} paid to\n${collName}\nPhone: ${selected.phone}\n\nFor: ${agent.aggregator_name}`;
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+async function handleAgentRegister(m, agent, prefilledPhone) {
+  const depth = m.length;
+
+  // If phone is pre-filled (redirect from collection flow), skip phone entry
+  // Flow: first_name > last_name > city > confirm > END
+  // If no pre-fill: first_name > last_name > phone > city > confirm > END
+
+  // depth 0: first name
+  if (depth === 0) return 'CON Enter collector\'s\nfirst name:';
+
+  const firstName = m[0];
+
+  // depth 1: last name
+  if (depth === 1) return 'CON Enter collector\'s\nlast name:';
+
+  const lastName = m[1];
+
+  if (prefilledPhone) {
+    // Skip phone — go straight to city
+    // depth 2: city
+    if (depth === 2) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+
+    const cityData = USSD_CITIES[m[2]];
+    if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+    // depth 3: confirm
+    if (depth === 3) {
+      const phone = normalizeGhanaPhone(prefilledPhone);
+      const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
+      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+    }
+
+    // depth 4: execute
+    if (depth === 4) {
+      if (m[3] === '2') return 'END Cancelled.';
+      if (m[3] === '1') {
+        try {
+          const hashedPin = await hashPassword('0000');
+          const normalized = normalizeGhanaPhone(prefilledPhone);
+          const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : prefilledPhone;
+          const result = await pool.query(
+            `INSERT INTO collectors (first_name, last_name, phone, pin, city, region, must_change_pin)
+             VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+            [firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+          );
+          await pool.query(
+            `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
+             VALUES ($1, $2, 'registered_collector', $3, $4, 'collector')`,
+            [agent.id, agent.aggregator_id,
+             `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
+             result.rows[0].id]
+          );
+          return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nAsk them to change\ntheir PIN on first use.\n\nFor: ${agent.aggregator_name}`;
+        } catch (err) {
+          if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
+          throw err;
+        }
+      }
+    }
+    return 'END Invalid option.\nDial again to retry.';
+  }
+
+  // No pre-filled phone — full flow
+  // depth 2: phone
+  if (depth === 2) return 'CON Enter collector\'s\nphone number:';
+
+  const phone = m[2];
+
+  // depth 3: city
+  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+
+  const cityData = USSD_CITIES[m[3]];
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  // depth 4: confirm
+  if (depth === 4) {
+    const normalized = normalizeGhanaPhone(phone);
+    const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  // depth 5: execute
+  if (depth === 5) {
+    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '1') {
+      try {
+        const hashedPin = await hashPassword('0000');
+        const normalized = normalizeGhanaPhone(phone);
+        const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+        const result = await pool.query(
+          `INSERT INTO collectors (first_name, last_name, phone, pin, city, region, must_change_pin)
+           VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+          [firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+        );
+        await pool.query(
+          `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
+           VALUES ($1, $2, 'registered_collector', $3, $4, 'collector')`,
+          [agent.id, agent.aggregator_id,
+           `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
+           result.rows[0].id]
+        );
+        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nAsk them to change\ntheir PIN on first use.\n\nFor: ${agent.aggregator_name}`;
+      } catch (err) {
+        if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
+        throw err;
+      }
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
 app.post('/api/ussd', async (req, res) => {
   const { sessionId, serviceCode, phoneNumber, text } = req.body;
   const phone = normalizeGhanaPhone(phoneNumber);
@@ -2893,13 +3339,16 @@ app.post('/api/ussd', async (req, res) => {
       } else {
         // 3. Check agents
         const agentResult = await pool.query(
-          `SELECT id, aggregator_id, first_name, last_name, phone, pin, city, region FROM agents WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+          `SELECT a.id, a.aggregator_id, a.first_name, a.last_name, a.phone, a.pin, a.city, a.region,
+                  agg.name AS aggregator_name, agg.phone AS aggregator_phone
+           FROM agents a
+           JOIN aggregators agg ON agg.id = a.aggregator_id
+           WHERE a.phone=ANY($1) AND a.is_active=true LIMIT 1`,
           [phoneVariants]
         );
         if (agentResult.rows.length) {
           agentId = agentResult.rows[0].id;
-          // Agent handler will be added in Phase 3 — for now, show a message
-          response = 'END Agent USSD coming soon.\nUse the web dashboard for now.';
+          response = await handleAgentUssd(parts, agentResult.rows[0]);
         } else {
           // 4. Unregistered — collector self-registration
           response = await handleUnregisteredUssd(parts, phone);
