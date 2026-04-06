@@ -89,6 +89,9 @@ function verifyToken(token, secret) {
 }
 
 async function verifyPassword(password, hash) {
+  if (!hash) return false;
+  // Legacy: if hash has no colon, it's plaintext from old registrations
+  if (!hash.includes(':')) return password === hash;
   return new Promise((resolve, reject) => {
     const [salt, stored] = hash.split(':');
     crypto.scrypt(password, salt, 64, (err, key) => {
@@ -2291,6 +2294,12 @@ function getPhoneVariants(normalizedPhone) {
 }
 
 const USSD_MATERIALS = { '1': 'PET', '2': 'HDPE', '3': 'LDPE', '4': 'PP' };
+const USSD_CITIES = {
+  '1': { city: 'Accra', region: 'Greater Accra' },
+  '2': { city: 'Kumasi', region: 'Ashanti' },
+  '3': { city: 'Tamale', region: 'Northern' },
+  '4': { city: 'Takoradi', region: 'Western' }
+};
 
 async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
@@ -2299,13 +2308,26 @@ async function handleUnregisteredUssd(parts, phone) {
   if (parts[0] === '1') {
     if (level === 1) return 'CON Enter your first name:';
     if (level === 2) return 'CON Enter last name\n(0 to skip):';
-    if (level === 3) return 'CON Create a 4-digit PIN:';
+    if (level === 3) return 'CON Select your city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
     if (level === 4) {
-      const firstName = parts[1].trim(), lastName = parts[2] === '0' ? '' : parts[2].trim(), pin = parts[3].trim();
+      const cityData = USSD_CITIES[parts[3]];
+      if (!cityData) return 'END Invalid city.\nDial again to retry.';
+      return 'CON Create a 4-digit PIN:';
+    }
+    if (level === 5) {
+      const firstName = parts[1].trim();
+      const lastName = parts[2] === '0' ? '' : parts[2].trim();
+      const cityData = USSD_CITIES[parts[3]];
+      const pin = parts[4].trim();
+      if (!cityData) return 'END Invalid city.\nDial again to retry.';
       if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return 'END PIN must be 4-6 digits.\nDial again to retry.';
       try {
-        await pool.query(`INSERT INTO collectors (first_name, last_name, phone, pin, region) VALUES ($1,$2,$3,$4,$5)`, [firstName, lastName, phone, pin, 'Ghana']);
-        return `END Registered! Welcome ${firstName}.\nDial again to start.`;
+        const hashedPin = await hashPassword(pin);
+        await pool.query(
+          `INSERT INTO collectors (first_name, last_name, phone, pin, city, region) VALUES ($1,$2,$3,$4,$5,$6)`,
+          [firstName, lastName, phone, hashedPin, cityData.city, cityData.region]
+        );
+        return `END Registered! Welcome ${firstName}.\nCity: ${cityData.city}\nDial again to start.`;
       } catch (err) {
         if (err.code === '23505') return 'END Phone already registered.\nDial again to login.';
         throw err;
@@ -2316,34 +2338,175 @@ async function handleUnregisteredUssd(parts, phone) {
 }
 
 async function handleRegisteredUssd(parts, collector) {
-  const level = parts.length;
-  if (level === 0) return `CON Welcome ${collector.first_name}!\nEnter your PIN:`;
-  if (!(await verifyPassword(parts[0], collector.pin))) return 'END Invalid PIN.\nDial again to retry.';
-  if (level === 1) return 'CON 1. Log Collection\n2. Check Balance\n3. Exit';
-  const menu = parts[1];
-  if (menu === '3') return `END Thank you, ${collector.first_name}!`;
-  if (menu === '2') {
-    const stats = await pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as total_kg, COALESCE(SUM(total_price),0) as earned, COUNT(*) as txns FROM transactions WHERE collector_id=$1`, [collector.id]);
-    const s = stats.rows[0];
-    return `END Balance:\nTotal: ${parseFloat(s.total_kg).toFixed(1)}kg\nEarned: GHS ${parseFloat(s.earned).toFixed(2)}\nTransactions: ${s.txns}`;
+  if (parts.length === 0) return `CON Welcome ${collector.first_name}!\nEnter your PIN:`;
+
+  // ── PIN validation with retry (max 3 attempts) ──
+  let pinIndex = -1;
+  for (let i = 0; i < Math.min(parts.length, 3); i++) {
+    if (await verifyPassword(parts[i], collector.pin)) {
+      pinIndex = i;
+      break;
+    }
   }
-  if (menu === '1') {
-    if (level === 2) return 'CON Select material:\n1.PET 2.HDPE\n3.LDPE 4.PP';
-    const material = USSD_MATERIALS[parts[2]];
+  if (pinIndex === -1) {
+    const attempts = parts.length;
+    if (attempts >= 3) return 'END Too many wrong PINs.\nDial again to retry.';
+    const remaining = 3 - attempts;
+    return `CON Wrong PIN.\n${remaining} attempt${remaining > 1 ? 's' : ''} remaining.\nEnter your PIN:`;
+  }
+
+  // ── Menu navigation (parts after valid PIN) ──
+  const m = parts.slice(pinIndex + 1);
+  const depth = m.length;
+
+  if (depth === 0) return 'CON 1. Log Drop-off\n2. My Stats\n3. Prices Near Me\n0. Exit';
+
+  // ── Exit ──
+  if (m[0] === '0') return `END Thank you, ${collector.first_name}!`;
+
+  // ── My Stats ──
+  if (m[0] === '2') {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+    const [confirmed, pending, rating] = await Promise.all([
+      pool.query(
+        `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
+                COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
+                COALESCE(SUM(total_price), 0) as total_earned,
+                CASE WHEN SUM(net_weight_kg) > 0 THEN (SUM(total_price) / SUM(net_weight_kg))::NUMERIC(10,2) ELSE 0 END as avg_price,
+                COUNT(*) as total_txns
+         FROM transactions WHERE collector_id = $1 AND transaction_date >= $3`,
+        [collector.id, monthStart, yearStart]
+      ),
+      pool.query(`SELECT COUNT(*) as count FROM pending_transactions WHERE collector_id = $1 AND status = 'pending'`, [collector.id]),
+      pool.query(`SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count FROM ratings WHERE rated_type = 'collector' AND rated_id = $1`, [collector.id])
+    ]);
+    const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
+    return `END My Stats\n\nThis month: ${parseFloat(c.month_kg).toFixed(1)} kg\nYear to date: ${parseFloat(c.ytd_kg).toFixed(1)} kg\nEarned: GH₵${parseFloat(c.total_earned).toFixed(2)}\nAvg price: GH₵${parseFloat(c.avg_price).toFixed(2)}/kg\nRating: ${parseFloat(r.avg) > 0 ? '★' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'No ratings yet'}\n\n${c.total_txns} confirmed, ${p.count} pending`;
+  }
+
+  // ── Prices Near Me ──
+  if (m[0] === '3') {
+    const city = collector.city || 'Accra';
+    const prices = await pool.query(
+      `SELECT DISTINCT ON (pp.material_type)
+              pp.material_type, pp.price_per_kg_ghs, a.name
+       FROM posted_prices pp
+       JOIN aggregators a ON a.id = pp.poster_id
+       WHERE pp.poster_type = 'aggregator' AND pp.is_active = true AND a.city = $1
+       ORDER BY pp.material_type, pp.price_per_kg_ghs DESC`,
+      [city]
+    );
+    if (!prices.rows.length) return `END No prices posted near ${city}.\nCheck back later.`;
+    let msg = `END Prices Near Me (${city})\n\n`;
+    prices.rows.forEach(function(p) {
+      var name = (p.name || '').length > 10 ? p.name.substring(0, 9) + '.' : (p.name || '—');
+      msg += p.material_type.padEnd(6) + 'GH₵' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg  ' + name + '\n';
+    });
+    msg += '\nDial again to log a drop-off.';
+    return msg;
+  }
+
+  // ── Log Drop-off ──
+  if (m[0] === '1') {
+    // depth 1: select material
+    if (depth === 1) return 'CON Select material:\n1. PET\n2. HDPE\n3. LDPE\n4. PP';
+
+    const material = USSD_MATERIALS[m[1]];
     if (!material) return 'END Invalid material.\nDial again to retry.';
-    if (level === 3) return 'CON Enter weight in kg:';
-    const weight = parseFloat(parts[3]);
+
+    // depth 2: enter weight
+    if (depth === 2) return 'CON Enter weight in kg:';
+
+    const weight = parseFloat(m[2]);
     if (isNaN(weight) || weight <= 0 || weight > 9999) return 'END Invalid weight.\nDial again to retry.';
-    if (level === 4) return `CON Log ${weight}kg ${material}?\n1. Confirm\n2. Cancel`;
-    if (level === 5) {
-      if (parts[4] === '2') return 'END Cancelled.';
-      if (parts[4] === '1') {
-        await pool.query(`INSERT INTO transactions (collector_id, material_type, gross_weight_kg, net_weight_kg, price_per_kg, total_price) VALUES ($1,$2,$3,$4,0,0)`, [collector.id, material, weight, weight]);
-        const today = await pool.query(`SELECT COALESCE(SUM(net_weight_kg),0) as today_kg FROM transactions WHERE collector_id=$1 AND transaction_date>=CURRENT_DATE`, [collector.id]);
-        return `END Logged! ${weight}kg ${material}\nToday: ${parseFloat(today.rows[0].today_kg).toFixed(1)}kg total`;
+
+    // depth 3: select aggregator
+    if (depth === 3) {
+      const city = collector.city || 'Accra';
+      const aggs = await pool.query(
+        `SELECT a.id, a.name, a.city,
+                COALESCE(a.average_rating, 0) as rating,
+                pp.price_per_kg_ghs
+         FROM aggregators a
+         JOIN posted_prices pp ON pp.poster_type = 'aggregator' AND pp.poster_id = a.id
+           AND pp.material_type = $1 AND pp.is_active = true
+         WHERE a.is_active = true AND a.city = $2
+         ORDER BY pp.price_per_kg_ghs DESC
+         LIMIT 4`,
+        [material, city]
+      );
+      if (!aggs.rows.length) return `END No aggregators buying ${material} near ${city}.\nDial again to try another material.`;
+      let msg = 'CON Select aggregator:\n';
+      aggs.rows.forEach(function(a, i) {
+        var ratingStr = parseFloat(a.rating) > 0 ? ' ★' + parseFloat(a.rating).toFixed(1) : '';
+        msg += (i + 1) + '. ' + a.name + '\n   ' + a.city + ratingStr + ' GH₵' + parseFloat(a.price_per_kg_ghs).toFixed(2) + '/kg\n';
+      });
+      msg += '0. Cancel';
+      return msg;
+    }
+
+    // depth 4: confirm — re-fetch aggregator data
+    if (depth === 4) {
+      if (m[3] === '0') return 'END Cancelled.';
+      const aggChoice = parseInt(m[3]);
+      if (isNaN(aggChoice) || aggChoice < 1) return 'END Invalid choice.\nDial again to retry.';
+      const city = collector.city || 'Accra';
+      const aggs = await pool.query(
+        `SELECT a.id, a.name, a.phone, a.city,
+                pp.price_per_kg_ghs
+         FROM aggregators a
+         JOIN posted_prices pp ON pp.poster_type = 'aggregator' AND pp.poster_id = a.id
+           AND pp.material_type = $1 AND pp.is_active = true
+         WHERE a.is_active = true AND a.city = $2
+         ORDER BY pp.price_per_kg_ghs DESC
+         LIMIT 4`,
+        [material, city]
+      );
+      const agg = aggs.rows[aggChoice - 1];
+      if (!agg) return 'END Invalid aggregator.\nDial again to retry.';
+      const price = parseFloat(agg.price_per_kg_ghs);
+      const total = (weight * price).toFixed(2);
+      return `CON Confirm drop-off:\n${weight}kg ${material}\nTo: ${agg.name}\nPrice: GH₵${price.toFixed(2)}/kg\nTotal: GH₵${total}\n\n1. Confirm\n2. Cancel`;
+    }
+
+    // depth 5: execute
+    if (depth === 5) {
+      if (m[4] === '2') return 'END Cancelled.';
+      if (m[4] === '1') {
+        const aggChoice = parseInt(m[3]);
+        const city = collector.city || 'Accra';
+        const aggs = await pool.query(
+          `SELECT a.id, a.name, a.phone, a.city,
+                  pp.price_per_kg_ghs
+           FROM aggregators a
+           JOIN posted_prices pp ON pp.poster_type = 'aggregator' AND pp.poster_id = a.id
+             AND pp.material_type = $1 AND pp.is_active = true
+           WHERE a.is_active = true AND a.city = $2
+           ORDER BY pp.price_per_kg_ghs DESC
+           LIMIT 4`,
+          [material, city]
+        );
+        const agg = aggs.rows[aggChoice - 1];
+        if (!agg) return 'END Error: aggregator not found.\nDial again to retry.';
+        const price = parseFloat(agg.price_per_kg_ghs);
+        const total = weight * price;
+        const result = await pool.query(
+          `INSERT INTO pending_transactions
+            (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
+             price_per_kg, total_price, status, transaction_type, source)
+           VALUES ($1, $2, $3, $4, $4, $5, $6, 'pending', 'collector_sale', 'ussd')
+           RETURNING id, created_at`,
+          [collector.id, agg.id, material, weight, price, total]
+        );
+        const txnId = result.rows[0].id;
+        const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
+        return `END DROP-OFF LOGGED\nRef: ${ref}\n${weight}kg ${material} → ${agg.name}\nStatus: Pending confirmation\nContact: ${agg.phone}, ${agg.city}`;
       }
     }
   }
+
   return 'END Invalid option.\nDial again to retry.';
 }
 
@@ -2354,7 +2517,7 @@ app.post('/api/ussd', async (req, res) => {
   let response = '', collectorId = null;
   try {
     const phoneVariants = getPhoneVariants(phone);
-    const result = await pool.query(`SELECT id, first_name, last_name, phone, pin FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`, [phoneVariants]);
+    const result = await pool.query(`SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`, [phoneVariants]);
     if (!result.rows.length) response = await handleUnregisteredUssd(parts, phone);
     else { collectorId = result.rows[0].id; response = await handleRegisteredUssd(parts, result.rows[0]); }
   } catch (err) { console.error('[USSD] Error:', err); response = 'END System error. Try again later.'; }
@@ -3551,17 +3714,18 @@ app.get('/prices',               (req, res) => res.redirect('/'));
 app.post('/api/auth/register', async (req, res) => {
   const { role, phone, pin } = req.body;
   try {
+    const hashedPin = await hashPassword(pin);
     if (role === 'collector') {
       const { first_name, last_name } = req.body;
       await pool.query(
         `INSERT INTO collectors (first_name, last_name, phone, pin, is_active) VALUES ($1, $2, $3, $4, true)`,
-        [first_name, last_name, phone, pin]
+        [first_name, last_name, phone, hashedPin]
       );
     } else if (role === 'aggregator') {
       const { name, company } = req.body;
       await pool.query(
         `INSERT INTO aggregators (name, company, phone, pin, is_active) VALUES ($1, $2, $3, $4, true)`,
-        [name, company, phone, pin]
+        [name, company, phone, hashedPin]
       );
     } else {
       return res.status(400).json({ error: 'Invalid role for self-registration' });
