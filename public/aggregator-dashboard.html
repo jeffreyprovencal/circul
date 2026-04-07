@@ -1076,9 +1076,10 @@ function submitPaymentInitiate(table, id) {
     var endpoint = table === 'txn'
         ? '/api/transactions/' + id + '/payment-initiate'
         : '/api/pending-transactions/' + id + '/payment-initiate';
+    var token = localStorage.getItem('circul_token') || '';
     fetch(endpoint, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify(body)
     })
     .then(function(r) { return r.json(); })
@@ -1093,7 +1094,8 @@ function submitPaymentConfirm(table, id) {
     var endpoint = table === 'txn'
         ? '/api/transactions/' + id + '/payment-confirm'
         : '/api/pending-transactions/' + id + '/payment-confirm';
-    fetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json' } })
+    var token = localStorage.getItem('circul_token') || '';
+    fetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } })
     .then(function(r) { return r.json(); })
     .then(function(d) {
         if (d.success) { loadPendingTxns(); loadMyBatchSales(); }
