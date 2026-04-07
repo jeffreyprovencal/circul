@@ -68,6 +68,8 @@ async function resolveParties(pool, row) {
   return {
     seller,
     buyer,
+    sellerKind,
+    buyerKind,
     material: row.material_type,
     qty: row.gross_weight_kg != null ? parseFloat(row.gross_weight_kg).toFixed(0) : null,
     amount: row.total_price != null ? parseFloat(row.total_price).toFixed(2) : null,
@@ -75,4 +77,14 @@ async function resolveParties(pool, row) {
   };
 }
 
-module.exports = { resolveParties, PARTY_MAP, KIND_TO_TABLE };
+function userOwnsParty(user, kind, partyId) {
+  if (!user || partyId == null) return false;
+  const roles = Array.isArray(user.roles) ? user.roles : (user.role ? [user.role] : []);
+  if (!roles.includes(kind)) return false;
+  if (kind === 'converter' && user.converter_id != null) {
+    return Number(user.converter_id) === Number(partyId);
+  }
+  return Number(user.id) === Number(partyId);
+}
+
+module.exports = { resolveParties, PARTY_MAP, KIND_TO_TABLE, userOwnsParty };

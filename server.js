@@ -8,7 +8,7 @@ const CirculRoles = require('./shared/roles');
 const { EVENTS, notify } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
 const { getPendingRatings, createRating } = require('./shared/ratings');
-const { resolveParties } = require('./shared/transaction-parties');
+const { resolveParties, userOwnsParty } = require('./shared/transaction-parties');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -4599,7 +4599,7 @@ app.post('/api/pending-transactions/:id/converter-arrival', requireAuth, async (
 // PAYMENT FLOW
 // ============================================
 
-app.patch('/api/transactions/:id/payment-initiate', async (req, res) => {
+app.patch('/api/transactions/:id/payment-initiate', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -4617,16 +4617,21 @@ app.patch('/api/transactions/:id/payment-initiate', async (req, res) => {
       ref = 'CASH';
     }
     await client.query('BEGIN');
-    const existing = await client.query('SELECT payment_status FROM transactions WHERE id=$1 FOR UPDATE', [id]);
+    const existing = await client.query('SELECT * FROM transactions WHERE id=$1 FOR UPDATE', [id]);
     if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Transaction not found' }); }
-    if (existing.rows[0].payment_status !== 'unpaid') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'Payment already recorded' }); }
+    const row = existing.rows[0];
+    if (row.payment_status !== 'unpaid') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'Payment already recorded' }); }
+    const parties = await resolveParties(client, row);
+    if (!parties.buyerKind || !parties.buyer || !userOwnsParty(req.user, parties.buyerKind, parties.buyer.id)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Not authorized for this transaction' });
+    }
     const result = await client.query(
       `UPDATE transactions SET payment_status='payment_sent', payment_method=$1, payment_reference=$2, payment_initiated_at=NOW() WHERE id=$3 RETURNING *`,
       [payment_method, ref, id]
     );
     await client.query('COMMIT');
     try {
-      const parties = await resolveParties(pool, result.rows[0]);
       if (parties.seller && parties.seller.phone) {
         await notify(EVENTS.PAYMENT_SENT, parties.seller.phone, {
           buyer_name: parties.buyer ? parties.buyer.name : 'Buyer',
@@ -4641,21 +4646,26 @@ app.patch('/api/transactions/:id/payment-initiate', async (req, res) => {
   } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('Payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
 
-app.patch('/api/transactions/:id/payment-confirm', async (req, res) => {
+app.patch('/api/transactions/:id/payment-confirm', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     await client.query('BEGIN');
-    const existing = await client.query('SELECT payment_status FROM transactions WHERE id=$1 FOR UPDATE', [id]);
+    const existing = await client.query('SELECT * FROM transactions WHERE id=$1 FOR UPDATE', [id]);
     if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Transaction not found' }); }
-    if (existing.rows[0].payment_status !== 'payment_sent') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'No payment to confirm' }); }
+    const row = existing.rows[0];
+    if (row.payment_status !== 'payment_sent') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'No payment to confirm' }); }
+    const parties = await resolveParties(client, row);
+    if (!parties.sellerKind || !parties.seller || !userOwnsParty(req.user, parties.sellerKind, parties.seller.id)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Not authorized for this transaction' });
+    }
     const result = await client.query(
       `UPDATE transactions SET payment_status='paid', payment_completed_at=NOW() WHERE id=$1 RETURNING *`,
       [id]
     );
     await client.query('COMMIT');
     try {
-      const parties = await resolveParties(pool, result.rows[0]);
       if (parties.buyer && parties.buyer.phone) {
         await notify(EVENTS.PAYMENT_CONFIRMED, parties.buyer.phone, {
           seller_name: parties.seller ? parties.seller.name : 'Seller',
@@ -4670,7 +4680,7 @@ app.patch('/api/transactions/:id/payment-confirm', async (req, res) => {
   } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('Payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
 
-app.patch('/api/pending-transactions/:id/payment-initiate', async (req, res) => {
+app.patch('/api/pending-transactions/:id/payment-initiate', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -4688,16 +4698,21 @@ app.patch('/api/pending-transactions/:id/payment-initiate', async (req, res) => 
       ref = 'CASH';
     }
     await client.query('BEGIN');
-    const existing = await client.query('SELECT payment_status FROM pending_transactions WHERE id=$1 FOR UPDATE', [id]);
+    const existing = await client.query('SELECT * FROM pending_transactions WHERE id=$1 FOR UPDATE', [id]);
     if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Pending transaction not found' }); }
-    if (existing.rows[0].payment_status !== 'unpaid') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'Payment already recorded' }); }
+    const row = existing.rows[0];
+    if (row.payment_status !== 'unpaid') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'Payment already recorded' }); }
+    const parties = await resolveParties(client, row);
+    if (!parties.buyerKind || !parties.buyer || !userOwnsParty(req.user, parties.buyerKind, parties.buyer.id)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Not authorized for this transaction' });
+    }
     const result = await client.query(
       `UPDATE pending_transactions SET payment_status='payment_sent', payment_method=$1, payment_reference=$2, payment_initiated_at=NOW() WHERE id=$3 RETURNING *`,
       [payment_method, ref, id]
     );
     await client.query('COMMIT');
     try {
-      const parties = await resolveParties(pool, result.rows[0]);
       if (parties.seller && parties.seller.phone) {
         await notify(EVENTS.PAYMENT_SENT, parties.seller.phone, {
           buyer_name: parties.buyer ? parties.buyer.name : 'Buyer',
@@ -4712,21 +4727,26 @@ app.patch('/api/pending-transactions/:id/payment-initiate', async (req, res) => 
   } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('PT payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
 
-app.patch('/api/pending-transactions/:id/payment-confirm', async (req, res) => {
+app.patch('/api/pending-transactions/:id/payment-confirm', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     await client.query('BEGIN');
-    const existing = await client.query('SELECT payment_status FROM pending_transactions WHERE id=$1 FOR UPDATE', [id]);
+    const existing = await client.query('SELECT * FROM pending_transactions WHERE id=$1 FOR UPDATE', [id]);
     if (!existing.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Pending transaction not found' }); }
-    if (existing.rows[0].payment_status !== 'payment_sent') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'No payment to confirm' }); }
+    const row = existing.rows[0];
+    if (row.payment_status !== 'payment_sent') { await client.query('ROLLBACK'); return res.status(400).json({ success: false, message: 'No payment to confirm' }); }
+    const parties = await resolveParties(client, row);
+    if (!parties.sellerKind || !parties.seller || !userOwnsParty(req.user, parties.sellerKind, parties.seller.id)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Not authorized for this transaction' });
+    }
     const result = await client.query(
       `UPDATE pending_transactions SET payment_status='paid', payment_completed_at=NOW() WHERE id=$1 RETURNING *`,
       [id]
     );
     await client.query('COMMIT');
     try {
-      const parties = await resolveParties(pool, result.rows[0]);
       if (parties.buyer && parties.buyer.phone) {
         await notify(EVENTS.PAYMENT_CONFIRMED, parties.buyer.phone, {
           seller_name: parties.seller ? parties.seller.name : 'Seller',
