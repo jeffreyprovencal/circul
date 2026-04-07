@@ -1118,7 +1118,7 @@ function loadRatings() {
             var el = document.getElementById('processorRatingsList');
             if (el) el.innerHTML = '<div class="empty">No transactions yet</div>';
         });
-    fetch('/api/ratings/operator/' + state.operator.id)
+    fetch('/api/ratings/' + state.operator.id)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('ratingsReceived');
@@ -1160,7 +1160,7 @@ function submitCvRating() {
         return;
     }
     var note = document.getElementById('cv-rating-note').value.trim();
-    apiFetch('/api/ratings/operator', {
+    apiFetch('/api/ratings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rater_type: 'converter', rater_id: state.operator.id, rated_type: 'processor', rated_id: _rateProcessorId, rating: _rateProcessorScore, rating_direction: 'converter_rates_processor', tags: _cvSelectedTags, note: note || null })

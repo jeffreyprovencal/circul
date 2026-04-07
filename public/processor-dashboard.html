@@ -705,7 +705,7 @@ function loadAggregators() {
 function rateAggregator(aggId, name) {
     var r = prompt('Rate ' + name + ' (1-5 stars):');
     if (!r || isNaN(parseInt(r)) || parseInt(r) < 1 || parseInt(r) > 5) return;
-    apiFetch('/api/ratings/operator', {
+    apiFetch('/api/ratings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rater_type: 'processor', rater_id: state.operator.id, rated_type: 'aggregator', rated_id: aggId, rating: parseInt(r), rating_direction: 'processor_rates_aggregator' })
     }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) alert('Rating submitted!'); });
@@ -1759,7 +1759,7 @@ function submitRating() {
   if (!_ratingStars) { showProcToast("Please select a star rating", true); return; }
   if (!_ratingTarget) return;
   var note = document.getElementById("rating-note") ? document.getElementById("rating-note").value : "";
-  apiFetch("/api/ratings/operator", {
+  apiFetch("/api/ratings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
