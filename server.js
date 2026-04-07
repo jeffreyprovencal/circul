@@ -6,6 +6,8 @@ const crypto = require('crypto');
 const multer = require('multer');
 const CirculRoles = require('./shared/roles');
 const { EVENTS, notify } = require('./shared/notifications');
+const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
+const { getPendingRatings, createRating } = require('./shared/ratings');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -2168,19 +2170,12 @@ app.post('/api/ratings/operator', requireAuth, async (req, res) => {
       const dup = await pool.query(`SELECT id FROM ratings WHERE transaction_id=$1 AND rater_type=$2 AND rater_id=$3`, [transaction_id, finalRaterType, finalRaterId]);
       if (dup.rows.length) return res.status(409).json({ success: false, message: 'You have already rated this transaction' });
     }
-    const windowExpires = new Date(); windowExpires.setDate(windowExpires.getDate() + 30);
-    let result;
-    try {
-      result = await pool.query(
-        `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction, window_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, tags||[], notes||null, rating_direction||null, windowExpires.toISOString()]
-      );
-    } catch (insertErr) {
-      result = await pool.query(
-        `INSERT INTO ratings (transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [transaction_id||null, finalRaterType, finalRaterId, finalRatedType, finalRatedId, rating, tags||[], notes||null, rating_direction||null]
-      );
-    }
+    const ratingRow = await createRating(pool, {
+      transaction_id, rater_type: finalRaterType, rater_id: finalRaterId,
+      rated_type: finalRatedType, rated_id: finalRatedId,
+      rating, tags, notes, rating_direction
+    });
+    const result = { rows: [ratingRow] };
     // Notify the rated user
     try {
       const ratedTable = CirculRoles.TABLE_MAP[finalRatedType] || 'operators';
@@ -2231,39 +2226,8 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
     const role = req.user.role || (req.user.roles && req.user.roles[0]);
     const userId = req.user.id;
     if (!role || !userId) return res.json({ success: true, pending: [] });
-
-    // Map role → which column in pending_transactions identifies this user,
-    // and which column/table identifies the counterparty they should rate
-    const ROLE_MAP = {
-      collector:  { myCol: 'collector_id',  peerCol: 'aggregator_id', peerTable: 'aggregators', peerName: 'name' },
-      aggregator: { myCol: 'aggregator_id', peerCol: 'collector_id',  peerTable: 'collectors',  peerName: "first_name || ' ' || last_name" },
-      processor:  { myCol: 'processor_id',  peerCol: 'aggregator_id', peerTable: 'aggregators', peerName: 'name' },
-      recycler:   { myCol: 'recycler_id',   peerCol: 'processor_id',  peerTable: 'processors',  peerName: 'name' },
-      converter:  { myCol: 'converter_id',  peerCol: 'processor_id',  peerTable: 'processors',  peerName: 'name' },
-    };
-    const cfg = ROLE_MAP[role];
-    if (!cfg) return res.json({ success: true, pending: [] });
-
-    const rows = await pool.query(
-      `SELECT pt.id AS txn_id, pt.material_type, pt.gross_weight_kg, pt.created_at,
-              pt.${cfg.peerCol} AS peer_id,
-              p.${cfg.peerName} AS peer_name
-       FROM pending_transactions pt
-       LEFT JOIN ${cfg.peerTable} p ON p.id = pt.${cfg.peerCol}
-       WHERE pt.${cfg.myCol} = $1
-         AND pt.status IN ('completed','confirmed')
-         AND pt.created_at > NOW() - INTERVAL '30 days'
-         AND NOT EXISTS (
-           SELECT 1 FROM ratings r
-           WHERE r.transaction_id = pt.id
-             AND r.rater_type = $2
-             AND r.rater_id = $1
-         )
-       ORDER BY pt.created_at DESC
-       LIMIT 5`,
-      [userId, role]
-    );
-    res.json({ success: true, pending: rows.rows });
+    const pending = await getPendingRatings(pool, role, userId, 5);
+    res.json({ success: true, pending });
   } catch (err) {
     console.error('GET /api/ratings/pending error:', err.message);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -2273,25 +2237,6 @@ app.get('/api/ratings/pending', requireAuth, async (req, res) => {
 // ============================================
 // USSD
 // ============================================
-
-function normalizeGhanaPhone(phone) {
-  if (!phone) return null;
-  let cleaned = phone.replace(/[\s\-()]/g, '');
-  if (cleaned.startsWith('+233')) return cleaned;
-  if (cleaned.startsWith('233')) return '+' + cleaned;
-  if (cleaned.startsWith('0')) return '+233' + cleaned.slice(1);
-  return cleaned;
-}
-
-function getPhoneVariants(normalizedPhone) {
-  if (!normalizedPhone) return [];
-  const variants = [normalizedPhone];
-  if (normalizedPhone.startsWith('+233')) {
-    variants.push('0' + normalizedPhone.slice(4));
-    variants.push(normalizedPhone.slice(1));
-  }
-  return variants;
-}
 
 function parsePaginatedSelection(menuParts) {
   let page = 0;

@@ -1,6 +1,41 @@
 // shared/notifications.js
 // Notification hooks — sends to console in dev, ready for SMS/WhatsApp provider in prod
 
+var phoneLib = require('./phone');
+var SMS_DAILY_CAP = parseInt(process.env.SMS_DAILY_CAP || '20', 10);
+var _smsCounts = {}; // { 'YYYY-MM-DD': { '+233...': count } }
+
+function _todayKey() { return new Date().toISOString().slice(0, 10); }
+function _checkAndIncrCap(phone) {
+  var day = _todayKey();
+  if (!_smsCounts[day]) _smsCounts = { [day]: {} };
+  var bucket = _smsCounts[day];
+  var n = bucket[phone] || 0;
+  if (n >= SMS_DAILY_CAP) return false;
+  bucket[phone] = n + 1;
+  return true;
+}
+
+async function _sendViaArkesel(phone, message) {
+  var apiKey = process.env.ARKESEL_API_KEY;
+  if (!apiKey) return { sent: false, reason: 'ARKESEL_API_KEY missing' };
+  try {
+    var res = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
+      method: 'POST',
+      headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: process.env.ARKESEL_SENDER || 'Circul',
+        message: message,
+        recipients: [phone]
+      })
+    });
+    var body = await res.json().catch(function () { return {}; });
+    return { sent: res.ok, status: res.status, body: body };
+  } catch (e) {
+    return { sent: false, reason: e.message };
+  }
+}
+
 var EVENTS = {
   NEW_OFFER:         'new_offer',
   OFFER_ACCEPTED:    'offer_accepted',
@@ -48,18 +83,26 @@ async function notify(event, recipientPhone, data) {
   if (!template) { console.warn('Unknown notification event:', event); return; }
 
   var message = template(data);
+  var phone = phoneLib.normalizeGhanaPhone(recipientPhone) || recipientPhone;
+  var provider = process.env.NOTIFICATION_PROVIDER || 'console';
 
-  // --- PROVIDER HOOK ---
-  // When ready, replace this block with actual SMS/WhatsApp API call
-  // e.g., Twilio, Africa's Talking, or WhatsApp Business API
-  if (process.env.NOTIFICATION_PROVIDER === 'console' || !process.env.NOTIFICATION_PROVIDER) {
-    console.log('[NOTIFY] ' + event + ' \u2192 ' + recipientPhone + ': ' + message);
+  if (provider === 'console') {
+    console.log('[NOTIFY] ' + event + ' \u2192 ' + phone + ': ' + message);
     return { sent: false, reason: 'console-only mode' };
   }
 
-  // Future: switch on process.env.NOTIFICATION_PROVIDER
-  // case 'twilio': return sendViaTwilio(recipientPhone, message);
-  // case 'africastalking': return sendViaAT(recipientPhone, message);
+  if (!_checkAndIncrCap(phone)) {
+    console.warn('[NOTIFY] daily cap reached for ' + phone + ' (' + event + ')');
+    return { sent: false, reason: 'daily cap reached' };
+  }
+
+  if (provider === 'arkesel') {
+    try { return await _sendViaArkesel(phone, message); }
+    catch (e) { console.warn('[NOTIFY] arkesel error:', e.message); return { sent: false, reason: e.message }; }
+  }
+
+  console.warn('[NOTIFY] unknown provider:', provider);
+  return { sent: false, reason: 'unknown provider' };
 }
 
 module.exports = { EVENTS: EVENTS, TEMPLATES: TEMPLATES, notify: notify };
