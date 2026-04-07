@@ -592,6 +592,10 @@
       </div>
       <div id="ratingsGiven"><div class="empty">No ratings yet</div></div>
       <div id="ratingsReceivedList"></div>
+      <div id="agentReportsCard" style="margin-top:16px">
+        <div class="section-title">Agent reports — ratings your agents submitted</div>
+        <div id="agentReportsList"><div class="empty">No agent ratings yet</div></div>
+      </div>
 
       <!-- Identity Verification -->
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
@@ -909,6 +913,7 @@ function scrollToRating() {
 function loadAll() {
     var id = state.operator.id;
     checkPendingRatings();
+    loadAgentReports();
     apiFetch('/api/aggregators/' + id + '/stats')
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -1803,6 +1808,44 @@ function exportPLtoPDF() {
   var filename = 'circul-pl-' + safeName + '-' + now.toISOString().slice(0, 7) + '.pdf';
   doc.save(filename);
   showToast('PDF downloaded');
+}
+
+function loadAgentReports() {
+    var id = state.operator.id;
+    var token = state.operator.token || localStorage.getItem('circul_token') || '';
+    fetch('/api/aggregators/' + id + '/agent-ratings?limit=20', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var el = document.getElementById('agentReportsList');
+        if (!el) return;
+        if (!data || !data.success || !data.ratings || !data.ratings.length) {
+            el.innerHTML = '<div class="empty">No agent ratings yet</div>';
+            return;
+        }
+        el.innerHTML = data.ratings.map(function(r) {
+            var stars = '\u2605'.repeat(r.rating) + '\u2606'.repeat(5 - r.rating);
+            var when = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+            var mat = r.material_type || '\u2014';
+            var kg = r.gross_weight_kg ? (parseFloat(r.gross_weight_kg).toFixed(0) + ' kg ') : '';
+            var note = r.notes ? '<div style="font-size:0.82rem;color:var(--text-2);margin-top:4px">' + esc(r.notes) + '</div>' : '';
+            var tags = (Array.isArray(r.tags) && r.tags.length)
+                ? '<div style="font-size:0.75rem;color:var(--text-3);margin-top:2px">' + r.tags.map(esc).join(' \u00b7 ') + '</div>'
+                : '';
+            return '<div style="padding:10px 0;border-bottom:1px solid var(--border)">' +
+                   '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                     '<div><strong>' + esc(r.agent_name || 'Agent') + '</strong> rated ' +
+                       '<strong>' + esc(r.collector_name || 'Collector') + '</strong>' +
+                     '</div>' +
+                     '<div style="color:var(--accent);font-weight:700">' + stars + '</div>' +
+                   '</div>' +
+                   '<div style="font-size:0.78rem;color:var(--text-3);margin-top:2px">' + kg + esc(mat) + ' \u00b7 ' + when + '</div>' +
+                   note + tags +
+                   '</div>';
+        }).join('');
+    })
+    .catch(function(e) { console.warn('loadAgentReports error', e); });
 }
 
 function renderRatingsReceived(ratings) {

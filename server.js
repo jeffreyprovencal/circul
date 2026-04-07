@@ -819,6 +819,41 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
   }
 });
 
+// GET /api/aggregators/:id/agent-ratings — ratings submitted by this aggregator's field agents
+app.get('/api/aggregators/:id/agent-ratings', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const aggregatorId = Number(id);
+    if (!Number.isInteger(aggregatorId) || aggregatorId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid aggregator id' });
+    }
+    if (!req.user.hasRole('aggregator') || Number(req.user.id) !== aggregatorId) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    const limit = Math.min(parseInt(req.query.limit || '20', 10) || 20, 100);
+    const result = await pool.query(
+      `SELECT r.id, r.rating, r.tags, r.notes, r.rating_direction, r.created_at, r.transaction_id,
+              ag.id AS agent_id,
+              ag.first_name || ' ' || ag.last_name AS agent_name,
+              c.id AS collector_id,
+              c.first_name || ' ' || c.last_name AS collector_name,
+              pt.material_type, pt.gross_weight_kg, pt.total_price
+         FROM ratings r
+         JOIN agents ag ON ag.id = r.rater_id AND r.rater_type = 'agent'
+         JOIN collectors c ON c.id = r.rated_id AND r.rated_type = 'collector'
+         LEFT JOIN pending_transactions pt ON pt.id = r.transaction_id
+        WHERE ag.aggregator_id = $1
+        ORDER BY r.created_at DESC
+        LIMIT $2`,
+      [aggregatorId, limit]
+    );
+    res.json({ success: true, ratings: result.rows });
+  } catch (err) {
+    console.error('GET /api/aggregators/:id/agent-ratings error:', err.message);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.post('/api/aggregator/suggest-cost-category', async (req, res) => {
   try {
     const { category_name, aggregator_id } = req.body;

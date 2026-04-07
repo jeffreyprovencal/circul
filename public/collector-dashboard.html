@@ -593,6 +593,7 @@ async function checkPendingRatings() {
     _pendingRatingTxn = null;
     if (!data || !data.pending || !data.pending.length) {
       if (pill) pill.classList.add('hidden');
+      if (txt) txt.textContent = '';
       return;
     }
     var count = data.pending.length;
