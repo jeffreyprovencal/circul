@@ -45,7 +45,13 @@ var EVENTS = {
   DELIVERY_APPROVED: 'delivery_approved',
   PAYMENT_RECEIVED:  'payment_received',
   RATING_RECEIVED:   'rating_received',
-  LISTING_EXPIRING:  'listing_expiring'
+  LISTING_EXPIRING:  'listing_expiring',
+  // Phase 5B
+  DROPOFF_LOGGED:    'dropoff_logged',
+  PURCHASE_LOGGED:   'purchase_logged',
+  AGENT_COLLECTION:  'agent_collection',
+  PAYMENT_SENT:      'payment_sent',
+  PAYMENT_CONFIRMED: 'payment_confirmed'
 };
 
 var TEMPLATES = {
@@ -75,6 +81,22 @@ var TEMPLATES = {
   },
   listing_expiring: function (data) {
     return 'Circul: Your ' + data.material + ' listing (' + data.qty + 'kg) expires tomorrow. Log in to renew it.';
+  },
+  // Phase 5B
+  dropoff_logged: function (data) {
+    return 'Circul: ' + data.collector_name + ' logged a ' + data.qty + 'kg ' + data.material + ' drop-off (Ref ' + data.ref + '). Log in to confirm.';
+  },
+  purchase_logged: function (data) {
+    return 'Circul: ' + data.buyer_name + ' recorded a purchase of ' + data.qty + 'kg ' + data.material + ' from you for GH\u20b5' + data.amount + ' (Ref ' + data.ref + ').';
+  },
+  agent_collection: function (data) {
+    return 'Circul: Agent collected ' + data.qty + 'kg ' + data.material + ' from you for ' + data.aggregator_name + '. Total GH\u20b5' + data.amount + ' (Ref ' + data.ref + ').';
+  },
+  payment_sent: function (data) {
+    return 'Circul: ' + data.buyer_name + ' marked GH\u20b5' + data.amount + ' as sent for your ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Confirm receipt on Circul.';
+  },
+  payment_confirmed: function (data) {
+    return 'Circul: ' + data.seller_name + ' confirmed receipt of GH\u20b5' + data.amount + ' for ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Transaction complete.';
   }
 };
 

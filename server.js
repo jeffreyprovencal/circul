@@ -8,6 +8,7 @@ const CirculRoles = require('./shared/roles');
 const { EVENTS, notify } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
 const { getPendingRatings, createRating } = require('./shared/ratings');
+const { resolveParties } = require('./shared/transaction-parties');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -2441,6 +2442,16 @@ async function handleRegisteredUssd(parts, collector) {
         );
         const txnId = result.rows[0].id;
         const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
+        try {
+          if (agg.phone) {
+            await notify(EVENTS.DROPOFF_LOGGED, agg.phone, {
+              collector_name: ((collector.first_name || '') + ' ' + (collector.last_name || '')).trim(),
+              qty: weight,
+              material: material,
+              ref: ref
+            });
+          }
+        } catch (e) { console.warn('[NOTIFY] dropoff_logged failed:', e.message); }
         return `END DROP-OFF LOGGED\nRef: ${ref}\n${weight}kg ${material} → ${agg.name}\nStatus: Pending confirmation\nContact: ${agg.phone}, ${agg.city}`;
       }
     }
@@ -2609,6 +2620,17 @@ async function handleAggregatorPurchase(m, aggregator) {
       );
       const txnId = result.rows[0].id;
       const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
+      try {
+        if (collector.phone) {
+          await notify(EVENTS.PURCHASE_LOGGED, collector.phone, {
+            buyer_name: aggregator.name,
+            qty: weight,
+            material: material,
+            amount: total,
+            ref: ref
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] purchase_logged failed:', e.message); }
       return `END PURCHASE LOGGED\nRef: ${ref}\n${weight}kg ${material} from ${collName}\nTotal: GH₵${total}\nStatus: Pending\nCollector: ${collector.phone}, ${collector.city || ''}`;
     }
   }
@@ -2962,6 +2984,17 @@ async function handleAgentCollection(m, agent) {
          `Logged ${weight} kg ${material} from collector ${collector.id} via USSD`,
          txnId]
       );
+      try {
+        if (collector.phone) {
+          await notify(EVENTS.AGENT_COLLECTION, collector.phone, {
+            qty: weight,
+            material: material,
+            aggregator_name: agent.aggregator_name,
+            amount: total,
+            ref: ref
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] agent_collection failed:', e.message); }
       return `END COLLECTION LOGGED\nRef: ${ref}\n${weight}kg ${material}\nFrom: ${collName}\nPhone: ${collector.phone}\nCity: ${collector.city || ''}\nTotal: GH\u20b5${total}\n\nFor: ${agent.aggregator_name}`;
     }
   }
@@ -3119,6 +3152,9 @@ async function handleAgentPayment(m, agent) {
   if (depth === 2) {
     if (m[1] === '2') return 'END Cancelled.';
     if (m[1] === '1') {
+      // Phase 5B: agent cash payments are out-of-band (paid on the spot in cash).
+      // No PAYMENT_SENT or PAYMENT_CONFIRMED SMS — collector already has the money,
+      // and PAYMENT_CONFIRMED semantically targets a remote buyer, not the seller.
       await pool.query(
         `UPDATE pending_transactions
          SET payment_status = 'paid', payment_method = 'cash',
@@ -4502,6 +4538,18 @@ app.patch('/api/transactions/:id/payment-initiate', async (req, res) => {
       [payment_method, ref, id]
     );
     await client.query('COMMIT');
+    try {
+      const parties = await resolveParties(pool, result.rows[0]);
+      if (parties.seller && parties.seller.phone) {
+        await notify(EVENTS.PAYMENT_SENT, parties.seller.phone, {
+          buyer_name: parties.buyer ? parties.buyer.name : 'Buyer',
+          qty: parties.qty,
+          material: parties.material,
+          amount: parties.amount,
+          ref: parties.ref
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] payment_sent (txn) failed:', e.message); }
     res.json({ success: true, transaction: result.rows[0] });
   } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('Payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
@@ -4519,6 +4567,18 @@ app.patch('/api/transactions/:id/payment-confirm', async (req, res) => {
       [id]
     );
     await client.query('COMMIT');
+    try {
+      const parties = await resolveParties(pool, result.rows[0]);
+      if (parties.buyer && parties.buyer.phone) {
+        await notify(EVENTS.PAYMENT_CONFIRMED, parties.buyer.phone, {
+          seller_name: parties.seller ? parties.seller.name : 'Seller',
+          qty: parties.qty,
+          material: parties.material,
+          amount: parties.amount,
+          ref: parties.ref
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] payment_confirmed (txn) failed:', e.message); }
     res.json({ success: true, transaction: result.rows[0] });
   } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('Payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
@@ -4549,6 +4609,18 @@ app.patch('/api/pending-transactions/:id/payment-initiate', async (req, res) => 
       [payment_method, ref, id]
     );
     await client.query('COMMIT');
+    try {
+      const parties = await resolveParties(pool, result.rows[0]);
+      if (parties.seller && parties.seller.phone) {
+        await notify(EVENTS.PAYMENT_SENT, parties.seller.phone, {
+          buyer_name: parties.buyer ? parties.buyer.name : 'Buyer',
+          qty: parties.qty,
+          material: parties.material,
+          amount: parties.amount,
+          ref: parties.ref
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] payment_sent (PT) failed:', e.message); }
     res.json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('PT payment initiate error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
@@ -4566,6 +4638,18 @@ app.patch('/api/pending-transactions/:id/payment-confirm', async (req, res) => {
       [id]
     );
     await client.query('COMMIT');
+    try {
+      const parties = await resolveParties(pool, result.rows[0]);
+      if (parties.buyer && parties.buyer.phone) {
+        await notify(EVENTS.PAYMENT_CONFIRMED, parties.buyer.phone, {
+          seller_name: parties.seller ? parties.seller.name : 'Seller',
+          qty: parties.qty,
+          material: parties.material,
+          amount: parties.amount,
+          ref: parties.ref
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] payment_confirmed (PT) failed:', e.message); }
     res.json({ success: true, pending_transaction: result.rows[0] });
   } catch (err) { await client.query('ROLLBACK').catch(() => {}); console.error('PT payment confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); } finally { client.release(); }
 });
