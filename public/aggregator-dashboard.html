@@ -1847,7 +1847,7 @@ function toggleTag(chip) {
 
 function submitRating() {
     if (!state.currentRatingStar) return;
-    fetch('/api/ratings/operator', {
+    fetch('/api/ratings', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({
             transaction_id: state.currentRatingTxnId || null,

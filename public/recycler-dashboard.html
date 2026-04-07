@@ -1195,7 +1195,7 @@ function loadRatings() {
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(seen[id]) + '</span><button onclick="rateProcessor(' + id + ',\'' + esc(seen[id]) + '\')" class="btn-submit" style="padding:6px 14px;font-size:0.78rem">Rate</button></div>';
             }).join('');
         });
-    fetch('/api/ratings/operator/' + state.operator.id)
+    fetch('/api/ratings/' + state.operator.id)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('ratingsReceived');
@@ -1238,7 +1238,7 @@ async function submitRecRating() {
     }
     try {
         var note = document.getElementById('rec-rating-note').value.trim();
-        var r = await apiFetch('/api/ratings/operator', {
+        var r = await apiFetch('/api/ratings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

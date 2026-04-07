@@ -1270,7 +1270,8 @@ app.get('/api/listings/:id/offers', requireAuth, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not your listing' });
     }
     const buyerRole = listing.seller_role === 'collector' ? 'aggregator' : 'processor';
-    const buyerTable = CirculRoles.TABLE_MAP[buyerRole] || 'operators';
+    const buyerTable = CirculRoles.TABLE_MAP[buyerRole];
+    if (!buyerTable) return res.status(400).json({ success: false, message: 'Invalid role: ' + buyerRole });
     const offers = (await pool.query(
       `SELECT o.*, b.name AS buyer_name FROM offers o
        LEFT JOIN ${buyerTable} b ON b.id = o.buyer_id
@@ -1314,10 +1315,12 @@ app.post('/api/listings/:id/offers', requireAuth, async (req, res) => {
     );
     // Notify listing seller about the new offer
     try {
-      const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role] || 'collectors';
+      const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role];
+      if (!sellerTable) throw new Error('Unknown seller role: ' + listing.seller_role);
       const nameCol = listing.seller_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
       const seller = (await pool.query(`SELECT phone, ${nameCol} AS name FROM ${sellerTable} WHERE id = $1`, [listing.seller_id])).rows[0];
-      const buyerTable = CirculRoles.TABLE_MAP[buyerRole] || 'operators';
+      const buyerTable = CirculRoles.TABLE_MAP[buyerRole];
+      if (!buyerTable) throw new Error('Unknown buyer role: ' + buyerRole);
       const buyerNameCol = buyerRole === 'collector' ? "first_name || ' ' || last_name" : 'name';
       const buyer = (await pool.query(`SELECT ${buyerNameCol} AS name FROM ${buyerTable} WHERE id = $1`, [req.user.id])).rows[0];
       if (seller && seller.phone) {
@@ -1412,10 +1415,12 @@ app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
       await client.query('COMMIT');
       // Notify the buyer that their offer was accepted
       try {
-        const buyerTable = CirculRoles.TABLE_MAP[offer.buyer_role] || 'operators';
+        const buyerTable = CirculRoles.TABLE_MAP[offer.buyer_role];
+        if (!buyerTable) throw new Error('Unknown buyer role: ' + offer.buyer_role);
         const buyerNameCol = offer.buyer_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
         const buyerRow = (await pool.query(`SELECT phone, ${buyerNameCol} AS name FROM ${buyerTable} WHERE id = $1`, [offer.buyer_id])).rows[0];
-        const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role] || 'collectors';
+        const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role];
+        if (!sellerTable) throw new Error('Unknown seller role: ' + listing.seller_role);
         const sellerNameCol = listing.seller_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
         const sellerRow = (await pool.query(`SELECT ${sellerNameCol} AS name FROM ${sellerTable} WHERE id = $1`, [listing.seller_id])).rows[0];
         if (buyerRow && buyerRow.phone) {
@@ -1446,10 +1451,12 @@ app.post('/api/offers/:id/reject', requireAuth, async (req, res) => {
     await pool.query(`UPDATE offers SET status = 'rejected', responded_at = NOW() WHERE id = $1`, [offer.id]);
     // Notify the buyer that their offer was rejected
     try {
-      const buyerTable = CirculRoles.TABLE_MAP[offer.buyer_role] || 'operators';
+      const buyerTable = CirculRoles.TABLE_MAP[offer.buyer_role];
+      if (!buyerTable) throw new Error('Unknown buyer role: ' + offer.buyer_role);
       const buyerNameCol = offer.buyer_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
       const buyerRow = (await pool.query(`SELECT phone, ${buyerNameCol} AS name FROM ${buyerTable} WHERE id = $1`, [offer.buyer_id])).rows[0];
-      const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role] || 'collectors';
+      const sellerTable = CirculRoles.TABLE_MAP[listing.seller_role];
+      if (!sellerTable) throw new Error('Unknown seller role: ' + listing.seller_role);
       const sellerNameCol = listing.seller_role === 'collector' ? "first_name || ' ' || last_name" : 'name';
       const sellerRow = (await pool.query(`SELECT ${sellerNameCol} AS name FROM ${sellerTable} WHERE id = $1`, [listing.seller_id])).rows[0];
       if (buyerRow && buyerRow.phone) {
@@ -1499,12 +1506,14 @@ app.post('/api/offers/:id/counter', requireAuth, async (req, res) => {
       try {
         const recipientId = isSeller ? offer.buyer_id : listing.seller_id;
         const recipientRole = isSeller ? offer.buyer_role : listing.seller_role;
-        const recipientTable = CirculRoles.TABLE_MAP[recipientRole] || 'operators';
+        const recipientTable = CirculRoles.TABLE_MAP[recipientRole];
+        if (!recipientTable) throw new Error('Unknown recipient role: ' + recipientRole);
         const recipientNameCol = recipientRole === 'collector' ? "first_name || ' ' || last_name" : 'name';
         const recipientRow = (await pool.query(`SELECT phone, ${recipientNameCol} AS name FROM ${recipientTable} WHERE id = $1`, [recipientId])).rows[0];
         const counterpartyId = isSeller ? listing.seller_id : offer.buyer_id;
         const counterpartyRole = isSeller ? listing.seller_role : offer.buyer_role;
-        const counterpartyTable = CirculRoles.TABLE_MAP[counterpartyRole] || 'operators';
+        const counterpartyTable = CirculRoles.TABLE_MAP[counterpartyRole];
+        if (!counterpartyTable) throw new Error('Unknown counterparty role: ' + counterpartyRole);
         const counterpartyNameCol = counterpartyRole === 'collector' ? "first_name || ' ' || last_name" : 'name';
         const counterpartyRow = (await pool.query(`SELECT ${counterpartyNameCol} AS name FROM ${counterpartyTable} WHERE id = $1`, [counterpartyId])).rows[0];
         if (recipientRow && recipientRow.phone) {
@@ -2155,18 +2164,16 @@ app.get('/api/stats', async (req, res) => {
 // RATINGS
 // ============================================
 
-app.post('/api/ratings/operator', requireAuth, async (req, res) => {
+async function handleCreateRating(req, res) {
   try {
-    const { transaction_id, rater_type, rater_id, rated_type, rated_id, rater_operator_id, rated_operator_id, rater_collector_id, rated_collector_id, rating, tags, notes, rating_direction } = req.body;
-    // Fall back to token-derived user when body fields are missing
-    const finalRaterType = rater_type || req.user.role || (rater_operator_id ? 'aggregator' : 'collector');
-    const finalRaterId   = rater_id   || req.user.id || rater_operator_id || rater_collector_id;
-    const finalRatedType = rated_type || (rated_operator_id ? 'aggregator' : 'collector');
-    const finalRatedId   = rated_id   || rated_operator_id || rated_collector_id;
-    if (!finalRaterId) return res.status(400).json({ success: false, message: 'rater_id is required' });
-    if (!finalRaterId || !finalRatedId || !rating) return res.status(400).json({ success: false, message: 'rater, rated, and rating are required' });
-    if (rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1-5' });
-    // Prevent duplicate ratings
+    const { transaction_id, rater_type, rater_id, rated_type, rated_id, rating, tags, notes, rating_direction } = req.body;
+    const finalRaterType = rater_type || req.user.role || (Array.isArray(req.user.roles) ? req.user.roles[0] : null);
+    const finalRaterId   = rater_id   || req.user.id;
+    const finalRatedType = rated_type;
+    const finalRatedId   = rated_id;
+    if (!finalRaterType || !finalRaterId) return res.status(400).json({ success: false, message: 'rater_type and rater_id are required' });
+    if (!finalRatedType || !finalRatedId) return res.status(400).json({ success: false, message: 'rated_type and rated_id are required' });
+    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'rating must be 1-5' });
     if (transaction_id) {
       const dup = await pool.query(`SELECT id FROM ratings WHERE transaction_id=$1 AND rater_type=$2 AND rater_id=$3`, [transaction_id, finalRaterType, finalRaterId]);
       if (dup.rows.length) return res.status(409).json({ success: false, message: 'You have already rated this transaction' });
@@ -2176,28 +2183,31 @@ app.post('/api/ratings/operator', requireAuth, async (req, res) => {
       rated_type: finalRatedType, rated_id: finalRatedId,
       rating, tags, notes, rating_direction
     });
-    const result = { rows: [ratingRow] };
     // Notify the rated user
     try {
-      const ratedTable = CirculRoles.TABLE_MAP[finalRatedType] || 'operators';
-      const ratedNameCol = (finalRatedType === 'collector' || finalRatedType === 'agent') ? "first_name || ' ' || last_name" : 'name';
-      const ratedRow = (await pool.query(`SELECT phone, ${ratedNameCol} AS name FROM ${ratedTable} WHERE id = $1`, [finalRatedId])).rows[0];
-      const raterTable = CirculRoles.TABLE_MAP[finalRaterType] || 'operators';
-      const raterNameCol = (finalRaterType === 'collector' || finalRaterType === 'agent') ? "first_name || ' ' || last_name" : 'name';
-      const raterRow = (await pool.query(`SELECT ${raterNameCol} AS name FROM ${raterTable} WHERE id = $1`, [finalRaterId])).rows[0];
-      if (ratedRow && ratedRow.phone) {
-        notify(EVENTS.RATING_RECEIVED, ratedRow.phone, { rater_name: raterRow ? raterRow.name : 'Someone', stars: rating });
+      const ratedTable = CirculRoles.TABLE_MAP[finalRatedType];
+      const raterTable = CirculRoles.TABLE_MAP[finalRaterType];
+      if (!ratedTable || !raterTable) {
+        console.warn('[RATING] unknown role in notify lookup:', { finalRatedType, finalRaterType });
+      } else {
+        const ratedNameCol = (finalRatedType === 'collector' || finalRatedType === 'agent') ? "first_name || ' ' || last_name" : 'name';
+        const ratedRow = (await pool.query(`SELECT phone, ${ratedNameCol} AS name FROM ${ratedTable} WHERE id = $1`, [finalRatedId])).rows[0];
+        const raterNameCol = (finalRaterType === 'collector' || finalRaterType === 'agent') ? "first_name || ' ' || last_name" : 'name';
+        const raterRow = (await pool.query(`SELECT ${raterNameCol} AS name FROM ${raterTable} WHERE id = $1`, [finalRaterId])).rows[0];
+        if (ratedRow && ratedRow.phone) {
+          notify(EVENTS.RATING_RECEIVED, ratedRow.phone, { rater_name: raterRow ? raterRow.name : 'Someone', stars: rating });
+        }
       }
     } catch (notifyErr) { console.warn('Notification error (rating_received):', notifyErr.message); }
-    res.status(201).json({ success: true, rating: result.rows[0] });
+    res.status(201).json({ success: true, rating: ratingRow });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ success: false, message: 'You have already rated this transaction' });
     console.error('Rating error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
-});
+}
 
-app.get('/api/ratings/operator/:id', async (req, res) => {
+async function handleGetRatingsByOperator(req, res) {
   try {
     const { id } = req.params;
     const role = req.query.role;
@@ -2206,7 +2216,12 @@ app.get('/api/ratings/operator/:id', async (req, res) => {
     const avg = await pool.query(`SELECT AVG(rating)::NUMERIC(3,2) as avg_rating, COUNT(*) as count FROM ratings WHERE rated_id=$1 AND rated_type = ANY($2)`, [id, typeFilter]);
     res.json({ success: true, ratings: ratings.rows, summary: avg.rows[0] });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
-});
+}
+
+app.post('/api/ratings',          requireAuth, handleCreateRating);
+app.post('/api/ratings/operator', requireAuth, handleCreateRating); // deprecated alias — remove in 5D-cleanup
+app.get('/api/ratings/:id(\\d+)',          handleGetRatingsByOperator);
+app.get('/api/ratings/operator/:id',       handleGetRatingsByOperator); // deprecated alias
 
 app.get('/api/collectors/:id/ratings', async (req, res) => {
   try {
