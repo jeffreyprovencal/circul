@@ -2180,10 +2180,10 @@ app.post('/api/ratings/operator', requireAuth, async (req, res) => {
     // Notify the rated user
     try {
       const ratedTable = CirculRoles.TABLE_MAP[finalRatedType] || 'operators';
-      const ratedNameCol = finalRatedType === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const ratedNameCol = (finalRatedType === 'collector' || finalRatedType === 'agent') ? "first_name || ' ' || last_name" : 'name';
       const ratedRow = (await pool.query(`SELECT phone, ${ratedNameCol} AS name FROM ${ratedTable} WHERE id = $1`, [finalRatedId])).rows[0];
       const raterTable = CirculRoles.TABLE_MAP[finalRaterType] || 'operators';
-      const raterNameCol = finalRaterType === 'collector' ? "first_name || ' ' || last_name" : 'name';
+      const raterNameCol = (finalRaterType === 'collector' || finalRaterType === 'agent') ? "first_name || ' ' || last_name" : 'name';
       const raterRow = (await pool.query(`SELECT ${raterNameCol} AS name FROM ${raterTable} WHERE id = $1`, [finalRaterId])).rows[0];
       if (ratedRow && ratedRow.phone) {
         notify(EVENTS.RATING_RECEIVED, ratedRow.phone, { rater_name: raterRow ? raterRow.name : 'Someone', stars: rating });
@@ -2293,6 +2293,80 @@ async function handleUnregisteredUssd(parts, phone) {
   return 'END Invalid option.\nDial again to retry.';
 }
 
+// Phase 5C: shared rating sub-flow used by collector, aggregator, AND agent USSD My Stats.
+async function handleUssdRating(menuParts, role, userId) {
+  const depth = menuParts.length;
+  const ratedKind = (role === 'aggregator' || role === 'agent') ? 'collector' : 'aggregator';
+
+  const pending = await getPendingRatings(pool, role, userId, 4);
+  if (!pending.length) {
+    return 'END No recent transactions\nto rate.\nDial again later.';
+  }
+
+  if (depth === 0) {
+    let menu = 'CON Rate a transaction:\n';
+    for (let i = 0; i < pending.length; i++) {
+      const t = pending[i];
+      const peer = (t.peer_name || 'Unknown').slice(0, 14);
+      const kg = parseFloat(t.gross_weight_kg).toFixed(0);
+      menu += (i + 1) + '. ' + kg + 'kg ' + t.material_type + ' / ' + peer + '\n';
+    }
+    menu += '0. Cancel';
+    return menu;
+  }
+
+  if (depth === 1) {
+    if (menuParts[0] === '0') return 'END Cancelled.';
+    const idx = parseInt(menuParts[0]) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= pending.length) {
+      return 'END Invalid choice.\nDial again to retry.';
+    }
+    const txn = pending[idx];
+    const peer = (txn.peer_name || 'Unknown').slice(0, 20);
+    return 'CON Rate ' + parseFloat(txn.gross_weight_kg).toFixed(0) + 'kg '
+      + txn.material_type + '\nfrom ' + peer + ':\n'
+      + '1. \u2605\n2. \u2605\u2605\n3. \u2605\u2605\u2605\n4. \u2605\u2605\u2605\u2605\n5. \u2605\u2605\u2605\u2605\u2605\n0. Cancel';
+  }
+
+  if (depth === 2) {
+    if (menuParts[1] === '0') return 'END Cancelled.';
+    const idx = parseInt(menuParts[0]) - 1;
+    const stars = parseInt(menuParts[1]);
+    if (isNaN(idx) || idx < 0 || idx >= pending.length) {
+      return 'END Invalid choice.\nDial again to retry.';
+    }
+    if (isNaN(stars) || stars < 1 || stars > 5) {
+      return 'END Invalid rating.\nDial again to retry.';
+    }
+    const txn = pending[idx];
+    try {
+      const dup = await pool.query(
+        `SELECT id FROM ratings WHERE transaction_id=$1 AND rater_type=$2 AND rater_id=$3`,
+        [txn.txn_id, role, userId]
+      );
+      if (dup.rows.length) return 'END Already rated.\nThank you!';
+
+      await createRating(pool, {
+        transaction_id: txn.txn_id,
+        rater_type: role,
+        rater_id: userId,
+        rated_type: ratedKind,
+        rated_id: txn.peer_id,
+        rating: stars,
+        tags: [],
+        notes: null,
+        rating_direction: role + '_to_' + ratedKind
+      });
+    } catch (e) {
+      console.error('[USSD rating] save failed:', e.message);
+      return 'END Could not save rating.\nPlease try again later.';
+    }
+    return 'END Thank you!\nYour ' + stars + '\u2605 rating\nhas been recorded.';
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
 async function handleRegisteredUssd(parts, collector) {
   if (parts.length === 0) return `CON Welcome ${collector.first_name}!\nEnter your PIN:`;
 
@@ -2326,26 +2400,31 @@ async function handleRegisteredUssd(parts, collector) {
   // ── Discovery ──
   if (m[0] === '3') return await handleCollectorDiscovery(m.slice(1), collector);
 
-  // ── My Stats ──
+  // ── My Stats (with rating sub-menu) ──
   if (m[0] === '4') {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-    const [confirmed, pending, rating] = await Promise.all([
-      pool.query(
-        `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
-                COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
-                COALESCE(SUM(total_price), 0) as total_earned,
-                CASE WHEN SUM(net_weight_kg) > 0 THEN (SUM(total_price) / SUM(net_weight_kg))::NUMERIC(10,2) ELSE 0 END as avg_price,
-                COUNT(*) as total_txns
-         FROM transactions WHERE collector_id = $1 AND transaction_date >= $3`,
-        [collector.id, monthStart, yearStart]
-      ),
-      pool.query(`SELECT COUNT(*) as count FROM pending_transactions WHERE collector_id = $1 AND status = 'pending'`, [collector.id]),
-      pool.query(`SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count FROM ratings WHERE rated_type = 'collector' AND rated_id = $1`, [collector.id])
-    ]);
-    const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
-    return `END My Stats\n\nThis month: ${parseFloat(c.month_kg).toFixed(1)} kg\nYear to date: ${parseFloat(c.ytd_kg).toFixed(1)} kg\nEarned: GH₵${parseFloat(c.total_earned).toFixed(2)}\nAvg price: GH₵${parseFloat(c.avg_price).toFixed(2)}/kg\nRating: ${parseFloat(r.avg) > 0 ? '★' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'No ratings yet'}\n\n${c.total_txns} confirmed, ${p.count} pending`;
+    if (m.length === 1) {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+      const [confirmed, pending, rating] = await Promise.all([
+        pool.query(
+          `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
+                  COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
+                  COALESCE(SUM(total_price), 0) as total_earned,
+                  CASE WHEN SUM(net_weight_kg) > 0 THEN (SUM(total_price) / SUM(net_weight_kg))::NUMERIC(10,2) ELSE 0 END as avg_price,
+                  COUNT(*) as total_txns
+           FROM transactions WHERE collector_id = $1 AND transaction_date >= $3`,
+          [collector.id, monthStart, yearStart]
+        ),
+        pool.query(`SELECT COUNT(*) as count FROM pending_transactions WHERE collector_id = $1 AND status = 'pending'`, [collector.id]),
+        pool.query(`SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count FROM ratings WHERE rated_type = 'collector' AND rated_id = $1`, [collector.id])
+      ]);
+      const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
+      return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GH\u20b5${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
+    }
+    if (m[1] === '0') return `END Goodbye, ${collector.first_name}!`;
+    if (m[1] === '1') return await handleUssdRating(m.slice(2), 'collector', collector.id);
+    return 'END Invalid option.\nDial again to retry.';
   }
 
   // ── Log Drop-off ──
@@ -2490,42 +2569,47 @@ async function handleAggregatorUssd(parts, aggregator) {
   // ── Marketplace ──
   if (m[0] === '3') return await handleAggregatorMarketplace(m.slice(1), aggregator);
 
-  // ── My Stats ──
+  // ── My Stats (with rating sub-menu) ──
   if (m[0] === '4') {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-    const [volume, unpaid, rating, collCount, pendingCount] = await Promise.all([
-      pool.query(
-        `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
-                COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
-                COALESCE(SUM(total_price), 0) as revenue
-         FROM transactions WHERE aggregator_id = $1 AND transaction_date >= $3`,
-        [aggregator.id, monthStart, yearStart]
-      ),
-      pool.query(
-        `SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0) as value
-         FROM transactions WHERE aggregator_id = $1 AND payment_status = 'unpaid' AND total_price > 0`,
-        [aggregator.id]
-      ),
-      pool.query(
-        `SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count
-         FROM ratings WHERE rated_type = 'aggregator' AND rated_id = $1`,
-        [aggregator.id]
-      ),
-      pool.query(
-        `SELECT COUNT(DISTINCT collector_id) as count FROM transactions WHERE aggregator_id = $1`,
-        [aggregator.id]
-      ),
-      pool.query(
-        `SELECT COUNT(*) as count FROM pending_transactions
-         WHERE aggregator_id = $1 AND status = 'pending'
-           AND transaction_type IN ('collector_sale','aggregator_purchase')`,
-        [aggregator.id]
-      )
-    ]);
-    const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
-    return `END My Stats — ${aggregator.name}\n\nThis month: ${parseFloat(v.month_kg).toFixed(1)} kg\nYear to date: ${parseFloat(v.ytd_kg).toFixed(1)} kg\nRevenue: GH₵${parseFloat(v.revenue).toFixed(2)}\nOutstanding: GH₵${parseFloat(u.value).toFixed(2)} (${u.count} unpaid)\nRating: ${parseFloat(r.avg) > 0 ? '★' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'No ratings yet'}\n\nCollectors: ${cc.count} active\nPending inbound: ${pc.count}`;
+    if (m.length === 1) {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+      const [volume, unpaid, rating, collCount, pendingCount] = await Promise.all([
+        pool.query(
+          `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
+                  COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
+                  COALESCE(SUM(total_price), 0) as revenue
+           FROM transactions WHERE aggregator_id = $1 AND transaction_date >= $3`,
+          [aggregator.id, monthStart, yearStart]
+        ),
+        pool.query(
+          `SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0) as value
+           FROM transactions WHERE aggregator_id = $1 AND payment_status = 'unpaid' AND total_price > 0`,
+          [aggregator.id]
+        ),
+        pool.query(
+          `SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count
+           FROM ratings WHERE rated_type = 'aggregator' AND rated_id = $1`,
+          [aggregator.id]
+        ),
+        pool.query(
+          `SELECT COUNT(DISTINCT collector_id) as count FROM transactions WHERE aggregator_id = $1`,
+          [aggregator.id]
+        ),
+        pool.query(
+          `SELECT COUNT(*) as count FROM pending_transactions
+           WHERE aggregator_id = $1 AND status = 'pending'
+             AND transaction_type IN ('collector_sale','aggregator_purchase')`,
+          [aggregator.id]
+        )
+      ]);
+      const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
+      return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GH\u20b5${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GH\u20b5${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
+    }
+    if (m[1] === '0') return `END Thank you, ${aggregator.name}!`;
+    if (m[1] === '1') return await handleUssdRating(m.slice(2), 'aggregator', aggregator.id);
+    return 'END Invalid option.\nDial again to retry.';
   }
 
   // ── Pending Drop-offs ──
@@ -2865,34 +2949,37 @@ async function handleAgentUssd(parts, agent) {
   // ── Register Collector ──
   if (m[0] === '3') return await handleAgentRegister(m.slice(1), agent, null);
 
-  // ── My Stats ──
+  // ── My Stats (with rating sub-menu) ──
   if (m[0] === '4') {
-    const [todayStats, weekStats, regCount] = await Promise.all([
-      pool.query(
-        `SELECT COUNT(*) as count, COALESCE(SUM(pt.gross_weight_kg), 0) as kg
-         FROM agent_activity aa
-         JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
-         WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
-         AND aa.created_at >= CURRENT_DATE`,
-        [agent.id]
-      ),
-      pool.query(
-        `SELECT COUNT(*) as count, COALESCE(SUM(pt.gross_weight_kg), 0) as kg
-         FROM agent_activity aa
-         JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
-         WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
-         AND aa.created_at >= date_trunc('week', CURRENT_DATE)`,
-        [agent.id]
-      ),
-      pool.query(
-        `SELECT COUNT(*) as count FROM agent_activity WHERE agent_id = $1 AND action_type = 'registered_collector'`,
-        [agent.id]
-      )
-    ]);
-    const t = todayStats.rows[0], w = weekStats.rows[0], rc = regCount.rows[0];
-    let msg = `END Your stats, ${agent.first_name}:\n\nToday: ${t.count} collections, ${parseFloat(t.kg).toFixed(1)} kg\nThis week: ${w.count} collections, ${parseFloat(w.kg).toFixed(1)} kg\nRegistered: ${rc.count} collectors\n\nWorking for: ${agent.aggregator_name}`;
-    if (parseInt(t.count) === 0 && parseInt(w.count) === 0) msg += '\nStart by logging a\ncollection!';
-    return msg;
+    if (m.length === 1) {
+      const [todayStats, weekStats, regCount] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) as count, COALESCE(SUM(pt.gross_weight_kg), 0) as kg
+           FROM agent_activity aa
+           JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
+           WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+           AND aa.created_at >= CURRENT_DATE`,
+          [agent.id]
+        ),
+        pool.query(
+          `SELECT COUNT(*) as count, COALESCE(SUM(pt.gross_weight_kg), 0) as kg
+           FROM agent_activity aa
+           JOIN pending_transactions pt ON aa.related_id = pt.id AND aa.related_type = 'transaction'
+           WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+           AND aa.created_at >= date_trunc('week', CURRENT_DATE)`,
+          [agent.id]
+        ),
+        pool.query(
+          `SELECT COUNT(*) as count FROM agent_activity WHERE agent_id = $1 AND action_type = 'registered_collector'`,
+          [agent.id]
+        )
+      ]);
+      const t = todayStats.rows[0], w = weekStats.rows[0], rc = regCount.rows[0];
+      return `CON Stats, ${agent.first_name}:\nToday: ${t.count} coll / ${parseFloat(t.kg).toFixed(0)}kg\nWeek: ${w.count} coll / ${parseFloat(w.kg).toFixed(0)}kg\nRegistered: ${rc.count}\nFor: ${agent.aggregator_name}\n\n1. Rate a transaction\n0. Back`;
+    }
+    if (m[1] === '0') return `END Thank you, ${agent.first_name}!`;
+    if (m[1] === '1') return await handleUssdRating(m.slice(2), 'agent', agent.id);
+    return 'END Invalid option.\nDial again to retry.';
   }
 
   return 'END Invalid option.\nDial again to retry.';
