@@ -6,19 +6,12 @@ var SMS_DAILY_CAP = parseInt(process.env.SMS_DAILY_CAP || '20', 10);
 var _smsCounts = {}; // { 'YYYY-MM-DD': { '+233...': count } }
 
 function _todayKey() { return new Date().toISOString().slice(0, 10); }
-function _checkAndIncrCap(phone) {
-  var day = _todayKey();
-  if (!_smsCounts[day]) _smsCounts = { [day]: {} };
-  var bucket = _smsCounts[day];
-  var n = bucket[phone] || 0;
-  if (n >= SMS_DAILY_CAP) return false;
-  bucket[phone] = n + 1;
-  return true;
-}
 
 async function _sendViaArkesel(phone, message) {
   var apiKey = process.env.ARKESEL_API_KEY;
   if (!apiKey) return { sent: false, reason: 'ARKESEL_API_KEY missing' };
+  // Arkesel V2 expects MSISDN without leading '+': "233544919953"
+  var recipient = String(phone).replace(/^\+/, '');
   try {
     var res = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
       method: 'POST',
@@ -26,11 +19,12 @@ async function _sendViaArkesel(phone, message) {
       body: JSON.stringify({
         sender: process.env.ARKESEL_SENDER || 'Circul',
         message: message,
-        recipients: [phone]
+        recipients: [recipient]
       })
     });
     var body = await res.json().catch(function () { return {}; });
-    return { sent: res.ok, status: res.status, body: body };
+    var ok = res.ok && body && body.status === 'success';
+    return { sent: ok, status: res.status, body: body, reason: ok ? undefined : (body && body.message) || 'arkesel error' };
   } catch (e) {
     return { sent: false, reason: e.message };
   }
@@ -113,14 +107,24 @@ async function notify(event, recipientPhone, data) {
     return { sent: false, reason: 'console-only mode' };
   }
 
-  if (!_checkAndIncrCap(phone)) {
-    console.warn('[NOTIFY] daily cap reached for ' + phone + ' (' + event + ')');
-    return { sent: false, reason: 'daily cap reached' };
-  }
-
   if (provider === 'arkesel') {
-    try { return await _sendViaArkesel(phone, message); }
-    catch (e) { console.warn('[NOTIFY] arkesel error:', e.message); return { sent: false, reason: e.message }; }
+    // Pre-check cap (don't increment yet)
+    var day = _todayKey();
+    if (!_smsCounts[day]) _smsCounts = { [day]: {} };
+    var bucket = _smsCounts[day];
+    if ((bucket[phone] || 0) >= SMS_DAILY_CAP) {
+      console.warn('[NOTIFY] daily cap reached for ' + phone + ' (' + event + ')');
+      return { sent: false, reason: 'daily cap reached' };
+    }
+    try {
+      var result = await _sendViaArkesel(phone, message);
+      if (result.sent) bucket[phone] = (bucket[phone] || 0) + 1;
+      else console.warn('[NOTIFY] arkesel failed (' + event + '):', result.reason || result.status);
+      return result;
+    } catch (e) {
+      console.warn('[NOTIFY] arkesel error:', e.message);
+      return { sent: false, reason: e.message };
+    }
   }
 
   console.warn('[NOTIFY] unknown provider:', provider);
