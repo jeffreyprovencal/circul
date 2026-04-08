@@ -2253,10 +2253,8 @@ async function handleGetRatingsByOperator(req, res) {
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
 }
 
-app.post('/api/ratings',          requireAuth, handleCreateRating);
-app.post('/api/ratings/operator', requireAuth, handleCreateRating); // deprecated alias — remove in 5D-cleanup
-app.get('/api/ratings/:id(\\d+)',          handleGetRatingsByOperator);
-app.get('/api/ratings/operator/:id',       handleGetRatingsByOperator); // deprecated alias
+app.post('/api/ratings', requireAuth, handleCreateRating);
+app.get('/api/ratings/:id(\\d+)', handleGetRatingsByOperator);
 
 app.get('/api/collectors/:id/ratings', async (req, res) => {
   try {
