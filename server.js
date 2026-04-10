@@ -32,7 +32,7 @@ const receiptUpload = multer({
 });
 
 if (!process.env.DATABASE_URL) {
-  console.error('ERROR: DATABASE_URL environment variable is equired');
+  console.error('ERROR: DATABASE_URL environment variable is required');
   process.exit(1);
 }
 
@@ -94,7 +94,24 @@ function verifyToken(token, secret) {
 async function verifyPassword(password, hash) {
   if (!hash) return false;
   // Legacy: if hash has no colon, it's plaintext from old registrations
-  if (!hash.includes(':')) return password === hash;
+  if (!hash.includes(':')) {
+    const match = password === hash;
+    if (match) {
+      // Silently migrate legacy plaintext password to scrypt hash
+      hashPassword(password).then(newHash => {
+        // Fire-and-forget: update all possible tables
+        const tables = ['collectors', 'aggregators', 'processors', 'converters', 'recyclers'];
+        tables.forEach(t => {
+          pool.query(`UPDATE ${t} SET pin = $1 WHERE pin = $2`, [newHash, hash]).catch(() => {});
+        });
+        // Also update password_hash for email-based logins
+        ['processors', 'converters', 'recyclers'].forEach(t => {
+          pool.query(`UPDATE ${t} SET password_hash = $1 WHERE password_hash = $2`, [newHash, hash]).catch(() => {});
+        });
+      }).catch(() => {});
+    }
+    return match;
+  }
   return new Promise((resolve, reject) => {
     const [salt, stored] = hash.split(':');
     crypto.scrypt(password, salt, 64, (err, key) => {

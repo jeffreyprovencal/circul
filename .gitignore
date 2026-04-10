@@ -1,54 +1,17 @@
 node_modules/
 .env
+.env.*
 .DS_Store
+*.log
 public/uploads/receipts/
+
+# Claude / Polsia
+.claude/
 !.claude/PROJECT.md
-
-# Polsia safety (auto-injected)
-.env
-.env.*
-.claude/
 projects/
 *.jsonl
 
-# Polsia safety (auto-injected)
-.env
-.env.*
-.claude/
-projects/
-*.jsonl
-
-# Polsia safety (auto-injected)
-.env
-.env.*
-.claude/
-projects/
-*.jsonl
-
-# Polsia safety (auto-injected)
-.env
-.env.*
-.claude/
-projects/
-*.jsonl
-
-# Polsia safety (auto-injected)
-.env
-.env.*
-.claude/
-projects/
-*.jsonl
-
-# Polsia safety (auto-injected)
-.env
-.env.*
-.claude/
-projects/
-*.jsonl
-
-# Polsia safety (auto-injected)
-.env
-.env.*
-.claude/
-projects/
-*.jsonl
+# Codebase exports (stale snapshots)
+circul-codebase-export.txt
+circul-chunk-*.txt
+circul-changed-files.txt
