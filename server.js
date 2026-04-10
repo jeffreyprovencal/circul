@@ -854,15 +854,6 @@ app.get('/api/aggregators/:id/agent-ratings', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/aggregator/suggest-cost-category', async (req, res) => {
-  try {
-    const { category_name, aggregator_id } = req.body;
-    if (!category_name || !category_name.trim()) return res.status(400).json({ success: false, message: 'Category name required' });
-    console.log('Cost category suggestion:', { category_name: category_name.trim(), aggregator_id, submitted_at: new Date().toISOString() });
-    res.json({ success: true, message: 'Suggestion received' });
-  } catch (err) { console.error('POST /api/aggregator/suggest-cost-category error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
-});
-
 // ============================================
 // EXPENSE CATEGORIES
 // ============================================
@@ -879,19 +870,7 @@ app.get('/api/expense-categories', async (req, res) => {
   }
 });
 
-app.get('/api/aggregators/:id/expense-categories', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT id, name, status FROM expense_categories WHERE status IN ('default','approved') ORDER BY name`
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error('GET /api/aggregators/:id/expense-categories error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-app.post('/api/expense-categories/suggest', async (req, res) => {
+app.post('/api/expense-categories/suggest', requireAuth, async (req, res) => {
   try {
     const { name, aggregator_id } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ success: false, message: 'Category name is required' });
@@ -907,7 +886,7 @@ app.post('/api/expense-categories/suggest', async (req, res) => {
   }
 });
 
-app.get('/api/expense-categories/pending', async (req, res) => {
+app.get('/api/expense-categories/pending', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT ec.id, ec.name, ec.status, ec.created_at, o.name AS suggested_by_name
@@ -923,7 +902,7 @@ app.get('/api/expense-categories/pending', async (req, res) => {
   }
 });
 
-app.patch('/api/expense-categories/:id/approve', async (req, res) => {
+app.patch('/api/expense-categories/:id/approve', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const newName = req.body.name;
@@ -931,7 +910,7 @@ app.patch('/api/expense-categories/:id/approve', async (req, res) => {
       `UPDATE expense_categories SET status = 'approved', name = COALESCE($1, name), reviewed_at = NOW() WHERE id = $2 AND status = 'pending' RETURNING *`,
       [newName || null, id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Category not found or already reviewed' });
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Category not found or already reviewed' });
     res.json(rows[0]);
   } catch (err) {
     console.error('PATCH /api/expense-categories/:id/approve error:', err);
@@ -939,18 +918,18 @@ app.patch('/api/expense-categories/:id/approve', async (req, res) => {
   }
 });
 
-app.patch('/api/expense-categories/:id/reject', async (req, res) => {
+app.patch('/api/expense-categories/:id/reject', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { rejection_reason } = req.body;
     if (!rejection_reason || !rejection_reason.trim()) {
-      return res.status(400).json({ error: 'Rejection reason is required' });
+      return res.status(400).json({ success: false, message: 'Rejection reason is required' });
     }
     const { rows } = await pool.query(
       `UPDATE expense_categories SET status = 'rejected', rejection_reason = $1, reviewed_at = NOW() WHERE id = $2 AND status = 'pending' RETURNING *`,
       [rejection_reason.trim(), id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Category not found or already reviewed' });
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Category not found or already reviewed' });
     res.json(rows[0]);
   } catch (err) {
     console.error('PATCH /api/expense-categories/:id/reject error:', err);
@@ -969,7 +948,7 @@ app.post('/api/aggregators/:id/expenses', requireAuth, receiptUpload.single('rec
     const { category_id, amount, note, expense_date } = req.body;
 
     if (!category_id || !amount || isNaN(parseFloat(amount))) {
-      return res.status(400).json({ error: 'category_id and amount are required' });
+      return res.status(400).json({ success: false, message: 'category_id and amount are required' });
     }
 
     const receipt_url = req.file ? `/uploads/receipts/${req.file.filename}` : null;
@@ -1001,7 +980,7 @@ app.post('/api/aggregators/:id/expenses', requireAuth, receiptUpload.single('rec
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('POST /api/aggregators/:id/expenses error:', err);
-    res.status(500).json({ error: 'Failed to log expense' });
+    res.status(500).json({ success: false, message: 'Failed to log expense' });
   }
 });
 
@@ -1082,7 +1061,7 @@ app.delete('/api/aggregators/:id/expenses/:eid', requireAuth, async (req, res) =
       `DELETE FROM expense_entries WHERE id = $1 AND aggregator_id = $2 RETURNING *`,
       [eid, id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Entry not found' });
 
     // Clean up receipt file if it exists
     if (rows[0].receipt_url) {
@@ -1093,7 +1072,7 @@ app.delete('/api/aggregators/:id/expenses/:eid', requireAuth, async (req, res) =
     res.json({ deleted: rows[0] });
   } catch (err) {
     console.error('DELETE /api/aggregators/:id/expenses/:eid error:', err);
-    res.status(500).json({ error: 'Failed to delete expense' });
+    res.status(500).json({ success: false, message: 'Failed to delete expense' });
   }
 });
 
@@ -5486,12 +5465,12 @@ app.post('/api/auth/register', async (req, res) => {
         [name, company, phone, hashedPin]
       );
     } else {
-      return res.status(400).json({ error: 'Invalid role for self-registration' });
+      return res.status(400).json({ success: false, message: 'Invalid role for self-registration' });
     }
     res.json({ success: true });
   } catch (err) {
     console.error('Register error:', err);
-    res.status(500).json({ error: 'Registration failed' });
+    res.status(500).json({ success: false, message: 'Registration failed' });
   }
 });
 
@@ -5504,7 +5483,7 @@ app.post('/api/auth/request-access', async (req, res) => {
   try {
     const table = CirculRoles.TABLE_MAP[role];
     if (!table || !CirculRoles.PAID_ROLES.includes(role)) {
-      return res.status(400).json({ error: 'Invalid role for access request' });
+      return res.status(400).json({ success: false, message: 'Invalid role for access request' });
     }
     await pool.query(
       `INSERT INTO ${table} (name, company, email, phone, password_hash, is_active) VALUES ($1, $2, $3, $4, '', false)`,
@@ -5513,7 +5492,7 @@ app.post('/api/auth/request-access', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Request access error:', err);
-    res.status(500).json({ error: 'Request failed' });
+    res.status(500).json({ success: false, message: 'Request failed' });
   }
 });
 
@@ -5521,7 +5500,7 @@ app.post('/api/auth/request-access', async (req, res) => {
 // ADMIN — PENDING / APPROVE / REJECT
 // ============================================
 
-app.get('/api/admin/pending', async (req, res) => {
+app.get('/api/admin/pending', requireAdmin, async (req, res) => {
   try {
     const queries = CirculRoles.PAID_ROLES.map(role => {
       const table = CirculRoles.TABLE_MAP[role];
@@ -5533,33 +5512,33 @@ app.get('/api/admin/pending', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Pending error:', err);
-    res.status(500).json({ error: 'Failed to fetch pending requests' });
+    res.status(500).json({ success: false, message: 'Failed to fetch pending requests' });
   }
 });
 
-app.post('/api/admin/approve', async (req, res) => {
+app.post('/api/admin/approve', requireAdmin, async (req, res) => {
   const { id, role } = req.body;
   try {
     const table = CirculRoles.TABLE_MAP[role];
-    if (!table) return res.status(400).json({ error: 'Invalid role' });
+    if (!table) return res.status(400).json({ success: false, message: 'Invalid role' });
     await pool.query(`UPDATE ${table} SET is_active=true WHERE id=$1`, [id]);
     res.json({ success: true });
   } catch (err) {
     console.error('Approve error:', err);
-    res.status(500).json({ error: 'Approval failed' });
+    res.status(500).json({ success: false, message: 'Approval failed' });
   }
 });
 
-app.post('/api/admin/reject', async (req, res) => {
+app.post('/api/admin/reject', requireAdmin, async (req, res) => {
   const { id, role } = req.body;
   try {
     const table = CirculRoles.TABLE_MAP[role];
-    if (!table) return res.status(400).json({ error: 'Invalid role' });
+    if (!table) return res.status(400).json({ success: false, message: 'Invalid role' });
     await pool.query(`DELETE FROM ${table} WHERE id=$1`, [id]);
     res.json({ success: true });
   } catch (err) {
     console.error('Reject error:', err);
-    res.status(500).json({ error: 'Rejection failed' });
+    res.status(500).json({ success: false, message: 'Rejection failed' });
   }
 });
 
@@ -5604,7 +5583,7 @@ setTimeout(runDiscoveryCrons, 10000);
 app.post('/api/error-log', async (req, res) => {
   try {
     const { source, dashboard, error_message, error_stack, url } = req.body;
-    if (!error_message) return res.status(400).json({ error: 'error_message required' });
+    if (!error_message) return res.status(400).json({ success: false, message: 'error_message required' });
 
     // Extract user info from token if present (but don't require it)
     let user_id = null, user_role = null;
@@ -5647,7 +5626,7 @@ app.post('/api/error-log', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('Error logging failed:', e.message);
-    res.status(500).json({ error: 'logging failed' });
+    res.status(500).json({ success: false, message: 'logging failed' });
   }
 });
 
@@ -5668,7 +5647,7 @@ app.get('/api/error-log', requireAuth, async (req, res) => {
     );
     res.json(result.rows);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ success: false, message: e.message });
   }
 });
 
