@@ -4994,13 +4994,13 @@ app.post('/api/auth/login', async (req, res) => {
       if (isProcessor && isConverter) {
         const proc = procResult.rows[0], conv = convResult.rows[0];
         const token = generateToken({ type: 'buyer', id: proc.id, converter_id: conv.id, email: emailLower, roles: ['processor','converter'] }, AUTH_SECRET);
-        return res.json({ success: true, role: null, roles: ['processor','converter'], token, user: { id: proc.id, converter_id: conv.id, name: proc.name, company: proc.company, email: emailLower } });
+        return res.json({ success: true, role: 'processor', roles: ['processor','converter'], token, user: { id: proc.id, converter_id: conv.id, name: proc.name, company: proc.company, email: emailLower, role: 'processor' } });
       }
 
       if (isRecycler && isConverter) {
         const rec = recResult.rows[0], conv = convResult.rows[0];
         const token = generateToken({ type: 'buyer', id: rec.id, converter_id: conv.id, email: emailLower, roles: ['recycler','converter'] }, AUTH_SECRET);
-        return res.json({ success: true, role: null, roles: ['recycler','converter'], token, user: { id: rec.id, converter_id: conv.id, name: rec.name, company: rec.company, email: emailLower } });
+        return res.json({ success: true, role: 'recycler', roles: ['recycler','converter'], token, user: { id: rec.id, converter_id: conv.id, name: rec.name, company: rec.company, email: emailLower, role: 'recycler' } });
       }
 
       if (isProcessor) {
