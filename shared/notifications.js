@@ -7,24 +7,23 @@ var _smsCounts = {}; // { 'YYYY-MM-DD': { '+233...': count } }
 
 function _todayKey() { return new Date().toISOString().slice(0, 10); }
 
-async function _sendViaArkesel(phone, message) {
-  var apiKey = process.env.ARKESEL_API_KEY;
-  if (!apiKey) return { sent: false, reason: 'ARKESEL_API_KEY missing' };
-  // Arkesel V2 expects MSISDN without leading '+': "233544919953"
-  var recipient = String(phone).replace(/^\+/, '');
+async function _sendViaAfricasTalking(phone, message) {
+  var apiKey = process.env.AT_API_KEY;
+  var username = process.env.AT_USERNAME;
+  if (!apiKey || !username) return { sent: false, reason: 'AT_API_KEY or AT_USERNAME missing' };
+  var sender = process.env.AT_SENDER || 'Circul';
+  var params = new URLSearchParams({ username: username, to: phone, message: message, from: sender });
   try {
-    var res = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
+    var res = await fetch('https://api.africastalking.com/version1/messaging', {
       method: 'POST',
-      headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sender: process.env.ARKESEL_SENDER || 'Circul',
-        message: message,
-        recipients: [recipient]
-      })
+      headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', apiKey: apiKey },
+      body: params.toString()
     });
     var body = await res.json().catch(function () { return {}; });
-    var ok = res.ok && body && body.status === 'success';
-    return { sent: ok, status: res.status, body: body, reason: ok ? undefined : (body && body.message) || 'arkesel error' };
+    var recipients = (body.SMSMessageData && body.SMSMessageData.Recipients) || [];
+    var first = recipients[0] || {};
+    var ok = res.ok && first.statusCode === 101;
+    return { sent: ok, status: res.status, body: body, reason: ok ? undefined : first.status || 'africastalking error' };
   } catch (e) {
     return { sent: false, reason: e.message };
   }
@@ -107,7 +106,7 @@ async function notify(event, recipientPhone, data) {
     return { sent: false, reason: 'console-only mode' };
   }
 
-  if (provider === 'arkesel') {
+  if (provider === 'africastalking') {
     // Pre-check cap (don't increment yet)
     var day = _todayKey();
     if (!_smsCounts[day]) _smsCounts = { [day]: {} };
@@ -117,12 +116,12 @@ async function notify(event, recipientPhone, data) {
       return { sent: false, reason: 'daily cap reached' };
     }
     try {
-      var result = await _sendViaArkesel(phone, message);
+      var result = await _sendViaAfricasTalking(phone, message);
       if (result.sent) bucket[phone] = (bucket[phone] || 0) + 1;
-      else console.warn('[NOTIFY] arkesel failed (' + event + '):', result.reason || result.status);
+      else console.warn('[NOTIFY] africastalking failed (' + event + '):', result.reason || result.status);
       return result;
     } catch (e) {
-      console.warn('[NOTIFY] arkesel error:', e.message);
+      console.warn('[NOTIFY] africastalking error:', e.message);
       return { sent: false, reason: e.message };
     }
   }
