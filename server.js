@@ -2490,7 +2490,7 @@ async function handleRegisteredUssd(parts, collector) {
       const city = collector.city || 'Accra';
       const aggs = await pool.query(
         `SELECT a.id, a.name, a.city,
-                COALESCE(a.average_rating, 0) as rating,
+                COALESCE((SELECT AVG(r.rating)::NUMERIC(3,1) FROM ratings r WHERE r.rated_type='aggregator' AND r.rated_id=a.id), 0) as rating,
                 pp.price_per_kg_ghs
          FROM aggregators a
          JOIN posted_prices pp ON pp.poster_type = 'aggregator' AND pp.poster_id = a.id
