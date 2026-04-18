@@ -108,7 +108,7 @@ module.exports = {
         id                  SERIAL PRIMARY KEY,
         name                VARCHAR(255) NOT NULL,
         company             VARCHAR(255) NOT NULL,
-        email               VARCHAR(255),
+        email               VARCHAR(255) UNIQUE,
         password_hash       VARCHAR(255),
         phone               VARCHAR(50),
         city                VARCHAR(100),
@@ -302,19 +302,20 @@ module.exports = {
     // converters email column may not have unique constraint — add it defensively
     // (no-op if already unique or no duplicates)
 
-    // Posted prices — aggregator buy prices for collectors
+    // Posted prices — aggregator buy prices for collectors.
+    // Uses CROSS JOIN VALUES instead of unnest-in-CASE (which Postgres rejects:
+    // "set-returning functions are not allowed in CASE"). Semantically identical
+    // to the original — four material rows per aggregator with the same prices.
     await client.query(`
       INSERT INTO posted_prices (poster_type, poster_id, material_type, price_per_kg_ghs, city, region, country, is_active)
-      SELECT 'aggregator', id,
-             unnest(ARRAY['PET','HDPE','PP','LDPE']),
-             CASE unnest(ARRAY['PET','HDPE','PP','LDPE'])
-               WHEN 'PET'  THEN 3.20
-               WHEN 'HDPE' THEN 2.80
-               WHEN 'PP'   THEN 2.50
-               ELSE 1.90
-             END,
-             city, region, country, true
-      FROM aggregators
+      SELECT 'aggregator', a.id, m.material_type, m.price, a.city, a.region, a.country, true
+      FROM aggregators a
+      CROSS JOIN (VALUES
+        ('PET',  3.20),
+        ('HDPE', 2.80),
+        ('PP',   2.50),
+        ('LDPE', 1.90)
+      ) AS m(material_type, price)
       ON CONFLICT DO NOTHING;
     `);
 
