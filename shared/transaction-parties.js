@@ -1,20 +1,39 @@
 // shared/transaction-parties.js
-// Single source of truth for resolving seller/buyer party info from a
-// transactions or pending_transactions row, for SMS notifications.
+// Single source of truth for resolving the seller and buyer of a
+// pending_transactions (or transactions) row.
 //
-// Mapping: which side of a transaction is the SELLER (gets paid) vs BUYER.
-//   collector_sale       → seller=collector,  buyer=aggregator
-//   aggregator_purchase  → seller=collector,  buyer=aggregator
-//   aggregator_sale      → seller=aggregator, buyer=processor
-//   processor_sale       → seller=processor,  buyer=recycler OR converter
-//   recycler_sale        → seller=recycler,   buyer=converter
+// Why this exists: sellers are single-kind per transaction_type, but buyers
+// are polymorphic for two of the five transaction types. We express the
+// polymorphism explicitly via PARTY_MAP's buyerKinds array (priority order)
+// and two strict resolvers (resolveBuyer / resolveSeller) that throw on
+// invalid row states.
+//
+// Buyer polymorphism matrix (confirmed from server.js insert sites):
+//   collector_sale       seller=collector    buyer=aggregator
+//   aggregator_purchase  seller=collector    buyer=aggregator
+//   aggregator_sale      seller=aggregator   buyer=processor | recycler | converter
+//   processor_sale       seller=processor    buyer=recycler  | converter
+//   recycler_sale        seller=recycler     buyer=converter
+//
+// Miniplast-style entities (multi-tier companies classified by their DEEPEST
+// tier — e.g. a process+recycle+convert shop is recorded as a converter) are
+// the canonical reason aggregator_sale must allow a converter buyer: the
+// aggregator sells direct to the converter, chain-of-custody tracking stops
+// at that boundary. See project_circul_miniplast_multi_tier.md for full
+// rationale.
+//
+// Ambiguous-row policy: if a row has more than one buyer FK populated (e.g.
+// an aggregator_sale with BOTH processor_id and converter_id set), the
+// resolver THROWS. Silent tie-breaking would hide data-integrity bugs. The
+// server insert paths are expected to enforce exactly-one-buyer-FK on write
+// (follow-up hardening tracked separately).
 
 const PARTY_MAP = {
-  collector_sale:      { sellerKind: 'collector',  buyerKind: 'aggregator' },
-  aggregator_purchase: { sellerKind: 'collector',  buyerKind: 'aggregator' },
-  aggregator_sale:     { sellerKind: 'aggregator', buyerKind: 'processor'  },
-  processor_sale:      { sellerKind: 'processor',  buyerKind: 'recycler_or_converter' },
-  recycler_sale:       { sellerKind: 'recycler',   buyerKind: 'converter'  }
+  collector_sale:      { sellerKind: 'collector',  buyerKinds: ['aggregator'] },
+  aggregator_purchase: { sellerKind: 'collector',  buyerKinds: ['aggregator'] },
+  aggregator_sale:     { sellerKind: 'aggregator', buyerKinds: ['processor', 'recycler', 'converter'] },
+  processor_sale:      { sellerKind: 'processor',  buyerKinds: ['recycler', 'converter'] },
+  recycler_sale:       { sellerKind: 'recycler',   buyerKinds: ['converter'] }
 };
 
 const KIND_TO_TABLE = {
@@ -24,6 +43,85 @@ const KIND_TO_TABLE = {
   recycler:   { table: 'recyclers',   nameSql: 'name' },
   converter:  { table: 'converters',  nameSql: 'name' }
 };
+
+// ── Strict resolvers ──────────────────────────────────────────────────────
+//
+// Throw with a descriptive message on any invalid row state. Use these when
+// you want error propagation (e.g. PR3's insert-path enforcement, or any
+// code that wants loud failures on malformed rows). For lenient resolution
+// that returns null-filled defaults instead, use resolveParties below.
+
+/**
+ * Resolve the seller of a row. Throws if the row's transaction_type is
+ * unknown, or if the expected seller FK column is null.
+ *
+ * @param {object} row  A pending_transactions or transactions row.
+ * @returns {{kind: string, id: number}}
+ * @throws {Error} on unknown transaction_type or missing seller FK.
+ */
+function resolveSeller(row) {
+  if (!row || !row.transaction_type) {
+    throw new Error('resolveSeller: row missing or has no transaction_type');
+  }
+  const cfg = PARTY_MAP[row.transaction_type];
+  if (!cfg) {
+    throw new Error('resolveSeller: unknown transaction_type: ' + row.transaction_type);
+  }
+  const id = row[cfg.sellerKind + '_id'];
+  if (id == null) {
+    throw new Error(
+      'resolveSeller: no seller FK set for ' + row.transaction_type +
+      ' row id=' + row.id + '; expected ' + cfg.sellerKind + '_id'
+    );
+  }
+  return { kind: cfg.sellerKind, id: Number(id) };
+}
+
+/**
+ * Resolve the buyer of a row. Iterates PARTY_MAP[type].buyerKinds in priority
+ * order and returns the single populated FK. Throws on:
+ *   - unknown transaction_type
+ *   - zero populated buyer FKs (invalid row)
+ *   - more than one populated buyer FK (ambiguous; schema should prevent this)
+ *
+ * @param {object} row
+ * @returns {{kind: string, id: number}}
+ * @throws {Error} on invalid/ambiguous state.
+ */
+function resolveBuyer(row) {
+  if (!row || !row.transaction_type) {
+    throw new Error('resolveBuyer: row missing or has no transaction_type');
+  }
+  const cfg = PARTY_MAP[row.transaction_type];
+  if (!cfg) {
+    throw new Error('resolveBuyer: unknown transaction_type: ' + row.transaction_type);
+  }
+
+  const matches = [];
+  for (const kind of cfg.buyerKinds) {
+    const id = row[kind + '_id'];
+    if (id != null) matches.push({ kind: kind, id: Number(id) });
+  }
+
+  if (matches.length === 0) {
+    throw new Error(
+      'resolveBuyer: no buyer FK set for ' + row.transaction_type +
+      ' row id=' + row.id + '; expected one of: ' +
+      cfg.buyerKinds.map(function (k) { return k + '_id'; }).join(', ')
+    );
+  }
+  if (matches.length > 1) {
+    const set = matches.map(function (m) { return m.kind + '_id=' + m.id; }).join(', ');
+    throw new Error(
+      'resolveBuyer: ambiguous buyer for ' + row.transaction_type +
+      ' row id=' + row.id + '; multiple buyer FKs set: ' + set +
+      '. Exactly one must be set.'
+    );
+  }
+  return matches[0];
+}
+
+// ── Lenient facade ────────────────────────────────────────────────────────
 
 async function _lookupParty(pool, kind, id) {
   if (!id) return null;
@@ -36,29 +134,32 @@ async function _lookupParty(pool, kind, id) {
   return row || null;
 }
 
+/**
+ * Lenient resolver for SMS / payment-auth callers that want null-filled
+ * defaults rather than exceptions on malformed rows. Internally wraps the
+ * strict resolvers in try/catch. Returns `{seller, buyer, sellerKind,
+ * buyerKind, material, qty, amount, ref}` where any field can be null if
+ * the corresponding resolution failed.
+ *
+ * Backward compatible with pre-amendment callers: return shape unchanged,
+ * and buyerKind now correctly resolves to 'converter'/'recycler' for
+ * aggregator_sale rows that route direct to those tiers (previously
+ * returned null buyer because the hard-coded 'processor' branch misrouted).
+ */
 async function resolveParties(pool, row) {
-  if (!row || !row.transaction_type) {
-    return { seller: null, buyer: null, material: null, qty: null, amount: null, ref: null };
-  }
-  const cfg = PARTY_MAP[row.transaction_type];
-  if (!cfg) {
-    return { seller: null, buyer: null, material: null, qty: null, amount: null, ref: null };
+  if (!row || !row.transaction_type || !PARTY_MAP[row.transaction_type]) {
+    return { seller: null, buyer: null, sellerKind: null, buyerKind: null,
+             material: null, qty: null, amount: null, ref: null };
   }
 
-  let buyerKind = cfg.buyerKind;
-  let buyerId;
-  if (cfg.buyerKind === 'recycler_or_converter') {
-    if (row.recycler_id) { buyerKind = 'recycler'; buyerId = row.recycler_id; }
-    else if (row.converter_id) { buyerKind = 'converter'; buyerId = row.converter_id; }
-  } else {
-    buyerId = row[buyerKind + '_id'];
-  }
-  const sellerKind = cfg.sellerKind;
-  const sellerId = row[sellerKind + '_id'];
+  let sellerInfo = null;
+  let buyerInfo = null;
+  try { sellerInfo = resolveSeller(row); } catch (_e) { /* leniently ignore */ }
+  try { buyerInfo  = resolveBuyer(row);  } catch (_e) { /* leniently ignore */ }
 
   const [seller, buyer] = await Promise.all([
-    _lookupParty(pool, sellerKind, sellerId),
-    _lookupParty(pool, buyerKind, buyerId)
+    sellerInfo ? _lookupParty(pool, sellerInfo.kind, sellerInfo.id) : null,
+    buyerInfo  ? _lookupParty(pool, buyerInfo.kind,  buyerInfo.id)  : null
   ]);
 
   const ref = 'TXN-' +
@@ -66,14 +167,14 @@ async function resolveParties(pool, row) {
     '-' + String(row.id).padStart(4, '0');
 
   return {
-    seller,
-    buyer,
-    sellerKind,
-    buyerKind,
+    seller: seller,
+    buyer: buyer,
+    sellerKind: sellerInfo ? sellerInfo.kind : null,
+    buyerKind:  buyerInfo  ? buyerInfo.kind  : null,
     material: row.material_type,
     qty: row.gross_weight_kg != null ? parseFloat(row.gross_weight_kg).toFixed(0) : null,
     amount: row.total_price != null ? parseFloat(row.total_price).toFixed(2) : null,
-    ref
+    ref: ref
   };
 }
 
@@ -87,4 +188,11 @@ function userOwnsParty(user, kind, partyId) {
   return Number(user.id) === Number(partyId);
 }
 
-module.exports = { resolveParties, PARTY_MAP, KIND_TO_TABLE, userOwnsParty };
+module.exports = {
+  PARTY_MAP: PARTY_MAP,
+  KIND_TO_TABLE: KIND_TO_TABLE,
+  resolveSeller: resolveSeller,
+  resolveBuyer: resolveBuyer,
+  resolveParties: resolveParties,
+  userOwnsParty: userOwnsParty
+};
