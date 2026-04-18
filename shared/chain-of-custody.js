@@ -48,7 +48,13 @@
   }
 })(typeof self !== 'undefined' ? self : this, function (transactionParties) {
 
-  var PARTY_MAP = transactionParties.PARTY_MAP;
+  // resolveBuyer/resolveSeller are strict: they throw on ambiguous, missing,
+  // or unknown rows. The backfill treats those cases as "orphan" rather than
+  // fatal, so we wrap them in lenient try/catch adapters below. This keeps
+  // the single source of truth in shared/transaction-parties.js and removes
+  // the local polymorphism workaround that was here pre-PR2.
+  var resolveSeller = transactionParties.resolveSeller;
+  var resolveBuyer  = transactionParties.resolveBuyer;
 
   var EXCLUDED_STATUSES = ['rejected', 'dispatch_rejected', 'grade_c_flagged'];
   var DAY_MS = 24 * 60 * 60 * 1000;
@@ -57,42 +63,16 @@
   // (Collectors don't have predecessor pending_transactions rows in the model.)
   var ROOT_TYPES = { collector_sale: true, aggregator_purchase: true };
 
-  // Returns { kind, id } for the seller (gives material) of a row.
+  // Returns { kind, id } for the seller (gives material) of a row, or null
+  // if the row is malformed. Lenient wrapper over resolveSeller.
   function sellerOf(row) {
-    var cfg = PARTY_MAP[row.transaction_type];
-    if (!cfg) return null;
-    var sellerKind = cfg.sellerKind;
-    var sellerId = row[sellerKind + '_id'];
-    if (sellerId == null) return null;
-    return { kind: sellerKind, id: Number(sellerId) };
+    try { return resolveSeller(row); } catch (_e) { return null; }
   }
 
-  // Returns { kind, id } for the buyer (receives material) of a row.
-  // Disambiguates two polymorphic cases:
-  //   - processor_sale: PARTY_MAP says buyerKind='recycler_or_converter'.
-  //     Inspect row.recycler_id / row.converter_id to pick the real buyer.
-  //   - aggregator_sale: PARTY_MAP hard-codes buyerKind='processor', but the
-  //     server insert path allows processor_id OR converter_id (aggregator can
-  //     sell direct to converter). Handle the converter case here.
+  // Returns { kind, id } for the buyer (receives material) of a row, or null
+  // if the row is malformed / ambiguous. Lenient wrapper over resolveBuyer.
   function buyerOf(row) {
-    var cfg = PARTY_MAP[row.transaction_type];
-    if (!cfg) return null;
-
-    if (row.transaction_type === 'aggregator_sale') {
-      if (row.processor_id != null) return { kind: 'processor', id: Number(row.processor_id) };
-      if (row.converter_id != null) return { kind: 'converter', id: Number(row.converter_id) };
-      return null;
-    }
-
-    if (cfg.buyerKind === 'recycler_or_converter') {
-      if (row.recycler_id != null) return { kind: 'recycler', id: Number(row.recycler_id) };
-      if (row.converter_id != null) return { kind: 'converter', id: Number(row.converter_id) };
-      return null;
-    }
-
-    var buyerId = row[cfg.buyerKind + '_id'];
-    if (buyerId == null) return null;
-    return { kind: cfg.buyerKind, id: Number(buyerId) };
+    try { return resolveBuyer(row); } catch (_e) { return null; }
   }
 
   // Round to 2 decimal places (pending_transactions.gross_weight_kg is NUMERIC(10,2)).
