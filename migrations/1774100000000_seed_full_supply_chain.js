@@ -25,6 +25,16 @@ module.exports = {
       ADD COLUMN IF NOT EXISTS operator_id INTEGER REFERENCES operators(id) ON DELETE SET NULL
     `);
 
+    // ── Schema: processor_id / converter_id are written by the seeds below.
+    //   A later migration (add_processor_converter_id_to_transactions) also adds
+    //   these columns; declaring them here (idempotent IF NOT EXISTS) makes this
+    //   migration self-sufficient on a fresh-DB bootstrap.
+    await client.query(`
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS processor_id INTEGER,
+        ADD COLUMN IF NOT EXISTS converter_id INTEGER
+    `);
+
     // ── Schema: expand buyers.role to include 'converter'
     await client.query(`ALTER TABLE buyers DROP CONSTRAINT IF EXISTS buyers_role_check`);
     await client.query(`
