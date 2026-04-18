@@ -15,8 +15,13 @@ module.exports = {
       )
     `);
 
+    // Full (non-partial) unique index so ON CONFLICT (phone) can infer it as the
+    // arbiter in later seed migrations. Partial indexes require the WHERE clause
+    // to be repeated on ON CONFLICT, which no downstream seed does.
+    // NULL phones are still allowed: Postgres treats NULLs as distinct in unique
+    // indexes by default (NULLS DISTINCT), same behavior as the partial index.
     await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS pickers_phone_unique_idx ON pickers (phone) WHERE phone IS NOT NULL
+      CREATE UNIQUE INDEX IF NOT EXISTS pickers_phone_unique_idx ON pickers (phone)
     `);
 
     // Collections table - each logged collection event
