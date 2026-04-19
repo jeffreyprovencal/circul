@@ -9,6 +9,32 @@ const { EVENTS, notify } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
 const { getPendingRatings, createRating } = require('./shared/ratings');
 const { resolveParties, userOwnsParty, validateBuyerFks } = require('./shared/transaction-parties');
+const {
+  attributeAndInsert,
+  insertRootTransaction,
+  InsufficientSourceError
+} = require('./shared/chain-of-custody-db');
+
+// Translate an InsufficientSourceError into a 400 response body.
+// Returns true if the error was handled (response sent); false otherwise.
+function handleInsufficientSource(res, err) {
+  if (!(err instanceof InsufficientSourceError)) return false;
+  res.status(400).json({
+    success: false,
+    error: 'insufficient_source_material',
+    message: err.message,
+    details: {
+      shortfall_kg: err.shortfall_kg,
+      candidates_considered: err.candidates_considered,
+      candidates_total_remaining_kg: err.candidates_total_remaining_kg,
+      seller_kind: err.seller ? err.seller.kind : null,
+      seller_id: err.seller ? err.seller.id : null,
+      material_type: err.target.material_type,
+      requested_kg: err.target.gross_weight_kg
+    }
+  });
+  return true;
+}
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -1439,6 +1465,10 @@ app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
         cols.push(buyerCol); vals.push(offer.buyer_id);
       }
       const placeholders = vals.map((_, i) => '$' + (i + 1)).join(', ');
+      // TODO(PR6-discovery): wire computeWriteAttribution / insertRootTransaction
+      // here once server.js:1281-1283 type-picker fallback bug (follow-up e) is
+      // fixed and mis-labeled prod rows are migrated. Attribution on top of the
+      // buggy helper would 400 legit processor/recycler offer-accepts.
       const ptResult = await client.query(
         `INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
         vals
@@ -2555,15 +2585,31 @@ async function handleRegisteredUssd(parts, collector) {
         if (!agg) return 'END Error: aggregator not found.\nDial again to retry.';
         const price = parseFloat(agg.price_per_kg_ghs);
         const total = weight * price;
-        const result = await pool.query(
-          `INSERT INTO pending_transactions
-            (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
-             price_per_kg, total_price, status, transaction_type, source)
-           VALUES ($1, $2, $3, $4, $4, $5, $6, 'pending', 'collector_sale', 'ussd')
-           RETURNING id, created_at`,
-          [collector.id, agg.id, material, weight, price, total]
-        );
-        const txnId = result.rows[0].id;
+        const ussdClient = await pool.connect();
+        let rootRow;
+        try {
+          await ussdClient.query('BEGIN');
+          const { row } = await insertRootTransaction(ussdClient, {
+            transaction_type: 'collector_sale',
+            status: 'pending',
+            collector_id: collector.id,
+            aggregator_id: agg.id,
+            material_type: material,
+            gross_weight_kg: weight,
+            net_weight_kg: weight,
+            price_per_kg: price,
+            total_price: total,
+            source: 'ussd'
+          });
+          await ussdClient.query('COMMIT');
+          rootRow = row;
+        } catch (e) {
+          await ussdClient.query('ROLLBACK').catch(() => {});
+          throw e;
+        } finally {
+          ussdClient.release();
+        }
+        const txnId = rootRow.id;
         const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
         try {
           if (agg.phone) {
@@ -2738,15 +2784,31 @@ async function handleAggregatorPurchase(m, aggregator) {
   if (mpDepth === 4) {
     if (mp[3] === '2') return 'END Cancelled.';
     if (mp[3] === '1') {
-      const result = await pool.query(
-        `INSERT INTO pending_transactions
-          (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
-           price_per_kg, total_price, status, transaction_type, source)
-         VALUES ($1, $2, $3, $4, $4, $5, $6, 'pending', 'aggregator_purchase', 'ussd')
-         RETURNING id`,
-        [collector.id, aggregator.id, material, weight, price, parseFloat(total)]
-      );
-      const txnId = result.rows[0].id;
+      const ussdClient = await pool.connect();
+      let rootRow;
+      try {
+        await ussdClient.query('BEGIN');
+        const { row } = await insertRootTransaction(ussdClient, {
+          transaction_type: 'aggregator_purchase',
+          status: 'pending',
+          collector_id: collector.id,
+          aggregator_id: aggregator.id,
+          material_type: material,
+          gross_weight_kg: weight,
+          net_weight_kg: weight,
+          price_per_kg: price,
+          total_price: parseFloat(total),
+          source: 'ussd'
+        });
+        await ussdClient.query('COMMIT');
+        rootRow = row;
+      } catch (e) {
+        await ussdClient.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        ussdClient.release();
+      }
+      const txnId = rootRow.id;
       const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
       try {
         if (collector.phone) {
@@ -3097,15 +3159,31 @@ async function handleAgentCollection(m, agent) {
   if (mpDepth === 4) {
     if (mp[3] === '2') return 'END Cancelled.';
     if (mp[3] === '1') {
-      const result = await pool.query(
-        `INSERT INTO pending_transactions
-          (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
-           price_per_kg, total_price, status, transaction_type, source)
-         VALUES ($1, $2, $3, $4, $4, $5, $6, 'completed', 'collector_sale', 'ussd')
-         RETURNING id`,
-        [collector.id, agent.aggregator_id, material, weight, price, parseFloat(total)]
-      );
-      const txnId = result.rows[0].id;
+      const ussdClient = await pool.connect();
+      let rootRow;
+      try {
+        await ussdClient.query('BEGIN');
+        const { row } = await insertRootTransaction(ussdClient, {
+          transaction_type: 'collector_sale',
+          status: 'completed',
+          collector_id: collector.id,
+          aggregator_id: agent.aggregator_id,
+          material_type: material,
+          gross_weight_kg: weight,
+          net_weight_kg: weight,
+          price_per_kg: price,
+          total_price: parseFloat(total),
+          source: 'ussd'
+        });
+        await ussdClient.query('COMMIT');
+        rootRow = row;
+      } catch (e) {
+        await ussdClient.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        ussdClient.release();
+      }
+      const txnId = rootRow.id;
       const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
       // Log to agent_activity
       await pool.query(
@@ -3624,6 +3702,10 @@ async function handleCollectorMyOffers(m, collector) {
         if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
         if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(selected.buyer_id); }
         const placeholders = vals.map(function(_, i) { return '$' + (i + 1); }).join(', ');
+        // TODO(PR6-discovery): wire computeWriteAttribution / insertRootTransaction
+        // here once server.js:1281-1283 type-picker fallback bug (follow-up e) is
+        // fixed and mis-labeled prod rows are migrated. Attribution on top of the
+        // buggy helper would 400 legit processor/recycler offer-accepts.
         await client.query(`INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders})`, vals);
 
         await client.query('COMMIT');
@@ -4054,6 +4136,10 @@ async function handleAggregatorMyOffers(m, aggregator) {
         if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
         if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(selected.buyer_id); }
         const placeholders = vals.map(function(_, i) { return '$' + (i + 1); }).join(', ');
+        // TODO(PR6-discovery): wire computeWriteAttribution / insertRootTransaction
+        // here once server.js:1281-1283 type-picker fallback bug (follow-up e) is
+        // fixed and mis-labeled prod rows are migrated. Attribution on top of the
+        // buggy helper would 400 legit processor/recycler offer-accepts.
         await client.query(`INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders})`, vals);
         await client.query('COMMIT');
       } catch (txErr) {
@@ -4200,12 +4286,43 @@ app.post('/api/pending-transactions', async (req, res) => {
     }
     const totalPrice = pricePer !== null ? parseFloat((kg * pricePer).toFixed(2)) : null;
 
-    const result = await pool.query(
-      `INSERT INTO pending_transactions (transaction_type, collector_id, aggregator_id, processor_id, converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, status, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11) RETURNING *`,
-      [transaction_type, collectorId, aggId, procId, convId, recyclerId, material_type.toUpperCase(), kg, pricePer, totalPrice, b.notes || null]
-    );
-    res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+    // Branch on transaction_type: root types (collector_sale / aggregator_purchase)
+    // use insertRootTransaction; downstream types go through attributeAndInsert
+    // (FIFO attribution + mass-balance enforcement).
+    const isRoot = (transaction_type === 'collector_sale' || transaction_type === 'aggregator_purchase');
+    const target = {
+      transaction_type: transaction_type,
+      collector_id: collectorId,
+      aggregator_id: aggId,
+      processor_id: procId,
+      converter_id: convId,
+      recycler_id: recyclerId,
+      material_type: material_type.toUpperCase(),
+      gross_weight_kg: kg,
+      price_per_kg: pricePer != null ? pricePer : 0,
+      total_price: totalPrice != null ? totalPrice : 0,
+      notes: b.notes || null
+    };
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      let responseBody;
+      if (isRoot) {
+        const { row } = await insertRootTransaction(client, target);
+        responseBody = { success: true, pending_transaction: row };
+      } else {
+        const { row, sources } = await attributeAndInsert(client, target);
+        responseBody = { success: true, pending_transaction: row, sources: sources };
+      }
+      await client.query('COMMIT');
+      return res.status(201).json(responseBody);
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (handleInsufficientSource(res, e)) return;
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err) { console.error('Create pending transaction error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -4336,8 +4453,27 @@ app.post('/api/pending-transactions/aggregator-purchase', requireAuth, async (re
     if (!collCheck.rows.length) return res.status(400).json({ success: false, message: 'Collector not found' });
     const pricePer = price_per_kg ? parseFloat(price_per_kg) : 0;
     const totalPrice = parseFloat((kg * pricePer).toFixed(2));
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, collector_id, aggregator_id, material_type, gross_weight_kg, price_per_kg, total_price, status) VALUES ('aggregator_purchase',$1,$2,$3,$4,$5,$6,'pending') RETURNING *`, [collector_id, aggregator_id, material_type.toUpperCase(), kg, pricePer, totalPrice]);
-    res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { row } = await insertRootTransaction(client, {
+        transaction_type: 'aggregator_purchase',
+        status: 'pending',
+        collector_id: parseInt(collector_id),
+        aggregator_id: parseInt(aggregator_id),
+        material_type: material_type.toUpperCase(),
+        gross_weight_kg: kg,
+        price_per_kg: pricePer,
+        total_price: totalPrice
+      });
+      await client.query('COMMIT');
+      return res.status(201).json({ success: true, pending_transaction: row });
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err) { console.error('Aggregator purchase error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -4361,8 +4497,34 @@ app.post('/api/pending-transactions/aggregator-sale', requireAuth, async (req, r
     const totalPrice = parseFloat((kg * price).toFixed(2));
     const photosRequired = kg > 500;
     const dispatchApproved = photosRequired ? false : true;
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_id, processor_id, converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,false,$10,$11,$12) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, resolvedRecyclerId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, photo_urls||[], notes||null]);
-    res.status(201).json({ success: true, pending_transaction: result.rows[0], photos_required: photosRequired });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { row, sources } = await attributeAndInsert(client, {
+        transaction_type: 'aggregator_sale',
+        aggregator_id: parseInt(aggregator_id),
+        processor_id: resolvedProcessorId,
+        converter_id: resolvedConverterId,
+        recycler_id: resolvedRecyclerId,
+        material_type: material_type.toUpperCase(),
+        gross_weight_kg: kg,
+        price_per_kg: price,
+        total_price: totalPrice,
+        photos_required: photosRequired,
+        photos_submitted: false,
+        photo_urls: photo_urls || [],
+        dispatch_approved: dispatchApproved,
+        notes: notes || null
+      });
+      await client.query('COMMIT');
+      return res.status(201).json({ success: true, pending_transaction: row, sources: sources, photos_required: photosRequired });
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (handleInsufficientSource(res, e)) return;
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err) { console.error('Aggregator sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -4448,13 +4610,36 @@ app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, re
     if (recycler_id) {
       const recResult = await pool.query(`SELECT id FROM recyclers WHERE id=$1 AND is_active=true`, [recycler_id]);
       if (!recResult.rows.length) return res.status(400).json({ success: false, message: 'Recycler not found' });
-      const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, recycler_id, material_type, kg, price, kg*price, notes||null]);
-      return res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+    } else {
+      const convResult = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]);
+      if (!convResult.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' });
     }
-    const convResult = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]);
-    if (!convResult.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' });
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('processor_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
-    res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { row, sources } = await attributeAndInsert(client, {
+        transaction_type: 'processor_sale',
+        processor_id: parseInt(req.user.id),
+        recycler_id: recycler_id ? parseInt(recycler_id) : null,
+        converter_id: converter_id ? parseInt(converter_id) : null,
+        material_type: material_type,
+        gross_weight_kg: kg,
+        price_per_kg: price,
+        total_price: kg * price,
+        photos_required: true,
+        photos_submitted: false,
+        photo_urls: [],
+        notes: notes || null
+      });
+      await client.query('COMMIT');
+      return res.status(201).json({ success: true, pending_transaction: row, sources: sources });
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (handleInsufficientSource(res, e)) return;
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err) { console.error('Processor sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -4556,8 +4741,31 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
     if (isNaN(price) || price <= 0) return res.status(400).json({ success: false, message: 'Invalid price' });
     const convResult = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]);
     if (!convResult.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' });
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, status, recycler_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, photos_required, photos_submitted, photo_urls, notes) VALUES ('recycler_sale','pending',$1,$2,$3,$4,$5,$6,true,false,'{}', $7) RETURNING *`, [req.user.id, converter_id, material_type, kg, price, kg*price, notes||null]);
-    res.status(201).json({ success: true, pending_transaction: result.rows[0] });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { row, sources } = await attributeAndInsert(client, {
+        transaction_type: 'recycler_sale',
+        recycler_id: parseInt(req.user.id),
+        converter_id: parseInt(converter_id),
+        material_type: material_type,
+        gross_weight_kg: kg,
+        price_per_kg: price,
+        total_price: kg * price,
+        photos_required: true,
+        photos_submitted: false,
+        photo_urls: [],
+        notes: notes || null
+      });
+      await client.query('COMMIT');
+      return res.status(201).json({ success: true, pending_transaction: row, sources: sources });
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (handleInsufficientSource(res, e)) return;
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err) { console.error('Recycler sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -5785,20 +5993,37 @@ app.post('/api/agent/log-collection', requireAuth, async (req, res) => {
     if (!collector_id || !material_type || !gross_weight_kg) {
       return res.status(400).json({ success: false, message: 'collector_id, material_type, gross_weight_kg required' });
     }
-    const total = (gross_weight_kg * (price_per_kg || 0)).toFixed(2);
-    const result = await pool.query(
-      `INSERT INTO pending_transactions (collector_id, aggregator_id, material_type, gross_weight_kg, price_per_kg, total_price, status, transaction_type, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'completed', 'collector_sale', NOW()) RETURNING id`,
-      [collector_id, req.user.aggregator_id, material_type, gross_weight_kg, price_per_kg || 0, total]
-    );
-    await pool.query(
-      `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
-       VALUES ($1,$2,'collection',$3,$4,'transaction')`,
-      [req.user.id, req.user.aggregator_id,
-       `Logged ${gross_weight_kg} kg ${material_type} from collector ${collector_id}`,
-       result.rows[0].id]
-    );
-    res.status(201).json({ success: true, transaction_id: result.rows[0].id });
+    const total = parseFloat((gross_weight_kg * (price_per_kg || 0)).toFixed(2));
+    const client = await pool.connect();
+    let insertedId;
+    try {
+      await client.query('BEGIN');
+      const { row } = await insertRootTransaction(client, {
+        transaction_type: 'collector_sale',
+        status: 'completed',
+        collector_id: parseInt(collector_id),
+        aggregator_id: req.user.aggregator_id,
+        material_type: material_type,
+        gross_weight_kg: parseFloat(gross_weight_kg),
+        price_per_kg: parseFloat(price_per_kg || 0),
+        total_price: total
+      });
+      insertedId = row.id;
+      await client.query(
+        `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
+         VALUES ($1,$2,'collection',$3,$4,'transaction')`,
+        [req.user.id, req.user.aggregator_id,
+         `Logged ${gross_weight_kg} kg ${material_type} from collector ${collector_id}`,
+         insertedId]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+    res.status(201).json({ success: true, transaction_id: insertedId });
   } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 

@@ -270,11 +270,127 @@
     };
   }
 
+  // ── computeWriteAttribution ───────────────────────────────────────────────
+  // Write-time variant of computeBackfillPlan. Single target, pre-filtered
+  // candidates. Used by shared/chain-of-custody-db.js attributeAndInsert()
+  // after it does SELECT … FOR UPDATE on the lock-scoped candidate set.
+  //
+  // Differences vs. computeBackfillPlan (PR2):
+  //   - Scope:       single target (not a full row graph)
+  //   - Filtering:   caller pre-filters via SQL (buyer-of-U = seller-of-D,
+  //                  material match, status not excluded, remaining_kg > 0,
+  //                  within window, sorted created_at ASC / id ASC). Pure fn
+  //                  trusts its input.
+  //   - Roots:       throws — root types must use insertRootTransaction.
+  //   - Orphan:      no orphan category at write time. Zero candidates + non-
+  //                  zero target = shortfall.
+  //   - Shortfall:   returned as shortfall_kg > 0. Caller throws 400.
+  //   - batch_id:    inherited from the dominant source's existing batch_id
+  //                  (not generated here). Same tie-breaking as backfill:
+  //                  largest weight_kg_attributed; first-seen on ties (which
+  //                  equals oldest created_at / smallest id given pre-sort).
+  //
+  // Input shape:
+  //   target     = { transaction_type, material_type, gross_weight_kg }
+  //   candidates = [{ id, gross_weight_kg, remaining_kg, batch_id, created_at }]
+  //                (already filtered + sorted + locked by caller)
+  //   opts       = { round2? } — round2 override for tests only
+  //
+  // Output shape:
+  //   {
+  //     edges: [{ source_id, weight_kg_attributed }],
+  //     sourceRemainingAfter: [{ id, remaining_kg }],   // only for sources drawn from
+  //     batch_id: <uuid from dominant source, or null on shortfall>,
+  //     shortfall_kg: <0 if covered, positive if under>
+  //   }
+  function computeWriteAttribution(target, candidates, opts) {
+    opts = opts || {};
+    var _round2 = opts.round2 || round2;
+
+    if (!target || !target.transaction_type) {
+      throw new Error('computeWriteAttribution: target missing or has no transaction_type');
+    }
+    if (ROOT_TYPES[target.transaction_type]) {
+      throw new Error(
+        'computeWriteAttribution: root types have no upstream; caller must use insertRootTransaction. Got ' +
+        target.transaction_type
+      );
+    }
+    if (target.gross_weight_kg == null) {
+      throw new Error('computeWriteAttribution: target.gross_weight_kg required');
+    }
+
+    var target_kg = _round2(parseFloat(target.gross_weight_kg));
+    var attributed = 0;
+    var edges = [];
+    var sourceRemainingAfter = [];
+
+    if (candidates && candidates.length > 0) {
+      for (var i = 0; i < candidates.length; i++) {
+        var c = candidates[i];
+        if (attributed >= target_kg) break;
+        var candRemaining = parseFloat(c.remaining_kg);
+        if (candRemaining <= 0) continue;
+        var need = _round2(target_kg - attributed);
+        var draw = _round2(Math.min(need, candRemaining));
+        if (draw <= 0) continue;
+        edges.push({
+          source_id: Number(c.id),
+          weight_kg_attributed: draw
+        });
+        sourceRemainingAfter.push({
+          id: Number(c.id),
+          remaining_kg: _round2(candRemaining - draw)
+        });
+        attributed = _round2(attributed + draw);
+      }
+    }
+
+    var shortfall = _round2(target_kg - attributed);
+    if (shortfall > 0) {
+      // Caller throws. Return partial diagnostic info regardless so logs can
+      // show what was attempted.
+      return {
+        edges: edges,
+        sourceRemainingAfter: sourceRemainingAfter,
+        batch_id: null,
+        shortfall_kg: shortfall
+      };
+    }
+
+    // Dominant-source batch_id — largest weight_kg_attributed wins.
+    // Ties broken by first-seen (which equals created_at ASC / id ASC given
+    // the caller's required sort). Same rule as computeBackfillPlan.
+    var dominant = edges[0];
+    for (var k = 1; k < edges.length; k++) {
+      if (edges[k].weight_kg_attributed > dominant.weight_kg_attributed) {
+        dominant = edges[k];
+      }
+    }
+    var dominantCandidate = null;
+    for (var j = 0; j < candidates.length; j++) {
+      if (Number(candidates[j].id) === dominant.source_id) {
+        dominantCandidate = candidates[j];
+        break;
+      }
+    }
+    var batch_id = dominantCandidate ? dominantCandidate.batch_id : null;
+
+    return {
+      edges: edges,
+      sourceRemainingAfter: sourceRemainingAfter,
+      batch_id: batch_id,
+      shortfall_kg: 0
+    };
+  }
+
   return {
     computeBackfillPlan: computeBackfillPlan,
+    computeWriteAttribution: computeWriteAttribution,
     // Exported for tests that want to inspect the helpers.
     sellerOf: sellerOf,
     buyerOf: buyerOf,
+    round2: round2,
     EXCLUDED_STATUSES: EXCLUDED_STATUSES,
     ROOT_TYPES: ROOT_TYPES
   };
