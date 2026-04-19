@@ -121,6 +121,57 @@ function resolveBuyer(row) {
   return matches[0];
 }
 
+/**
+ * Write-boundary buyer-FK validator. Same polymorphism rules as resolveBuyer
+ * but returns a result object suitable for 400-response generation instead
+ * of throwing. Callers: generic POST /api/pending-transactions and the
+ * dedicated /api/pending-transactions/aggregator-sale endpoint.
+ *
+ * Only the FKs listed in PARTY_MAP[transaction_type].buyerKinds are
+ * considered. Irrelevant FKs (e.g. collector_id passed on an aggregator_sale
+ * body) are IGNORED — this helper's job is polymorphic-buyer resolution,
+ * not full input-shape validation. Seller-FK checks belong on the caller.
+ *
+ * @param {string} transaction_type
+ * @param {object} ids  Object whose keys may include aggregator_id,
+ *                      processor_id, converter_id, recycler_id. Keys
+ *                      outside PARTY_MAP[type].buyerKinds are ignored.
+ * @returns {{ok: true, kind: string, id: number}}
+ *        | {ok: false, message: string}
+ */
+function validateBuyerFks(transaction_type, ids) {
+  const cfg = PARTY_MAP[transaction_type];
+  if (!cfg) {
+    return { ok: false, message: 'unknown transaction_type: ' + transaction_type };
+  }
+  ids = ids || {};
+  const kinds = cfg.buyerKinds;
+
+  const populated = [];
+  for (const kind of kinds) {
+    const id = ids[kind + '_id'];
+    if (id != null && id !== '') populated.push({ kind: kind, id: Number(id) });
+  }
+
+  if (populated.length === 0) {
+    const expected = kinds.map(function (k) { return k + '_id'; });
+    const needs = expected.length === 1
+      ? expected[0] + ' is required for ' + transaction_type
+      : 'one of ' + expected.join(', ') + ' is required for ' + transaction_type;
+    return { ok: false, message: needs };
+  }
+
+  if (populated.length > 1) {
+    const got = populated.map(function (p) { return p.kind + '_id'; }).join(', ');
+    return {
+      ok: false,
+      message: 'only one buyer FK may be set for ' + transaction_type + ' (got: ' + got + ')'
+    };
+  }
+
+  return { ok: true, kind: populated[0].kind, id: populated[0].id };
+}
+
 // ── Lenient facade ────────────────────────────────────────────────────────
 
 async function _lookupParty(pool, kind, id) {
@@ -193,6 +244,7 @@ module.exports = {
   KIND_TO_TABLE: KIND_TO_TABLE,
   resolveSeller: resolveSeller,
   resolveBuyer: resolveBuyer,
+  validateBuyerFks: validateBuyerFks,
   resolveParties: resolveParties,
   userOwnsParty: userOwnsParty
 };

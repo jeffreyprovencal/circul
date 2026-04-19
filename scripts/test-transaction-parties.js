@@ -11,8 +11,11 @@ const assert = require('assert');
 const {
   PARTY_MAP,
   resolveSeller,
-  resolveBuyer
+  resolveBuyer,
+  validateBuyerFks
 } = require('../shared/transaction-parties');
+
+const transactionParties = require('../shared/transaction-parties');
 
 // ── Harness ────────────────────────────────────────────────────────────────
 let passed = 0;
@@ -159,6 +162,114 @@ test('12. PARTY_MAP shape — every entry has buyerKinds as an array', () => {
     assert.ok(cfg.buyerKinds.length >= 1, t + '.buyerKinds non-empty');
     assert.strictEqual(typeof cfg.sellerKind, 'string', t + '.sellerKind is a string');
   });
+});
+
+// ── validateBuyerFks (write-boundary helper) ───────────────────────────────
+
+test('15. aggregator_sale + processor_id only → ok (dominant flow regression)', () => {
+  const r = validateBuyerFks('aggregator_sale', { processor_id: 20 });
+  assert.deepStrictEqual(r, { ok: true, kind: 'processor', id: 20 });
+});
+
+test('16. aggregator_sale + converter_id only (Miniplast-style) → ok', () => {
+  const r = validateBuyerFks('aggregator_sale', { converter_id: 42 });
+  assert.deepStrictEqual(r, { ok: true, kind: 'converter', id: 42 });
+});
+
+test('17. aggregator_sale + recycler_id only → ok (new rare Ghana flow)', () => {
+  const r = validateBuyerFks('aggregator_sale', { recycler_id: 35 });
+  assert.deepStrictEqual(r, { ok: true, kind: 'recycler', id: 35 });
+});
+
+test('18. aggregator_sale + processor_id + converter_id → reject', () => {
+  const r = validateBuyerFks('aggregator_sale', { processor_id: 1, converter_id: 2 });
+  assert.strictEqual(r.ok, false);
+  assert.ok(/only one buyer FK may be set for aggregator_sale/.test(r.message));
+  assert.ok(/processor_id/.test(r.message));
+  assert.ok(/converter_id/.test(r.message));
+});
+
+test('19. aggregator_sale + processor_id + recycler_id → reject', () => {
+  const r = validateBuyerFks('aggregator_sale', { processor_id: 1, recycler_id: 3 });
+  assert.strictEqual(r.ok, false);
+  assert.ok(/only one buyer FK may be set for aggregator_sale/.test(r.message));
+  assert.ok(/processor_id/.test(r.message));
+  assert.ok(/recycler_id/.test(r.message));
+});
+
+test('20. aggregator_sale + converter_id + recycler_id → reject', () => {
+  const r = validateBuyerFks('aggregator_sale', { converter_id: 2, recycler_id: 3 });
+  assert.strictEqual(r.ok, false);
+  assert.ok(/only one buyer FK may be set for aggregator_sale/.test(r.message));
+  assert.ok(/converter_id/.test(r.message));
+  assert.ok(/recycler_id/.test(r.message));
+});
+
+test('21. aggregator_sale + all three → reject, message names all three', () => {
+  const r = validateBuyerFks('aggregator_sale', { processor_id: 1, converter_id: 2, recycler_id: 3 });
+  assert.strictEqual(r.ok, false);
+  assert.ok(/processor_id/.test(r.message));
+  assert.ok(/converter_id/.test(r.message));
+  assert.ok(/recycler_id/.test(r.message));
+});
+
+test('22. aggregator_sale + none → reject', () => {
+  const r = validateBuyerFks('aggregator_sale', {});
+  assert.strictEqual(r.ok, false);
+  assert.ok(/is required for aggregator_sale/.test(r.message));
+  // Message enumerates all three valid kinds.
+  assert.ok(/processor_id/.test(r.message));
+  assert.ok(/recycler_id/.test(r.message));
+  assert.ok(/converter_id/.test(r.message));
+});
+
+test('23. processor_sale + recycler_id only → ok', () => {
+  const r = validateBuyerFks('processor_sale', { recycler_id: 30 });
+  assert.deepStrictEqual(r, { ok: true, kind: 'recycler', id: 30 });
+});
+
+test('24. processor_sale + converter_id only → ok', () => {
+  const r = validateBuyerFks('processor_sale', { converter_id: 40 });
+  assert.deepStrictEqual(r, { ok: true, kind: 'converter', id: 40 });
+});
+
+test('25. processor_sale + both → reject', () => {
+  const r = validateBuyerFks('processor_sale', { converter_id: 40, recycler_id: 30 });
+  assert.strictEqual(r.ok, false);
+  assert.ok(/only one buyer FK may be set for processor_sale/.test(r.message));
+  assert.ok(/converter_id/.test(r.message));
+  assert.ok(/recycler_id/.test(r.message));
+});
+
+test('26. validateBuyerFks + unknown transaction_type → reject gracefully', () => {
+  const r = validateBuyerFks('made_up_type', { processor_id: 1 });
+  assert.strictEqual(r.ok, false);
+  assert.ok(/unknown transaction_type/.test(r.message));
+  // Must not throw (distinct from resolveBuyer's strict behavior).
+});
+
+test('27. validateBuyerFks ignores irrelevant FKs for the transaction_type', () => {
+  // collector_id isn't a valid BUYER for aggregator_sale (it's the seller side
+  // on collector_sale / aggregator_purchase). Per the helper's docstring,
+  // irrelevant FKs are IGNORED — seller-FK validation belongs on the caller.
+  const r = validateBuyerFks('aggregator_sale', { collector_id: 99, processor_id: 20 });
+  assert.deepStrictEqual(r, { ok: true, kind: 'processor', id: 20 });
+
+  // And an aggregator_sale with ONLY an irrelevant FK should be treated as
+  // missing a buyer (collector_id doesn't count toward buyer polymorphism).
+  const r2 = validateBuyerFks('aggregator_sale', { collector_id: 99 });
+  assert.strictEqual(r2.ok, false);
+  assert.ok(/is required for aggregator_sale/.test(r2.message));
+});
+
+test('28. Exported-symbols guard (validateBuyerFks joins the public API)', () => {
+  assert.strictEqual(typeof transactionParties.PARTY_MAP, 'object');
+  assert.strictEqual(typeof transactionParties.KIND_TO_TABLE, 'object');
+  assert.strictEqual(typeof transactionParties.resolveSeller, 'function');
+  assert.strictEqual(typeof transactionParties.resolveBuyer, 'function');
+  assert.strictEqual(typeof transactionParties.validateBuyerFks, 'function');
+  assert.strictEqual(typeof transactionParties.resolveParties, 'function');
+  assert.strictEqual(typeof transactionParties.userOwnsParty, 'function');
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────
