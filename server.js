@@ -8,7 +8,7 @@ const CirculRoles = require('./shared/roles');
 const { EVENTS, notify } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
 const { getPendingRatings, createRating } = require('./shared/ratings');
-const { resolveParties, userOwnsParty } = require('./shared/transaction-parties');
+const { resolveParties, userOwnsParty, validateBuyerFks } = require('./shared/transaction-parties');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -4171,19 +4171,23 @@ app.post('/api/pending-transactions', async (req, res) => {
     const kg = parseFloat(b.gross_weight_kg);
     if (isNaN(kg) || kg <= 0) return res.status(400).json({ success: false, message: 'gross_weight_kg must be > 0' });
 
-    // Per-type validation
+    // Per-type validation. Buyer-FK polymorphism is delegated to
+    // validateBuyerFks (shared/transaction-parties.js) — single source of
+    // truth with resolveBuyer. Seller-FK checks stay inline.
     if (transaction_type === 'collector_sale' || transaction_type === 'aggregator_purchase') {
       if (!collectorId) return res.status(400).json({ success: false, message: 'collector_id is required for ' + transaction_type });
-      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id or aggregator_id is required for ' + transaction_type });
+      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id is required for ' + transaction_type });
     } else if (transaction_type === 'aggregator_sale') {
-      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id or aggregator_id is required for aggregator_sale' });
-      if (!procId && !convId) return res.status(400).json({ success: false, message: 'processor_id or converter_id is required for aggregator_sale' });
+      if (!aggId) return res.status(400).json({ success: false, message: 'aggregator_id is required for aggregator_sale' });
+      const buyerCheck = validateBuyerFks(transaction_type, { processor_id: procId, converter_id: convId, recycler_id: recyclerId });
+      if (!buyerCheck.ok) return res.status(400).json({ success: false, message: buyerCheck.message });
     } else if (transaction_type === 'processor_sale') {
-      if (!procId) return res.status(400).json({ success: false, message: 'processor_id or processor_id is required for processor_sale' });
-      if (!convId && !recyclerId) return res.status(400).json({ success: false, message: 'converter_id or recycler_id is required for processor_sale' });
+      if (!procId) return res.status(400).json({ success: false, message: 'processor_id is required for processor_sale' });
+      const buyerCheck = validateBuyerFks(transaction_type, { converter_id: convId, recycler_id: recyclerId });
+      if (!buyerCheck.ok) return res.status(400).json({ success: false, message: buyerCheck.message });
     } else if (transaction_type === 'recycler_sale') {
       if (!recyclerId) return res.status(400).json({ success: false, message: 'recycler_id is required for recycler_sale' });
-      if (!convId) return res.status(400).json({ success: false, message: 'converter_id or converter_id is required for recycler_sale' });
+      if (!convId) return res.status(400).json({ success: false, message: 'converter_id is required for recycler_sale' });
     }
 
     // Resolve price
@@ -4339,21 +4343,25 @@ app.post('/api/pending-transactions/aggregator-purchase', requireAuth, async (re
 
 app.post('/api/pending-transactions/aggregator-sale', requireAuth, async (req, res) => {
   try {
-    const { aggregator_id, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, notes, photo_urls } = req.body;
-    if (!aggregator_id || (!processor_id && !converter_id) || !material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'aggregator_id, processor_id or converter_id, material_type, gross_weight_kg, and price_per_kg are required' });
+    const { aggregator_id, processor_id, converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, notes, photo_urls } = req.body;
+    if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id is required for aggregator_sale' });
+    const buyerCheck = validateBuyerFks('aggregator_sale', { processor_id, converter_id, recycler_id });
+    if (!buyerCheck.ok) return res.status(400).json({ success: false, message: buyerCheck.message });
+    if (!material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'material_type, gross_weight_kg, and price_per_kg are required' });
     if (req.user.id !== parseInt(aggregator_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     const kg = parseFloat(gross_weight_kg);
     if (isNaN(kg) || kg <= 0 || kg > 4000) return res.status(400).json({ success: false, message: 'gross_weight_kg must be > 0 and at most 4000 kg' });
     const aggCheck = await pool.query(`SELECT id FROM aggregators WHERE id=$1 AND is_active=true`, [aggregator_id]);
     if (!aggCheck.rows.length) return res.status(400).json({ success: false, message: 'Aggregator not found' });
-    let resolvedProcessorId = null, resolvedConverterId = null;
+    let resolvedProcessorId = null, resolvedConverterId = null, resolvedRecyclerId = null;
     if (processor_id) { const pr = await pool.query(`SELECT id FROM processors WHERE id=$1 AND is_active=true`, [processor_id]); if (!pr.rows.length) return res.status(400).json({ success: false, message: 'Processor not found' }); resolvedProcessorId = parseInt(processor_id); }
     if (converter_id) { const cv = await pool.query(`SELECT id FROM converters WHERE id=$1 AND is_active=true`, [converter_id]); if (!cv.rows.length) return res.status(400).json({ success: false, message: 'Converter not found' }); resolvedConverterId = parseInt(converter_id); }
+    if (recycler_id)  { const rc = await pool.query(`SELECT id FROM recyclers  WHERE id=$1 AND is_active=true`, [recycler_id]);  if (!rc.rows.length) return res.status(400).json({ success: false, message: 'Recycler not found' });  resolvedRecyclerId  = parseInt(recycler_id);  }
     const price = parseFloat(price_per_kg);
     const totalPrice = parseFloat((kg * price).toFixed(2));
     const photosRequired = kg > 500;
     const dispatchApproved = photosRequired ? false : true;
-    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_id, processor_id, converter_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,'pending',$8,false,$9,$10,$11) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, photo_urls||[], notes||null]);
+    const result = await pool.query(`INSERT INTO pending_transactions (transaction_type, aggregator_id, processor_id, converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, total_price, status, photos_required, photos_submitted, dispatch_approved, photo_urls, notes) VALUES ('aggregator_sale',$1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,false,$10,$11,$12) RETURNING *`, [aggregator_id, resolvedProcessorId, resolvedConverterId, resolvedRecyclerId, material_type.toUpperCase(), kg, price, totalPrice, photosRequired, dispatchApproved, photo_urls||[], notes||null]);
     res.status(201).json({ success: true, pending_transaction: result.rows[0], photos_required: photosRequired });
   } catch (err) { console.error('Aggregator sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
