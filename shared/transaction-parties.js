@@ -198,6 +198,22 @@ async function _lookupParty(pool, kind, id) {
  * returned null buyer because the hard-coded 'processor' branch misrouted).
  */
 async function resolveParties(pool, row) {
+  // The `transactions` table has no transaction_type column — see
+  // migrations/1774500000000_restructure_tiers.js:125-148, which created it
+  // as collector→aggregator-only with the type implicit in schema shape
+  // (collector_id NOT NULL, aggregator_id REFERENCES aggregators). Any row
+  // read via SELECT * FROM transactions falls through the guard below and
+  // returns {buyerKind: null}, which breaks the payment-auth routes at
+  // server.js:4884 / 4918 (both call userOwnsParty with a null kind → 403).
+  //
+  // Infer transaction_type='collector_sale' when the row has both FKs set
+  // but no transaction_type. Shallow-copy so we never mutate the caller's
+  // row. pending_transactions rows always carry transaction_type (NOT NULL
+  // default 'aggregator_sale'), so this guard is a no-op for them.
+  if (row && !row.transaction_type && row.collector_id != null && row.aggregator_id != null) {
+    row = Object.assign({}, row, { transaction_type: 'collector_sale' });
+  }
+
   if (!row || !row.transaction_type || !PARTY_MAP[row.transaction_type]) {
     return { seller: null, buyer: null, sellerKind: null, buyerKind: null,
              material: null, qty: null, amount: null, ref: null };
