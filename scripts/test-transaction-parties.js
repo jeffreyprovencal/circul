@@ -12,6 +12,7 @@ const {
   PARTY_MAP,
   resolveSeller,
   resolveBuyer,
+  resolveParties,
   validateBuyerFks
 } = require('../shared/transaction-parties');
 
@@ -272,7 +273,74 @@ test('28. Exported-symbols guard (validateBuyerFks joins the public API)', () =>
   assert.strictEqual(typeof transactionParties.userOwnsParty, 'function');
 });
 
-// ── Summary ────────────────────────────────────────────────────────────────
-console.log('');
-console.log(passed + ' passed, ' + failed + ' failed');
-process.exit(failed > 0 ? 1 : 0);
+// ── resolveParties: transactions-table shape inference ────────────────────
+// Regression guard for the 12-day latent payment-auth 403 bug. The transactions
+// table has no transaction_type column (see 1774500000000_restructure_tiers.js);
+// without inference, resolveParties would short-circuit and return {buyerKind:
+// null}, which breaks the ownership gate at server.js:4884 / 4918.
+
+// resolveParties is async but the test harness is sync — wrap the assertion
+// in an IIFE + asyncTest helper that completes before moving on.
+function asyncTest(name, fn) {
+  // Defer synchronous result collection — plain node await at module scope
+  // isn't available pre-ESM, so we chain a sentinel. We call fn(), which
+  // returns a promise; inside, it throws on failure. We synchronously push a
+  // pending record and then resolve it via the chain.
+  return fn()
+    .then(() => { console.log('PASS  ' + name); passed++; })
+    .catch((e) => { console.log('FAIL  ' + name); console.log('       ' + (e.stack || e.message)); failed++; });
+}
+
+(async () => {
+  await asyncTest('29. resolveParties: infers collector_sale from transactions-table row shape', async () => {
+    // transactions row — no transaction_type column
+    const row = {
+      id: 1,
+      collector_id: 5,
+      aggregator_id: 10,
+      material_type: 'PET',
+      gross_weight_kg: '23.00',
+      total_price: '53.13',
+      created_at: '2026-04-19T10:00:00Z'
+      // NOTE: no transaction_type field — this is the transactions-table shape
+    };
+    const mockPool = {
+      query: async (sql, _params) => {
+        if (sql.includes('FROM collectors')) return { rows: [{ id: 5, phone: '0241000001', name: 'Ama Mensah' }] };
+        if (sql.includes('FROM aggregators')) return { rows: [{ id: 10, phone: '0300000002', name: 'Kwesi Amankwah' }] };
+        return { rows: [] };
+      }
+    };
+    const result = await resolveParties(mockPool, row);
+    assert.strictEqual(result.sellerKind, 'collector');
+    assert.strictEqual(result.buyerKind, 'aggregator');
+    assert.strictEqual(result.seller.id, 5);
+    assert.strictEqual(result.buyer.id, 10);
+    // Caller's row must not have been mutated.
+    assert.strictEqual(row.transaction_type, undefined, 'caller row.transaction_type must remain undefined');
+  });
+
+  await asyncTest('30. resolveParties: inference does not override explicit transaction_type', async () => {
+    // pending_transactions row with explicit transaction_type — inference must NOT fire.
+    const row = {
+      id: 1,
+      transaction_type: 'aggregator_purchase',
+      collector_id: 5,
+      aggregator_id: 10,
+      material_type: 'PET'
+    };
+    const mockPool = { query: async () => ({ rows: [{ id: 5, phone: '', name: 'X' }] }) };
+    const result = await resolveParties(mockPool, row);
+    // aggregator_purchase has the same party shape as collector_sale, so the
+    // kinds are identical — the key assertion is that the input row's
+    // transaction_type was NOT silently rewritten to 'collector_sale'.
+    assert.strictEqual(result.sellerKind, 'collector');
+    assert.strictEqual(result.buyerKind, 'aggregator');
+    assert.strictEqual(row.transaction_type, 'aggregator_purchase', 'caller row.transaction_type must not be mutated');
+  });
+
+  // ── Summary ──────────────────────────────────────────────────────────────
+  console.log('');
+  console.log(passed + ' passed, ' + failed + ' failed');
+  process.exit(failed > 0 ? 1 : 0);
+})();
