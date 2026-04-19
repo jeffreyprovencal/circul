@@ -7,7 +7,10 @@
 'use strict';
 
 const assert = require('assert');
-const { computeBackfillPlan } = require('../shared/chain-of-custody');
+const {
+  computeBackfillPlan,
+  computeWriteAttribution
+} = require('../shared/chain-of-custody');
 
 // ── Harness ────────────────────────────────────────────────────────────────
 let passed = 0;
@@ -499,6 +502,185 @@ test('11. Realistic-scale: 500 rows, 4 months, multi-level chain', () => {
   global.__test11_runtime_ms = elapsedMs;
   global.__test11_edges = plan.edges.length;
   global.__test11_orphans = plan.orphans.length;
+});
+
+// ── computeWriteAttribution (write-path) ───────────────────────────────────
+//
+// Candidates for the write path are PRE-FILTERED and PRE-SORTED by the
+// caller (SELECT ... FOR UPDATE with material/status/window/remaining_kg>0,
+// ORDER BY created_at ASC, id ASC). These tests pass candidates that already
+// look like what the DB would hand back.
+
+function cand(id, gross, remaining, batchId, daysAgo) {
+  return {
+    id: id,
+    gross_weight_kg: gross,
+    remaining_kg: remaining,
+    batch_id: batchId,
+    created_at: new Date(NOW.getTime() - daysAgo * DAY_MS).toISOString()
+  };
+}
+
+test('12. computeWriteAttribution: single-source exact match', () => {
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 100 },
+    [cand(1, 100, 100, 'batch-A', 5)]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  assert.deepStrictEqual(plan.edges, [{ source_id: 1, weight_kg_attributed: 100 }]);
+  assert.deepStrictEqual(plan.sourceRemainingAfter, [{ id: 1, remaining_kg: 0 }]);
+  assert.strictEqual(plan.batch_id, 'batch-A');
+});
+
+test('13. computeWriteAttribution: single-source partial draw', () => {
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 60 },
+    [cand(1, 100, 100, 'batch-A', 5)]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  assert.deepStrictEqual(plan.edges, [{ source_id: 1, weight_kg_attributed: 60 }]);
+  assert.deepStrictEqual(plan.sourceRemainingAfter, [{ id: 1, remaining_kg: 40 }]);
+  assert.strictEqual(plan.batch_id, 'batch-A');
+});
+
+test('14. computeWriteAttribution: multi-source FIFO span', () => {
+  // 150kg needed, candidates ordered by created_at ASC: [80kg, 100kg].
+  // FIFO draws 80 from first (exhausting it), then 70 from second.
+  const plan = computeWriteAttribution(
+    { transaction_type: 'processor_sale', material_type: 'HDPE', gross_weight_kg: 150 },
+    [cand(1, 80, 80, 'batch-OLD', 10), cand(2, 100, 100, 'batch-NEW', 5)]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  assert.deepStrictEqual(plan.edges, [
+    { source_id: 1, weight_kg_attributed: 80 },
+    { source_id: 2, weight_kg_attributed: 70 }
+  ]);
+  assert.deepStrictEqual(plan.sourceRemainingAfter, [
+    { id: 1, remaining_kg: 0 },
+    { id: 2, remaining_kg: 30 }
+  ]);
+  // Dominant = edge 2 (80 < 80? No — 80 vs 70. Edge 1 = 80 is dominant.)
+  // Wait: edges = [{80}, {70}]. 80 > 70 → dominant = first edge = source 1 batch.
+  assert.strictEqual(plan.batch_id, 'batch-OLD');
+});
+
+test('15. computeWriteAttribution: exactly-zero remaining intermediate (caller filters)', () => {
+  // Caller is expected to filter remaining_kg > 0 via SQL. But if a
+  // candidate with 0 slips through (e.g. race against another txn that
+  // drained it), the pure fn should gracefully skip it via the draw<=0 guard.
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 50 },
+    [cand(1, 100, 0, 'batch-DRAINED', 10), cand(2, 100, 100, 'batch-FRESH', 5)]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  assert.strictEqual(plan.edges.length, 1);
+  assert.strictEqual(plan.edges[0].source_id, 2);   // drained source skipped
+  assert.strictEqual(plan.batch_id, 'batch-FRESH');
+});
+
+test('16. computeWriteAttribution: shortfall rejection', () => {
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 200 },
+    [cand(1, 80, 80, 'batch-A', 10), cand(2, 70, 70, 'batch-B', 5)]
+  );
+  // 150 available, 200 needed → 50kg shortfall. Edges reflect partial attempt.
+  assert.strictEqual(plan.shortfall_kg, 50);
+  assert.strictEqual(plan.batch_id, null);
+  assert.strictEqual(plan.edges.length, 2);
+  assert.strictEqual(plan.edges[0].weight_kg_attributed, 80);
+  assert.strictEqual(plan.edges[1].weight_kg_attributed, 70);
+});
+
+test('17. computeWriteAttribution: empty candidates = full shortfall', () => {
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 50 },
+    []
+  );
+  assert.strictEqual(plan.shortfall_kg, 50);
+  assert.strictEqual(plan.batch_id, null);
+  assert.deepStrictEqual(plan.edges, []);
+});
+
+test('18. computeWriteAttribution: dominant-source batch_id (larger wins)', () => {
+  // target=100kg, candidates=[batch_A:40kg, batch_B:80kg]
+  // FIFO order: A (40kg remaining) drawn first → 40; B drawn next → 60.
+  // Edges: [40 from A, 60 from B]. Dominant = edge_2 (60 > 40) → batch_B.
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 100 },
+    [cand(1, 40, 40, 'batch-A', 10), cand(2, 80, 80, 'batch-B', 5)]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  assert.deepStrictEqual(plan.edges, [
+    { source_id: 1, weight_kg_attributed: 40 },
+    { source_id: 2, weight_kg_attributed: 60 }
+  ]);
+  assert.strictEqual(plan.batch_id, 'batch-B');
+});
+
+test('19. computeWriteAttribution: dominant tie-breaker (FIFO — first-seen wins)', () => {
+  // target=100kg, candidates=[batch-OLD:50kg older, batch-NEW:50kg newer].
+  // FIFO draws 50+50. Tied weights → first-seen wins = older candidate.
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 100 },
+    [cand(1, 50, 50, 'batch-OLD', 10), cand(2, 50, 50, 'batch-NEW', 5)]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  assert.deepStrictEqual(plan.edges, [
+    { source_id: 1, weight_kg_attributed: 50 },
+    { source_id: 2, weight_kg_attributed: 50 }
+  ]);
+  assert.strictEqual(plan.batch_id, 'batch-OLD');
+});
+
+test('20. computeWriteAttribution: root type throws', () => {
+  assert.throws(
+    () => computeWriteAttribution(
+      { transaction_type: 'collector_sale', material_type: 'PET', gross_weight_kg: 50 },
+      [cand(1, 100, 100, 'batch-A', 5)]
+    ),
+    /root types have no upstream/
+  );
+  assert.throws(
+    () => computeWriteAttribution(
+      { transaction_type: 'aggregator_purchase', material_type: 'PET', gross_weight_kg: 50 },
+      []
+    ),
+    /root types have no upstream/
+  );
+});
+
+test('21. computeWriteAttribution: determinism (same inputs → same outputs)', () => {
+  const target = { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 100 };
+  const candidates = [cand(1, 60, 60, 'batch-A', 10), cand(2, 60, 60, 'batch-B', 5)];
+  const plan1 = computeWriteAttribution(target, candidates);
+  const plan2 = computeWriteAttribution(target, candidates);
+  assert.strictEqual(JSON.stringify(plan1), JSON.stringify(plan2));
+});
+
+test('22. computeWriteAttribution: rounding precision (2dp)', () => {
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 0.1 },
+    [cand(1, 0.3, 0.3, 'batch-A', 5)]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  assert.strictEqual(plan.edges[0].weight_kg_attributed, 0.1);
+  assert.strictEqual(plan.sourceRemainingAfter[0].remaining_kg, 0.2);
+});
+
+test('23. computeWriteAttribution: fractional multi-source with no float drift', () => {
+  // 1.00kg from three sources of 0.33 / 0.34 / 0.33. FIFO: 0.33 + 0.34 + 0.33 = 1.00.
+  const plan = computeWriteAttribution(
+    { transaction_type: 'aggregator_sale', material_type: 'PET', gross_weight_kg: 1.00 },
+    [
+      cand(1, 0.33, 0.33, 'batch-A', 10),
+      cand(2, 0.34, 0.34, 'batch-B', 7),
+      cand(3, 0.33, 0.33, 'batch-C', 4)
+    ]
+  );
+  assert.strictEqual(plan.shortfall_kg, 0);
+  const totalAttributed = plan.edges.reduce((a, e) => a + e.weight_kg_attributed, 0);
+  // Float arithmetic — tolerate 0.01 slack the same way the CHECK does.
+  assert.ok(Math.abs(totalAttributed - 1.00) < 0.01, 'total attributed = 1.00 (got ' + totalAttributed + ')');
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────
