@@ -3101,7 +3101,7 @@ async function handleAgentCollection(m, agent) {
         `INSERT INTO pending_transactions
           (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
            price_per_kg, total_price, status, transaction_type, source)
-         VALUES ($1, $2, $3, $4, $4, $5, $6, 'completed', 'aggregator_sale', 'ussd')
+         VALUES ($1, $2, $3, $4, $4, $5, $6, 'completed', 'collector_sale', 'ussd')
          RETURNING id`,
         [collector.id, agent.aggregator_id, material, weight, price, parseFloat(total)]
       );
@@ -5788,7 +5788,7 @@ app.post('/api/agent/log-collection', requireAuth, async (req, res) => {
     const total = (gross_weight_kg * (price_per_kg || 0)).toFixed(2);
     const result = await pool.query(
       `INSERT INTO pending_transactions (collector_id, aggregator_id, material_type, gross_weight_kg, price_per_kg, total_price, status, transaction_type, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'completed', 'aggregator_sale', NOW()) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, 'completed', 'collector_sale', NOW()) RETURNING id`,
       [collector_id, req.user.aggregator_id, material_type, gross_weight_kg, price_per_kg || 0, total]
     );
     await pool.query(
