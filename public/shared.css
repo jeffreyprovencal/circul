@@ -125,6 +125,7 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 .form-group{display:flex;flex-direction:column}
 .form-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px}
 .form-input,.form-select{width:100%;padding:9px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem}
+.form-select{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-right:32px;background:var(--surface-alt) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%237a9a7a' d='M5 6 0 0h10z'/></svg>") no-repeat right 12px center}
 .form-input::placeholder{color:var(--text-3)}
 .form-input:focus,.form-select:focus{outline:none;border-color:var(--accent)}
 .form-submit{width:100%;padding:12px;background:var(--accent);color:#000;font-family:var(--font);font-size:0.9rem;font-weight:700;border:none;border-radius:var(--r-md);cursor:pointer}
