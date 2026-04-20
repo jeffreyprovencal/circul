@@ -536,7 +536,8 @@ function checkAuth() {
             state.operator = JSON.parse(saved);
             var t = localStorage.getItem('circul_token');
             if (t && !state.operator.token) state.operator.token = t;
-            if (state.operator.role !== 'recycler') {
+            var roles = Array.isArray(state.operator.roles) ? state.operator.roles : [];
+            if (state.operator.role !== 'recycler' && roles.indexOf('recycler') === -1) {
                 var route = CirculRoles.ROLE_ROUTES[state.operator.role];
                 if (route) { window.location.href = route; return; }
             }
