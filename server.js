@@ -15,23 +15,47 @@ const {
   InsufficientSourceError
 } = require('./shared/chain-of-custody-db');
 
+const {
+  WINDOW_DAYS: COC_WINDOW_DAYS,
+  EXCLUDED_STATUSES: COC_EXCLUDED_STATUSES,
+  candidateFilterForSeller
+} = require('./shared/chain-of-custody-db');
+
 // Translate an InsufficientSourceError into a 400 response body.
 // Returns true if the error was handled (response sent); false otherwise.
+//
+// err.reason distinguishes two shapes:
+//   'shortfall'              — FIFO path couldn't cover target
+//   'invalid_manual_sources' — caller's explicit target.sources hint was bad
+// Frontend reads `reason` to switch UX (toast vs highlight-specific-rows).
 function handleInsufficientSource(res, err) {
   if (!(err instanceof InsufficientSourceError)) return false;
+  const reason = err.reason || 'shortfall';
+  const details = {
+    reason: reason,
+    seller_kind: err.seller ? err.seller.kind : null,
+    seller_id: err.seller ? err.seller.id : null,
+    material_type: err.target.material_type,
+    requested_kg: err.target.gross_weight_kg
+  };
+  if (reason === 'shortfall') {
+    details.shortfall_kg = err.shortfall_kg;
+    details.candidates_considered = err.candidates_considered;
+    details.candidates_total_remaining_kg = err.candidates_total_remaining_kg;
+  } else {
+    // invalid_manual_sources — pass through whichever diagnostic fields fired.
+    if (err.invalid_shape_entries != null)  details.invalid_shape_entries = err.invalid_shape_entries;
+    if (err.invalid_source_ids != null)     details.invalid_source_ids = err.invalid_source_ids;
+    if (err.insufficient_remaining != null) details.insufficient_remaining = err.insufficient_remaining;
+    if (err.sum_mismatch_kg != null)        details.sum_mismatch_kg = err.sum_mismatch_kg;
+    if (err.hint_total_kg != null)          details.hint_total_kg = err.hint_total_kg;
+    if (err.target_kg != null)              details.target_kg = err.target_kg;
+  }
   res.status(400).json({
     success: false,
     error: 'insufficient_source_material',
     message: err.message,
-    details: {
-      shortfall_kg: err.shortfall_kg,
-      candidates_considered: err.candidates_considered,
-      candidates_total_remaining_kg: err.candidates_total_remaining_kg,
-      seller_kind: err.seller ? err.seller.kind : null,
-      seller_id: err.seller ? err.seller.id : null,
-      material_type: err.target.material_type,
-      requested_kg: err.target.gross_weight_kg
-    }
+    details: details
   });
   return true;
 }
@@ -4479,7 +4503,7 @@ app.post('/api/pending-transactions/aggregator-purchase', requireAuth, async (re
 
 app.post('/api/pending-transactions/aggregator-sale', requireAuth, async (req, res) => {
   try {
-    const { aggregator_id, processor_id, converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, notes, photo_urls } = req.body;
+    const { aggregator_id, processor_id, converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, notes, photo_urls, sources } = req.body;
     if (!aggregator_id) return res.status(400).json({ success: false, message: 'aggregator_id is required for aggregator_sale' });
     const buyerCheck = validateBuyerFks('aggregator_sale', { processor_id, converter_id, recycler_id });
     if (!buyerCheck.ok) return res.status(400).json({ success: false, message: buyerCheck.message });
@@ -4500,7 +4524,7 @@ app.post('/api/pending-transactions/aggregator-sale', requireAuth, async (req, r
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const { row, sources } = await attributeAndInsert(client, {
+      const { row, sources: attributedSources } = await attributeAndInsert(client, {
         transaction_type: 'aggregator_sale',
         aggregator_id: parseInt(aggregator_id),
         processor_id: resolvedProcessorId,
@@ -4514,10 +4538,11 @@ app.post('/api/pending-transactions/aggregator-sale', requireAuth, async (req, r
         photos_submitted: false,
         photo_urls: photo_urls || [],
         dispatch_approved: dispatchApproved,
-        notes: notes || null
+        notes: notes || null,
+        sources: sources   // PR4-A: optional manual source-picker hint from req.body
       });
       await client.query('COMMIT');
-      return res.status(201).json({ success: true, pending_transaction: row, sources: sources, photos_required: photosRequired });
+      return res.status(201).json({ success: true, pending_transaction: row, sources: attributedSources, photos_required: photosRequired });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
       if (handleInsufficientSource(res, e)) return;
@@ -4600,7 +4625,7 @@ app.post('/api/pending-transactions/:id/arrival-confirmation', requireAuth, asyn
 app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('processor')) return res.status(403).json({ success: false, message: 'Processor access only' });
-    const { converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, notes } = req.body;
+    const { converter_id, recycler_id, material_type, gross_weight_kg, price_per_kg, notes, sources } = req.body;
     if (!material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'material_type, gross_weight_kg, price_per_kg required' });
     if (!converter_id && !recycler_id) return res.status(400).json({ success: false, message: 'Either converter_id or recycler_id is required' });
     if (converter_id && recycler_id) return res.status(400).json({ success: false, message: 'Provide converter_id or recycler_id, not both' });
@@ -4617,7 +4642,7 @@ app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, re
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const { row, sources } = await attributeAndInsert(client, {
+      const { row, sources: attributedSources } = await attributeAndInsert(client, {
         transaction_type: 'processor_sale',
         processor_id: parseInt(req.user.id),
         recycler_id: recycler_id ? parseInt(recycler_id) : null,
@@ -4629,10 +4654,11 @@ app.post('/api/pending-transactions/processor-sale', requireAuth, async (req, re
         photos_required: true,
         photos_submitted: false,
         photo_urls: [],
-        notes: notes || null
+        notes: notes || null,
+        sources: sources   // PR4-A: optional manual source-picker hint
       });
       await client.query('COMMIT');
-      return res.status(201).json({ success: true, pending_transaction: row, sources: sources });
+      return res.status(201).json({ success: true, pending_transaction: row, sources: attributedSources });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
       if (handleInsufficientSource(res, e)) return;
@@ -4734,7 +4760,7 @@ app.post('/api/pending-transactions/:id/recycler-arrival', requireAuth, async (r
 app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('recycler')) return res.status(403).json({ success: false, message: 'Recycler access only' });
-    const { converter_id, material_type, gross_weight_kg, price_per_kg, notes } = req.body;
+    const { converter_id, material_type, gross_weight_kg, price_per_kg, notes, sources } = req.body;
     if (!converter_id || !material_type || !gross_weight_kg || !price_per_kg) return res.status(400).json({ success: false, message: 'converter_id, material_type, gross_weight_kg, price_per_kg required' });
     const kg = parseFloat(gross_weight_kg), price = parseFloat(price_per_kg);
     if (isNaN(kg) || kg <= 0) return res.status(400).json({ success: false, message: 'Invalid weight' });
@@ -4744,7 +4770,7 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const { row, sources } = await attributeAndInsert(client, {
+      const { row, sources: attributedSources } = await attributeAndInsert(client, {
         transaction_type: 'recycler_sale',
         recycler_id: parseInt(req.user.id),
         converter_id: parseInt(converter_id),
@@ -4755,10 +4781,11 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
         photos_required: true,
         photos_submitted: false,
         photo_urls: [],
-        notes: notes || null
+        notes: notes || null,
+        sources: sources   // PR4-A: optional manual source-picker hint
       });
       await client.query('COMMIT');
-      return res.status(201).json({ success: true, pending_transaction: row, sources: sources });
+      return res.status(201).json({ success: true, pending_transaction: row, sources: attributedSources });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
       if (handleInsufficientSource(res, e)) return;
@@ -4767,6 +4794,66 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
       client.release();
     }
   } catch (err) { console.error('Recycler sale error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ── GET /api/sources ──────────────────────────────────────────────────────
+// Candidate source list for the forthcoming web source-picker (PR4 Phase B).
+// Returns the same set attributeAndInsert's FIFO path would consider, scoped
+// to the authenticated caller's tier: aggregator sees collector-tier inbound,
+// processor sees aggregator-tier inbound, recycler sees aggregator+processor
+// tier inbound. Ordered by created_at ASC / id ASC (FIFO-natural).
+//
+// Query: material_type (required).
+// Response: [{ source_id, transaction_type, material_type, remaining_kg,
+//              created_at, batch_id, supplier_name, supplier_role }, ...]
+app.get('/api/sources', requireAuth, async (req, res) => {
+  try {
+    const material_type = req.query.material_type;
+    if (!material_type) return res.status(400).json({ success: false, message: 'material_type query param is required' });
+
+    let sellerKind;
+    if (req.user.hasRole('aggregator'))      sellerKind = 'aggregator';
+    else if (req.user.hasRole('processor'))  sellerKind = 'processor';
+    else if (req.user.hasRole('recycler'))   sellerKind = 'recycler';
+    else return res.status(403).json({ success: false, message: 'Only aggregator/processor/recycler roles can browse sources' });
+
+    const filter = candidateFilterForSeller({ kind: sellerKind, id: req.user.id });
+
+    const excludedList = COC_EXCLUDED_STATUSES.map(function (_, i) { return '$' + (i + 4); }).join(', ');
+    const parentTypesList = filter.parentTypes.map(function (_, i) {
+      return '$' + (i + 4 + COC_EXCLUDED_STATUSES.length);
+    }).join(', ');
+
+    const sql =
+      "SELECT pt.id AS source_id, pt.transaction_type, pt.material_type, pt.remaining_kg, pt.created_at, pt.batch_id, " +
+      "       COALESCE(NULLIF(TRIM(COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, '')), ''), a.name, p.name) AS supplier_name, " +
+      "       CASE " +
+      "         WHEN pt.transaction_type IN ('collector_sale','aggregator_purchase') THEN 'collector' " +
+      "         WHEN pt.transaction_type = 'aggregator_sale' THEN 'aggregator' " +
+      "         WHEN pt.transaction_type = 'processor_sale' THEN 'processor' " +
+      "       END AS supplier_role " +
+      "  FROM pending_transactions pt " +
+      "  LEFT JOIN collectors  c ON c.id = pt.collector_id " +
+      "  LEFT JOIN aggregators a ON a.id = pt.aggregator_id " +
+      "  LEFT JOIN processors  p ON p.id = pt.processor_id " +
+      " WHERE pt." + filter.fkColumn + " = $1 " +
+      "   AND pt.material_type = $2 " +
+      "   AND pt.remaining_kg > 0 " +
+      "   AND pt.created_at >= NOW() - ($3 || ' days')::INTERVAL " +
+      "   AND pt.status NOT IN (" + excludedList + ") " +
+      "   AND pt.transaction_type IN (" + parentTypesList + ") " +
+      " ORDER BY pt.created_at ASC, pt.id ASC";
+
+    const params = [req.user.id, material_type, String(COC_WINDOW_DAYS)]
+      .concat(COC_EXCLUDED_STATUSES)
+      .concat(filter.parentTypes);
+
+    const result = await pool.query(sql, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /api/sources error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 app.get('/api/pending-transactions/recycler-sales', requireAuth, async (req, res) => {

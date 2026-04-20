@@ -43,9 +43,19 @@ async function runTest(name, fn) {
 const AGG_ID = 9;         // Kwesi Amankwah's aggregator
 const PROC_ID = 1;        // Jeffrey / rePATRN processor
 
+// Clear all pending_transactions within the current txn so FIFO sees a
+// clean slate. Junction rows cascade-delete via FK (ON DELETE CASCADE).
+// All writes roll back at end of test — zero state leak. Required because
+// circul_local accumulates smoke-test rows from prior merges that would
+// otherwise pollute FIFO ordering and break order-sensitive assertions.
+async function isolateScope(client) {
+  await client.query('DELETE FROM pending_transactions');
+}
+
 async function main() {
   // ── Case 1: happy path — root + downstream, attribution works end-to-end.
   await runTest('db: happy path — attributeAndInsert writes row + edge + decrements source', async (client) => {
+    await isolateScope(client);
     // Seed a root (collector_sale) with 100kg.
     const { row: rootRow } = await insertRootTransaction(client, {
       transaction_type: 'collector_sale',
@@ -94,6 +104,7 @@ async function main() {
 
   // ── Case 2: shortfall rollback atomicity
   await runTest('db: shortfall throws InsufficientSourceError AND leaves zero partial writes', async (client) => {
+    await isolateScope(client);
     // Seed a root with 50kg.
     const { row: rootRow } = await insertRootTransaction(client, {
       transaction_type: 'collector_sale',
@@ -158,6 +169,225 @@ async function main() {
       ['aggregator_sale', AGG_ID]
     )).rows[0].c;
     assertEq(ptCountAfter, ptCountBefore, 'no half-inserted aggregator_sale row');
+  });
+
+  // ── PR4-A: manual source-hint path ──────────────────────────────────────
+
+  // Helper: seed two root rows for the AGG_ID aggregator with the given
+  // (material, gross). Returns [rootId1, rootId2].
+  async function seedTwoRoots(client, material, kg1, kg2) {
+    const { row: r1 } = await insertRootTransaction(client, {
+      transaction_type: 'collector_sale',
+      collector_id: 1, aggregator_id: AGG_ID,
+      material_type: material, gross_weight_kg: kg1,
+      price_per_kg: 2, total_price: kg1 * 2
+    });
+    const { row: r2 } = await insertRootTransaction(client, {
+      transaction_type: 'collector_sale',
+      collector_id: 1, aggregator_id: AGG_ID,
+      material_type: material, gross_weight_kg: kg2,
+      price_per_kg: 2, total_price: kg2 * 2
+    });
+    return [r1.id, r2.id];
+  }
+
+  await runTest('db: PR4-A manual pick happy path — two-row hint, sum=target, all valid', async (client) => {
+    await isolateScope(client);
+    const [a, b] = await seedTwoRoots(client, 'PET', 60, 40);
+    const { row, sources } = await attributeAndInsert(client, {
+      transaction_type: 'aggregator_sale',
+      aggregator_id: AGG_ID, processor_id: PROC_ID,
+      material_type: 'PET', gross_weight_kg: 100,
+      price_per_kg: 3, total_price: 300,
+      sources: [{ source_id: a, kg: 60 }, { source_id: b, kg: 40 }]
+    });
+    assertEq(Number(row.gross_weight_kg), 100);
+    assertEq(sources.length, 2);
+    assertEq(Number(sources[0].id), Number(a));
+    assertEq(Number(sources[0].weight_kg_attributed), 60);
+    assertEq(Number(sources[1].id), Number(b));
+    assertEq(Number(sources[1].weight_kg_attributed), 40);
+
+    // Source remaining_kg decremented per hint.
+    const after = await client.query(
+      'SELECT id, remaining_kg FROM pending_transactions WHERE id = ANY($1::int[]) ORDER BY id',
+      [[a, b]]
+    );
+    const byId = Object.create(null);
+    after.rows.forEach(r => { byId[r.id] = Number(r.remaining_kg); });
+    assertEq(byId[a], 0);
+    assertEq(byId[b], 0);
+
+    // Junction edges exist for both.
+    const edges = await client.query(
+      'SELECT source_pending_tx_id, weight_kg_attributed FROM pending_transaction_sources WHERE child_pending_tx_id = $1 ORDER BY source_pending_tx_id',
+      [row.id]
+    );
+    assertEq(edges.rows.length, 2);
+  });
+
+  await runTest('db: PR4-A invalid source_id (not in caller scope) → invalid_manual_sources + invalid_source_ids', async (client) => {
+    await isolateScope(client);
+    const [a] = await seedTwoRoots(client, 'PET', 100, 1);
+    let thrown = null;
+    try {
+      await attributeAndInsert(client, {
+        transaction_type: 'aggregator_sale',
+        aggregator_id: AGG_ID, processor_id: PROC_ID,
+        material_type: 'PET', gross_weight_kg: 100,
+        price_per_kg: 3, total_price: 300,
+        sources: [{ source_id: 999999, kg: 100 }]   // doesn't exist at all
+      });
+    } catch (e) { thrown = e; }
+    assertTruthy(thrown instanceof InsufficientSourceError, 'threw InsufficientSourceError');
+    assertEq(thrown.reason, 'invalid_manual_sources');
+    assertTruthy(Array.isArray(thrown.invalid_source_ids) && thrown.invalid_source_ids.indexOf(999999) !== -1,
+      'invalid_source_ids includes 999999');
+  });
+
+  await runTest('db: PR4-A source belongs to different seller → invalid_source_ids', async (client) => {
+    await isolateScope(client);
+    // Seed a collector_sale under a DIFFERENT aggregator (id=12, seeded by restructure_tiers).
+    // Then try to draw it as AGG_ID=9.
+    const { row: foreignRoot } = await insertRootTransaction(client, {
+      transaction_type: 'collector_sale',
+      collector_id: 1, aggregator_id: 12,     // NOT AGG_ID
+      material_type: 'PET', gross_weight_kg: 100,
+      price_per_kg: 2, total_price: 200
+    });
+    let thrown = null;
+    try {
+      await attributeAndInsert(client, {
+        transaction_type: 'aggregator_sale',
+        aggregator_id: AGG_ID, processor_id: PROC_ID,
+        material_type: 'PET', gross_weight_kg: 100,
+        price_per_kg: 3, total_price: 300,
+        sources: [{ source_id: foreignRoot.id, kg: 100 }]
+      });
+    } catch (e) { thrown = e; }
+    assertTruthy(thrown instanceof InsufficientSourceError, 'threw');
+    assertEq(thrown.reason, 'invalid_manual_sources');
+    assertTruthy(thrown.invalid_source_ids.indexOf(Number(foreignRoot.id)) !== -1,
+      'foreign source_id flagged as invalid');
+  });
+
+  await runTest('db: PR4-A source material mismatch → invalid_source_ids', async (client) => {
+    await isolateScope(client);
+    // Seed an HDPE root under AGG_ID, then try to draw it as PET target.
+    const { row: hdpeRoot } = await insertRootTransaction(client, {
+      transaction_type: 'collector_sale',
+      collector_id: 1, aggregator_id: AGG_ID,
+      material_type: 'HDPE', gross_weight_kg: 100,
+      price_per_kg: 2, total_price: 200
+    });
+    let thrown = null;
+    try {
+      await attributeAndInsert(client, {
+        transaction_type: 'aggregator_sale',
+        aggregator_id: AGG_ID, processor_id: PROC_ID,
+        material_type: 'PET', gross_weight_kg: 100,
+        price_per_kg: 3, total_price: 300,
+        sources: [{ source_id: hdpeRoot.id, kg: 100 }]
+      });
+    } catch (e) { thrown = e; }
+    assertTruthy(thrown instanceof InsufficientSourceError, 'threw');
+    assertEq(thrown.reason, 'invalid_manual_sources');
+    assertTruthy(thrown.invalid_source_ids.indexOf(Number(hdpeRoot.id)) !== -1,
+      'mismatched-material source flagged as invalid');
+  });
+
+  await runTest('db: PR4-A source outside 14-day window → invalid_source_ids', async (client) => {
+    await isolateScope(client);
+    // Seed a root with created_at 30 days ago (outside 14d window). Use a
+    // raw INSERT since insertRootTransaction uses NOW().
+    const batch_id = '00000000-0000-0000-0000-000000000042';
+    const oldResult = await client.query(
+      `INSERT INTO pending_transactions
+        (transaction_type, status, collector_id, aggregator_id, material_type,
+         gross_weight_kg, net_weight_kg, price_per_kg, total_price,
+         batch_id, remaining_kg, created_at)
+       VALUES ('collector_sale','pending',1,$1,'PET',100,100,2,200,$2::uuid,100,
+               NOW() - INTERVAL '30 days')
+       RETURNING id`,
+      [AGG_ID, batch_id]
+    );
+    const oldId = oldResult.rows[0].id;
+    let thrown = null;
+    try {
+      await attributeAndInsert(client, {
+        transaction_type: 'aggregator_sale',
+        aggregator_id: AGG_ID, processor_id: PROC_ID,
+        material_type: 'PET', gross_weight_kg: 100,
+        price_per_kg: 3, total_price: 300,
+        sources: [{ source_id: oldId, kg: 100 }]
+      });
+    } catch (e) { thrown = e; }
+    assertTruthy(thrown instanceof InsufficientSourceError, 'threw');
+    assertEq(thrown.reason, 'invalid_manual_sources');
+    assertTruthy(thrown.invalid_source_ids.indexOf(Number(oldId)) !== -1,
+      'out-of-window source flagged as invalid');
+  });
+
+  await runTest('db: PR4-A hint kg > source remaining_kg → insufficient_remaining', async (client) => {
+    await isolateScope(client);
+    const [a] = await seedTwoRoots(client, 'PET', 30, 1);
+    let thrown = null;
+    try {
+      await attributeAndInsert(client, {
+        transaction_type: 'aggregator_sale',
+        aggregator_id: AGG_ID, processor_id: PROC_ID,
+        material_type: 'PET', gross_weight_kg: 100,
+        price_per_kg: 3, total_price: 300,
+        sources: [{ source_id: a, kg: 100 }]   // asks for 100, only 30 available
+      });
+    } catch (e) { thrown = e; }
+    assertTruthy(thrown instanceof InsufficientSourceError, 'threw');
+    assertEq(thrown.reason, 'invalid_manual_sources');
+    assertTruthy(Array.isArray(thrown.insufficient_remaining) && thrown.insufficient_remaining.length === 1,
+      'insufficient_remaining populated');
+    assertEq(Number(thrown.insufficient_remaining[0].id), Number(a));
+    assertEq(Number(thrown.insufficient_remaining[0].remaining_kg), 30);
+    assertEq(Number(thrown.insufficient_remaining[0].requested_kg), 100);
+  });
+
+  await runTest('db: PR4-A sum(hint.kg) !== target.gross_weight_kg → sum_mismatch_kg', async (client) => {
+    await isolateScope(client);
+    const [a, b] = await seedTwoRoots(client, 'PET', 60, 40);
+    let thrown = null;
+    try {
+      await attributeAndInsert(client, {
+        transaction_type: 'aggregator_sale',
+        aggregator_id: AGG_ID, processor_id: PROC_ID,
+        material_type: 'PET', gross_weight_kg: 100,
+        price_per_kg: 3, total_price: 300,
+        sources: [{ source_id: a, kg: 60 }, { source_id: b, kg: 30 }]  // sum=90, target=100
+      });
+    } catch (e) { thrown = e; }
+    assertTruthy(thrown instanceof InsufficientSourceError, 'threw');
+    assertEq(thrown.reason, 'invalid_manual_sources');
+    assertEq(Number(thrown.sum_mismatch_kg), -10, 'delta = hint 90 - target 100 = -10');
+    assertEq(Number(thrown.hint_total_kg), 90);
+    assertEq(Number(thrown.target_kg), 100);
+  });
+
+  await runTest('db: PR4-A empty sources array falls through to FIFO', async (client) => {
+    await isolateScope(client);
+    const [a, b] = await seedTwoRoots(client, 'PET', 60, 40);
+    const { row, sources } = await attributeAndInsert(client, {
+      transaction_type: 'aggregator_sale',
+      aggregator_id: AGG_ID, processor_id: PROC_ID,
+      material_type: 'PET', gross_weight_kg: 100,
+      price_per_kg: 3, total_price: 300,
+      sources: []   // empty → FIFO fall-through
+    });
+    assertEq(Number(row.gross_weight_kg), 100);
+    assertEq(sources.length, 2);
+    // FIFO order: oldest created_at first. Both seeded at NOW() (effectively
+    // same timestamp) so id ASC tie-break — a (smaller id) drawn first.
+    assertEq(Number(sources[0].id), Number(a));
+    assertEq(Number(sources[1].id), Number(b));
+    assertEq(Number(sources[0].weight_kg_attributed), 60);
+    assertEq(Number(sources[1].weight_kg_attributed), 40);
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

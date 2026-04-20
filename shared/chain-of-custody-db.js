@@ -46,24 +46,75 @@ const {
 const WINDOW_DAYS = 14;
 
 // ── InsufficientSourceError ────────────────────────────────────────────────
+//
+// Two shapes:
+//   reason='shortfall' (default, existing)   — FIFO path couldn't cover target.
+//   reason='invalid_manual_sources' (PR4-A) — caller-supplied target.sources
+//                                             hint failed validation.
+//
+// Diagnostic fields populated depend on reason:
+//   shortfall:                shortfall_kg, candidates_considered, candidates_total_remaining_kg
+//   invalid_manual_sources:   any of invalid_source_ids, insufficient_remaining,
+//                             sum_mismatch_kg / hint_total_kg / target_kg,
+//                             invalid_shape_entries
+//
+// Frontend uses `reason` to switch the UX (e.g. highlight specific rows vs
+// show "pick more inventory" toast).
 class InsufficientSourceError extends Error {
   constructor(params) {
-    const { target, shortfall_kg, candidates_considered, candidates_total_remaining_kg, seller } = params;
+    const { target, seller, reason = 'shortfall' } = params;
     const targetName = seller ? (seller.kind + ' ' + seller.id) : 'seller';
-    const availableKg = candidates_total_remaining_kg != null ? candidates_total_remaining_kg : 0;
-    super(
-      'Insufficient source material: tried to attribute ' +
-      target.gross_weight_kg + 'kg ' + target.material_type +
-      ' from ' + targetName +
-      ', but only ' + availableKg + 'kg is available within the ' +
-      WINDOW_DAYS + '-day window (shortfall: ' + shortfall_kg + 'kg).'
-    );
+
+    let message;
+    if (reason === 'invalid_manual_sources') {
+      const parts = [];
+      if (params.invalid_shape_entries && params.invalid_shape_entries.length) {
+        parts.push('invalid hint entries: ' + params.invalid_shape_entries.length);
+      }
+      if (params.invalid_source_ids && params.invalid_source_ids.length) {
+        parts.push('invalid source_ids: [' + params.invalid_source_ids.join(', ') + ']');
+      }
+      if (params.insufficient_remaining && params.insufficient_remaining.length) {
+        parts.push('insufficient remaining: ' + params.insufficient_remaining.map(function (x) {
+          return '#' + x.id + ' (' + x.remaining_kg + 'kg < requested ' + x.requested_kg + 'kg)';
+        }).join(', '));
+      }
+      if (params.sum_mismatch_kg != null) {
+        parts.push('sum mismatch: hint ' + params.hint_total_kg + 'kg ≠ target ' +
+                   params.target_kg + 'kg (delta ' + params.sum_mismatch_kg + 'kg)');
+      }
+      message = 'Invalid manual source hint for ' + target.transaction_type +
+                ' (' + targetName + ', target ' + target.gross_weight_kg + 'kg ' +
+                target.material_type + '): ' + (parts.length ? parts.join('; ') : 'no diagnostic detail');
+    } else {
+      // shortfall
+      const availableKg = params.candidates_total_remaining_kg != null ? params.candidates_total_remaining_kg : 0;
+      message = 'Insufficient source material: tried to attribute ' +
+        target.gross_weight_kg + 'kg ' + target.material_type +
+        ' from ' + targetName +
+        ', but only ' + availableKg + 'kg is available within the ' +
+        WINDOW_DAYS + '-day window (shortfall: ' + params.shortfall_kg + 'kg).';
+    }
+
+    super(message);
     this.name = 'InsufficientSourceError';
+    this.reason = reason;
     this.target = target;
-    this.shortfall_kg = shortfall_kg;
-    this.candidates_considered = candidates_considered;
-    this.candidates_total_remaining_kg = availableKg;
     this.seller = seller;
+
+    if (reason === 'shortfall') {
+      this.shortfall_kg = params.shortfall_kg;
+      this.candidates_considered = params.candidates_considered;
+      this.candidates_total_remaining_kg = params.candidates_total_remaining_kg != null ? params.candidates_total_remaining_kg : 0;
+    } else {
+      // invalid_manual_sources
+      if (params.invalid_shape_entries != null) this.invalid_shape_entries = params.invalid_shape_entries;
+      if (params.invalid_source_ids != null)    this.invalid_source_ids = params.invalid_source_ids;
+      if (params.insufficient_remaining != null) this.insufficient_remaining = params.insufficient_remaining;
+      if (params.sum_mismatch_kg != null)       this.sum_mismatch_kg = params.sum_mismatch_kg;
+      if (params.hint_total_kg != null)         this.hint_total_kg = params.hint_total_kg;
+      if (params.target_kg != null)             this.target_kg = params.target_kg;
+    }
   }
 }
 
@@ -140,49 +191,198 @@ async function attributeAndInsert(client, target) {
   const seller = resolveSeller(target);  // throws on missing/unknown — caller bug
   const filter = candidateFilterForSeller(seller);
 
-  // 1. Load candidate sources with row-level lock.
-  const excludedList = EXCLUDED_STATUSES.map(function (_, i) { return '$' + (i + 4); }).join(', ');
-  const parentTypesList = filter.parentTypes.map(function (_, i) {
-    return '$' + (i + 4 + EXCLUDED_STATUSES.length);
-  }).join(', ');
+  // Detect manual-source-hint mode. An empty array falls through to FIFO
+  // (same as "no hint supplied").
+  const hasHint = Array.isArray(target.sources) && target.sources.length > 0;
 
-  const sql =
-    'SELECT id, gross_weight_kg, remaining_kg, batch_id, created_at ' +
-    '  FROM pending_transactions ' +
-    ' WHERE ' + filter.fkColumn + ' = $1 ' +
-    '   AND material_type = $2 ' +
-    '   AND remaining_kg > 0 ' +
-    '   AND created_at >= NOW() - ($3 || \' days\')::INTERVAL ' +
-    '   AND status NOT IN (' + excludedList + ') ' +
-    '   AND transaction_type IN (' + parentTypesList + ') ' +
-    ' ORDER BY created_at ASC, id ASC ' +
-    ' FOR UPDATE';
+  // Diagnostic target snapshot used by InsufficientSourceError in both paths.
+  const errTarget = {
+    transaction_type: target.transaction_type,
+    material_type: target.material_type,
+    gross_weight_kg: parseFloat(target.gross_weight_kg)
+  };
 
-  const params = [seller.id, target.material_type, String(WINDOW_DAYS)]
-    .concat(EXCLUDED_STATUSES)
-    .concat(filter.parentTypes);
+  let plan;
 
-  const candResult = await client.query(sql, params);
-  const candidates = candResult.rows;
+  if (hasHint) {
+    // ── Manual source-hint path ──────────────────────────────────────────
+    //
+    // Load ONLY the hinted rows, applying the same filters FIFO would have
+    // applied (seller FK, material, remaining_kg > 0, window, status, parent
+    // types). Any hint row that doesn't come back from that query is invalid
+    // — out-of-scope, wrong material, outside window, rejected status, etc.
+    // — caller's frontend should surface the row as unusable.
+    //
+    // No ORDER BY: hint order is authoritative for dominant-source selection.
 
-  // 2. Run FIFO attribution.
-  const plan = computeWriteAttribution(target, candidates);
+    // Validate hint shape first (fail fast before round-tripping to DB).
+    const invalidShape = [];
+    for (let i = 0; i < target.sources.length; i++) {
+      const s = target.sources[i];
+      if (!s || typeof s !== 'object' || s.source_id == null ||
+          typeof s.kg !== 'number' || !isFinite(s.kg) || s.kg <= 0) {
+        invalidShape.push({ index: i, entry: s });
+      }
+    }
+    if (invalidShape.length > 0) {
+      throw new InsufficientSourceError({
+        target: errTarget,
+        seller: seller,
+        reason: 'invalid_manual_sources',
+        invalid_shape_entries: invalidShape
+      });
+    }
 
-  if (plan.shortfall_kg > 0) {
-    const totalRemaining = candidates.reduce(function (acc, c) {
-      return acc + parseFloat(c.remaining_kg);
-    }, 0);
-    throw new InsufficientSourceError({
-      target: {
-        transaction_type: target.transaction_type,
-        material_type: target.material_type,
-        gross_weight_kg: parseFloat(target.gross_weight_kg)
-      },
-      shortfall_kg: plan.shortfall_kg,
-      candidates_considered: candidates.length,
-      candidates_total_remaining_kg: Math.round(totalRemaining * 100) / 100,
-      seller: seller
+    const hintIds = target.sources.map(function (s) { return Number(s.source_id); });
+
+    const excludedListH = EXCLUDED_STATUSES.map(function (_, i) { return '$' + (i + 5); }).join(', ');
+    const parentTypesListH = filter.parentTypes.map(function (_, i) {
+      return '$' + (i + 5 + EXCLUDED_STATUSES.length);
+    }).join(', ');
+
+    const sqlHint =
+      'SELECT id, gross_weight_kg, remaining_kg, batch_id, created_at ' +
+      '  FROM pending_transactions ' +
+      ' WHERE id = ANY($1::int[]) ' +
+      '   AND ' + filter.fkColumn + ' = $2 ' +
+      '   AND material_type = $3 ' +
+      '   AND remaining_kg > 0 ' +
+      '   AND created_at >= NOW() - ($4 || \' days\')::INTERVAL ' +
+      '   AND status NOT IN (' + excludedListH + ') ' +
+      '   AND transaction_type IN (' + parentTypesListH + ') ' +
+      ' FOR UPDATE';
+
+    const paramsHint = [hintIds, seller.id, target.material_type, String(WINDOW_DAYS)]
+      .concat(EXCLUDED_STATUSES)
+      .concat(filter.parentTypes);
+
+    const hintResult = await client.query(sqlHint, paramsHint);
+    const hintRows = hintResult.rows;
+    const hintRowById = Object.create(null);
+    hintRows.forEach(function (r) { hintRowById[Number(r.id)] = r; });
+
+    // (a) Every hint source_id must be present in the filtered query result.
+    const invalidIds = hintIds.filter(function (id) { return !(id in hintRowById); });
+    if (invalidIds.length > 0) {
+      throw new InsufficientSourceError({
+        target: errTarget,
+        seller: seller,
+        reason: 'invalid_manual_sources',
+        invalid_source_ids: invalidIds
+      });
+    }
+
+    // (b) Each hint's kg must fit the row's remaining_kg (epsilon for float).
+    const insufficientRemaining = [];
+    for (let i = 0; i < target.sources.length; i++) {
+      const s = target.sources[i];
+      const row = hintRowById[Number(s.source_id)];
+      const rem = parseFloat(row.remaining_kg);
+      if (rem + 0.0001 < s.kg) {
+        insufficientRemaining.push({
+          id: Number(s.source_id),
+          remaining_kg: Math.round(rem * 100) / 100,
+          requested_kg: Math.round(s.kg * 100) / 100
+        });
+      }
+    }
+    if (insufficientRemaining.length > 0) {
+      throw new InsufficientSourceError({
+        target: errTarget,
+        seller: seller,
+        reason: 'invalid_manual_sources',
+        insufficient_remaining: insufficientRemaining
+      });
+    }
+
+    // (c) Sum of hint.kg must equal target.gross_weight_kg (the attribution
+    //     invariant — Check 1 in scripts/chain-of-custody-invariant.js).
+    const hintTotal = target.sources.reduce(function (a, s) { return a + s.kg; }, 0);
+    const targetKg = parseFloat(target.gross_weight_kg);
+    const delta = Math.round((hintTotal - targetKg) * 100) / 100;
+    if (Math.abs(delta) > 0.01) {
+      throw new InsufficientSourceError({
+        target: errTarget,
+        seller: seller,
+        reason: 'invalid_manual_sources',
+        sum_mismatch_kg: delta,
+        hint_total_kg: Math.round(hintTotal * 100) / 100,
+        target_kg: Math.round(targetKg * 100) / 100
+      });
+    }
+
+    // Build plan from the hint directly. Dominant-source batch_id inheritance:
+    // largest kg wins; ties broken by source created_at ASC, then source id ASC
+    // (matches the FIFO rule enforced by computeWriteAttribution).
+    const ranked = target.sources.slice().sort(function (a, b) {
+      if (b.kg !== a.kg) return b.kg - a.kg;
+      const ra = hintRowById[Number(a.source_id)];
+      const rb = hintRowById[Number(b.source_id)];
+      const ta = new Date(ra.created_at).getTime();
+      const tb = new Date(rb.created_at).getTime();
+      if (ta !== tb) return ta - tb;
+      return Number(a.source_id) - Number(b.source_id);
     });
+    const dominantRow = hintRowById[Number(ranked[0].source_id)];
+
+    plan = {
+      edges: target.sources.map(function (s) {
+        return {
+          source_id: Number(s.source_id),
+          weight_kg_attributed: Math.round(s.kg * 100) / 100
+        };
+      }),
+      sourceRemainingAfter: target.sources.map(function (s) {
+        const row = hintRowById[Number(s.source_id)];
+        return {
+          id: Number(s.source_id),
+          remaining_kg: Math.round((parseFloat(row.remaining_kg) - s.kg) * 100) / 100
+        };
+      }),
+      batch_id: dominantRow ? dominantRow.batch_id : null,
+      shortfall_kg: 0
+    };
+
+  } else {
+    // ── FIFO auto-attribution path (default, existing behavior) ──────────
+    const excludedList = EXCLUDED_STATUSES.map(function (_, i) { return '$' + (i + 4); }).join(', ');
+    const parentTypesList = filter.parentTypes.map(function (_, i) {
+      return '$' + (i + 4 + EXCLUDED_STATUSES.length);
+    }).join(', ');
+
+    const sql =
+      'SELECT id, gross_weight_kg, remaining_kg, batch_id, created_at ' +
+      '  FROM pending_transactions ' +
+      ' WHERE ' + filter.fkColumn + ' = $1 ' +
+      '   AND material_type = $2 ' +
+      '   AND remaining_kg > 0 ' +
+      '   AND created_at >= NOW() - ($3 || \' days\')::INTERVAL ' +
+      '   AND status NOT IN (' + excludedList + ') ' +
+      '   AND transaction_type IN (' + parentTypesList + ') ' +
+      ' ORDER BY created_at ASC, id ASC ' +
+      ' FOR UPDATE';
+
+    const params = [seller.id, target.material_type, String(WINDOW_DAYS)]
+      .concat(EXCLUDED_STATUSES)
+      .concat(filter.parentTypes);
+
+    const candResult = await client.query(sql, params);
+    const candidates = candResult.rows;
+
+    plan = computeWriteAttribution(target, candidates);
+
+    if (plan.shortfall_kg > 0) {
+      const totalRemaining = candidates.reduce(function (acc, c) {
+        return acc + parseFloat(c.remaining_kg);
+      }, 0);
+      throw new InsufficientSourceError({
+        target: errTarget,
+        shortfall_kg: plan.shortfall_kg,
+        candidates_considered: candidates.length,
+        candidates_total_remaining_kg: Math.round(totalRemaining * 100) / 100,
+        seller: seller
+      });
+    }
   }
 
   // 3. Decrement source remaining_kg in one batched UPDATE.
@@ -342,6 +542,7 @@ module.exports = {
   insertRootTransaction: insertRootTransaction,
   InsufficientSourceError: InsufficientSourceError,
   WINDOW_DAYS: WINDOW_DAYS,
-  // Exported for tests.
+  EXCLUDED_STATUSES: EXCLUDED_STATUSES,
+  // Exported for tests and /api/sources.
   candidateFilterForSeller: candidateFilterForSeller
 };
