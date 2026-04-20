@@ -198,115 +198,14 @@ module.exports = {
       }
     }
 
-    // ── 10. Resolve processor buyer IDs
-    const processorEmails = ['abena@circul.demo', 'info@recycleforce.demo', 'info@greenloop.demo'];
-    const processorBuyerIds = [];
-    for (const email of processorEmails) {
-      const r = await client.query(`SELECT id FROM buyers WHERE email = $1`, [email]);
-      processorBuyerIds.push(r.rows[0].id);
-    }
-
-    // ── 11. Aggregator → Processor transactions (6 per aggregator)
-    //   agg 0,1 → processor 0 (Miniplast); agg 2,3 → processor 1 (RecycleForce); agg 4 → processor 2 (GreenLoop)
-    //   Idempotent: skip if any agg→proc rows already exist for this operator_id.
-    const aggToProcPrices = { PET: 3.50, HDPE: 4.50, PP: 3.00 };
-    const aggToProcMap    = [0, 0, 1, 1, 2]; // processor index per aggregator
-
-    for (let a = 0; a < 5; a++) {
-      const aggOpId = aggOperatorIds[a];
-
-      const existAggProc = await client.query(
-        `SELECT COUNT(*) FROM transactions WHERE operator_id = $1 AND notes LIKE 'agg_to_proc%'`,
-        [aggOpId]
-      );
-      if (parseInt(existAggProc.rows[0].count) > 0) continue;
-
-      for (let t = 0; t < 6; t++) {
-        const material   = materials[t % 3];   // PET, HDPE, PP only
-        const grossKg    = 200 + ((a * 6 + t) % 7) * 100;   // 200–800 kg
-        const netKg      = parseFloat((grossKg * 0.95).toFixed(2));
-        const pricePerKg = aggToProcPrices[material];
-        const totalPrice = parseFloat((netKg * pricePerKg).toFixed(2));
-        const daysAgo    = Math.round(60 * (1 - t / 5));     // spread over 60 days
-        const txDate     = new Date(nowMs - daysAgo * dayMs).toISOString();
-        const procId     = processorBuyerIds[aggToProcMap[a]];
-
-        await client.query(`
-          INSERT INTO transactions
-            (collector_id, operator_id, material_type, gross_weight_kg, net_weight_kg,
-             contamination_deduction_percent, price_per_kg, total_price, payment_status,
-             notes, transaction_date)
-          VALUES (NULL, $1, $2, $3, $4, 5, $5, $6, 'paid', $7, $8)
-        `, [aggOpId, material, grossKg, netKg, pricePerKg, totalPrice,
-            `agg_to_proc:processor_id=${procId}`, txDate]);
-      }
-    }
-
-    // Update processor_id on agg→proc rows by parsing the notes field
-    await client.query(`
-      UPDATE transactions
-      SET processor_id = CAST(SUBSTRING(notes FROM 'agg_to_proc:processor_id=(\\d+)') AS INTEGER)
-      WHERE notes LIKE 'agg_to_proc:%' AND processor_id IS NULL
-    `);
-
-    // ── 12. Resolve converter buyer IDs
-    const converterEmails = ['kweku@circul.demo', 'info@iterum.demo'];
-    const converterBuyerIds = [];
-    for (const email of converterEmails) {
-      const r = await client.query(`SELECT id FROM buyers WHERE email = $1`, [email]);
-      converterBuyerIds.push(r.rows[0].id);
-    }
-
-    // ── 13. Processor → Converter transactions (4 per processor)
-    //   proc 0 (Miniplast) → Veolia (all 4)
-    //   proc 1 (RecycleForce) → Iterum (all 4)
-    //   proc 2 (GreenLoop) → Veolia t=0,1 / Iterum t=2,3
-    //   Idempotent: skip if any proc→conv rows exist for this processor_id in notes.
-    const procToConvPrices = { PET: 5.00, HDPE: 6.00, PP: 4.50 };
-    const procToConvMap = [
-      [0, 0, 0, 0], // Miniplast → Veolia
-      [1, 1, 1, 1], // RecycleForce → Iterum
-      [0, 0, 1, 1], // GreenLoop → Veolia, Veolia, Iterum, Iterum
-    ];
-
-    for (let p = 0; p < 3; p++) {
-      const procId = processorBuyerIds[p];
-
-      const existProcConv = await client.query(
-        `SELECT COUNT(*) FROM transactions WHERE notes LIKE $1`,
-        [`proc_to_conv:processor_id=${procId}%`]
-      );
-      if (parseInt(existProcConv.rows[0].count) > 0) continue;
-
-      for (let t = 0; t < 4; t++) {
-        const material   = materials[t % 3];   // PET, HDPE, PP
-        const grossKg    = 500 + (p * 4 + t) * 83;   // 500–1413 kg
-        const netKg      = parseFloat((grossKg * 0.95).toFixed(2));
-        const pricePerKg = procToConvPrices[material];
-        const totalPrice = parseFloat((netKg * pricePerKg).toFixed(2));
-        const daysAgo    = Math.round(30 * (1 - t / 3));     // spread over 30 days
-        const txDate     = new Date(nowMs - daysAgo * dayMs).toISOString();
-        const convId     = converterBuyerIds[procToConvMap[p][t]];
-
-        await client.query(`
-          INSERT INTO transactions
-            (collector_id, operator_id, material_type, gross_weight_kg, net_weight_kg,
-             contamination_deduction_percent, price_per_kg, total_price, payment_status,
-             notes, transaction_date)
-          VALUES (NULL, NULL, $1, $2, $3, 5, $4, $5, 'paid', $6, $7)
-        `, [material, grossKg, netKg, pricePerKg, totalPrice,
-            `proc_to_conv:processor_id=${procId},converter_id=${convId}`, txDate]);
-      }
-    }
-
-    // Update processor_id and converter_id on proc→conv rows by parsing the notes field
-    await client.query(`
-      UPDATE transactions
-      SET
-        processor_id = CAST(SUBSTRING(notes FROM 'proc_to_conv:processor_id=(\\d+)') AS INTEGER),
-        converter_id = CAST(SUBSTRING(notes FROM 'converter_id=(\\d+)') AS INTEGER)
-      WHERE notes LIKE 'proc_to_conv:%' AND processor_id IS NULL
-    `);
+    // Sections 10-13 (agg→processor + processor→converter demo transactions)
+    // intentionally removed. They stashed tier buyer IDs in notes and wrote
+    // to transactions.processor_id / .converter_id, which 1774500000000_
+    // restructure_tiers.js CASCADE-drops via DROP TABLE transactions at line
+    // 37. The UPDATEs silently wiped, leaving orphan rows with cryptic notes
+    // and no tier FKs — confusing any future engineer querying transactions.
+    // Tier lineage lives on pending_transactions post-restructure; if demo
+    // tier history is wanted, seed it there in a new migration.
 
     // ── 14. Posted prices for all 5 aggregators (PET, HDPE, PP, LDPE)
     //   Uses ON CONFLICT DO UPDATE for idempotency.
