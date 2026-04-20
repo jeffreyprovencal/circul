@@ -7,8 +7,10 @@ CREATE INDEX IF NOT EXISTS idx_pt_payment ON pending_transactions(payment_status
 CREATE INDEX IF NOT EXISTS idx_pt_created ON pending_transactions(created_at);
 
 -- transactions performance indexes
+-- Note: transactions has no `status` column (only payment_status, see
+-- restructure_tiers 1774500000000). The mirror-line from the pending_transactions
+-- block above was a typo — removed.
 CREATE INDEX IF NOT EXISTS idx_tx_material ON transactions(material_type);
-CREATE INDEX IF NOT EXISTS idx_tx_status ON transactions(status);
 CREATE INDEX IF NOT EXISTS idx_tx_payment ON transactions(payment_status);
 CREATE INDEX IF NOT EXISTS idx_tx_created ON transactions(created_at);
 

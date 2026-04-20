@@ -102,9 +102,11 @@ async function runFolderMigrations(client) {
     return;
   }
 
-  // Get all migration files, sorted by name (timestamp prefix ensures order)
+  // Get all migration files, sorted by name (timestamp prefix ensures order).
+  // Both .js modules and raw .sql files are supported — .sql bodies run inside
+  // the same BEGIN/COMMIT envelope with the same _migrations tracking.
   const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.js'))
+    .filter(f => f.endsWith('.js') || f.endsWith('.sql'))
     .sort();
 
   if (files.length === 0) {
@@ -117,8 +119,20 @@ async function runFolderMigrations(client) {
 
   // Run pending migrations
   for (const file of files) {
-    const migration = require(path.join(migrationsDir, file));
-    const name = migration.name || file.replace('.js', '');
+    let name;
+    let runMigration;
+
+    if (file.endsWith('.js')) {
+      const migration = require(path.join(migrationsDir, file));
+      name = migration.name || file.replace('.js', '');
+      runMigration = () => migration.up(client);
+    } else {
+      // .sql: name = filename minus extension, body executed raw
+      name = file.replace('.sql', '');
+      const sqlPath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(sqlPath, 'utf8');
+      runMigration = () => client.query(sql);
+    }
 
     if (appliedNames.has(name)) {
       continue; // Already applied
@@ -128,7 +142,7 @@ async function runFolderMigrations(client) {
 
     try {
       await client.query('BEGIN');
-      await migration.up(client);
+      await runMigration();
       await client.query('INSERT INTO _migrations (name) VALUES ($1)', [name]);
       await client.query('COMMIT');
       console.log(`Migration complete: ${name}`);
