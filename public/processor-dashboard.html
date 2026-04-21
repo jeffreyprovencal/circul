@@ -161,11 +161,11 @@
         </div>
         <div class="form-group">
           <label class="form-label">Material Type</label>
-          <select class="form-select" id="ps-material"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select>
+          <select class="form-select" id="ps-material" onchange="onProcMaterialChanged()"><option value="PET">PET</option><option value="HDPE">HDPE</option><option value="LDPE">LDPE</option><option value="PP">PP</option></select>
         </div>
         <div class="form-group">
           <label class="form-label">Weight (kg)</label>
-          <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0" oninput="calcProcSaleTotal()">
+          <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0" oninput="calcProcSaleTotal(); onProcWeightChanged();">
         </div>
         <div class="form-group">
           <label class="form-label">Price/kg (GH¢)</label>
@@ -176,6 +176,7 @@
       <div style="margin-bottom:12px">
         <textarea id="ps-notes" class="form-input" rows="2" placeholder="Notes (optional)" style="width:100%;resize:vertical"></textarea>
       </div>
+      <div id="source-picker-mount"></div>
       <div id="ps-msg" style="font-size:0.8rem;margin-bottom:8px"></div>
       <div style="display:flex;gap:8px">
         <button class="btn-green btn" id="ps-submit-btn" onclick="submitProcessorSale()">Log Sale to Converter</button>
@@ -413,6 +414,7 @@
 <div id="disc-toast-container" class="disc-toast-container"></div>
 
 <script src="/shared/roles.js"></script>
+<script src="/shared/source-picker.js"></script>
 <script>
 // ── Production Error Logger ──
 (function() {
@@ -1201,6 +1203,12 @@ function submitProcessorSale() {
     if (!weight || parseFloat(weight) <= 0) { showMsg('Enter a valid weight.'); return; }
     if (!price  || parseFloat(price)  <= 0) { showMsg('Enter a valid price.');  return; }
 
+    if (window.__pickerState && window.__pickerState.canSubmit === false) {
+        showMsg('Adjust source allocation before submitting.');
+        return;
+    }
+    var pickerSources = (window.__picker && window.__picker.getSources) ? window.__picker.getSources() : [];
+
     if (btn) { btn.disabled = true; btn.textContent = 'Logging...'; }
     fetch('/api/pending-transactions/processor-sale', {
         method: 'POST',
@@ -1210,11 +1218,18 @@ function submitProcessorSale() {
             material_type:      material,
             gross_weight_kg:    parseFloat(weight),
             price_per_kg:       parseFloat(price),
-            notes:              notes || null
+            notes:              notes || null,
+            sources:            pickerSources
         })
     })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
+    .then(function(r) { return r.json().then(function(body) { return { status: r.status, body: body }; }); })
+    .then(function(res) {
+        var data = res.body || {};
+        if (res.status === 400 && data.error === 'insufficient_source_material') {
+            if (window.__picker && window.__picker.showError) window.__picker.showError(data.details || {});
+            showMsg(data.message || 'Source allocation invalid — see picker for details.');
+            return;
+        }
         if (data.success) {
             document.getElementById('ps-converter').value = '';
             document.getElementById('ps-material').value  = '';
@@ -1223,6 +1238,7 @@ function submitProcessorSale() {
             var pn = document.getElementById('ps-notes'); if (pn) pn.value = '';
             var ptb = document.getElementById('ps-total'); if (ptb) ptb.textContent = 'GH¢ 0';
             if (msgEl) msgEl.textContent = '';
+            if (window.__picker && window.__picker.update) window.__picker.update({ materialType: '', targetKg: 0 });
             showProcToast('Sale logged — awaiting converter dispatch approval');
             loadProcessorSales();
         } else {
@@ -1946,5 +1962,36 @@ function setCompliance(ptId, compliance) {
     })
     .catch(function(e) { showProcToast('Error linking requirement', true); console.error(e); });
 }
+
+// ── Source-picker integration ──
+window.__pickerState = { canSubmit: false, sources: [], last_total_kg: 0 };
+window.__picker = null;
+function initProcessorSourcePicker() {
+    if (!window.SourcePicker) return;
+    var mount = document.getElementById('source-picker-mount');
+    if (!mount || window.__picker) return;
+    window.__picker = window.SourcePicker.mount(mount, {
+        sellerRole: 'processor',
+        materialType: document.getElementById('ps-material').value || '',
+        targetKg: parseFloat(document.getElementById('ps-weight').value) || 0,
+        onChange: function (snapshot) { window.__pickerState = snapshot; }
+    });
+}
+function onProcMaterialChanged() {
+    if (window.__picker) window.__picker.update({ materialType: document.getElementById('ps-material').value || '' });
+}
+function onProcWeightChanged() {
+    if (window.__picker) window.__picker.update({ targetKg: parseFloat(document.getElementById('ps-weight').value) || 0 });
+}
+(function () {
+    var origOpen = window.openDispatchForm;
+    window.openDispatchForm = function (ptId, type) {
+        var ret = origOpen ? origOpen.apply(this, arguments) : undefined;
+        if (ptId === undefined || typeof ptId !== 'number') {
+            initProcessorSourcePicker();
+        }
+        return ret;
+    };
+})();
 </script>
 </html>

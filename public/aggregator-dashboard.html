@@ -244,7 +244,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Material Type</label>
-          <select class="form-select" id="sellMaterial" onchange="prefillPriceFromBuyer()">
+          <select class="form-select" id="sellMaterial" onchange="prefillPriceFromBuyer(); onSellMaterialChanged();">
             <option value="">Select material…</option>
             <option value="PET">PET</option><option value="HDPE">HDPE</option>
             <option value="LDPE">LDPE</option><option value="PP">PP</option>
@@ -252,7 +252,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Quantity kg</label>
-          <input class="form-input" id="sellWeight" type="number" min="0" step="0.1" placeholder="0" />
+          <input class="form-input" id="sellWeight" type="number" min="0" step="0.1" placeholder="0" oninput="onSellWeightChanged()" />
         </div>
         <div class="form-group">
           <label class="form-label">Price/kg</label>
@@ -263,6 +263,8 @@
         <label class="form-label">Notes (optional)</label>
         <input class="form-input" type="text" placeholder="e.g. delivery notes" />
       </div>
+      <!-- PR4-B source picker mount — vanilla JS component, driven by /shared/source-picker.js -->
+      <div id="source-picker-mount"></div>
       <div class="photo-warning" id="photoWarning2">Photos required for batches over 500 kg</div>
       <div id="sellMsg" class="hidden" style="margin-top:10px;"></div>
     </div>
@@ -721,6 +723,7 @@
 
 
 <script src="/shared/roles.js"></script>
+<script src="/shared/source-picker.js"></script>
 <script>
 // ── Production Error Logger ──
 (function() {
@@ -2353,6 +2356,15 @@ function submitAggregatorSale() {
         return;
     }
 
+    // PR4-B: block submit if picker says allocation isn't balanced.
+    if (window.__picker && window.__pickerState && !window.__pickerState.canSubmit) {
+        msg.textContent = 'Sources are not balanced against the target weight — review the picker before submitting.';
+        msg.className = 'msg-error';
+        msg.classList.remove('hidden');
+        return;
+    }
+    var pickerSources = (window.__picker && window.__picker.getSources) ? window.__picker.getSources() : [];
+
     fetch('/api/pending-transactions/aggregator-sale', {
         method: 'POST',
         headers: authHeaders(),
@@ -2366,7 +2378,8 @@ function submitAggregatorSale() {
                 gross_weight_kg: parseFloat(weight),
                 price_per_kg:    parseFloat(price),
                 notes:           notes || null,
-                photo_urls:      []
+                photo_urls:      [],
+                sources:         pickerSources   // PR4-B: [{source_id, kg}] or [] for FIFO fall-through
             };
             if (btype === 'converter') {
                 payload.converter_id = parseInt(processorId, 10);
@@ -2376,9 +2389,10 @@ function submitAggregatorSale() {
             return JSON.stringify(payload);
         })()
     })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) {
+    .then(function(r) { return r.json().then(function(body){ return { status: r.status, body: body }; }); })
+    .then(function(res) {
+        var data = res.body;
+        if (res.status >= 200 && res.status < 300 && data.success) {
             msg.textContent = data.photos_required
                 ? 'Sale logged — submit photos for processor approval before dispatching.'
                 : 'Sale logged — processor has been notified.';
@@ -2392,6 +2406,14 @@ function submitAggregatorSale() {
             if (notesEl2 && notesEl2.querySelector('input')) notesEl2.querySelector('input').value = '';
             updatePhotoWarning();
             loadMyBatchSales();
+            // Re-prefill picker for next sale (still mounted).
+            if (window.__picker) window.__picker.update({ materialType: '', targetKg: 0 });
+        } else if (data.error === 'insufficient_source_material' && window.__picker) {
+            // PR4-B: per-row / sum-level errors surface INSIDE the picker.
+            window.__picker.showError(data.details || {});
+            msg.textContent = 'Server rejected the source allocation — see highlighted lots above.';
+            msg.className = 'msg-error';
+            msg.classList.remove('hidden');
         } else {
             msg.textContent = data.message || 'Error logging sale.';
             msg.className = 'msg-error';
@@ -3430,5 +3452,46 @@ function loadAggRequirements() {
       document.getElementById('aggRequirementsGrid').innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">Could not load requirements.</div>';
     });
 }
+
+// ── PR4-B source picker (aggregator tier) ──────────────────────────────
+// Mounts on showDashboard(), driven by sellMaterial + sellWeight inputs.
+// Passes its snapshot to submitAggregatorSale via state.__picker.
+window.__pickerState = { canSubmit: false, sources: [], last_total_kg: 0 };
+window.__picker = null;
+function initAggregatorSourcePicker() {
+    if (!window.SourcePicker) return; // script failed to load
+    var mount = document.getElementById('source-picker-mount');
+    if (!mount || window.__picker) return;
+    window.__picker = window.SourcePicker.mount(mount, {
+        sellerRole: 'aggregator',
+        materialType: document.getElementById('sellMaterial').value || '',
+        targetKg: parseFloat(document.getElementById('sellWeight').value) || 0,
+        onChange: function (snapshot) {
+            window.__pickerState = snapshot;
+        }
+    });
+    // Aggregator empty-state CTA dispatches a log-purchase event — forward to
+    // the aggregator's existing Log Purchase tab via scrollIntoView.
+    mount.addEventListener('source-picker:log-purchase', function () {
+        var purchaseCard = document.getElementById('buyCard') || document.getElementById('aggregatorPurchaseCard');
+        if (purchaseCard && purchaseCard.scrollIntoView) purchaseCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+}
+function onSellMaterialChanged() {
+    if (window.__picker) window.__picker.update({ materialType: document.getElementById('sellMaterial').value || '' });
+}
+function onSellWeightChanged() {
+    if (window.__picker) window.__picker.update({ targetKg: parseFloat(document.getElementById('sellWeight').value) || 0 });
+}
+document.addEventListener('DOMContentLoaded', function () {
+    // Defer until showDashboard fires (post-login). Wrap the existing fn.
+    var orig = window.showDashboard;
+    if (orig) {
+        window.showDashboard = function () {
+            orig.apply(this, arguments);
+            initAggregatorSourcePicker();
+        };
+    }
+});
 </script>
 </html>

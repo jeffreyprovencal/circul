@@ -252,7 +252,7 @@
       </div>
       <div class="form-group">
         <label class="form-label">Material Type</label>
-        <select class="form-select" id="rec-sale-material">
+        <select class="form-select" id="rec-sale-material" onchange="onRecMaterialChanged()">
           <option value="">Select material...</option>
           <option value="PET">PET</option>
           <option value="HDPE">HDPE</option>
@@ -264,13 +264,14 @@
       </div>
       <div class="form-group">
         <label class="form-label">Quantity (kg)</label>
-        <input class="form-input" type="number" id="rec-sale-qty" placeholder="e.g. 500" min="1" />
+        <input class="form-input" type="number" id="rec-sale-qty" placeholder="e.g. 500" min="1" oninput="onRecWeightChanged()" />
       </div>
       <div class="form-group">
         <label class="form-label">Price / kg (GHS)</label>
         <input class="form-input" type="number" id="rec-sale-price" placeholder="e.g. 3.50" step="0.01" min="0" />
       </div>
     </div>
+    <div id="source-picker-mount" style="margin-top:12px"></div>
     <div class="msg-error" style="margin-top:8px;margin-bottom:8px" id="rec-sale-msg"></div>
   </div>
 
@@ -458,6 +459,7 @@
 <div id="rec-arrival-form"></div>
 
 <script src="/shared/roles.js"></script>
+<script src="/shared/source-picker.js"></script>
 <script>
 // ── Production Error Logger ──
 (function() {
@@ -1041,6 +1043,12 @@ function submitRecSale() {
     if (!qty || parseFloat(qty) <= 0) { msgEl.textContent = 'Enter a valid quantity.'; return; }
     if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; return; }
 
+    if (window.__pickerState && window.__pickerState.canSubmit === false) {
+        msgEl.textContent = 'Adjust source allocation before submitting.';
+        return;
+    }
+    var pickerSources = (window.__picker && window.__picker.getSources) ? window.__picker.getSources() : [];
+
     fetch('/api/pending-transactions/recycler-sale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -1048,16 +1056,24 @@ function submitRecSale() {
             converter_id: parseInt(converterId),
             material_type: material,
             gross_weight_kg: parseFloat(qty),
-            price_per_kg: parseFloat(price)
+            price_per_kg: parseFloat(price),
+            sources: pickerSources
         })
     })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
+    .then(function(r) { return r.json().then(function(body) { return { status: r.status, body: body }; }); })
+    .then(function(res) {
+        var data = res.body || {};
+        if (res.status === 400 && data.error === 'insufficient_source_material') {
+            if (window.__picker && window.__picker.showError) window.__picker.showError(data.details || {});
+            msgEl.textContent = data.message || 'Source allocation invalid — see picker for details.';
+            return;
+        }
         if (data.success) {
             document.getElementById('rec-sale-converter').value = '';
             document.getElementById('rec-sale-material').value = '';
             document.getElementById('rec-sale-qty').value = '';
             document.getElementById('rec-sale-price').value = '';
+            if (window.__picker && window.__picker.update) window.__picker.update({ materialType: '', targetKg: 0 });
             showRecToast('Sale submitted successfully');
             loadRecSales();
         } else {
@@ -1720,5 +1736,35 @@ function discCounterOffer(id) {
 
 // -- INIT --
 /* Top suppliers/buyers now loaded inside loadAll() — no delayed workaround needed */
+
+// ── Source-picker integration ──
+window.__pickerState = { canSubmit: false, sources: [], last_total_kg: 0 };
+window.__picker = null;
+function initRecyclerSourcePicker() {
+    if (!window.SourcePicker) return;
+    var mount = document.getElementById('source-picker-mount');
+    if (!mount || window.__picker) return;
+    window.__picker = window.SourcePicker.mount(mount, {
+        sellerRole: 'recycler',
+        materialType: document.getElementById('rec-sale-material').value || '',
+        targetKg: parseFloat(document.getElementById('rec-sale-qty').value) || 0,
+        onChange: function (snapshot) { window.__pickerState = snapshot; }
+    });
+}
+function onRecMaterialChanged() {
+    if (window.__picker) window.__picker.update({ materialType: document.getElementById('rec-sale-material').value || '' });
+}
+function onRecWeightChanged() {
+    if (window.__picker) window.__picker.update({ targetKg: parseFloat(document.getElementById('rec-sale-qty').value) || 0 });
+}
+document.addEventListener('DOMContentLoaded', function () {
+    var orig = window.showDashboard;
+    if (orig) {
+        window.showDashboard = function () {
+            orig.apply(this, arguments);
+            initRecyclerSourcePicker();
+        };
+    }
+});
 </script>
 </html>
