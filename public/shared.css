@@ -18,6 +18,12 @@
   --r-sm: 8px;
   --r-md: 12px;
   --gap: 24px;
+  /* New semantic tokens — introduced in PR4-B for source-picker error/warning
+     states. Prompt listed these in the reuse set but they didn't exist yet. */
+  --surface-2: #11331f;
+  --danger: #ff6b6b;
+  --danger-bg: #3a1818;
+  --warning: #ffb74d;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px}
@@ -511,3 +517,81 @@ table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:1
 /* ── Name Privacy ── */
 .counterparty-code{display:block;font-size:0.65rem;color:var(--text-3);font-weight:500;margin-top:2px;letter-spacing:0.03em}
 .counterparty-name-hidden{color:var(--text-3);font-style:italic}
+
+/* ══════════════════════════════════════════════════
+   Source Picker (PR4-B) — shared/source-picker.js
+   Namespaced .sp-* to avoid collisions with dashboard styles.
+   ══════════════════════════════════════════════════ */
+.sp-root{display:block;margin-top:16px;padding-top:16px;border-top:1px dashed var(--border)}
+.sp-head{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.sp-head-title{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-3);font-weight:600}
+.sp-head-sub{font-size:0.85rem;color:var(--text-1)}
+
+.sp-lots{display:flex;flex-direction:column;gap:6px}
+.sp-lot{display:grid;grid-template-columns:24px 1fr 140px;gap:12px;align-items:center;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);transition:border-color 120ms,background 120ms}
+.sp-lot:hover{border-color:var(--text-3)}
+.sp-lot-picked{border-color:var(--accent);background:#0d3a25}
+.sp-lot-error{border-color:var(--danger);background:var(--danger-bg)}
+.sp-cb{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.sp-cb:disabled{cursor:not-allowed;opacity:0.5}
+.sp-lot-meta{min-width:0}
+.sp-lot-supplier{font-weight:600;font-size:0.85rem;color:var(--text-1)}
+.sp-lot-line2{display:flex;gap:10px;flex-wrap:wrap;margin-top:3px;font-size:0.7rem;color:var(--text-2);align-items:center}
+.sp-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-3)}
+.sp-tier-pill{display:inline-flex;align-items:center;font-size:0.6rem;padding:2px 7px;border-radius:999px;background:var(--bg);color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em}
+.sp-pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:0.65rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase}
+.sp-pill-pet{background:rgba(33,150,243,0.15);color:#64b5f6}
+.sp-pill-hdpe{background:rgba(255,152,0,0.15);color:#ffb74d}
+.sp-pill-pp{background:rgba(156,39,176,0.15);color:#ce93d8}
+.sp-pill-ldpe{background:rgba(76,175,80,0.15);color:#81c784}
+.sp-alloc{display:flex;align-items:center;gap:6px;justify-self:end}
+.sp-alloc-input{width:74px;text-align:right;background:var(--bg);border:1px solid var(--border);color:var(--text-1);padding:6px 8px;border-radius:var(--r-sm);font-size:0.8rem;font-family:var(--font)}
+.sp-alloc-input:focus{outline:none;border-color:var(--accent)}
+.sp-alloc-input:disabled{opacity:0.4;cursor:not-allowed}
+.sp-alloc-unit{font-size:0.7rem;color:var(--text-3)}
+.sp-lot-err{grid-column:1 / -1;font-size:0.7rem;color:var(--danger);margin-top:4px;padding-left:36px}
+
+.sp-totals{margin-top:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);display:flex;justify-content:space-between;align-items:center;font-size:0.85rem}
+.sp-totals-state{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:600}
+.sp-totals-num{font-weight:600}
+.sp-totals-balanced{border-color:var(--accent)}
+.sp-totals-balanced .sp-totals-state{color:var(--accent)}
+.sp-totals-over,.sp-totals-under{border-color:var(--warning)}
+.sp-totals-over .sp-totals-state,.sp-totals-under .sp-totals-state{color:var(--warning)}
+.sp-totals-row_error,.sp-totals-sum_error{border-color:var(--danger)}
+.sp-totals-row_error .sp-totals-state,.sp-totals-sum_error .sp-totals-state{color:var(--danger)}
+
+.sp-inline-err{margin-top:10px;padding:10px 14px;background:var(--danger-bg);border:1px solid var(--danger);border-radius:var(--r-sm);font-size:0.8rem;line-height:1.5;color:var(--text-1)}
+.sp-inline-err-title{color:var(--danger);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;font-size:0.65rem;margin-bottom:4px}
+.sp-inline-err-body{color:var(--text-1)}
+
+.sp-footer{margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.sp-footer-left{display:flex;gap:12px}
+.sp-btn-link{background:none;border:none;color:var(--text-3);cursor:pointer;font-size:0.75rem;text-decoration:underline;padding:0;font-family:var(--font)}
+.sp-btn-link:hover{color:var(--accent)}
+.sp-legend{font-size:0.65rem;color:var(--text-3);display:flex;gap:14px;flex-wrap:wrap}
+.sp-legend span::before{content:"• ";color:var(--accent)}
+
+.sp-empty{margin-top:10px;padding:24px 18px;background:var(--surface-2);border:1px dashed var(--border);border-radius:var(--r-sm);text-align:center}
+.sp-empty-title{font-weight:600;font-size:0.9rem;color:var(--text-1);margin-bottom:6px}
+.sp-empty-body{font-size:0.8rem;color:var(--text-2);margin-bottom:12px;line-height:1.5;max-width:460px;margin-left:auto;margin-right:auto}
+.sp-empty-cta{display:inline-block}
+.sp-btn-cta{background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:999px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font)}
+.sp-btn-cta:hover{background:var(--accent-hover)}
+
+/* Loading skeleton */
+.sp-skel{display:grid;grid-template-columns:24px 1fr 140px;gap:12px;align-items:center;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px}
+.sp-skel-col{display:flex;flex-direction:column;gap:5px;min-width:0}
+.sp-skel-box{background:linear-gradient(90deg,var(--surface-2) 0%,var(--border) 50%,var(--surface-2) 100%);background-size:200% 100%;animation:sp-shimmer 1.4s linear infinite;border-radius:3px;height:12px}
+.sp-skel-cb{width:16px;height:16px;border-radius:3px}
+.sp-skel-md{width:55%;height:12px}
+.sp-skel-lg{width:85%;height:9px}
+.sp-skel-alloc{width:74px;height:24px;justify-self:end}
+@keyframes sp-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* Mobile: stack the lot row */
+@media (max-width: 640px){
+  .sp-lot,.sp-skel{grid-template-columns:24px 1fr}
+  .sp-alloc,.sp-skel-alloc{grid-column:1 / -1;justify-self:flex-end;margin-top:6px;padding-left:36px}
+  .sp-lot-err{padding-left:0}
+}

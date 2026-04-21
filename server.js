@@ -4797,26 +4797,39 @@ app.post('/api/pending-transactions/recycler-sale', requireAuth, async (req, res
 });
 
 // ── GET /api/sources ──────────────────────────────────────────────────────
-// Candidate source list for the forthcoming web source-picker (PR4 Phase B).
+// Candidate source list for the web source-picker (PR4 Phase B).
 // Returns the same set attributeAndInsert's FIFO path would consider, scoped
-// to the authenticated caller's tier: aggregator sees collector-tier inbound,
+// to the requested seller tier: aggregator sees collector-tier inbound,
 // processor sees aggregator-tier inbound, recycler sees aggregator+processor
 // tier inbound. Ordered by created_at ASC / id ASC (FIFO-natural).
 //
-// Query: material_type (required).
+// Query params (both required):
+//   material_type — e.g. 'PET'
+//   seller_role   — 'aggregator' | 'processor' | 'recycler'. Caller MUST
+//                   hold this role via req.user.hasRole(seller_role). Dual-
+//                   role users (e.g. Miniplast-style processor+converter)
+//                   pass the tier matching the dashboard they're on, so a
+//                   recycler+processor user on the recycler dashboard gets
+//                   recycler-tier sources (fixes the pre-PR4-B fall-through
+//                   bug where hasRole precedence silently picked the wrong
+//                   tier).
+//
 // Response: [{ source_id, transaction_type, material_type, remaining_kg,
 //              created_at, batch_id, supplier_name, supplier_role }, ...]
+const VALID_SELLER_ROLES = ['aggregator', 'processor', 'recycler'];
 app.get('/api/sources', requireAuth, async (req, res) => {
   try {
     const material_type = req.query.material_type;
+    const seller_role = req.query.seller_role;
     if (!material_type) return res.status(400).json({ success: false, message: 'material_type query param is required' });
+    if (!seller_role || VALID_SELLER_ROLES.indexOf(seller_role) === -1) {
+      return res.status(400).json({ success: false, message: 'seller_role query param is required and must be one of: ' + VALID_SELLER_ROLES.join(', ') });
+    }
+    if (!req.user.hasRole(seller_role)) {
+      return res.status(403).json({ success: false, message: 'Authenticated caller does not hold role: ' + seller_role });
+    }
 
-    let sellerKind;
-    if (req.user.hasRole('aggregator'))      sellerKind = 'aggregator';
-    else if (req.user.hasRole('processor'))  sellerKind = 'processor';
-    else if (req.user.hasRole('recycler'))   sellerKind = 'recycler';
-    else return res.status(403).json({ success: false, message: 'Only aggregator/processor/recycler roles can browse sources' });
-
+    const sellerKind = seller_role;
     const filter = candidateFilterForSeller({ kind: sellerKind, id: req.user.id });
 
     const excludedList = COC_EXCLUDED_STATUSES.map(function (_, i) { return '$' + (i + 4); }).join(', ');
