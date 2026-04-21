@@ -1203,8 +1203,10 @@ function submitProcessorSale() {
     if (!weight || parseFloat(weight) <= 0) { showMsg('Enter a valid weight.'); return; }
     if (!price  || parseFloat(price)  <= 0) { showMsg('Enter a valid price.');  return; }
 
-    if (window.__pickerState && window.__pickerState.canSubmit === false) {
-        showMsg('Adjust source allocation before submitting.');
+    // PR4-B: gate submit only when the picker is actually mounted. If the
+    // script failed to load, fall through to server-side FIFO silently.
+    if (window.__picker && window.__pickerState && !window.__pickerState.canSubmit) {
+        showMsg('Sources are not balanced against the target weight — review the picker before submitting.');
         return;
     }
     var pickerSources = (window.__picker && window.__picker.getSources) ? window.__picker.getSources() : [];
@@ -1986,9 +1988,23 @@ function onProcWeightChanged() {
 (function () {
     var origOpen = window.openDispatchForm;
     window.openDispatchForm = function (ptId, type) {
+        // Only the no-arg invocation opens the sale form; the (ptId, type)
+        // signature drives dispatch approve/reject, which has no picker.
+        var isSaleToggle = (ptId === undefined || typeof ptId !== 'number');
+        var sf = isSaleToggle ? document.getElementById('procSaleForm') : null;
+        var wasHidden = sf ? sf.classList.contains('hidden') : null;
         var ret = origOpen ? origOpen.apply(this, arguments) : undefined;
-        if (ptId === undefined || typeof ptId !== 'number') {
+        if (isSaleToggle) {
             initProcessorSourcePicker();
+            // If the form transitioned hidden → visible, push current input
+            // values into the picker so stale state from a previous open
+            // doesn't linger. Empty values render the idle state cleanly.
+            if (wasHidden === true && window.__picker) {
+                window.__picker.update({
+                    materialType: document.getElementById('ps-material').value || '',
+                    targetKg: parseFloat(document.getElementById('ps-weight').value) || 0
+                });
+            }
         }
         return ret;
     };

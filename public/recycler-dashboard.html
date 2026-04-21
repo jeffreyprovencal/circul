@@ -1043,8 +1043,10 @@ function submitRecSale() {
     if (!qty || parseFloat(qty) <= 0) { msgEl.textContent = 'Enter a valid quantity.'; return; }
     if (!price || parseFloat(price) <= 0) { msgEl.textContent = 'Enter a valid price.'; return; }
 
-    if (window.__pickerState && window.__pickerState.canSubmit === false) {
-        msgEl.textContent = 'Adjust source allocation before submitting.';
+    // PR4-B: gate submit only when the picker is actually mounted. If the
+    // script failed to load, fall through to server-side FIFO silently.
+    if (window.__picker && window.__pickerState && !window.__pickerState.canSubmit) {
+        msgEl.textContent = 'Sources are not balanced against the target weight — review the picker before submitting.';
         return;
     }
     var pickerSources = (window.__picker && window.__picker.getSources) ? window.__picker.getSources() : [];

@@ -3470,11 +3470,22 @@ function initAggregatorSourcePicker() {
             window.__pickerState = snapshot;
         }
     });
-    // Aggregator empty-state CTA dispatches a log-purchase event — forward to
-    // the aggregator's existing Log Purchase tab via scrollIntoView.
+    // Aggregator empty-state CTA: dashboard is single-scroll (no tabs), so
+    // reveal the inline "Register a purchase from collector" form inside
+    // #incomingCard and scroll it into view. toggleRegisterForm() toggles
+    // visibility; guard so we don't toggle-close an already-open form.
     mount.addEventListener('source-picker:log-purchase', function () {
-        var purchaseCard = document.getElementById('buyCard') || document.getElementById('aggregatorPurchaseCard');
-        if (purchaseCard && purchaseCard.scrollIntoView) purchaseCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var rf = document.getElementById('registerForm');
+        if (rf && rf.classList.contains('hidden') && typeof toggleRegisterForm === 'function') {
+            toggleRegisterForm();
+        }
+        var card = document.getElementById('incomingCard');
+        if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Focus the collector select after scroll to reduce friction.
+        setTimeout(function () {
+            var regSel = document.getElementById('regCollector');
+            if (regSel && typeof regSel.focus === 'function') regSel.focus();
+        }, 350);
     });
 }
 function onSellMaterialChanged() {
