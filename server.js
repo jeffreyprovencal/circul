@@ -448,12 +448,21 @@ app.get('/api/collector/me', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const id = req.user.id;
+    // avg_rating / ratings_count come from a live scalar subquery against the
+    // ratings table (same source of truth as /api/collector/stats line 481).
+    // Do NOT read collectors.average_rating — that denormalized column drifts
+    // (no backfill on rating insert), which caused the 2026-04-22 audit failure
+    // where the hero said "No ratings yet" while the stat card showed ⭐ 4.7.
     const result = await pool.query(
-      `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.city, c.average_rating,
+      `SELECT c.id, c.first_name, c.last_name, c.phone, c.region, c.city,
               c.is_active, c.id_verified, c.created_at,
               'COL-' || LPAD(c.id::text, 4, '0') AS display_name,
               COALESCE(SUM(t.net_weight_kg),0) as total_weight_kg,
-              COUNT(t.id) as transaction_count
+              COUNT(t.id) as transaction_count,
+              (SELECT AVG(rating)::NUMERIC(3,2) FROM ratings
+                 WHERE rated_type='collector' AND rated_id=c.id) AS avg_rating,
+              (SELECT COUNT(*) FROM ratings
+                 WHERE rated_type='collector' AND rated_id=c.id) AS ratings_count
        FROM collectors c
        LEFT JOIN transactions t ON t.collector_id=c.id
        WHERE c.id=$1 GROUP BY c.id`, [id]
@@ -462,7 +471,6 @@ app.get('/api/collector/me', requireAuth, async (req, res) => {
     const c = result.rows[0];
     c.name = ((c.first_name||'') + (c.last_name ? ' '+c.last_name : '')).trim();
     c.collector_id = c.id;
-    c.avg_rating = c.average_rating;
     c.status = c.is_active ? 'Active' : 'Inactive';
     res.json(c);
   } catch (err) { console.error('GET /api/collector/me error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
@@ -6083,6 +6091,39 @@ app.get('/api/agent/me', requireAuth, async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false });
     res.json({ success: true, agent: result.rows[0] });
   } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/agent/collectors — collectors known to the agent's parent aggregator.
+//
+// Why this endpoint exists: agent-dashboard previously populated its collector
+// dropdown from /aggregators/:id/stats.top_collectors, which is an INNER JOIN
+// on transactions and therefore excludes collectors who have been onboarded
+// but have not yet completed a purchase. The 2026-04-22 audit caught this as
+// "No collectors found" on agents whose parent aggregator had 2 active
+// collectors. The union below surfaces collectors via EITHER a prior
+// agent_activity touchpoint (registered-by-agent, logged-a-collection, etc.)
+// OR a prior transaction against this aggregator — whichever exists first.
+app.get('/api/agent/collectors', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'agent') return res.status(403).json({ success: false, message: 'Agents only' });
+    const aggId = req.user.aggregator_id;
+    if (!aggId) return res.status(400).json({ success: false, message: 'Agent has no aggregator assignment' });
+    const result = await pool.query(
+      `SELECT DISTINCT c.id, c.first_name, c.last_name, c.phone, c.city,
+              'COL-' || LPAD(c.id::text, 4, '0') AS display_name
+       FROM collectors c
+       WHERE c.is_active = true
+         AND (
+           c.id IN (SELECT related_id FROM agent_activity
+                    WHERE aggregator_id = $1 AND related_type = 'collector' AND related_id IS NOT NULL)
+           OR c.id IN (SELECT DISTINCT collector_id FROM transactions
+                       WHERE aggregator_id = $1 AND collector_id IS NOT NULL)
+         )
+       ORDER BY c.first_name, c.last_name`,
+      [aggId]
+    );
+    res.json({ success: true, collectors: result.rows });
+  } catch (err) { console.error('GET /api/agent/collectors error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 // POST /api/agent/log-collection — agent logs a collection
