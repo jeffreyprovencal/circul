@@ -358,13 +358,18 @@ function populateProfile(data) {
   }
 }
 
-/* ── load collectors (for the collection form dropdown) ── */
+/* ── load collectors (for the collection form dropdown) ──
+ *
+ * Source: /api/agent/collectors. Returns the union of collectors known to the
+ * agent's parent aggregator via (a) prior agent_activity touchpoints or
+ * (b) any prior transaction — so freshly-registered collectors appear before
+ * they've completed their first transaction. Replaces the old top_collectors
+ * path (INNER JOIN on transactions) which caused the 2026-04-22 audit failure.
+ */
 async function loadCollectors() {
   try {
-    // Use the aggregator's collectors list via the transactions endpoint
-    var aggId = _agentState.aggregator_id;
-    var response = await apiFetch('/aggregators/' + aggId + '/stats');
-    _collectors = response.top_collectors || [];
+    var response = await apiFetch('/agent/collectors');
+    _collectors = response && response.collectors ? response.collectors : [];
     var select = document.getElementById('collectorSelect');
     select.innerHTML = '<option value="">Select a collector…</option>';
     _collectors.forEach(c => {
