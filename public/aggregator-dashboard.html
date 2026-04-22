@@ -652,8 +652,8 @@
       <!-- Agent List -->
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>City</th><th>Status</th><th>Since</th></tr></thead>
-          <tbody id="agentsBody"><tr><td colspan="5" class="placeholder-cell">Loading…</td></tr></tbody>
+          <thead><tr><th>Name</th><th>Phone</th><th>City</th><th>7-day kg</th><th>Status</th><th>Since</th></tr></thead>
+          <tbody id="agentsBody"><tr><td colspan="6" class="placeholder-cell">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -3336,14 +3336,15 @@ function loadAgents() {
       if (!data.success) return;
       var tbody = document.getElementById('agentsBody');
       if (!data.agents || !data.agents.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty">No agents registered yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No agents registered yet</td></tr>';
         return;
       }
       tbody.innerHTML = data.agents.map(function(a) {
         var name = esc(a.first_name + ' ' + a.last_name);
         var status = a.is_active ? '<span class="badge">ACTIVE</span>' : '<span class="badge" style="color:#ef5350;">INACTIVE</span>';
         var since = a.created_at ? new Date(a.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : '—';
-        return '<tr><td class="td-name">' + name + '</td><td>' + esc(a.phone) + '</td><td>' + esc(a.city || '—') + '</td><td>' + status + '</td><td>' + since + '</td></tr>';
+        var kg7d = (a.kg_7d != null ? parseFloat(a.kg_7d) : 0).toFixed(1);
+        return '<tr><td class="td-name">' + name + '</td><td>' + esc(a.phone) + '</td><td>' + esc(a.city || '—') + '</td><td class="td-green">' + kg7d + '</td><td>' + status + '</td><td>' + since + '</td></tr>';
       }).join('');
     })
     .catch(function(e) { console.error('Load agents failed:', e); });

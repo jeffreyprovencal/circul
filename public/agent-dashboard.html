@@ -58,19 +58,28 @@
 
 <div class="page">
 
-  <!-- HERO STATS (3 cards) -->
-  <div class="stats stats-3">
+  <!-- HERO STATS (4 cards) — chronological pacing: today → 7d → month.
+       Backed by /api/agent/stats. "This Month Value" (GH₵) was dropped from
+       the hero — never actually populated by /api/agent/me anyway, and the
+       2026-04-22 audit wanted performance metrics (pacing + relational)
+       rather than more money figures here. -->
+  <div class="stats stats-4">
     <div class="stat">
       <div class="stat-label">Today's Collections</div>
       <div class="stat-val" id="statTodayCount">—</div>
     </div>
     <div class="stat">
-      <div class="stat-label">This Month</div>
-      <div class="stat-val" id="statMonthKg">— <small>kg</small></div>
+      <div class="stat-label">Kg collected · 7d</div>
+      <div class="stat-val" id="statKg7d">— <small>kg</small></div>
     </div>
     <div class="stat">
-      <div class="stat-label">This Month Value</div>
-      <div class="stat-val" id="statMonthValue">—</div>
+      <div class="stat-label">Collectors reached · 7d</div>
+      <div class="stat-val" id="statCollectors7d">—</div>
+      <div id="statCollectorsNew7d" style="font-size:0.72rem;color:var(--text-3);margin-top:4px;"></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">This Month</div>
+      <div class="stat-val" id="statMonthKg">— <small>kg</small></div>
     </div>
   </div>
 
@@ -315,8 +324,8 @@ async function loadAll() {
   try {
     var me = await apiFetch('/agent/me');
     populateHeader(me);
-    populateStats(me);
     populateProfile(me);
+    await loadStats();
     await loadCollectors();
     await loadCollections();
   } catch (err) {
@@ -338,12 +347,40 @@ function populateHeader(agent) {
   }
 }
 
-function populateStats(data) {
-  var a = data.agent || data;
-  // Stats will come from collections — for now show placeholders
-  document.getElementById('statTodayCount').textContent = a.collections_today || '0';
-  document.getElementById('statMonthKg').innerHTML = (a.month_kg ? parseFloat(a.month_kg).toFixed(1) : '0') + ' <small>kg</small>';
-  document.getElementById('statMonthValue').textContent = fmt(a.month_value || 0);
+/* ── load hero stats ──
+ *
+ * Source: /api/agent/stats. Single endpoint with 5 scalar subqueries against
+ * agent_activity (+ transactions for kg/collector joins). Replaces the old
+ * populateStats() which read collections_today / month_kg / month_value off
+ * /api/agent/me — fields that endpoint never actually returned, so the hero
+ * was always showing zero placeholders. Part of the 2026-04-22 audit response.
+ */
+async function loadStats() {
+  try {
+    var resp = await apiFetch('/agent/stats');
+    var s = (resp && resp.stats) ? resp.stats : (resp || {});
+    document.getElementById('statTodayCount').textContent = (s.collections_today != null) ? String(s.collections_today) : '0';
+    var kg7d = s.kg_7d != null ? parseFloat(s.kg_7d) : 0;
+    document.getElementById('statKg7d').innerHTML = kg7d.toFixed(1) + ' <small>kg</small>';
+    document.getElementById('statCollectors7d').textContent = (s.collectors_reached_7d != null) ? String(s.collectors_reached_7d) : '0';
+    var newCount = s.collectors_new_7d != null ? parseInt(s.collectors_new_7d, 10) : 0;
+    var newEl = document.getElementById('statCollectorsNew7d');
+    if (newEl) {
+      newEl.textContent = newCount > 0
+        ? (newCount + ' new this week')
+        : '';
+    }
+    var monthKg = s.month_kg != null ? parseFloat(s.month_kg) : 0;
+    document.getElementById('statMonthKg').innerHTML = monthKg.toFixed(1) + ' <small>kg</small>';
+  } catch (err) {
+    console.warn('Error loading stats:', err);
+    ['statTodayCount','statKg7d','statCollectors7d','statMonthKg'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    });
+    var newEl = document.getElementById('statCollectorsNew7d');
+    if (newEl) newEl.textContent = '';
+  }
 }
 
 function populateProfile(data) {

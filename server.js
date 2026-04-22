@@ -6039,13 +6039,28 @@ app.patch('/api/profile/ghana-card', requireAuth, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
-// GET /api/agents — aggregator gets their agents
+// GET /api/agents — aggregator gets their agents + per-agent 7-day kg for the field-agents table.
+//
+// The kg_7d subquery joins agent_activity -> transactions (related_type='transaction',
+// action_type='collection') over the last 7 days and sums gross_weight_kg — gives
+// aggregators a single-glance productivity read per agent. Default sort puts productive
+// agents to the top; ties fall back to most-recently-registered.
 app.get('/api/agents', requireAuth, async (req, res) => {
   try {
     if (req.user.role !== 'aggregator') return res.status(403).json({ success: false, message: 'Aggregators only' });
     const result = await pool.query(
-      `SELECT id, first_name, last_name, phone, city, region, ghana_card, is_active, created_at
-       FROM agents WHERE aggregator_id=$1 ORDER BY created_at DESC`, [req.user.id]
+      `SELECT a.id, a.first_name, a.last_name, a.phone, a.city, a.region, a.ghana_card, a.is_active, a.created_at,
+              COALESCE((
+                SELECT SUM(t.gross_weight_kg)
+                FROM agent_activity aa
+                JOIN transactions t ON aa.related_id = t.id AND aa.related_type = 'transaction'
+                WHERE aa.agent_id = a.id
+                  AND aa.action_type = 'collection'
+                  AND aa.created_at >= NOW() - INTERVAL '7 days'
+              ), 0)::float AS kg_7d
+       FROM agents a
+       WHERE a.aggregator_id = $1
+       ORDER BY kg_7d DESC, a.created_at DESC`, [req.user.id]
     );
     res.json({ success: true, agents: result.rows });
   } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
@@ -6091,6 +6106,63 @@ app.get('/api/agent/me', requireAuth, async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false });
     res.json({ success: true, agent: result.rows[0] });
   } catch (err) { console.error(err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// GET /api/agent/stats — hero stats for the agent dashboard.
+//
+// Replaces the placeholder fields (collections_today/month_kg/month_value) that
+// /api/agent/me never actually populated — so the hero was always showing zeros.
+// Addresses the "performance metrics" half of the 2026-04-22 post-deploy audit P1:
+// adds kg_7d (pacing window between today and month) + collectors_reached_7d
+// (relational dimension that kg volume alone doesn't capture) + collectors_new_7d
+// (supporting subcount under the collectors tile). Single query, five scalar
+// subqueries against agent_activity (+ transactions for kg/collector joins).
+// No new table, no migration.
+app.get('/api/agent/stats', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'agent') return res.status(403).json({ success: false, message: 'Agents only' });
+    const result = await pool.query(
+      `SELECT
+         COALESCE((
+           SELECT COUNT(*) FROM agent_activity
+           WHERE agent_id = $1 AND action_type = 'collection'
+             AND created_at::date = CURRENT_DATE
+         ), 0)::int AS collections_today,
+         COALESCE((
+           SELECT SUM(t.gross_weight_kg)
+           FROM agent_activity aa
+           JOIN transactions t ON aa.related_id = t.id AND aa.related_type = 'transaction'
+           WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+             AND aa.created_at >= NOW() - INTERVAL '7 days'
+         ), 0)::float AS kg_7d,
+         COALESCE((
+           SELECT COUNT(DISTINCT t.collector_id)
+           FROM agent_activity aa
+           JOIN transactions t ON aa.related_id = t.id AND aa.related_type = 'transaction'
+           WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+             AND aa.created_at >= NOW() - INTERVAL '7 days'
+         ), 0)::int AS collectors_reached_7d,
+         COALESCE((
+           SELECT COUNT(DISTINCT related_id) FROM agent_activity
+           WHERE agent_id = $1
+             AND action_type = 'registered_collector'
+             AND related_type = 'collector'
+             AND created_at >= NOW() - INTERVAL '7 days'
+         ), 0)::int AS collectors_new_7d,
+         COALESCE((
+           SELECT SUM(t.gross_weight_kg)
+           FROM agent_activity aa
+           JOIN transactions t ON aa.related_id = t.id AND aa.related_type = 'transaction'
+           WHERE aa.agent_id = $1 AND aa.action_type = 'collection'
+             AND date_trunc('month', aa.created_at) = date_trunc('month', CURRENT_DATE)
+         ), 0)::float AS month_kg`,
+      [req.user.id]
+    );
+    res.json({ success: true, stats: result.rows[0] });
+  } catch (err) {
+    console.error('GET /api/agent/stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 // GET /api/agent/collectors — collectors known to the agent's parent aggregator.
