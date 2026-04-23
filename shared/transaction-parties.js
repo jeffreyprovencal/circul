@@ -245,6 +245,47 @@ async function resolveParties(pool, row) {
   };
 }
 
+/**
+ * Determine pending_transactions.transaction_type from a seller→buyer role
+ * pair. Used by the discovery offer-accept flows (web + USSD) to label rows
+ * before insert.
+ *
+ * Seller-driven by design: the type is <sellerRole>_sale. Buyer role is
+ * informational; PARTY_MAP enforces buyer polymorphism downstream on insert.
+ *
+ * Pre-PR6 the equivalent helper in server.js fell back to 'aggregator_sale'
+ * for any non-collector/non-aggregator seller, silently mis-labeling
+ * processor→converter and recycler→converter offer-accepts. This version
+ * THROWS on unsupported seller roles so a future role addition that forgets
+ * to update this map fails loudly rather than poisoning chain-of-custody.
+ *
+ * @param {string} sellerRole — 'collector' | 'aggregator' | 'processor' | 'recycler'
+ * @param {string} buyerRole  — informational; only checked for the
+ *                              collector→non-aggregator anomaly path
+ * @returns {string} transaction_type (one of: collector_sale, aggregator_sale,
+ *                   processor_sale, recycler_sale)
+ * @throws {Error} on unsupported sellerRole (incl. 'converter', which is
+ *                 terminal on the platform — no downstream sale type today)
+ */
+function txnTypeForRoles(sellerRole, buyerRole) {
+  switch (sellerRole) {
+    case 'collector':
+      if (buyerRole !== 'aggregator') {
+        // collector→non-aggregator shouldn't happen in any current flow; coerce
+        // to collector_sale and log so the anomaly is visible without breaking
+        // the request (the alternative — throw — would 500 a legitimate-looking
+        // discovery accept rather than logging the data shape).
+        console.warn('[txnTypeForRoles] unexpected collector→' + buyerRole + ' — coercing to collector_sale');
+      }
+      return 'collector_sale';
+    case 'aggregator': return 'aggregator_sale';
+    case 'processor': return 'processor_sale';
+    case 'recycler':  return 'recycler_sale';
+    default:
+      throw new Error('[txnTypeForRoles] unsupported sellerRole: ' + sellerRole);
+  }
+}
+
 function userOwnsParty(user, kind, partyId) {
   if (!user || partyId == null) return false;
   const roles = Array.isArray(user.roles) ? user.roles : (user.role ? [user.role] : []);
@@ -262,5 +303,6 @@ module.exports = {
   resolveBuyer: resolveBuyer,
   validateBuyerFks: validateBuyerFks,
   resolveParties: resolveParties,
+  txnTypeForRoles: txnTypeForRoles,
   userOwnsParty: userOwnsParty
 };

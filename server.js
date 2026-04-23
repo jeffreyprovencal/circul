@@ -14,6 +14,7 @@ const {
   validateBuyerFks,
   resolveSeller,
   resolveBuyer,
+  txnTypeForRoles,
   PARTY_MAP,
   KIND_TO_TABLE
 } = require('./shared/transaction-parties');
@@ -1342,12 +1343,11 @@ function ptColForRole(role) {
   }
 }
 
-// Determine transaction_type from seller→buyer roles
-function txnTypeForRoles(sellerRole, buyerRole) {
-  if (sellerRole === 'collector' && buyerRole === 'aggregator') return 'collector_sale';
-  if (sellerRole === 'aggregator') return 'aggregator_sale';
-  return 'aggregator_sale'; // fallback
-}
+// txnTypeForRoles is now imported from shared/transaction-parties.js. The
+// pre-PR6 in-file definition silently fell back to 'aggregator_sale' for any
+// non-collector/non-aggregator seller, mis-labeling processor and recycler
+// discovery offer-accepts. PR6 hoists it to the shared module so callers from
+// server.js + tests get one source of truth.
 
 // Check if user is the receiver (not the sender) of an offer
 function isReceiver(offer, listing, userId, userRole) {
