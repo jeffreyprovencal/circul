@@ -8,7 +8,15 @@ const CirculRoles = require('./shared/roles');
 const { EVENTS, notify } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
 const { getPendingRatings, createRating } = require('./shared/ratings');
-const { resolveParties, userOwnsParty, validateBuyerFks } = require('./shared/transaction-parties');
+const {
+  resolveParties,
+  userOwnsParty,
+  validateBuyerFks,
+  resolveSeller,
+  resolveBuyer,
+  PARTY_MAP,
+  KIND_TO_TABLE
+} = require('./shared/transaction-parties');
 const {
   attributeAndInsert,
   insertRootTransaction,
@@ -2174,7 +2182,7 @@ app.get('/api/converter/transactions', requireAuth, async (req, res) => {
     if (!req.user.hasRole('converter')) return res.status(403).json({ success: false, message: 'Converter access only' });
     const converterId = req.user.converter_id || req.user.id;
     const { start_date, end_date, limit = 30, offset = 0 } = req.query;
-    let query = `SELECT pt.id, pt.material_type, pt.gross_weight_kg AS net_weight_kg, pt.price_per_kg, pt.total_price,
+    let query = `SELECT pt.id, pt.batch_id, pt.material_type, pt.gross_weight_kg AS net_weight_kg, pt.price_per_kg, pt.total_price,
                         pt.status AS payment_status, pt.transaction_type, pt.created_at AS transaction_date,
                         pt.processor_id, pt.recycler_id,
                         COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company,
@@ -5731,6 +5739,265 @@ app.get('/api/reports/compliance/:aggregator_id', async (req, res) => {
   } catch (err) { console.error('Compliance report error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+// ============================================
+// PUBLIC PRODUCT PASSPORT — /api/trace/:batch_id
+// ============================================
+//
+// Walks the chain-of-custody junction (pending_transaction_sources) from a
+// leaf pending_transaction back to its root collector drop-offs, returning a
+// stage-shaped JSON for the public passport page at /trace/:batch_id.
+//
+// Read-side mirror of shared/chain-of-custody-db.js's write pattern. The
+// junction is authoritative for full provenance (mass balance), batch_id is
+// the dominant-source lineage pointer used to discover the leaf row.
+//
+// Public, no auth: every viewer is an anonymous consumer scanning a QR off a
+// converter's pellet bag. URL is UUID-keyed (not enumerable), name privacy
+// preserves collector identity (codes only) but exposes business names for
+// upper tiers.
+const TRACE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const STAGE_TYPE_BY_BUYER = {
+  aggregator: 'aggregation',
+  processor:  'processing',
+  recycler:   'recycling',
+  converter:  'conversion'
+};
+
+// Resolve { kind, id } for the actor of a pending_transactions row. For
+// collector_sale and aggregator_purchase the actor is the seller (collector,
+// the one who deposited the material). For all other types, the actor is the
+// buyer (who took custody at this stage). Routes through resolveSeller /
+// resolveBuyer so FK conventions stay in shared/transaction-parties.js.
+// Returns null on any resolution failure (lenient — the passport must keep
+// rendering even on slightly malformed historical rows).
+function _traceActorFor(row) {
+  try {
+    if (row.transaction_type === 'collector_sale' || row.transaction_type === 'aggregator_purchase') {
+      return resolveSeller(row);
+    }
+    return resolveBuyer(row);
+  } catch (_) { return null; }
+}
+
+// Map transaction_type + actor.kind → stage_type label shown on the passport.
+// collector_sale / aggregator_purchase render as 'collection' regardless of
+// buyer kind — they represent the initial drop-off into the system.
+function _traceStageType(row, actor) {
+  if (row.transaction_type === 'collector_sale' || row.transaction_type === 'aggregator_purchase') {
+    return 'collection';
+  }
+  if (actor && STAGE_TYPE_BY_BUYER[actor.kind]) return STAGE_TYPE_BY_BUYER[actor.kind];
+  return 'stage';
+}
+
+app.get('/api/trace/:batch_id', async (req, res) => {
+  const batch_id = req.params.batch_id;
+  if (!TRACE_UUID_RE.test(batch_id)) {
+    return res.status(400).json({ success: false, message: 'Invalid batch id' });
+  }
+  try {
+    // 1. Find the leaf pending_transaction for this batch_id.
+    //    "Leaf" = the most-recent row carrying that batch_id — typically the
+    //    downstream-most stage. Tie-break by id DESC for determinism when two
+    //    rows share a created_at timestamp (test seeds, replay windows).
+    const leafResult = await pool.query(
+      `SELECT id FROM pending_transactions
+        WHERE batch_id = $1
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+      [batch_id]
+    );
+    if (!leafResult.rows.length) {
+      return res.status(404).json({ success: false, message: 'Batch not found' });
+    }
+    const leafId = Number(leafResult.rows[0].id);
+
+    // 2. Recursive CTE walks ancestors upward via pending_transaction_sources.
+    //    UNION (not UNION ALL) dedupes nodes reachable through multiple paths
+    //    (DAG, not strict tree — same source can feed two downstreams that both
+    //    end up in this lineage). Returns full row + depth from leaf.
+    const lineageResult = await pool.query(`
+      WITH RECURSIVE ancestors AS (
+        SELECT id, 0 AS depth FROM pending_transactions WHERE id = $1
+        UNION
+        SELECT s.source_pending_tx_id, a.depth + 1
+          FROM ancestors a
+          JOIN pending_transaction_sources s ON s.child_pending_tx_id = a.id
+      )
+      SELECT pt.id, pt.transaction_type, pt.material_type,
+             pt.gross_weight_kg, pt.created_at, pt.batch_id,
+             pt.collector_id, pt.aggregator_id, pt.processor_id,
+             pt.recycler_id, pt.converter_id,
+             a.depth
+        FROM ancestors a
+        JOIN pending_transactions pt ON pt.id = a.id
+    `, [leafId]);
+    const lineage = lineageResult.rows;
+    const byId = new Map(lineage.map(r => [Number(r.id), r]));
+
+    // 3. Junction edges within lineage. Used both for the linear-chain walk
+    //    (back from leaf, stop at the first commingling fork) and for each
+    //    stage's sources block.
+    const lineageIds = lineage.map(r => Number(r.id));
+    const edgeResult = await pool.query(
+      `SELECT child_pending_tx_id, source_pending_tx_id, weight_kg_attributed
+         FROM pending_transaction_sources
+        WHERE child_pending_tx_id = ANY($1::int[])
+        ORDER BY weight_kg_attributed DESC, source_pending_tx_id ASC`,
+      [lineageIds]
+    );
+    const edgesByChild = new Map();
+    for (const e of edgeResult.rows) {
+      const k = Number(e.child_pending_tx_id);
+      if (!edgesByChild.has(k)) edgesByChild.set(k, []);
+      edgesByChild.get(k).push(e);
+    }
+
+    // 4. Build the linear chain from leaf upward.
+    //    At each step, walk to the single source iff the current stage has
+    //    exactly one source. Multiple sources = commingling fork; we stop and
+    //    show those as the current stage's expandable sources rather than
+    //    fanning out into N separate Stage-1 cards. Single-collector chains
+    //    walk all the way to the collector_sale root and render Stage 1.
+    const linearChain = [];
+    const seenInChain = new Set();
+    let cursor = byId.get(leafId);
+    while (cursor && !seenInChain.has(Number(cursor.id))) {
+      linearChain.unshift(cursor); // root-first order on output
+      seenInChain.add(Number(cursor.id));
+      const parents = edgesByChild.get(Number(cursor.id)) || [];
+      if (parents.length === 1) {
+        cursor = byId.get(Number(parents[0].source_pending_tx_id)) || null;
+      } else {
+        // 0 sources → root; >1 sources → commingling fork, stop walking
+        cursor = null;
+      }
+    }
+
+    // 5. Resolve actors in batch by kind (one query per role table).
+    //    Includes actors for chain rows AND for sources (so the sources block
+    //    can show display_name/city for each contributor without N+1).
+    const sourceRowIds = new Set();
+    for (const e of edgeResult.rows) sourceRowIds.add(Number(e.source_pending_tx_id));
+    const allRowsToResolve = new Set(lineage.map(r => Number(r.id)));
+    for (const id of sourceRowIds) allRowsToResolve.add(id);
+
+    const idsByKind = { collector: new Set(), aggregator: new Set(), processor: new Set(), recycler: new Set(), converter: new Set() };
+    const actorByRowId = new Map();
+    for (const id of allRowsToResolve) {
+      const row = byId.get(id);
+      if (!row) continue;
+      const a = _traceActorFor(row);
+      if (a && idsByKind[a.kind]) {
+        idsByKind[a.kind].add(Number(a.id));
+        actorByRowId.set(id, a);
+      }
+    }
+
+    const partyByKey = new Map(); // key: `${kind}:${id}` → { display_name, city, region }
+    async function loadParties(kind) {
+      const ids = Array.from(idsByKind[kind]);
+      if (!ids.length) return;
+      let sql;
+      if (kind === 'collector') {
+        // Code only — never first/last name on a public passport.
+        sql = `SELECT id, 'COL-' || LPAD(id::text, 4, '0') AS display_name, city, region FROM collectors WHERE id = ANY($1::int[])`;
+      } else {
+        const cfg = KIND_TO_TABLE[kind];
+        // Business names — company falls back to name.
+        sql = `SELECT id, COALESCE(company, name) AS display_name, city, region FROM ${cfg.table} WHERE id = ANY($1::int[])`;
+      }
+      const r = await pool.query(sql, [ids]);
+      for (const row of r.rows) partyByKey.set(kind + ':' + Number(row.id), { display_name: row.display_name, city: row.city, region: row.region });
+    }
+    await Promise.all(['collector','aggregator','processor','recycler','converter'].map(loadParties));
+
+    function actorJson(actor) {
+      if (!actor) return null;
+      const p = partyByKey.get(actor.kind + ':' + actor.id) || { display_name: null, city: null, region: null };
+      return { kind: actor.kind, id: actor.id, display_name: p.display_name, city: p.city, region: p.region };
+    }
+
+    // 6. Build stage objects in chain order (root→leaf).
+    const stages = linearChain.map((row, idx) => {
+      const sourceEdges = edgesByChild.get(Number(row.id)) || [];
+      const actor = actorByRowId.get(Number(row.id));
+      const stage_type = _traceStageType(row, actor);
+      const weight_in_kg = sourceEdges.length
+        ? Math.round(sourceEdges.reduce((s, e) => s + parseFloat(e.weight_kg_attributed), 0) * 100) / 100
+        : null;
+      const stage = {
+        stage_number: idx + 1,
+        stage_type: stage_type,
+        date: row.created_at ? row.created_at.toISOString().slice(0, 10) : null,
+        actor: actorJson(actor),
+        material_type: row.material_type,
+        weight_in_kg: weight_in_kg,
+        weight_out_kg: row.gross_weight_kg != null ? Math.round(parseFloat(row.gross_weight_kg) * 100) / 100 : null,
+        pending_tx_id: Number(row.id)
+      };
+      if (sourceEdges.length > 1) stage.commingled = true;
+      if (sourceEdges.length > 0) {
+        stage.sources = sourceEdges.map(e => {
+          const srcRow = byId.get(Number(e.source_pending_tx_id));
+          const srcActor = srcRow ? _traceActorFor(srcRow) : null;
+          const p = srcActor ? (partyByKey.get(srcActor.kind + ':' + srcActor.id) || {}) : {};
+          return {
+            pending_tx_id: Number(e.source_pending_tx_id),
+            display_name: p.display_name || null,
+            city: p.city || null,
+            weight_kg_attributed: Math.round(parseFloat(e.weight_kg_attributed) * 100) / 100
+          };
+        });
+      }
+      return stage;
+    });
+
+    // 7. Stats. collector_count = distinct collector ids across all root-stage
+    //    pending_transactions in the lineage (collector_sale / aggregator_purchase
+    //    rows — those are the only types that carry collector_id as the seller).
+    const collectorIds = new Set();
+    let earliestRootDate = null;
+    for (const row of lineage) {
+      if ((row.transaction_type === 'collector_sale' || row.transaction_type === 'aggregator_purchase') && row.collector_id != null) {
+        collectorIds.add(Number(row.collector_id));
+        const t = row.created_at ? new Date(row.created_at).getTime() : null;
+        if (t != null && (earliestRootDate == null || t < earliestRootDate)) earliestRootDate = t;
+      }
+    }
+    const leafRow = byId.get(leafId);
+    const leafTime = leafRow && leafRow.created_at ? new Date(leafRow.created_at).getTime() : null;
+    let journey_days = null;
+    if (earliestRootDate != null && leafTime != null) {
+      journey_days = Math.max(0, Math.round((leafTime - earliestRootDate) / (1000 * 60 * 60 * 24)));
+    }
+
+    const leafActor = actorByRowId.get(leafId);
+    const leafActorJson = actorJson(leafActor);
+
+    res.json({
+      success: true,
+      leaf: {
+        pending_tx_id: leafId,
+        material_type: leafRow.material_type,
+        final_weight_kg: leafRow.gross_weight_kg != null ? Math.round(parseFloat(leafRow.gross_weight_kg) * 100) / 100 : null,
+        batch_id: leafRow.batch_id,
+        produced_by: leafActorJson,
+        shipped_at: leafRow.created_at ? leafRow.created_at.toISOString() : null
+      },
+      stats: {
+        stages: stages.length,
+        journey_days: journey_days,
+        collector_count: collectorIds.size
+      },
+      stages: stages
+    });
+  } catch (err) {
+    console.error('GET /api/trace/:batch_id error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.get('/api/reports/product-journey/:transaction_id', async (req, res) => {
   try {
     const { transaction_id } = req.params;
@@ -5781,6 +6048,7 @@ app.get('/recycler-dashboard',  (req, res) => res.sendFile(path.join(__dirname, 
 app.get('/report',               (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
 app.get('/passport',             (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
 app.get('/collector-passport/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'collector-passport.html')));
+app.get('/trace/:batch_id',      (req, res) => res.sendFile(path.join(__dirname, 'public', 'trace.html')));
 app.get('/login',                (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/register',             (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
 app.get('/prices',               (req, res) => res.redirect('/'));

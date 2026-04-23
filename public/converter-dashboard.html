@@ -33,6 +33,12 @@
 
 /* ── ORDER CARD (local: spec items) ── */
 .order-spec-item{font-size:0.75rem;color:var(--text-2)}
+
+/* ── PASSPORT QR (deliveries table) ──
+   Stack QR above link on narrow screens to keep the row from overflowing. */
+@media (max-width: 640px){
+  .passport-cell{flex-direction:column;align-items:flex-start;gap:6px !important}
+}
 .order-spec-label{color:var(--text-3);margin-right:4px}
 .order-spec-val{color:var(--text-1)}
 
@@ -397,6 +403,9 @@
 </body>
 
 <script src="/shared/roles.js"></script>
+<!-- qrcode@1.5.3 — exposes window.QRCode; used to render the Product Passport QR
+     in the deliveries table. ~15 KB gzipped, jsdelivr CDN. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script>
 // ── Production Error Logger ──
 (function() {
@@ -1085,13 +1094,45 @@ function loadTxnCerts() {
                 '<th>Date</th>' +
                 '<th>Material</th>' +
                 '<th>kg</th>' +
-                '<th>Actions</th>' +
+                '<th>Passport</th>' +
                 '</tr></thead><tbody>' +
                 data.transactions.map(function(t) {
                     var matLower = (t.material_type || '').toLowerCase();
                     var pillClass = 'pill pill-' + matLower;
-                    return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td><a href="/api/reports/product-journey/' + t.id + '" target="_blank" style="color:var(--accent);font-size:0.8rem;margin-right:12px">Journey QR</a></td></tr>';
+                    // Hide Passport cell entirely when batch_id is missing
+                    // (legacy rows that pre-date PR3's chain-of-custody junction).
+                    var passportCell;
+                    if (t.batch_id) {
+                        var traceUrl = '/trace/' + t.batch_id;
+                        passportCell =
+                            '<div class="passport-cell" style="display:flex;align-items:center;gap:10px">' +
+                              '<canvas class="passport-qr" data-batch-id="' + esc(t.batch_id) + '" width="80" height="80" style="background:transparent"></canvas>' +
+                              '<a href="' + traceUrl + '" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.8rem;font-weight:600">Product Passport</a>' +
+                            '</div>';
+                    } else {
+                        passportCell = '';
+                    }
+                    return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + passportCell + '</td></tr>';
                 }).join('') + '</tbody></table></div>';
+            // Render QR codes for every passport cell. Payload is the absolute
+            // public URL so a phone scan resolves correctly. accent-on-transparent
+            // matches the dashboard surface and prints cleanly off a certificate.
+            if (typeof window.QRCode !== 'undefined') {
+                var canvases = el.querySelectorAll('canvas.passport-qr');
+                for (var i = 0; i < canvases.length; i++) {
+                    (function (canvas) {
+                        var batchId = canvas.getAttribute('data-batch-id');
+                        if (!batchId) return;
+                        var absUrl = window.location.origin + '/trace/' + batchId;
+                        window.QRCode.toCanvas(canvas, absUrl, {
+                            width: 80, margin: 0,
+                            color: { dark: '#00e676', light: '#00000000' }
+                        }, function (err) {
+                            if (err) console.warn('QR render error for', batchId, err);
+                        });
+                    })(canvases[i]);
+                }
+            }
         })
         .catch(function(e) {
             console.error('loadTxnCerts error:', e);
