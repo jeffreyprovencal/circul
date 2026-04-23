@@ -23,6 +23,7 @@ const {
   insertRootTransaction,
   InsufficientSourceError
 } = require('./shared/chain-of-custody-db');
+const { ROOT_TYPES: COC_ROOT_TYPES } = require('./shared/chain-of-custody');
 
 const {
   WINDOW_DAYS: COC_WINDOW_DAYS,
@@ -1490,29 +1491,46 @@ app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
         await client.query(`UPDATE listings SET quantity_kg = $1, updated_at = NOW() WHERE id = $2`, [remainingQty, listing.id]);
       }
 
-      // Build pending_transaction INSERT with correct column names
-      const sellerCol = ptColForRole(listing.seller_role);
-      const buyerCol = ptColForRole(offer.buyer_role);
+      // PR6-c: route through chain-of-custody helpers so discovery accepts get
+      // a fresh batch_id (root) or FIFO-attributed sources + junction edges
+      // (downstream). Pre-PR6 this was a raw INSERT with no batch_id and no
+      // mass-balance enforcement — discovery rows were invisible to the
+      // chain-of-custody graph.
       const txnType = txnTypeForRoles(listing.seller_role, offer.buyer_role);
       const totalPrice = parseFloat((offerQty * parseFloat(offer.price_per_kg)).toFixed(2));
-      const cols = ['transaction_type', 'status', 'material_type', 'gross_weight_kg', 'price_per_kg', 'total_price', 'source'];
-      const vals = [txnType, 'pending', listing.material_type, offerQty, parseFloat(offer.price_per_kg), totalPrice, 'discovery'];
-      if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
-      if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(offer.buyer_id); }
-      else if (buyerCol && buyerCol === sellerCol) {
-        // Same column (e.g. aggregator buying from collector — aggregator_id is the buyer)
-        // seller is collector_id, buyer is aggregator_id — no conflict
-        cols.push(buyerCol); vals.push(offer.buyer_id);
+      const sellerCol = ptColForRole(listing.seller_role);
+      const buyerCol  = ptColForRole(offer.buyer_role);
+      const target = {
+        transaction_type: txnType,
+        status: 'pending',
+        material_type: listing.material_type,
+        gross_weight_kg: offerQty,
+        price_per_kg: parseFloat(offer.price_per_kg),
+        total_price: totalPrice,
+        source: 'discovery'
+      };
+      // Map seller + buyer roles to their FK columns. For collector→aggregator
+      // root flows the buyer FK and seller FK are different columns; for
+      // downstream flows seller and buyer are always different columns. The
+      // legacy code's same-column branch was a no-op (the only same-role pair
+      // would be aggregator→aggregator which doesn't exist).
+      if (sellerCol) target[sellerCol] = listing.seller_id;
+      if (buyerCol && buyerCol !== sellerCol) target[buyerCol] = offer.buyer_id;
+
+      let ptRow;
+      if (COC_ROOT_TYPES[txnType]) {
+        // Root: collector_sale (or theoretical aggregator_purchase via discovery).
+        // insertRootTransaction generates a fresh batch_id, sets
+        // remaining_kg = gross_weight_kg, no junction writes.
+        const { row } = await insertRootTransaction(client, target);
+        ptRow = row;
+      } else {
+        // Downstream: aggregator_sale / processor_sale / recycler_sale.
+        // FIFO attribute against the seller's available source rows + write
+        // junction edges. Throws InsufficientSourceError on shortfall.
+        const { row } = await attributeAndInsert(client, target);
+        ptRow = row;
       }
-      const placeholders = vals.map((_, i) => '$' + (i + 1)).join(', ');
-      // TODO(PR6-discovery): wire computeWriteAttribution / insertRootTransaction
-      // here once server.js:1281-1283 type-picker fallback bug (follow-up e) is
-      // fixed and mis-labeled prod rows are migrated. Attribution on top of the
-      // buggy helper would 400 legit processor/recycler offer-accepts.
-      const ptResult = await client.query(
-        `INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
-        vals
-      );
       await client.query('COMMIT');
       // Notify the buyer that their offer was accepted
       try {
@@ -1528,9 +1546,12 @@ app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
           notify(EVENTS.OFFER_ACCEPTED, buyerRow.phone, { material: listing.material_type, qty: offerQty, seller_name: sellerRow ? sellerRow.name : 'the seller' });
         }
       } catch (notifyErr) { console.warn('Notification error (offer_accepted):', notifyErr.message); }
-      res.json({ success: true, pending_transaction: ptResult.rows[0], offer: { id: offer.id, status: 'accepted' } });
+      res.json({ success: true, pending_transaction: ptRow, offer: { id: offer.id, status: 'accepted' } });
     } catch (txErr) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
+      // PR6-c: surface InsufficientSourceError as a 400 (same shape as the
+      // PR3 wire-ins at /api/pending-transactions/processor-sale etc.).
+      if (handleInsufficientSource(res, txErr)) return;
       throw txErr;
     } finally {
       client.release();
@@ -3733,28 +3754,43 @@ async function handleCollectorMyOffers(m, collector) {
           await client.query(`UPDATE listings SET quantity_kg = $1, updated_at = NOW() WHERE id = $2`, [remainingQty, listing.id]);
         }
 
-        const sellerCol = ptColForRole(listing.seller_role);
-        const buyerCol = ptColForRole(selected.buyer_role);
+        // PR6-c: route through chain-of-custody helpers (matches the web
+        // discovery accept at /api/offers/:id/accept). USSD-side: catch
+        // InsufficientSourceError and surface as a USSD-friendly END message.
         const txnType = txnTypeForRoles(listing.seller_role, selected.buyer_role);
         const totalPrice = parseFloat((offerQty * parseFloat(selected.price_per_kg)).toFixed(2));
-        const cols = ['transaction_type', 'status', 'material_type', 'gross_weight_kg', 'price_per_kg', 'total_price', 'source'];
-        const vals = [txnType, 'pending', listing.material_type, offerQty, parseFloat(selected.price_per_kg), totalPrice, 'discovery'];
-        if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
-        if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(selected.buyer_id); }
-        const placeholders = vals.map(function(_, i) { return '$' + (i + 1); }).join(', ');
-        // TODO(PR6-discovery): wire computeWriteAttribution / insertRootTransaction
-        // here once server.js:1281-1283 type-picker fallback bug (follow-up e) is
-        // fixed and mis-labeled prod rows are migrated. Attribution on top of the
-        // buggy helper would 400 legit processor/recycler offer-accepts.
-        await client.query(`INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+        const sellerCol = ptColForRole(listing.seller_role);
+        const buyerCol  = ptColForRole(selected.buyer_role);
+        const target = {
+          transaction_type: txnType,
+          status: 'pending',
+          material_type: listing.material_type,
+          gross_weight_kg: offerQty,
+          price_per_kg: parseFloat(selected.price_per_kg),
+          total_price: totalPrice,
+          source: 'discovery'
+        };
+        if (sellerCol) target[sellerCol] = listing.seller_id;
+        if (buyerCol && buyerCol !== sellerCol) target[buyerCol] = selected.buyer_id;
+
+        if (COC_ROOT_TYPES[txnType]) {
+          await insertRootTransaction(client, target);
+        } else {
+          await attributeAndInsert(client, target);
+        }
 
         await client.query('COMMIT');
       } catch (txErr) {
-        await client.query('ROLLBACK');
-        throw txErr;
-      } finally {
+        await client.query('ROLLBACK').catch(() => {});
         client.release();
+        if (txErr instanceof InsufficientSourceError) {
+          // USSD has no JSON envelope — return a short END message so the
+          // dial-in user sees a clear failure instead of a generic 500.
+          return 'END Insufficient inventory.\nNot enough source material\nfor this sale.\nDial again to retry.';
+        }
+        throw txErr;
       }
+      client.release();
 
       let buyerPhone = '', buyerCity = '';
       if (selected.buyer_role === 'aggregator') {
@@ -4167,27 +4203,40 @@ async function handleAggregatorMyOffers(m, aggregator) {
         } else {
           await client.query(`UPDATE listings SET quantity_kg = $1, updated_at = NOW() WHERE id = $2`, [remainingQty, listing.id]);
         }
-        const sellerCol = ptColForRole(listing.seller_role);
-        const buyerCol = ptColForRole(selected.buyer_role);
+        // PR6-c: route through chain-of-custody helpers (matches the web
+        // discovery accept). USSD-side: catch InsufficientSourceError and
+        // surface as a USSD-friendly END message.
         const txnType = txnTypeForRoles(listing.seller_role, selected.buyer_role);
         const totalPrice = parseFloat((offerQty * parseFloat(selected.price_per_kg)).toFixed(2));
-        const cols = ['transaction_type', 'status', 'material_type', 'gross_weight_kg', 'price_per_kg', 'total_price', 'source'];
-        const vals = [txnType, 'pending', listing.material_type, offerQty, parseFloat(selected.price_per_kg), totalPrice, 'discovery'];
-        if (sellerCol) { cols.push(sellerCol); vals.push(listing.seller_id); }
-        if (buyerCol && buyerCol !== sellerCol) { cols.push(buyerCol); vals.push(selected.buyer_id); }
-        const placeholders = vals.map(function(_, i) { return '$' + (i + 1); }).join(', ');
-        // TODO(PR6-discovery): wire computeWriteAttribution / insertRootTransaction
-        // here once server.js:1281-1283 type-picker fallback bug (follow-up e) is
-        // fixed and mis-labeled prod rows are migrated. Attribution on top of the
-        // buggy helper would 400 legit processor/recycler offer-accepts.
-        await client.query(`INSERT INTO pending_transactions (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+        const sellerCol = ptColForRole(listing.seller_role);
+        const buyerCol  = ptColForRole(selected.buyer_role);
+        const target = {
+          transaction_type: txnType,
+          status: 'pending',
+          material_type: listing.material_type,
+          gross_weight_kg: offerQty,
+          price_per_kg: parseFloat(selected.price_per_kg),
+          total_price: totalPrice,
+          source: 'discovery'
+        };
+        if (sellerCol) target[sellerCol] = listing.seller_id;
+        if (buyerCol && buyerCol !== sellerCol) target[buyerCol] = selected.buyer_id;
+
+        if (COC_ROOT_TYPES[txnType]) {
+          await insertRootTransaction(client, target);
+        } else {
+          await attributeAndInsert(client, target);
+        }
         await client.query('COMMIT');
       } catch (txErr) {
-        await client.query('ROLLBACK');
-        throw txErr;
-      } finally {
+        await client.query('ROLLBACK').catch(() => {});
         client.release();
+        if (txErr instanceof InsufficientSourceError) {
+          return 'END Insufficient inventory.\nNot enough source material\nfor this sale.\nDial again to retry.';
+        }
+        throw txErr;
       }
+      client.release();
 
       let buyerPhone = '', buyerLocation = '';
       const buyerTable = selected.buyer_role === 'processor' ? 'processors' : selected.buyer_role === 'recycler' ? 'recyclers' : 'converters';
