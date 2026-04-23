@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Passport · Circul</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --accent: #00e676;
+  --accent-hover: #33eb8e;
+  --accent-muted: rgba(0,230,118,0.1);
+  --bg: #0a1a0f;
+  --surface: #0d2818;
+  --surface-alt: #0c1e0e;
+  --surface-2: #11331f;
+  --text-1: #e8f5e9;
+  --text-2: #9ab8a0;
+  --text-3: #7a9a7a;
+  --border: #1a3a1a;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --gap: 24px;
+  --warning: #ffb74d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text-1);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 40px;
+}
+
+.passport-header { text-align: center; padding: 36px 20px 16px; }
+.passport-logo { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.passport-logo-icon {
+  width: 36px; height: 36px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #000; font-size: 15px; font-weight: 900;
+}
+.passport-logo-text { font-size: 1.25rem; font-weight: 800; color: var(--text-1); }
+.passport-page-title {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em;
+  color: var(--text-3); text-transform: uppercase;
+}
+
+.page { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+
+.hero-card {
+  background: linear-gradient(145deg, var(--surface) 0%, var(--surface-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 28px 24px;
+  margin-bottom: var(--gap);
+}
+.hero-product {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+  color: var(--text-3); text-transform: uppercase; margin-bottom: 8px;
+}
+.hero-title { font-size: 1.6rem; font-weight: 800; color: var(--text-1); line-height: 1.2; margin-bottom: 14px; }
+.hero-origin { font-size: 0.9rem; color: var(--text-2); margin-bottom: 18px; }
+.hero-origin strong { color: var(--text-1); font-weight: 700; }
+.hero-batch {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding-top: 14px; border-top: 1px solid var(--border);
+}
+.batch-label {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--text-3); text-transform: uppercase;
+}
+.batch-id {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.78rem; color: var(--accent);
+  letter-spacing: 0.02em; word-break: break-all;
+}
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: var(--gap); }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 14px; text-align: center; }
+.stat-label {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--text-3); text-transform: uppercase; margin-bottom: 4px;
+}
+.stat-val { font-size: 1.15rem; font-weight: 700; color: var(--text-1); }
+.stat-val small { font-size: 0.7rem; font-weight: 400; color: var(--text-2); margin-left: 2px; }
+
+.section-heading {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+  color: var(--text-3); text-transform: uppercase; margin-bottom: 14px;
+}
+
+.timeline { position: relative; padding-left: 32px; }
+.timeline::before {
+  content: ''; position: absolute;
+  left: 11px; top: 14px; bottom: 14px; width: 2px;
+  background: linear-gradient(to bottom, var(--accent) 0%, var(--border) 100%);
+  opacity: 0.5;
+}
+.stage { position: relative; margin-bottom: 20px; }
+.stage::before {
+  content: ''; position: absolute;
+  left: -28px; top: 22px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  z-index: 1;
+}
+.stage.merged::before { background: var(--warning); }
+.stage-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 20px; }
+.stage-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.stage-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: var(--accent); text-transform: uppercase; }
+.stage-date { font-size: 0.75rem; color: var(--text-3); }
+.stage-actor { font-size: 1rem; font-weight: 700; color: var(--text-1); margin-bottom: 4px; }
+.stage-place { font-size: 0.8rem; color: var(--text-2); margin-bottom: 12px; }
+.stage-place::before { content: '\1F4CD '; opacity: 0.6; }
+.stage-weight-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--surface-alt);
+  border-radius: var(--r-sm); font-size: 0.85rem;
+}
+.stage-weight-row .w-in { color: var(--text-2); }
+.stage-weight-row .w-arrow { color: var(--text-3); margin: 0 2px; }
+.stage-weight-row .w-out { color: var(--text-1); font-weight: 600; }
+.stage-weight-row .material-pill {
+  background: #2196f326; color: #64b5f6;
+  font-size: 0.7rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 10px;
+}
+.stage-note {
+  margin-top: 10px; padding: 10px 12px;
+  background: rgba(255,183,77,0.08);
+  border-left: 3px solid var(--warning);
+  border-radius: 4px; font-size: 0.8rem; color: var(--text-2);
+}
+.stage-note strong { color: var(--warning); font-weight: 700; }
+.stage-sources { margin-top: 10px; font-size: 0.78rem; color: var(--text-3); }
+.stage-sources summary {
+  cursor: pointer; padding: 6px 0;
+  color: var(--accent); list-style: none; font-weight: 600;
+}
+.stage-sources summary::-webkit-details-marker { display: none; }
+.stage-sources summary::before { content: '\25B8 '; display: inline-block; transition: transform 0.15s; }
+.stage-sources[open] summary::before { transform: rotate(90deg); }
+.sources-list { margin-top: 8px; padding: 10px 12px; background: var(--surface-alt); border-radius: var(--r-sm); }
+.source-row {
+  display: flex; justify-content: space-between;
+  padding: 6px 0; font-size: 0.78rem;
+  border-bottom: 1px solid var(--border); color: var(--text-2);
+}
+.source-row:last-child { border-bottom: none; }
+.source-row .src-id { font-family: 'SF Mono', Menlo, Consolas, monospace; color: var(--text-3); }
+.source-row .src-weight { color: var(--text-1); font-weight: 600; }
+
+.verified {
+  margin-top: var(--gap); padding: 24px 20px;
+  background: rgba(0,230,118,0.06);
+  border: 1px solid rgba(0,230,118,0.2);
+  border-radius: var(--r-md);
+  display: flex; align-items: center; gap: 16px;
+}
+.verified-icon {
+  width: 52px; height: 52px;
+  border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; color: #000; flex-shrink: 0;
+}
+.verified-text { flex: 1; }
+.verified-title { font-weight: 700; font-size: 0.95rem; color: var(--accent); margin-bottom: 3px; }
+.verified-sub { font-size: 0.78rem; color: var(--text-2); line-height: 1.4; }
+.verified-sub a { color: var(--accent); font-weight: 600; }
+.verified-id {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.7rem; color: var(--text-3);
+  margin-top: 6px; letter-spacing: 0.03em; word-break: break-all;
+}
+
+.page-footer { text-align: center; padding: 30px 20px 10px; font-size: 0.72rem; color: var(--text-3); }
+.page-footer a { color: var(--text-2); font-weight: 600; }
+
+/* Empty / loading / error states */
+.empty-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 40px 28px;
+  text-align: center;
+}
+.empty-card h2 { font-size: 1.1rem; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
+.empty-card p { font-size: 0.9rem; color: var(--text-2); margin-bottom: 18px; }
+.empty-card a {
+  display: inline-block; padding: 10px 18px;
+  background: var(--accent); color: #000;
+  text-decoration: none; border-radius: var(--r-sm);
+  font-weight: 700; font-size: 0.85rem;
+}
+
+.hidden { display: none !important; }
+
+@media (max-width: 640px) {
+  .hero-title { font-size: 1.3rem; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .timeline { padding-left: 26px; }
+  .stage::before { left: -22px; }
+  .stage-card { padding: 14px 16px; }
+  .stage-head { gap: 6px; }
+  .stage-weight-row { flex-wrap: wrap; gap: 6px; font-size: 0.8rem; }
+  .verified { flex-direction: column; text-align: center; padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="passport-header">
+  <div class="passport-logo">
+    <div class="passport-logo-icon">C</div>
+    <span class="passport-logo-text">Circul</span>
+  </div>
+  <div class="passport-page-title">Product Passport</div>
+</div>
+
+<div class="page">
+  <div id="loading" class="empty-card">
+    <h2>Loading passport...</h2>
+    <p>Walking the chain of custody.</p>
+  </div>
+  <div id="error" class="empty-card hidden">
+    <h2 id="error-title">We couldn't find that batch</h2>
+    <p id="error-message">This passport URL doesn't match any batch on the Circul ledger.</p>
+    <a href="https://circul.app">Visit circul.app</a>
+  </div>
+  <div id="content" class="hidden">
+    <!-- HERO -->
+    <div class="hero-card">
+      <div class="hero-product" id="hero-product">Traceable Recycled Material</div>
+      <div class="hero-title" id="hero-title"></div>
+      <div class="hero-origin" id="hero-origin"></div>
+      <div class="hero-batch">
+        <span class="batch-label">Batch ID</span>
+        <span class="batch-id" id="hero-batch"></span>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Material</div><div class="stat-val" id="stat-material">—</div></div>
+      <div class="stat"><div class="stat-label">Stages</div><div class="stat-val" id="stat-stages">—</div></div>
+      <div class="stat"><div class="stat-label">Journey</div><div class="stat-val" id="stat-journey">—</div></div>
+      <div class="stat"><div class="stat-label">Collectors</div><div class="stat-val" id="stat-collectors">—</div></div>
+    </div>
+
+    <div class="section-heading">Full Provenance Chain</div>
+    <div class="timeline" id="timeline"></div>
+
+    <div class="verified">
+      <div class="verified-icon">&#10003;</div>
+      <div class="verified-text">
+        <div class="verified-title">Verified on the Circul Platform</div>
+        <div class="verified-sub">
+          Every stage of this batch was logged in real time by registered Circul operators. Weights, dates, and handoffs are linked via Circul's mass-balance ledger. Learn more at <a href="https://circul.app">circul.app</a>.
+        </div>
+        <div class="verified-id" id="verified-id"></div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span id="footer-scanned"></span> · <a href="https://circul.app">Powered by Circul</a>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// Stage labels keyed by stage_type from the API.
+var STAGE_LABEL = {
+  collection:  'Collection',
+  aggregation: 'Aggregation',
+  processing:  'Processing',
+  recycling:   'Recycling',
+  conversion:  'Conversion',
+  stage:       'Stage'
+};
+
+// Material labels for the hero product line. The leaf is typically the
+// converter's output (rPET pellets etc.); we adjust copy if conversion is
+// the final stage. Falls back to the raw material code.
+var PRODUCT_COPY = {
+  PET:  'Traceable Recycled PET Pellets',
+  HDPE: 'Traceable Recycled HDPE',
+  LDPE: 'Traceable Recycled LDPE',
+  PP:   'Traceable Recycled PP'
+};
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function fmtNumber(n) {
+  if (n == null) return '—';
+  var num = Number(n);
+  if (!isFinite(num)) return '—';
+  // Trim trailing .00, keep up to 2 decimals.
+  var s = num.toFixed(2);
+  return s.replace(/\.00$/, '').replace(/(\.[0-9])0$/, '$1');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function placeOf(actor) {
+  if (!actor) return '';
+  var bits = [];
+  if (actor.city) bits.push(actor.city);
+  if (actor.region) bits.push(actor.region);
+  return bits.join(', ');
+}
+
+function showError(title, message) {
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('content').classList.add('hidden');
+  var err = document.getElementById('error');
+  document.getElementById('error-title').textContent = title;
+  document.getElementById('error-message').textContent = message;
+  err.classList.remove('hidden');
+}
+
+function renderStageCard(stage, isLast, totalStages) {
+  var label = STAGE_LABEL[stage.stage_type] || 'Stage';
+  // Mark the leaf stage as "(current)" — that's what the user just scanned.
+  var isCurrent = (stage.stage_number === totalStages);
+  var stageClasses = 'stage' + (stage.commingled ? ' merged' : '');
+  var actor = stage.actor || {};
+  var weightOut = stage.weight_out_kg != null ? fmtNumber(stage.weight_out_kg) + ' kg' : '';
+  var weightIn  = stage.weight_in_kg  != null ? fmtNumber(stage.weight_in_kg)  + ' kg' : '';
+
+  var weightHtml = '<div class="stage-weight-row">' +
+    '<span class="material-pill">' + escapeHtml(stage.material_type || '') + '</span>';
+  if (stage.weight_in_kg != null && stage.weight_out_kg != null && fmtNumber(stage.weight_in_kg) !== fmtNumber(stage.weight_out_kg)) {
+    weightHtml += '<span class="w-in">' + escapeHtml(weightIn) + '</span>' +
+                  '<span class="w-arrow">&rarr;</span>' +
+                  '<span class="w-out">' + escapeHtml(weightOut) + '</span>';
+  } else if (stage.weight_out_kg != null) {
+    weightHtml += '<span class="w-out">' + escapeHtml(weightOut) + '</span>';
+    if (stage.stage_type === 'collection') {
+      weightHtml += '<span class="w-in">collected and dropped off</span>';
+    }
+  }
+  weightHtml += '</div>';
+
+  var noteHtml = '';
+  if (stage.commingled && stage.sources && stage.sources.length > 1) {
+    var totalKg = stage.weight_in_kg != null ? fmtNumber(stage.weight_in_kg) : '';
+    noteHtml = '<div class="stage-note">' +
+      '<strong>Commingled bale.</strong> This ' + escapeHtml(totalKg) + ' kg lot was assembled from ' +
+      stage.sources.length + ' separate drop-offs and merged into a single downstream shipment.</div>';
+  }
+
+  var sourcesHtml = '';
+  if (stage.commingled && stage.sources && stage.sources.length > 0) {
+    var rows = stage.sources.map(function (s) {
+      var locBits = [];
+      if (s.display_name) locBits.push(s.display_name);
+      if (s.city) locBits.push(s.city);
+      return '<div class="source-row">' +
+        '<span class="src-id">' + escapeHtml(locBits.join(' \u00B7 ')) + '</span>' +
+        '<span class="src-weight">' + escapeHtml(fmtNumber(s.weight_kg_attributed)) + ' kg</span>' +
+        '</div>';
+    }).join('');
+    sourcesHtml = '<details class="stage-sources">' +
+      '<summary>Show all ' + stage.sources.length + ' sources</summary>' +
+      '<div class="sources-list">' + rows + '</div>' +
+    '</details>';
+  }
+
+  return '<div class="' + stageClasses + '">' +
+    '<div class="stage-card">' +
+      '<div class="stage-head">' +
+        '<span class="stage-label">Stage ' + stage.stage_number + ' \u00B7 ' + escapeHtml(label) +
+          (isCurrent ? ' (current)' : '') + '</span>' +
+        '<span class="stage-date">' + escapeHtml(fmtDate(stage.date)) + '</span>' +
+      '</div>' +
+      '<div class="stage-actor">' + escapeHtml(actor.display_name || '—') + '</div>' +
+      (placeOf(actor) ? '<div class="stage-place">' + escapeHtml(placeOf(actor)) + '</div>' : '') +
+      weightHtml +
+      noteHtml +
+      sourcesHtml +
+    '</div>' +
+  '</div>';
+}
+
+function renderPassport(data) {
+  var leaf = data.leaf || {};
+  var stats = data.stats || {};
+  var stages = Array.isArray(data.stages) ? data.stages : [];
+
+  // Hero
+  var produced = leaf.produced_by || {};
+  var producedPlace = placeOf(produced);
+  document.getElementById('hero-product').textContent = PRODUCT_COPY[leaf.material_type] || ('Traceable Recycled ' + (leaf.material_type || 'Material'));
+  document.getElementById('hero-title').textContent = fmtNumber(leaf.final_weight_kg) + ' kg ' + (leaf.material_type || '');
+  var originHtml = '';
+  if (produced.display_name) {
+    originHtml += 'Produced by <strong>' + escapeHtml(produced.display_name) + '</strong>';
+  }
+  if (producedPlace) {
+    originHtml += (originHtml ? ' in ' : 'Produced in ') + '<strong>' + escapeHtml(producedPlace) + '</strong>';
+  }
+  if (leaf.shipped_at) {
+    originHtml += (originHtml ? ' \u00B7 ' : '') + 'Shipped ' + escapeHtml(fmtDate(leaf.shipped_at));
+  }
+  document.getElementById('hero-origin').innerHTML = originHtml;
+  document.getElementById('hero-batch').textContent = leaf.batch_id || '';
+
+  // Stats
+  document.getElementById('stat-material').textContent = leaf.material_type || '—';
+  document.getElementById('stat-stages').textContent = stats.stages != null ? stats.stages : '—';
+  var jd = stats.journey_days;
+  document.getElementById('stat-journey').innerHTML = (jd != null ? jd : '—') + ' <small>day' + (jd === 1 ? '' : 's') + '</small>';
+  document.getElementById('stat-collectors').textContent = stats.collector_count != null ? stats.collector_count : '—';
+
+  // Timeline
+  var timeline = document.getElementById('timeline');
+  if (!stages.length) {
+    timeline.innerHTML = '<div class="empty-card">No stage records found for this batch.</div>';
+  } else {
+    timeline.innerHTML = stages.map(function (s) { return renderStageCard(s, false, stages.length); }).join('');
+  }
+
+  // Verified footer + page footer
+  document.getElementById('verified-id').textContent = leaf.batch_id ? 'Batch \u00B7 ' + leaf.batch_id : '';
+  document.getElementById('footer-scanned').textContent = 'Scanned ' + fmtDate(new Date().toISOString());
+
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('content').classList.remove('hidden');
+}
+
+(function init() {
+  // Extract batch_id from path. Route is /trace/:batch_id; path may include
+  // trailing slash or query string. Take the segment after /trace/.
+  var path = window.location.pathname;
+  var m = path.match(/\/trace\/([^\/?#]+)/);
+  if (!m) {
+    showError("This URL doesn't look like a passport", 'Expected /trace/:batch_id.');
+    return;
+  }
+  var batchId = m[1];
+
+  fetch('/api/trace/' + encodeURIComponent(batchId), { credentials: 'omit' })
+    .then(function (r) {
+      if (r.status === 404) {
+        showError("We couldn't find that batch", 'This passport URL doesn\u2019t match any batch on the Circul ledger.');
+        return null;
+      }
+      if (r.status === 400) {
+        showError("That URL doesn't look like a valid Circul batch", 'Batch IDs are 36-character UUIDs. Double-check the link or QR.');
+        return null;
+      }
+      if (!r.ok) {
+        showError('Something went wrong', 'We couldn\u2019t load this passport right now. Please try again in a moment.');
+        return null;
+      }
+      return r.json();
+    })
+    .then(function (data) {
+      if (!data) return;
+      if (!data.success) {
+        showError("We couldn't load this passport", data.message || 'Unknown error.');
+        return;
+      }
+      renderPassport(data);
+    })
+    .catch(function (err) {
+      console.error('trace fetch error:', err);
+      showError("We couldn't load this passport", 'Network error. Please check your connection and try again.');
+    });
+})();
+</script>
+
+</body>
+</html>
