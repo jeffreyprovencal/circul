@@ -38,6 +38,49 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
 /* ── Stats strip (pending / role counts) ── */
 .stats-strip{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:var(--gap)}
 .stats-strip .stat{flex:1;min-width:120px}
+
+/* ── User management tabs ── */
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+.tab{padding:8px 16px;background:transparent;border:none;color:var(--text-3);font-family:var(--font);font-size:0.82rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:hover{color:var(--text-1)}
+.user-row-actions{display:flex;gap:6px}
+.btn-small{padding:4px 10px;font-size:0.72rem;font-weight:600;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--text-1);cursor:pointer;font-family:var(--font)}
+.btn-small:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── Modal ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-backdrop.hidden{display:none}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.modal-title{font-size:1rem;font-weight:700;color:var(--accent)}
+.modal-close{background:transparent;border:none;color:var(--text-3);font-size:1.2rem;cursor:pointer}
+.modal-body{padding:20px}
+.modal-body .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border);font-size:0.85rem}
+.modal-body .row .label{color:var(--text-3);font-size:0.75rem}
+.modal-body .row .val{color:var(--text-1);font-family:'Courier New',monospace}
+.modal-body .action-row{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.modal-body input, .modal-body select{width:100%;padding:8px 12px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-family:'Courier New',monospace;font-size:0.85rem;margin:4px 0}
+.modal-body label{display:block;font-size:0.72rem;color:var(--text-3);margin-top:8px}
+.modal-body .hint{font-size:0.72rem;color:var(--text-3);margin:6px 0}
+.modal-body .error{color:#f87171;font-size:0.78rem;margin:6px 0}
+.modal-body .success{color:var(--accent);font-size:0.78rem;margin:6px 0}
+.btn-primary{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:700;font-size:0.78rem;cursor:pointer}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed}
+.btn-danger{padding:8px 16px;background:transparent;color:#f87171;border:1px solid #f87171;border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
+.btn-danger:hover{background:rgba(239,68,68,0.1)}
+
+/* ── Audit log ── */
+.audit-row{padding:10px 12px;border-bottom:1px solid var(--border);font-size:0.78rem}
+.audit-row:last-child{border-bottom:none}
+.audit-row .action{color:var(--accent);font-weight:600}
+.audit-row .meta{color:var(--text-3);font-size:0.7rem;margin-top:2px}
+.audit-row .details{color:var(--text-2);font-family:'Courier New',monospace;font-size:0.72rem;margin-top:4px;white-space:pre-wrap;word-break:break-all}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--accent);color:#000;padding:10px 18px;border-radius:var(--r-sm);font-size:0.85rem;font-weight:600;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,0.4)}
+.toast.hidden{display:none}
 </style>
 </head>
 <body>
@@ -144,6 +187,104 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       </table>
     </div>
   </div>
+
+  <!-- USER MANAGEMENT -->
+  <div class="section" id="userMgmtSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">User Management</div>
+        <div class="section-sub">Change phone numbers, reset PINs, view user accounts</div>
+      </div>
+    </div>
+    <div class="tabs" id="userTabs">
+      <button class="tab active" data-tab="collectors" onclick="switchUserTab('collectors')">Collectors</button>
+      <button class="tab" data-tab="aggregators" onclick="switchUserTab('aggregators')">Aggregators</button>
+      <button class="tab" data-tab="agents" onclick="switchUserTab('agents')">Agents</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr id="userTableHead">
+            <th>Name</th>
+            <th>Phone</th>
+            <th>City</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr><td colspan="5"><div style="height:20px;margin:8px 0;" class="skeleton"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AUDIT LOG -->
+  <div class="section" id="auditLogSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Admin Audit Log</div>
+        <div class="section-sub">Record of admin actions on user accounts</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <select id="auditFilterType" onchange="loadAuditLog()" style="padding:6px 10px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-size:0.78rem;font-family:var(--font)">
+        <option value="">All types</option>
+        <option value="collector">Collectors</option>
+        <option value="aggregator">Aggregators</option>
+        <option value="agent">Agents</option>
+      </select>
+      <select id="auditFilterAction" onchange="loadAuditLog()" style="padding:6px 10px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-size:0.78rem;font-family:var(--font)">
+        <option value="">All actions</option>
+        <option value="phone_changed">Phone changed</option>
+        <option value="pin_reset_triggered">PIN reset triggered</option>
+        <option value="collector_updated">Collector updated</option>
+        <option value="aggregator_updated">Aggregator updated</option>
+        <option value="collector_verified">Collector verified</option>
+        <option value="aggregator_verified">Aggregator verified</option>
+      </select>
+      <button class="btn-small" onclick="loadAuditLog()">Refresh</button>
+    </div>
+    <div id="auditLogBody" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);min-height:100px">
+      <div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>
+    </div>
+  </div>
+
+  <!-- USER DETAIL MODAL -->
+  <div class="modal-backdrop hidden" id="userModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="userModalTitle">User details</div>
+        <button class="modal-close" onclick="closeModal('userModal')">✕</button>
+      </div>
+      <div class="modal-body" id="userModalBody"></div>
+    </div>
+  </div>
+
+  <!-- CHANGE PHONE MODAL -->
+  <div class="modal-backdrop hidden" id="phoneModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Change phone number</div>
+        <button class="modal-close" onclick="closeModal('phoneModal')">✕</button>
+      </div>
+      <div class="modal-body" id="phoneModalBody"></div>
+    </div>
+  </div>
+
+  <!-- RESET PIN MODAL -->
+  <div class="modal-backdrop hidden" id="pinModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Reset PIN</div>
+        <button class="modal-close" onclick="closeModal('pinModal')">✕</button>
+      </div>
+      <div class="modal-body" id="pinModalBody"></div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast hidden" id="toast"></div>
 
   <!-- Expense Category Approvals -->
   <div class="section" id="expenseCategorySection">
@@ -431,6 +572,277 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     }
 
     loadPendingCategories();
+
+    /* ══════════════════════════════════════════════════════════════
+       USER MANAGEMENT (Phase 5 — account recovery)
+       ══════════════════════════════════════════════════════════════ */
+
+    var currentUserTab = 'collectors';
+    var userCache = { collectors: null, aggregators: null, agents: null };
+
+    function adminFetch(url, opts) {
+      opts = opts || {};
+      var token = localStorage.getItem('circul_token') || '';
+      opts.headers = Object.assign({
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      }, opts.headers || {});
+      return fetch(url, opts).then(function(r) {
+        return r.json().then(function(body) { return { ok: r.ok, status: r.status, body: body }; });
+      });
+    }
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.remove('hidden');
+      setTimeout(function() { t.classList.add('hidden'); }, 2500);
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function switchUserTab(tab) {
+      currentUserTab = tab;
+      document.querySelectorAll('#userTabs .tab').forEach(function(t) {
+        t.classList.toggle('active', t.dataset.tab === tab);
+      });
+      loadUserList(tab);
+    }
+
+    function loadUserList(tab) {
+      var tbody = document.getElementById('userTableBody');
+      tbody.innerHTML = '<tr><td colspan="5"><div style="height:20px;margin:8px 0;" class="skeleton"></div></td></tr>';
+      adminFetch('/api/admin/' + tab).then(function(res) {
+        if (!res.ok) {
+          tbody.innerHTML = '<tr><td colspan="5" style="color:#f87171;padding:20px">Failed to load ' + tab + '</td></tr>';
+          return;
+        }
+        var rows = res.body[tab] || [];
+        userCache[tab] = rows;
+        renderUserList(tab, rows);
+      });
+    }
+
+    function renderUserList(tab, rows) {
+      var tbody = document.getElementById('userTableBody');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty" style="padding:20px;color:var(--text-3)">No ' + tab + ' found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(function(u) {
+        var name = tab === 'aggregators'
+          ? esc(u.name || '')
+          : esc(((u.first_name || '') + ' ' + (u.last_name || '')).trim());
+        var extra = tab === 'agents'
+          ? ('<div class="cell-company">Under: ' + esc(u.aggregator_name || '--') + '</div>')
+          : (u.company ? ('<div class="cell-company">' + esc(u.company) + '</div>') : '');
+        var status = u.is_active === false
+          ? '<span class="chip" style="background:rgba(239,83,80,0.15);color:#ef5350">Inactive</span>'
+          : '<span class="chip" style="background:rgba(0,230,118,0.15);color:var(--accent)">Active</span>';
+        if (u.must_change_pin) {
+          status += ' <span class="chip" style="background:rgba(255,213,79,0.15);color:#ffd54f;margin-left:4px">Must reset PIN</span>';
+        }
+        return '<tr>' +
+          '<td><div class="cell-name">' + name + '</div>' + extra + '</td>' +
+          '<td><span style="font-family:\'Courier New\',monospace;font-size:0.78rem">' + esc(u.phone || '--') + '</span></td>' +
+          '<td>' + esc(u.city || '--') + '</td>' +
+          '<td>' + status + '</td>' +
+          '<td><div class="user-row-actions">' +
+            '<button class="btn-small" onclick="openUserDetail(\'' + tab + '\',' + u.id + ')">Details</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function singularType(tab) {
+      return tab === 'collectors' ? 'collector'
+        : tab === 'aggregators' ? 'aggregator'
+        : 'agent';
+    }
+
+    function openUserDetail(tab, id) {
+      var list = userCache[tab] || [];
+      var user = null;
+      for (var i = 0; i < list.length; i++) if (list[i].id === id) { user = list[i]; break; }
+      if (!user) return;
+      var type = singularType(tab);
+      var name = tab === 'aggregators'
+        ? (user.name || '')
+        : ((user.first_name || '') + ' ' + (user.last_name || '')).trim();
+
+      document.getElementById('userModalTitle').textContent = name + ' (' + type + ')';
+      var rows = [
+        ['ID', user.id],
+        ['Phone', user.phone || '--'],
+        ['City', user.city || '--'],
+        ['Region', user.region || '--']
+      ];
+      if (tab === 'aggregators' && user.company) rows.push(['Company', user.company]);
+      if (tab === 'agents' && user.aggregator_name) rows.push(['Aggregator', user.aggregator_name]);
+      if (user.must_change_pin) rows.push(['Must change PIN', 'yes']);
+      if (user.created_at) rows.push(['Created', fmtDate(user.created_at)]);
+
+      var html = rows.map(function(r) {
+        return '<div class="row"><span class="label">' + esc(r[0]) + '</span><span class="val">' + esc(String(r[1])) + '</span></div>';
+      }).join('');
+      html += '<div class="action-row">' +
+        '<button class="btn-primary" onclick="openPhoneChange(\'' + type + '\',' + id + ',\'' + esc(user.phone || '') + '\')">Change phone</button>' +
+        '<button class="btn-danger" onclick="openResetPin(\'' + type + '\',' + id + ',\'' + esc(name) + '\')">Reset PIN</button>' +
+      '</div>';
+      document.getElementById('userModalBody').innerHTML = html;
+      openModal('userModal');
+    }
+
+    /* ── Change phone (2-step OTP) ── */
+
+    function openPhoneChange(type, id, currentPhone) {
+      closeModal('userModal');
+      document.getElementById('phoneModalBody').innerHTML =
+        '<div class="hint">Current phone: <span class="val" style="font-family:\'Courier New\',monospace">' + esc(currentPhone) + '</span></div>' +
+        '<label>New phone number</label>' +
+        '<input id="newPhoneInput" type="tel" placeholder="e.g. 0244998877" autocomplete="off">' +
+        '<div class="hint">An OTP will be sent to the new number. The user must read it back to you to confirm.</div>' +
+        '<div class="error hidden" id="phoneErr"></div>' +
+        '<div class="action-row">' +
+          '<button class="btn-primary" id="phoneStartBtn" onclick="startPhoneChange(\'' + type + '\',' + id + ')">Send OTP</button>' +
+        '</div>';
+      openModal('phoneModal');
+    }
+
+    function startPhoneChange(type, id) {
+      var input = document.getElementById('newPhoneInput');
+      var err = document.getElementById('phoneErr');
+      var btn = document.getElementById('phoneStartBtn');
+      var newPhone = (input.value || '').trim();
+      if (!newPhone) { err.textContent = 'Enter a phone number'; err.classList.remove('hidden'); return; }
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      adminFetch('/api/admin/users/' + type + '/' + id + '/change-phone-start', {
+        method: 'POST',
+        body: JSON.stringify({ new_phone: newPhone })
+      }).then(function(res) {
+        btn.disabled = false;
+        btn.textContent = 'Send OTP';
+        if (!res.ok || !res.body.success) {
+          err.textContent = (res.body && res.body.message) || 'Failed to send OTP';
+          err.classList.remove('hidden');
+          return;
+        }
+        showPhoneConfirm(type, id, newPhone, res.body.code_id);
+      });
+    }
+
+    function showPhoneConfirm(type, id, newPhone, codeId) {
+      document.getElementById('phoneModalBody').innerHTML =
+        '<div class="success">OTP sent to ' + esc(newPhone) + '.</div>' +
+        '<div class="hint">Ask the user to read back the 6-digit code they received.</div>' +
+        '<label>Verification code</label>' +
+        '<input id="otpInput" type="text" maxlength="6" placeholder="6-digit code" autocomplete="off">' +
+        '<div class="error hidden" id="otpErr"></div>' +
+        '<div class="action-row">' +
+          '<button class="btn-primary" id="otpConfirmBtn" onclick="confirmPhoneChange(\'' + type + '\',' + id + ',' + codeId + ')">Confirm change</button>' +
+        '</div>';
+    }
+
+    function confirmPhoneChange(type, id, codeId) {
+      var input = document.getElementById('otpInput');
+      var err = document.getElementById('otpErr');
+      var btn = document.getElementById('otpConfirmBtn');
+      var code = (input.value || '').trim();
+      if (!code) { err.textContent = 'Enter the code'; err.classList.remove('hidden'); return; }
+      btn.disabled = true;
+      btn.textContent = 'Confirming…';
+      adminFetch('/api/admin/users/' + type + '/' + id + '/change-phone-confirm', {
+        method: 'POST',
+        body: JSON.stringify({ code_id: codeId, code: code })
+      }).then(function(res) {
+        btn.disabled = false;
+        btn.textContent = 'Confirm change';
+        if (!res.ok || !res.body.success) {
+          err.textContent = (res.body && res.body.message) || 'Failed';
+          err.classList.remove('hidden');
+          return;
+        }
+        closeModal('phoneModal');
+        showToast('Phone number updated');
+        loadUserList(currentUserTab);
+        loadAuditLog();
+      });
+    }
+
+    /* ── Reset PIN ── */
+
+    function openResetPin(type, id, name) {
+      closeModal('userModal');
+      document.getElementById('pinModalBody').innerHTML =
+        '<p style="font-size:0.85rem;line-height:1.5">Reset PIN for <strong>' + esc(name) + '</strong>?</p>' +
+        '<div class="hint">The user will be prompted to set a new PIN on next USSD login via the Forgot-PIN flow. An SMS will be sent notifying them. Admin does not issue the new PIN.</div>' +
+        '<div class="error hidden" id="pinErr"></div>' +
+        '<div class="action-row">' +
+          '<button class="btn-primary" id="pinConfirmBtn" onclick="confirmResetPin(\'' + type + '\',' + id + ')">Confirm reset</button>' +
+          '<button class="btn-small" onclick="closeModal(\'pinModal\')">Cancel</button>' +
+        '</div>';
+      openModal('pinModal');
+    }
+
+    function confirmResetPin(type, id) {
+      var btn = document.getElementById('pinConfirmBtn');
+      var err = document.getElementById('pinErr');
+      btn.disabled = true;
+      btn.textContent = 'Resetting…';
+      adminFetch('/api/admin/users/' + type + '/' + id + '/reset-pin', { method: 'POST' }).then(function(res) {
+        btn.disabled = false;
+        btn.textContent = 'Confirm reset';
+        if (!res.ok || !res.body.success) {
+          err.textContent = (res.body && res.body.message) || 'Failed';
+          err.classList.remove('hidden');
+          return;
+        }
+        closeModal('pinModal');
+        showToast('PIN reset triggered');
+        loadUserList(currentUserTab);
+        loadAuditLog();
+      });
+    }
+
+    /* ── Audit log ── */
+
+    function loadAuditLog() {
+      var type = document.getElementById('auditFilterType').value;
+      var action = document.getElementById('auditFilterAction').value;
+      var qs = [];
+      if (type) qs.push('target_type=' + encodeURIComponent(type));
+      if (action) qs.push('action=' + encodeURIComponent(action));
+      var url = '/api/admin/audit-log' + (qs.length ? '?' + qs.join('&') : '');
+      var body = document.getElementById('auditLogBody');
+      body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>';
+      adminFetch(url).then(function(res) {
+        if (!res.ok) {
+          body.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem">Failed to load audit log.</div>';
+          return;
+        }
+        var entries = (res.body.entries || []);
+        if (!entries.length) {
+          body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">No entries match these filters.</div>';
+          return;
+        }
+        body.innerHTML = entries.map(function(e) {
+          var detailsStr = '';
+          try { detailsStr = Object.keys(e.details || {}).length ? JSON.stringify(e.details) : ''; } catch (_) {}
+          return '<div class="audit-row">' +
+            '<div><span class="action">' + esc(e.action) + '</span> ' +
+              '<span style="color:var(--text-2)">on ' + esc(e.target_type) + ' #' + e.target_id + '</span>' +
+            '</div>' +
+            '<div class="meta">' + esc(e.actor_email || 'unknown') + ' · ' + new Date(e.created_at).toLocaleString('en-GB') + '</div>' +
+            (detailsStr ? '<div class="details">' + esc(detailsStr) + '</div>' : '') +
+          '</div>';
+        }).join('');
+      });
+    }
+
+    loadUserList('collectors');
+    loadAuditLog();
 </script>
 
 </body>
