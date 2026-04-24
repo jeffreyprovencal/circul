@@ -6754,6 +6754,112 @@ app.get('/api/admin/audit-log', requireAdmin, async (req, res) => {
   }
 });
 
+// List aggregator-registration requests, filtered by status (default 'pending').
+app.get('/api/admin/aggregator-requests', requireAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const validStatuses = ['pending', 'code_issued', 'completed', 'rejected', 'expired', 'code_failed', 'all'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status filter' });
+    }
+    const where = status === 'all' ? '' : `WHERE status = $1`;
+    const params = status === 'all' ? [limit] : [status, limit];
+    const sql =
+      `SELECT id, phone, name, company, city, region, status, created_at, approved_at, rejected_at, rejection_reason, aggregator_id
+       FROM aggregator_registration_requests
+       ${where}
+       ORDER BY created_at ASC
+       LIMIT $${params.length}`;
+    const rows = await pool.query(sql, params);
+    res.json({ success: true, requests: rows.rows });
+  } catch (err) {
+    console.error('[admin/aggregator-requests]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Approve a pending aggregator request: generate 6-digit code, SMS the candidate,
+// transition status to code_issued. First-write-wins via WHERE status='pending'.
+app.post('/api/admin/aggregator-requests/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const code = generateOtp();
+    const codeHash = hashOtp(code);
+    const result = await pool.query(
+      `UPDATE aggregator_registration_requests
+       SET status = 'code_issued',
+           code_hash = $1,
+           code_expires_at = NOW() + INTERVAL '10 minutes',
+           code_attempts_remaining = 3,
+           approved_by_admin_email = $2,
+           approved_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $3 AND status = 'pending'
+       RETURNING id, phone, name, company, city`,
+      [codeHash, req.admin.email, id]
+    );
+    if (!result.rows.length) {
+      return res.status(409).json({ success: false, message: 'Request not in pending status (already approved, rejected, or expired)' });
+    }
+    const row = result.rows[0];
+    await recordAdminAction(null, {
+      actor_type: 'admin',
+      actor_email: req.admin.email,
+      action: 'aggregator_request_approved',
+      target_type: 'aggregator_request',
+      target_id: parseInt(id, 10),
+      details: { phone: row.phone, name: row.name }
+    });
+    notify(EVENTS.AGGREGATOR_CODE_ISSUED, row.phone, { code: code, minutes: 10 })
+      .catch(function (e) { console.warn('[agg-req-approve] code SMS failed:', e.message); });
+    res.json({ success: true, request: row });
+  } catch (err) {
+    console.error('[admin/aggregator-request approve]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Reject a pending aggregator request with a reason; SMSes the candidate.
+app.post('/api/admin/aggregator-requests/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, message: 'Rejection reason required' });
+    }
+    const result = await pool.query(
+      `UPDATE aggregator_registration_requests
+       SET status = 'rejected',
+           rejected_by_admin_email = $1,
+           rejected_at = NOW(),
+           rejection_reason = $2,
+           updated_at = NOW()
+       WHERE id = $3 AND status = 'pending'
+       RETURNING id, phone, name`,
+      [req.admin.email, reason.trim(), id]
+    );
+    if (!result.rows.length) {
+      return res.status(409).json({ success: false, message: 'Request not in pending status' });
+    }
+    const row = result.rows[0];
+    await recordAdminAction(null, {
+      actor_type: 'admin',
+      actor_email: req.admin.email,
+      action: 'aggregator_request_rejected',
+      target_type: 'aggregator_request',
+      target_id: parseInt(id, 10),
+      details: { phone: row.phone, name: row.name, reason: reason.trim() }
+    });
+    notify(EVENTS.AGGREGATOR_REQUEST_REJECTED, row.phone, { reason: reason.trim() })
+      .catch(function (e) { console.warn('[agg-req-reject] notify failed:', e.message); });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[admin/aggregator-request reject]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // List active user lockouts with resolved display names — for the admin UI.
 app.get('/api/admin/lockouts', requireAdmin, async (req, res) => {
   try {
