@@ -192,6 +192,11 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
         <div class="section-sub">Change phone numbers, reset PINs, view user accounts</div>
       </div>
     </div>
+    <div style="margin:12px 0;display:flex;gap:8px;align-items:center">
+      <input type="text" id="userSearch" placeholder="Search by name or phone…" oninput="applyUserFilter()"
+             style="flex:1;max-width:360px;padding:8px 12px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-size:0.82rem;font-family:var(--font)" />
+      <span id="userSearchCount" style="color:var(--text-3);font-size:0.78rem"></span>
+    </div>
     <div class="tabs" id="userTabs">
       <button class="tab on" data-tab="collectors" onclick="switchUserTab('collectors')">Collectors</button>
       <button class="tab" data-tab="aggregators" onclick="switchUserTab('aggregators')">Aggregators</button>
@@ -618,6 +623,27 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
         t.classList.toggle('on', t.dataset.tab === tab);
       });
       loadUserList(tab);
+      // applyUserFilter() is invoked from renderUserList after the new rows land.
+    }
+
+    // Client-side filter over the visible user-table rows. Re-invoked on every
+    // keystroke and after every tab-data render. Rows hidden via display:none
+    // so row indices returned by openUserDetail still match userCache.
+    function applyUserFilter() {
+      var q = (document.getElementById('userSearch').value || '').trim().toLowerCase();
+      var tbody = document.getElementById('userTableBody');
+      if (!tbody) return;
+      var rows = tbody.querySelectorAll('tr');
+      var shown = 0;
+      rows.forEach(function(row) {
+        if (!q) { row.style.display = ''; shown++; return; }
+        var text = (row.textContent || '').toLowerCase();
+        var match = text.indexOf(q) !== -1;
+        row.style.display = match ? '' : 'none';
+        if (match) shown++;
+      });
+      var cnt = document.getElementById('userSearchCount');
+      if (cnt) cnt.textContent = q ? (shown + ' of ' + rows.length + ' match') : '';
     }
 
     function loadUserList(tab) {
@@ -663,6 +689,7 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
           '</div></td>' +
         '</tr>';
       }).join('');
+      applyUserFilter();
     }
 
     function singularType(tab) {
