@@ -191,6 +191,31 @@ async function hashPassword(password) {
   });
 }
 
+// ── Account-recovery helpers (shared by USSD reset flow + admin endpoints) ──
+
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function hashOtp(code) {
+  return crypto.createHash('sha256').update(String(code)).digest('hex');
+}
+
+function verifyOtp(entered, hash) {
+  const enteredHash = hashOtp(entered);
+  if (enteredHash.length !== hash.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(enteredHash), Buffer.from(hash));
+}
+
+async function recordAdminAction(client, { actor_type, actor_id, actor_email, action, target_type, target_id, details }) {
+  const runner = client || pool;
+  await runner.query(
+    `INSERT INTO admin_audit_log (actor_type, actor_id, actor_email, action, target_type, target_id, details)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [actor_type, actor_id || null, actor_email || null, action, target_type, target_id, details || {}]
+  );
+}
+
 function requireAdmin(req, res, next) {
   const auth  = req.headers.authorization || '';
   const token = auth.replace('Bearer ', '').trim() || req.query.token;
@@ -2428,6 +2453,185 @@ async function handleUnregisteredUssd(parts, phone) {
   return 'END Invalid option.\nDial again to retry.';
 }
 
+// ── Forgot-PIN reset request (triggered by "0" at welcome) ──
+// Shared by collector / aggregator / agent handlers. parts[0] ('0') is already
+// consumed by the caller; this sees everything after.
+async function requestPinReset(remainingParts, user) {
+  const depth = remainingParts.length;
+
+  if (depth === 0) {
+    return `CON Reset PIN?\n\nWe'll SMS a 6-digit code to\n${user.phone}.\n\n1. Send code\n0. Cancel`;
+  }
+
+  if (remainingParts[0] === '0') return 'END Cancelled.';
+  if (remainingParts[0] !== '1') return 'END Invalid option.\nDial again to retry.';
+
+  // Rate limit: max 3 resets per phone per 24h
+  const recentCount = await pool.query(
+    `SELECT COUNT(*) AS n FROM pin_reset_codes
+     WHERE phone=$1 AND created_at > NOW() - INTERVAL '24 hours'`,
+    [user.phone]
+  );
+  if (parseInt(recentCount.rows[0].n, 10) >= 3) {
+    return 'END Too many resets today.\n\nWait 24 hours before\nrequesting another\nreset code.\n\nContact your aggregator\nfor urgent help.';
+  }
+
+  // Invalidate any previous active reset for this phone
+  await pool.query(
+    `UPDATE pin_reset_codes SET used_at = NOW()
+     WHERE phone = $1 AND used_at IS NULL`,
+    [user.phone]
+  );
+
+  const code = generateOtp();
+  const codeHash = hashOtp(code);
+  await pool.query(
+    `INSERT INTO pin_reset_codes (phone, user_type, user_id, code_hash, expires_at)
+     VALUES ($1, $2, $3, $4, NOW() + INTERVAL '10 minutes')`,
+    [user.phone, user.user_type, user.user_id, codeHash]
+  );
+
+  try {
+    await notify(EVENTS.PIN_RESET_OTP, user.phone, { code: code, minutes: 10 });
+  } catch (e) { console.warn('[RESET] OTP notify failed:', e.message); }
+
+  return 'END Reset code sent.\n\nCheck your SMS, then\ndial *920*54# again\nand enter the code.\n\nCode expires in 10 min.';
+}
+
+// ── Forgot-PIN reset execution (dispatched when an active reset row exists for this phone) ──
+async function handleForgotPinUssd(parts, resetRow) {
+  const depth = parts.length;
+
+  if (depth === 0) {
+    return 'CON Reset PIN\nEnter the 6-digit code\nfrom your SMS:';
+  }
+
+  const entered = parts[0];
+
+  if (!verifyOtp(entered, resetRow.code_hash)) {
+    const remaining = resetRow.attempts_remaining - 1;
+    if (remaining <= 0) {
+      await pool.query(
+        `UPDATE pin_reset_codes SET attempts_remaining = 0, used_at = NOW() WHERE id = $1`,
+        [resetRow.id]
+      );
+      return 'END Too many wrong codes.\n\nYour reset code is now\ninvalid. Dial *920*54#\nand request a new code.';
+    }
+    await pool.query(
+      `UPDATE pin_reset_codes SET attempts_remaining = $1 WHERE id = $2`,
+      [remaining, resetRow.id]
+    );
+    return `CON Wrong code. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter the 6-digit code\nfrom your SMS:`;
+  }
+
+  if (depth === 1) {
+    return "CON Enter new 4-digit PIN:\n\n4\u20136 digits, numbers only.\nAvoid 0000, 1234, or your\nbirth year.";
+  }
+
+  const newPin = parts[1];
+  if (newPin.length < 4 || newPin.length > 6 || !/^\d+$/.test(newPin)) {
+    return 'END PIN must be 4-6 digits.\nDial again to retry.';
+  }
+
+  if (depth === 2) {
+    return 'CON Confirm new PIN:';
+  }
+
+  const confirm = parts[2];
+  if (confirm !== newPin) {
+    return 'END PINs did not match.\nDial again to retry.';
+  }
+
+  const hashedPin = await hashPassword(newPin);
+  const userTable = resetRow.user_type === 'collector' ? 'collectors'
+    : resetRow.user_type === 'aggregator' ? 'aggregators'
+    : 'agents';
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
+      [hashedPin, resetRow.user_id]
+    );
+    await client.query(
+      `UPDATE pin_reset_codes SET used_at = NOW() WHERE id = $1`,
+      [resetRow.id]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  fireResetCompletedNotifications(resetRow.user_type, resetRow.user_id, resetRow.phone).catch(err => {
+    console.error('[RESET] notification error:', err.message);
+  });
+
+  return 'END PIN reset successfully.\n\nDial *920*54# and log in\nwith your new PIN.';
+}
+
+async function fireResetCompletedNotifications(userType, userId, userPhone) {
+  const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  await notify(EVENTS.PIN_RESET_COMPLETED, userPhone, { time: time });
+
+  if (userType === 'collector') {
+    // collectors.aggregator_id does NOT exist — derive most-recent via transactions
+    const r = await pool.query(
+      `SELECT a.phone, c.first_name || ' ' || COALESCE(c.last_name, '') AS name,
+              'COL-' || LPAD(c.id::text, 4, '0') AS code
+       FROM transactions t
+       JOIN aggregators a ON a.id = t.aggregator_id
+       JOIN collectors c ON c.id = t.collector_id
+       WHERE t.collector_id = $1
+       ORDER BY t.transaction_date DESC LIMIT 1`,
+      [userId]
+    );
+    if (r.rows.length && r.rows[0].phone) {
+      await notify(EVENTS.PIN_RESET_UPSTREAM_COLLECTOR, r.rows[0].phone, {
+        user_name: r.rows[0].name.trim(),
+        user_code: r.rows[0].code,
+        time: time
+      });
+    }
+  } else if (userType === 'aggregator') {
+    // Fan out to processors transacted with in last 90d
+    const r = await pool.query(
+      `SELECT DISTINCT p.phone, a.name, 'AGG-' || LPAD(a.id::text, 4, '0') AS code
+       FROM pending_transactions pt
+       JOIN processors p ON p.id = pt.processor_id
+       JOIN aggregators a ON a.id = pt.aggregator_id
+       WHERE pt.aggregator_id = $1 AND pt.created_at > NOW() - INTERVAL '90 days' AND p.phone IS NOT NULL`,
+      [userId]
+    );
+    for (const row of r.rows) {
+      await notify(EVENTS.PIN_RESET_UPSTREAM_AGGREGATOR, row.phone, {
+        user_name: row.name,
+        user_code: row.code,
+        time: time
+      });
+    }
+  } else if (userType === 'agent') {
+    const r = await pool.query(
+      `SELECT a.phone, ag.first_name || ' ' || COALESCE(ag.last_name, '') AS name,
+              'AGT-' || LPAD(ag.id::text, 4, '0') AS code
+       FROM agents ag
+       JOIN aggregators a ON a.id = ag.aggregator_id
+       WHERE ag.id = $1`,
+      [userId]
+    );
+    if (r.rows.length && r.rows[0].phone) {
+      await notify(EVENTS.PIN_RESET_UPSTREAM_AGENT, r.rows[0].phone, {
+        user_name: r.rows[0].name.trim(),
+        user_code: r.rows[0].code,
+        time: time
+      });
+    }
+  }
+}
+
 // Phase 5C: shared rating sub-flow used by collector, aggregator, AND agent USSD My Stats.
 async function handleUssdRating(menuParts, role, userId) {
   const depth = menuParts.length;
@@ -2503,7 +2707,12 @@ async function handleUssdRating(menuParts, role, userId) {
 }
 
 async function handleRegisteredUssd(parts, collector) {
-  if (parts.length === 0) return `CON Welcome ${collector.first_name}!\nEnter your PIN:`;
+  if (parts.length === 0) return `CON Circul Collector\nWelcome back, ${collector.first_name}!\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+
+  // ── Forgot PIN entry point ──
+  if (parts[0] === '0') {
+    return await requestPinReset(parts.slice(1), { user_type: 'collector', user_id: collector.id, phone: collector.phone, name: collector.first_name });
+  }
 
   // ── PIN validation with retry (max 3 attempts) ──
   let pinIndex = -1;
@@ -2515,9 +2724,16 @@ async function handleRegisteredUssd(parts, collector) {
   }
   if (pinIndex === -1) {
     const attempts = parts.length;
-    if (attempts >= 3) return 'END Too many wrong PINs.\nDial again to retry.';
+    if (attempts >= 3) {
+      await pool.query(
+        `INSERT INTO user_lockouts (user_type, user_id, phone, locked_until, reason)
+         VALUES ($1, $2, $3, NOW() + INTERVAL '30 minutes', 'wrong_pin_x3')`,
+        ['collector', collector.id, collector.phone]
+      );
+      return 'END Too many wrong PINs.\n\nAccount locked for 30 min.\nAfter lockout, dial\n*920*54# and select\n"0. Forgot PIN" to reset.';
+    }
     const remaining = 3 - attempts;
-    return `CON Wrong PIN.\n${remaining} attempt${remaining > 1 ? 's' : ''} remaining.\nEnter your PIN:`;
+    return `CON Wrong PIN. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
   }
 
   // ── Menu navigation (parts after valid PIN) ──
@@ -2691,7 +2907,12 @@ async function handleRegisteredUssd(parts, collector) {
 }
 
 async function handleAggregatorUssd(parts, aggregator) {
-  if (parts.length === 0) return `CON Welcome ${aggregator.name}!\n(Aggregator)\nEnter your PIN:`;
+  if (parts.length === 0) return `CON Circul Aggregator\nWelcome back, ${aggregator.name}!\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+
+  // ── Forgot PIN entry point ──
+  if (parts[0] === '0') {
+    return await requestPinReset(parts.slice(1), { user_type: 'aggregator', user_id: aggregator.id, phone: aggregator.phone, name: aggregator.name });
+  }
 
   // ── PIN validation with retry (max 3 attempts) ──
   let pinIndex = -1;
@@ -2703,9 +2924,16 @@ async function handleAggregatorUssd(parts, aggregator) {
   }
   if (pinIndex === -1) {
     const attempts = parts.length;
-    if (attempts >= 3) return 'END Too many wrong PINs.\nDial again to retry.';
+    if (attempts >= 3) {
+      await pool.query(
+        `INSERT INTO user_lockouts (user_type, user_id, phone, locked_until, reason)
+         VALUES ($1, $2, $3, NOW() + INTERVAL '30 minutes', 'wrong_pin_x3')`,
+        ['aggregator', aggregator.id, aggregator.phone]
+      );
+      return 'END Too many wrong PINs.\n\nAccount locked for 30 min.\nAfter lockout, dial\n*920*54# and select\n"0. Forgot PIN" to reset.';
+    }
     const remaining = 3 - attempts;
-    return `CON Wrong PIN.\n${remaining} attempt${remaining > 1 ? 's' : ''} remaining.\nEnter your PIN:`;
+    return `CON Wrong PIN. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
   }
 
   // ── Menu navigation (parts after valid PIN) ──
@@ -3081,7 +3309,12 @@ async function handleAggregatorPending(m, aggregator) {
 }
 
 async function handleAgentUssd(parts, agent) {
-  if (parts.length === 0) return `CON Welcome ${agent.first_name}!\n(Agent)\nEnter your PIN:`;
+  if (parts.length === 0) return `CON Circul Agent\nWelcome back, ${agent.first_name}!\nWorking for: ${agent.aggregator_name}\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+
+  // ── Forgot PIN entry point ──
+  if (parts[0] === '0') {
+    return await requestPinReset(parts.slice(1), { user_type: 'agent', user_id: agent.id, phone: agent.phone, name: agent.first_name });
+  }
 
   // ── PIN validation with retry (max 3 attempts) ──
   let pinIndex = -1;
@@ -3093,9 +3326,16 @@ async function handleAgentUssd(parts, agent) {
   }
   if (pinIndex === -1) {
     const attempts = parts.length;
-    if (attempts >= 3) return 'END Too many wrong PINs.\nDial again to retry.';
+    if (attempts >= 3) {
+      await pool.query(
+        `INSERT INTO user_lockouts (user_type, user_id, phone, locked_until, reason)
+         VALUES ($1, $2, $3, NOW() + INTERVAL '30 minutes', 'wrong_pin_x3')`,
+        ['agent', agent.id, agent.phone]
+      );
+      return 'END Too many wrong PINs.\n\nAccount locked for 30 min.\nAfter lockout, dial\n*920*54# and select\n"0. Forgot PIN" to reset.';
+    }
     const remaining = 3 - attempts;
-    return `CON Wrong PIN.\n${remaining} attempt${remaining > 1 ? 's' : ''} remaining.\nEnter your PIN:`;
+    return `CON Wrong PIN. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
   }
 
   const m = parts.slice(pinIndex + 1);
@@ -4260,39 +4500,67 @@ app.post('/api/ussd', async (req, res) => {
   try {
     const phoneVariants = getPhoneVariants(phone);
 
-    // 1. Check collectors first (largest USSD user group)
-    const collResult = await pool.query(
-      `SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+    // ── Lockout check (wrong-PIN 30-min or wrong-OTP) ──
+    const lockoutRow = await pool.query(
+      `SELECT locked_until FROM user_lockouts
+       WHERE phone=ANY($1) AND locked_until > NOW()
+       ORDER BY locked_until DESC LIMIT 1`,
       [phoneVariants]
     );
-    if (collResult.rows.length) {
-      collectorId = collResult.rows[0].id;
-      response = await handleRegisteredUssd(parts, collResult.rows[0]);
+    if (lockoutRow.rows.length) {
+      const until = new Date(lockoutRow.rows[0].locked_until);
+      const mins = Math.max(1, Math.ceil((until.getTime() - Date.now()) / 60000));
+      response = 'END Account locked. Try again in ' + mins + ' min.';
     } else {
-      // 2. Check aggregators
-      const aggResult = await pool.query(
-        `SELECT id, name, company, phone, pin, city, region FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      // ── Active forgot-PIN check (takes precedence over normal login) ──
+      const activeResetRow = await pool.query(
+        `SELECT * FROM pin_reset_codes
+         WHERE phone=ANY($1) AND used_at IS NULL AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
         [phoneVariants]
       );
-      if (aggResult.rows.length) {
-        aggregatorId = aggResult.rows[0].id;
-        response = await handleAggregatorUssd(parts, aggResult.rows[0]);
+      if (activeResetRow.rows.length) {
+        const row = activeResetRow.rows[0];
+        response = await handleForgotPinUssd(parts, row);
+        if (row.user_type === 'collector') collectorId = row.user_id;
+        else if (row.user_type === 'aggregator') aggregatorId = row.user_id;
+        else if (row.user_type === 'agent') agentId = row.user_id;
       } else {
-        // 3. Check agents
-        const agentResult = await pool.query(
-          `SELECT a.id, a.aggregator_id, a.first_name, a.last_name, a.phone, a.pin, a.city, a.region,
-                  agg.name AS aggregator_name, agg.phone AS aggregator_phone
-           FROM agents a
-           JOIN aggregators agg ON agg.id = a.aggregator_id
-           WHERE a.phone=ANY($1) AND a.is_active=true LIMIT 1`,
+        // 1. Check collectors first (largest USSD user group)
+        const collResult = await pool.query(
+          `SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
           [phoneVariants]
         );
-        if (agentResult.rows.length) {
-          agentId = agentResult.rows[0].id;
-          response = await handleAgentUssd(parts, agentResult.rows[0]);
+        if (collResult.rows.length) {
+          collectorId = collResult.rows[0].id;
+          response = await handleRegisteredUssd(parts, collResult.rows[0]);
         } else {
-          // 4. Unregistered — collector self-registration
-          response = await handleUnregisteredUssd(parts, phone);
+          // 2. Check aggregators
+          const aggResult = await pool.query(
+            `SELECT id, name, company, phone, pin, city, region FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+            [phoneVariants]
+          );
+          if (aggResult.rows.length) {
+            aggregatorId = aggResult.rows[0].id;
+            response = await handleAggregatorUssd(parts, aggResult.rows[0]);
+          } else {
+            // 3. Check agents
+            const agentResult = await pool.query(
+              `SELECT a.id, a.aggregator_id, a.first_name, a.last_name, a.phone, a.pin, a.city, a.region,
+                      agg.name AS aggregator_name, agg.phone AS aggregator_phone
+               FROM agents a
+               JOIN aggregators agg ON agg.id = a.aggregator_id
+               WHERE a.phone=ANY($1) AND a.is_active=true LIMIT 1`,
+              [phoneVariants]
+            );
+            if (agentResult.rows.length) {
+              agentId = agentResult.rows[0].id;
+              response = await handleAgentUssd(parts, agentResult.rows[0]);
+            } else {
+              // 4. Unregistered — collector self-registration
+              response = await handleUnregisteredUssd(parts, phone);
+            }
+          }
         }
       }
     }
@@ -5568,8 +5836,14 @@ app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
     params.push(req.params.id);
     const result = await pool.query(`UPDATE aggregators SET ${fields.join(',')} WHERE id=$${params.length} RETURNING id, name, company, phone, is_active, is_flagged, city`, params);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'aggregator_updated', target_type: 'aggregator',
+      target_id: parseInt(req.params.id, 10),
+      details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'pin') }
+    });
     res.json({ success: true, aggregator: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('[aggregators PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
@@ -5591,24 +5865,282 @@ app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
       params
     );
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'collector_updated', target_type: 'collector',
+      target_id: parseInt(req.params.id, 10),
+      details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'pin') }
+    });
     res.json({ success: true, collector: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('[collectors PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.put('/api/admin/collectors/:id/verify', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`UPDATE collectors SET id_verified=true, id_verified_at=NOW(), id_verified_by=$1 WHERE id=$2 RETURNING id, first_name, last_name, id_verified, id_verified_at`, [req.admin.email, req.params.id]);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Collector not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'collector_verified', target_type: 'collector',
+      target_id: parseInt(req.params.id, 10), details: {}
+    });
     res.json({ success: true, collector: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('[collectors/verify]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.put('/api/admin/aggregators/:id/verify', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`UPDATE aggregators SET id_verified=true, id_verified_at=NOW(), id_verified_by=$1 WHERE id=$2 RETURNING id, name, id_verified, id_verified_at`, [req.admin.email, req.params.id]);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Aggregator not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'aggregator_verified', target_type: 'aggregator',
+      target_id: parseInt(req.params.id, 10), details: {}
+    });
     res.json({ success: true, aggregator: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('[aggregators/verify]', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+app.get('/api/admin/agents', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT a.id, a.first_name, a.last_name, a.phone, a.city, a.region,
+              a.is_active, a.must_change_pin, a.created_at,
+              a.aggregator_id, agg.name AS aggregator_name
+       FROM agents a
+       LEFT JOIN aggregators agg ON agg.id = a.aggregator_id
+       ORDER BY a.created_at DESC`
+    );
+    res.json({ success: true, agents: result.rows });
+  } catch (err) { console.error('[admin/agents]', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ── Account-recovery admin endpoints ──
+
+// Phone-change: start — SMS an OTP to the prospective new number.
+app.post('/api/admin/users/:type/:id/change-phone-start', requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const { new_phone } = req.body;
+    if (!['collector','aggregator','agent'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid user type' });
+    }
+    if (!new_phone) return res.status(400).json({ success: false, message: 'new_phone required' });
+    const normalizedNew = normalizeGhanaPhone(new_phone);
+    if (!normalizedNew) return res.status(400).json({ success: false, message: 'Invalid phone format' });
+    const userTable = type === 'collector' ? 'collectors' : type === 'aggregator' ? 'aggregators' : 'agents';
+    const current = await pool.query(`SELECT id, phone FROM ${userTable} WHERE id = $1`, [id]);
+    if (!current.rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+    const currentPhone = current.rows[0].phone;
+    if (currentPhone === normalizedNew) return res.status(400).json({ success: false, message: 'New phone is same as current' });
+    // Cross-table collision — the new phone must not belong to anyone else
+    const variants = getPhoneVariants(normalizedNew);
+    const collisions = await pool.query(
+      `SELECT 'collector' AS t, id FROM collectors WHERE phone = ANY($1)
+       UNION ALL SELECT 'aggregator', id FROM aggregators WHERE phone = ANY($1)
+       UNION ALL SELECT 'agent', id FROM agents WHERE phone = ANY($1)`,
+      [variants]
+    );
+    if (collisions.rows.length) {
+      return res.status(409).json({
+        success: false, message: 'Phone already in use',
+        collision: collisions.rows[0]
+      });
+    }
+    // Invalidate any prior active code for this user
+    await pool.query(
+      `UPDATE phone_change_codes SET used_at = NOW()
+       WHERE user_type = $1 AND user_id = $2 AND used_at IS NULL`,
+      [type, id]
+    );
+    const code = generateOtp();
+    const codeHash = hashOtp(code);
+    const inserted = await pool.query(
+      `INSERT INTO phone_change_codes (user_type, user_id, old_phone, new_phone, code_hash, expires_at, initiated_by_admin_email)
+       VALUES ($1,$2,$3,$4,$5, NOW() + INTERVAL '10 minutes', $6)
+       RETURNING id`,
+      [type, id, currentPhone, normalizedNew, codeHash, req.admin.email]
+    );
+    try {
+      await notify(EVENTS.PHONE_CHANGE_OTP, normalizedNew, { code: code, minutes: 10 });
+    } catch (e) { console.warn('[change-phone-start] notify failed:', e.message); }
+    res.json({ success: true, code_id: inserted.rows[0].id });
+  } catch (err) {
+    console.error('[change-phone-start]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Phone-change: confirm — admin submits the code the user read back to them.
+app.post('/api/admin/users/:type/:id/change-phone-confirm', requireAdmin, async (req, res) => {
+  const { type, id } = req.params;
+  const { code_id, code } = req.body;
+  if (!['collector','aggregator','agent'].includes(type)) {
+    return res.status(400).json({ success: false, message: 'Invalid user type' });
+  }
+  if (!code_id || !code) return res.status(400).json({ success: false, message: 'code_id and code required' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const codeRow = await client.query(
+      `SELECT * FROM phone_change_codes
+       WHERE id = $1 AND user_type = $2 AND user_id = $3
+       FOR UPDATE`,
+      [code_id, type, id]
+    );
+    if (!codeRow.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Code not found' });
+    }
+    const row = codeRow.rows[0];
+    if (row.used_at) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Code already used' });
+    }
+    if (new Date(row.expires_at) < new Date()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Code expired' });
+    }
+    if (!verifyOtp(code, row.code_hash)) {
+      const remaining = row.attempts_remaining - 1;
+      if (remaining <= 0) {
+        await client.query(`UPDATE phone_change_codes SET attempts_remaining = 0, used_at = NOW() WHERE id = $1`, [code_id]);
+        await client.query('COMMIT');
+        return res.status(400).json({ success: false, message: 'Too many wrong attempts; code invalidated' });
+      }
+      await client.query(`UPDATE phone_change_codes SET attempts_remaining = $1 WHERE id = $2`, [remaining, code_id]);
+      await client.query('COMMIT');
+      return res.status(400).json({ success: false, message: 'Wrong code', attempts_remaining: remaining });
+    }
+    const userTable = type === 'collector' ? 'collectors' : type === 'aggregator' ? 'aggregators' : 'agents';
+    await client.query(
+      `UPDATE ${userTable} SET phone = $1 WHERE id = $2`,
+      [row.new_phone, id]
+    );
+    await client.query(`UPDATE phone_change_codes SET used_at = NOW() WHERE id = $1`, [code_id]);
+    await recordAdminAction(client, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'phone_changed', target_type: type,
+      target_id: parseInt(id, 10),
+      details: { old_phone: row.old_phone, new_phone: row.new_phone, code_id: code_id }
+    });
+    await client.query('COMMIT');
+    firePhoneChangeNotifications(type, parseInt(id, 10), row.old_phone, row.new_phone, req.admin.email).catch(err => {
+      console.error('[phone-change] notification error:', err.message);
+    });
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[change-phone-confirm]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+async function firePhoneChangeNotifications(userType, userId, oldPhone, newPhone, adminEmail) {
+  const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  await notify(EVENTS.PHONE_CHANGED_NEW, newPhone, {});
+  await notify(EVENTS.PHONE_CHANGED_OLD, oldPhone, { new_phone: newPhone, time: time, admin_email: adminEmail });
+
+  if (userType === 'collector') {
+    const r = await pool.query(
+      `SELECT a.phone, c.first_name || ' ' || COALESCE(c.last_name, '') AS name,
+              'COL-' || LPAD(c.id::text, 4, '0') AS code
+       FROM transactions t JOIN aggregators a ON a.id = t.aggregator_id JOIN collectors c ON c.id = t.collector_id
+       WHERE t.collector_id = $1 ORDER BY t.transaction_date DESC LIMIT 1`,
+      [userId]
+    );
+    if (r.rows.length && r.rows[0].phone) {
+      await notify(EVENTS.PHONE_CHANGED_UPSTREAM, r.rows[0].phone, {
+        user_name: r.rows[0].name.trim(), user_code: r.rows[0].code,
+        old_phone: oldPhone, new_phone: newPhone, time: time
+      });
+    }
+  } else if (userType === 'aggregator') {
+    const r = await pool.query(
+      `SELECT DISTINCT p.phone, a.name, 'AGG-' || LPAD(a.id::text, 4, '0') AS code
+       FROM pending_transactions pt JOIN processors p ON p.id = pt.processor_id JOIN aggregators a ON a.id = pt.aggregator_id
+       WHERE pt.aggregator_id = $1 AND pt.created_at > NOW() - INTERVAL '90 days' AND p.phone IS NOT NULL`,
+      [userId]
+    );
+    for (const row of r.rows) {
+      await notify(EVENTS.PHONE_CHANGED_UPSTREAM, row.phone, {
+        user_name: row.name, user_code: row.code,
+        old_phone: oldPhone, new_phone: newPhone, time: time
+      });
+    }
+  } else if (userType === 'agent') {
+    const r = await pool.query(
+      `SELECT a.phone, ag.first_name || ' ' || COALESCE(ag.last_name, '') AS name,
+              'AGT-' || LPAD(ag.id::text, 4, '0') AS code
+       FROM agents ag JOIN aggregators a ON a.id = ag.aggregator_id WHERE ag.id = $1`,
+      [userId]
+    );
+    if (r.rows.length && r.rows[0].phone) {
+      await notify(EVENTS.PHONE_CHANGED_UPSTREAM, r.rows[0].phone, {
+        user_name: r.rows[0].name.trim(), user_code: r.rows[0].code,
+        old_phone: oldPhone, new_phone: newPhone, time: time
+      });
+    }
+  }
+}
+
+// Admin-initiated PIN reset. Flags must_change_pin and SMSes the user, who
+// then self-serves via the USSD forgot-PIN flow. Admin never issues a PIN.
+app.post('/api/admin/users/:type/:id/reset-pin', requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    if (!['collector','aggregator','agent'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid user type' });
+    }
+    const userTable = type === 'collector' ? 'collectors' : type === 'aggregator' ? 'aggregators' : 'agents';
+    const r = await pool.query(`SELECT phone FROM ${userTable} WHERE id = $1`, [id]);
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+    const phone = r.rows[0].phone;
+    await pool.query(`UPDATE ${userTable} SET must_change_pin = true WHERE id = $1`, [id]);
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'pin_reset_triggered', target_type: type,
+      target_id: parseInt(id, 10), details: {}
+    });
+    const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    notify(EVENTS.ADMIN_PIN_RESET_TRIGGERED, phone, { time: time }).catch(err => {
+      console.error('[admin-pin-reset] notification error:', err.message);
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[reset-pin]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Admin audit log viewer — filterable, paginated.
+app.get('/api/admin/audit-log', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const offset = parseInt(req.query.offset || '0', 10);
+    const filters = [];
+    const params = [];
+    if (req.query.actor_email) { params.push(req.query.actor_email); filters.push(`actor_email = $${params.length}`); }
+    if (req.query.target_type)  { params.push(req.query.target_type);  filters.push(`target_type = $${params.length}`); }
+    if (req.query.target_id)    { params.push(parseInt(req.query.target_id, 10)); filters.push(`target_id = $${params.length}`); }
+    if (req.query.action)       { params.push(req.query.action);       filters.push(`action = $${params.length}`); }
+    const where = filters.length ? 'WHERE ' + filters.join(' AND ') : '';
+    params.push(limit); params.push(offset);
+    const rows = await pool.query(
+      `SELECT id, actor_type, actor_email, action, target_type, target_id, details, created_at
+       FROM admin_audit_log ${where}
+       ORDER BY created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    res.json({ success: true, entries: rows.rows, limit: limit, offset: offset });
+  } catch (err) {
+    console.error('[audit-log]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 app.get('/api/admin/processors', requireAdmin, async (req, res) => {
