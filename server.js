@@ -5,7 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 const CirculRoles = require('./shared/roles');
-const { EVENTS, notify } = require('./shared/notifications');
+const { EVENTS, notify, notifyAdmin } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
 const { getPendingRatings, createRating } = require('./shared/ratings');
 const {
@@ -2410,12 +2410,27 @@ function parsePaginatedSelection(menuParts) {
 }
 
 const USSD_MATERIALS = { '1': 'PET', '2': 'HDPE', '3': 'LDPE', '4': 'PP' };
-const USSD_CITIES = {
-  '1': { city: 'Accra', region: 'Greater Accra' },
-  '2': { city: 'Kumasi', region: 'Ashanti' },
-  '3': { city: 'Tamale', region: 'Northern' },
-  '4': { city: 'Takoradi', region: 'Western' }
-};
+// Pilot regional capitals — 8 cities across 3 paginated USSD pages (3 + 3 + 2 layout)
+// matching the parsePaginatedSelection helper convention. Add post-pilot regional
+// capitals (Wa / Bolgatanga / Techiman / Sekondi / Dambai / Nalerigu / Damongo / Goaso)
+// when geographic footprint warrants it.
+const USSD_CITIES_LIST = [
+  { city: 'Accra',      region: 'Greater Accra' },
+  { city: 'Kumasi',     region: 'Ashanti' },
+  { city: 'Tamale',     region: 'Northern' },
+  { city: 'Takoradi',   region: 'Western' },
+  { city: 'Cape Coast', region: 'Central' },
+  { city: 'Koforidua',  region: 'Eastern' },
+  { city: 'Ho',         region: 'Volta' },
+  { city: 'Sunyani',    region: 'Bono' }
+];
+
+// Backwards-compat object form keyed by 1-based string index for any code still
+// indexing by parts[N] directly (legacy non-paginated callers).
+const USSD_CITIES = USSD_CITIES_LIST.reduce(function (acc, c, i) {
+  acc[String(i + 1)] = c;
+  return acc;
+}, {});
 
 async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
