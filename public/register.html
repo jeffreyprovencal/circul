@@ -44,6 +44,22 @@ input[type=number]{-moz-appearance:textfield}
 .reg-nav-link:hover{color:var(--text-1)}
 .reg-footer{text-align:center;padding:16px;font-size:0.7rem;color:var(--text-3)}
 
+/* ── Disclosure modal ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-backdrop.hidden{display:none}
+.modal-disc{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);max-width:560px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-disc-head{padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal-disc-head h2{margin:0;font-size:1rem;font-weight:700;color:var(--accent)}
+.modal-disc-body{padding:18px 20px;font-size:0.85rem;line-height:1.55;color:var(--text-1)}
+.modal-disc-body h3{font-size:0.82rem;font-weight:700;color:var(--text-1);margin:16px 0 6px}
+.modal-disc-body p{margin:6px 0;color:var(--text-2)}
+.modal-disc-body ul{margin:6px 0 6px 20px;color:var(--text-2)}
+.modal-disc-body li{margin-bottom:6px}
+.modal-disc-body .fine{color:var(--text-3);font-size:0.78rem;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
+.modal-disc-foot{padding:14px 20px;border-top:1px solid var(--border);text-align:right}
+.modal-disc-foot .btn-ack{padding:9px 18px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:700;font-size:0.82rem;cursor:pointer}
+.modal-disc-foot .btn-ack:hover{background:var(--accent-hover)}
+
 /* ── Info box (request form) ── */
 .info-box{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:18px;font-size:0.8rem;color:var(--text-2);line-height:1.6}
 
@@ -190,6 +206,28 @@ input[type=number]{-moz-appearance:textfield}
   Every gram tracked. Every tonne traceable.
 </div>
 
+<!-- Trust-model disclosure shown on successful free-tier registration -->
+<div class="modal-backdrop hidden" id="disclosureModal">
+  <div class="modal-disc">
+    <div class="modal-disc-head"><h2>Your Circul account</h2></div>
+    <div class="modal-disc-body">
+      <p>Your phone number is your Circul identity. We use SMS one-time codes to protect your account, but anyone with access to your SIM can receive these codes.</p>
+      <h3>Protect your account:</h3>
+      <ul>
+        <li>Use a PIN you can remember but others wouldn't guess (not 0000, 1234, your birth year).</li>
+        <li>If you lose your phone, call Circul support or your aggregator immediately so we can freeze your account.</li>
+        <li>If you get an unexpected "PIN reset" or "phone change" SMS, someone else tried to change your account — call support now.</li>
+      </ul>
+      <h3>If you lose your phone entirely and get a new number:</h3>
+      <p>Contact Circul support. We can move your history to your new number after verifying who you are. Your transactions, ratings, and passport are kept on your account, not on your phone.</p>
+      <p class="fine">Your aggregator is notified every time your PIN is reset or your phone number is changed. They can flag suspicious activity and withhold payouts until resolved.</p>
+    </div>
+    <div class="modal-disc-foot">
+      <button class="btn-ack" type="button" onclick="acknowledgeDisclosure()">I understand — continue</button>
+    </div>
+  </div>
+</div>
+
 <script src="/shared/roles.js"></script>
 <script>
     var currentRole = 'collector';
@@ -203,6 +241,11 @@ input[type=number]{-moz-appearance:textfield}
       document.getElementById('form-free').classList.toggle('visible', isFree);
       document.getElementById('form-request').classList.toggle('visible', !isFree);
       clearErrors();
+    }
+
+    function acknowledgeDisclosure() {
+      document.getElementById('disclosureModal').classList.add('hidden');
+      window.location.href = '/login.html';
     }
 
     function clearErrors() {
@@ -272,7 +315,7 @@ input[type=number]{-moz-appearance:textfield}
           btn.classList.remove('loading');
           btn.textContent = 'Create account →';
           if (res.status === 201) {
-            window.location.href = '/login.html';
+            document.getElementById('disclosureModal').classList.remove('hidden');
           } else if (res.status === 409) {
             showError('error-free', 'This phone number is already registered.');
           } else {

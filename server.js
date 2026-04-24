@@ -358,7 +358,7 @@ app.patch('/api/collectors/:id/change-pin', requireAuth, async (req, res) => {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     if (parseInt(req.params.id) !== req.user.id) return res.status(403).json({ success: false, message: 'Can only change your own PIN' });
     const { pin } = req.body;
-    if (!pin || !/^\d{4}$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be exactly 4 digits' });
+    if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
     const hashedPin = await hashPassword(pin);
     await pool.query(`UPDATE collectors SET pin=$1, must_change_pin=false, updated_at=NOW() WHERE id=$2`, [hashedPin, req.user.id]);
     res.json({ success: true, message: 'PIN changed successfully' });
@@ -2443,7 +2443,7 @@ async function handleUnregisteredUssd(parts, phone) {
           `INSERT INTO collectors (first_name, last_name, phone, pin, city, region) VALUES ($1,$2,$3,$4,$5,$6)`,
           [firstName, lastName, phone, hashedPin, cityData.city, cityData.region]
         );
-        return `END Registered! Welcome ${firstName}.\nCity: ${cityData.city}\nDial again to start.`;
+        return `END Registered! Welcome ${firstName}.\nCity: ${cityData.city}\n\nYour phone = your Circul ID. Keep PIN secret. Lose phone? Call your aggregator.\n\nDial again.`;
       } catch (err) {
         if (err.code === '23505') return 'END Phone already registered.\nDial again to login.';
         throw err;
@@ -6087,11 +6087,16 @@ app.get('/api/admin/aggregators', requireAdmin, async (req, res) => {
 app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
   try {
     const { name, company, phone, pin, is_active, is_flagged, city, region, country } = req.body;
+    if (pin !== undefined && (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin))) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    }
+    let hashedPin;
+    if (pin !== undefined) hashedPin = await hashPassword(pin);
     const fields = [], params = [];
     if (name !== undefined) { params.push(name); fields.push(`name=$${params.length}`); }
     if (company !== undefined) { params.push(company); fields.push(`company=$${params.length}`); }
     if (phone !== undefined) { params.push(phone); fields.push(`phone=$${params.length}`); }
-    if (pin !== undefined) { params.push(pin); fields.push(`pin=$${params.length}`); }
+    if (pin !== undefined) { params.push(hashedPin); fields.push(`pin=$${params.length}`); }
     if (is_active !== undefined) { params.push(is_active); fields.push(`is_active=$${params.length}`); }
     if (is_flagged !== undefined) { params.push(is_flagged); fields.push(`is_flagged=$${params.length}`); }
     if (city !== undefined) { params.push(city); fields.push(`city=$${params.length}`); }
@@ -6107,6 +6112,20 @@ app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
       target_id: parseInt(req.params.id, 10),
       details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'pin') }
     });
+    if (pin !== undefined) {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const targetPhone = result.rows[0].phone;
+      if (targetPhone) {
+        notify(EVENTS.ADMIN_PIN_CHANGED, targetPhone, { time: time }).catch(err => {
+          console.warn('[admin-pin-changed] notify failed:', err.message);
+        });
+      }
+      await recordAdminAction(null, {
+        actor_type: 'admin', actor_email: req.admin.email,
+        action: 'admin_pin_changed', target_type: 'aggregator',
+        target_id: parseInt(req.params.id, 10), details: {}
+      });
+    }
     res.json({ success: true, aggregator: result.rows[0] });
   } catch (err) { console.error('[aggregators PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -6114,11 +6133,16 @@ app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
 app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
   try {
     const { first_name, last_name, phone, pin, is_active, is_flagged, city, region } = req.body;
+    if (pin !== undefined && (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin))) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    }
+    let hashedPin;
+    if (pin !== undefined) hashedPin = await hashPassword(pin);
     const fields = [], params = [];
     if (first_name  !== undefined) { params.push(first_name);  fields.push(`first_name=$${params.length}`); }
     if (last_name   !== undefined) { params.push(last_name);   fields.push(`last_name=$${params.length}`); }
     if (phone       !== undefined) { params.push(phone);       fields.push(`phone=$${params.length}`); }
-    if (pin         !== undefined) { params.push(pin);         fields.push(`pin=$${params.length}`); }
+    if (pin         !== undefined) { params.push(hashedPin);   fields.push(`pin=$${params.length}`); }
     if (is_active   !== undefined) { params.push(is_active);   fields.push(`is_active=$${params.length}`); }
     if (is_flagged  !== undefined) { params.push(is_flagged);  fields.push(`is_flagged=$${params.length}`); }
     if (city        !== undefined) { params.push(city);        fields.push(`city=$${params.length}`); }
@@ -6136,6 +6160,20 @@ app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
       target_id: parseInt(req.params.id, 10),
       details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'pin') }
     });
+    if (pin !== undefined) {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const targetPhone = result.rows[0].phone;
+      if (targetPhone) {
+        notify(EVENTS.ADMIN_PIN_CHANGED, targetPhone, { time: time }).catch(err => {
+          console.warn('[admin-pin-changed] notify failed:', err.message);
+        });
+      }
+      await recordAdminAction(null, {
+        actor_type: 'admin', actor_email: req.admin.email,
+        action: 'admin_pin_changed', target_type: 'collector',
+        target_id: parseInt(req.params.id, 10), details: {}
+      });
+    }
     res.json({ success: true, collector: result.rows[0] });
   } catch (err) { console.error('[collectors PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -6408,6 +6446,56 @@ app.get('/api/admin/audit-log', requireAdmin, async (req, res) => {
   }
 });
 
+// List active user lockouts with resolved display names — for the admin UI.
+app.get('/api/admin/lockouts', requireAdmin, async (req, res) => {
+  try {
+    const rows = await pool.query(
+      `SELECT l.id, l.user_type, l.user_id, l.phone, l.reason, l.locked_until, l.created_at,
+              CASE l.user_type
+                WHEN 'collector'  THEN (SELECT first_name || ' ' || COALESCE(last_name, '') FROM collectors  WHERE id = l.user_id)
+                WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id = l.user_id)
+                WHEN 'agent'      THEN (SELECT first_name || ' ' || COALESCE(last_name, '') FROM agents      WHERE id = l.user_id)
+              END AS user_name
+         FROM user_lockouts l
+        WHERE l.locked_until > NOW()
+        ORDER BY l.locked_until ASC`
+    );
+    res.json({ success: true, lockouts: rows.rows });
+  } catch (err) {
+    console.error('[admin/lockouts]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Manually clear an active lockout + audit. No-op if the user isn't locked.
+app.delete('/api/admin/users/:type/:id/lockout', requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    if (!['collector','aggregator','agent'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid user type' });
+    }
+    const result = await pool.query(
+      `DELETE FROM user_lockouts WHERE user_type = $1 AND user_id = $2 AND locked_until > NOW() RETURNING id, phone, reason`,
+      [type, parseInt(id, 10)]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, message: 'No active lockout for this user' });
+    }
+    await recordAdminAction(null, {
+      actor_type: 'admin',
+      actor_email: req.admin.email,
+      action: 'lockout_cleared',
+      target_type: type,
+      target_id: parseInt(id, 10),
+      details: { lockout_id: result.rows[0].id, reason: result.rows[0].reason, phone: result.rows[0].phone }
+    });
+    res.json({ success: true, cleared: result.rows[0] });
+  } catch (err) {
+    console.error('[admin/lockout-clear]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.get('/api/admin/processors', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`SELECT id, name, company, email, phone, city, region, is_active, created_at FROM processors ORDER BY created_at DESC`);
@@ -6429,8 +6517,14 @@ app.put('/api/admin/processors/:id', requireAdmin, async (req, res) => {
     params.push(req.params.id);
     const result = await pool.query(`UPDATE processors SET ${fields.join(',')} WHERE id=$${params.length} RETURNING id, name, company, email, is_active`, params);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'processor_updated', target_type: 'processor',
+      target_id: parseInt(req.params.id, 10),
+      details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'password' && f !== 'password_hash') }
+    });
     res.json({ success: true, processor: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('[processors PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.get('/api/admin/converters', requireAdmin, async (req, res) => {
@@ -6986,6 +7080,11 @@ app.post('/api/admin/approve', requireAdmin, async (req, res) => {
     const table = CirculRoles.TABLE_MAP[role];
     if (!table) return res.status(400).json({ success: false, message: 'Invalid role' });
     await pool.query(`UPDATE ${table} SET is_active=true WHERE id=$1`, [id]);
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'role_access_approved', target_type: role || 'unknown',
+      target_id: parseInt(id, 10), details: { role: role }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('Approve error:', err);
@@ -6999,6 +7098,11 @@ app.post('/api/admin/reject', requireAdmin, async (req, res) => {
     const table = CirculRoles.TABLE_MAP[role];
     if (!table) return res.status(400).json({ success: false, message: 'Invalid role' });
     await pool.query(`DELETE FROM ${table} WHERE id=$1`, [id]);
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'role_access_rejected', target_type: role || 'unknown',
+      target_id: parseInt(id, 10), details: { role: role }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('Reject error:', err);
@@ -7197,7 +7301,7 @@ app.post('/api/agents', requireAuth, async (req, res) => {
     if (!first_name || !last_name || !phone || !pin) {
       return res.status(400).json({ success: false, message: 'first_name, last_name, phone, pin required' });
     }
-    if (pin.length < 4) return res.status(400).json({ success: false, message: 'PIN must be at least 4 digits' });
+    if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
     const hashedPin = await hashPassword(pin.trim());
     const result = await pool.query(
       `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card)

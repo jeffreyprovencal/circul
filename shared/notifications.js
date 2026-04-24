@@ -55,7 +55,8 @@ var EVENTS = {
   PHONE_CHANGED_NEW:             'phone_changed_new',
   PHONE_CHANGED_OLD:             'phone_changed_old',
   PHONE_CHANGED_UPSTREAM:        'phone_changed_upstream',
-  ADMIN_PIN_RESET_TRIGGERED:     'admin_pin_reset_triggered'
+  ADMIN_PIN_RESET_TRIGGERED:     'admin_pin_reset_triggered',
+  ADMIN_PIN_CHANGED:             'admin_pin_changed'
 };
 
 // Security events bypass the daily SMS cap — an account-recovery alert that
@@ -70,7 +71,8 @@ var SECURITY_EVENTS = new Set([
   EVENTS.PHONE_CHANGED_NEW,
   EVENTS.PHONE_CHANGED_OLD,
   EVENTS.PHONE_CHANGED_UPSTREAM,
-  EVENTS.ADMIN_PIN_RESET_TRIGGERED
+  EVENTS.ADMIN_PIN_RESET_TRIGGERED,
+  EVENTS.ADMIN_PIN_CHANGED
 ]);
 
 var TEMPLATES = {
@@ -147,6 +149,9 @@ var TEMPLATES = {
   },
   admin_pin_reset_triggered: function (d) {
     return 'Circul admin triggered a PIN reset for your account at ' + d.time + '. Dial *920*54# and follow the prompts to set a new PIN.\n\nIf you didn\'t request this, call Circul support immediately.';
+  },
+  admin_pin_changed: function (d) {
+    return 'Your Circul PIN was changed by Circul admin at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
   }
 };
 
