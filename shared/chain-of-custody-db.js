@@ -43,7 +43,7 @@ const {
   ROOT_TYPES
 } = require('./chain-of-custody');
 
-const WINDOW_DAYS = 14;
+const WINDOW_DAYS = 30;
 
 // ── InsufficientSourceError ────────────────────────────────────────────────
 //

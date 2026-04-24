@@ -89,7 +89,7 @@
 
   function computeBackfillPlan(rowsIn, opts) {
     opts = opts || {};
-    var windowDays = opts.windowDays != null ? opts.windowDays : 14;
+    var windowDays = opts.windowDays != null ? opts.windowDays : 30;
     var uuid = opts.uuid || defaultUuid;
     var windowMs = windowDays * DAY_MS;
 
