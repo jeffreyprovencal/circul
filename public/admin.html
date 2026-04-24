@@ -39,12 +39,8 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
 .stats-strip{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:var(--gap)}
 .stats-strip .stat{flex:1;min-width:120px}
 
-/* ── User management tabs ── */
-.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border)}
-.tab{padding:8px 16px;background:transparent;border:none;color:var(--text-3);font-family:var(--font);font-size:0.82rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
-.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.tab:hover{color:var(--text-1)}
-.user-row-actions{display:flex;gap:6px}
+/* ── User management tabs — styling inherited from shared.css (.tabs + .tab + .tab.on) ── */
+.user-row-actions{display:flex;gap:6px;margin:12px 0}
 .btn-small{padding:4px 10px;font-size:0.72rem;font-weight:600;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--text-1);cursor:pointer;font-family:var(--font)}
 .btn-small:hover{border-color:var(--accent);color:var(--accent)}
 
@@ -197,7 +193,7 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       </div>
     </div>
     <div class="tabs" id="userTabs">
-      <button class="tab active" data-tab="collectors" onclick="switchUserTab('collectors')">Collectors</button>
+      <button class="tab on" data-tab="collectors" onclick="switchUserTab('collectors')">Collectors</button>
       <button class="tab" data-tab="aggregators" onclick="switchUserTab('aggregators')">Aggregators</button>
       <button class="tab" data-tab="agents" onclick="switchUserTab('agents')">Agents</button>
     </div>
@@ -619,7 +615,7 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     function switchUserTab(tab) {
       currentUserTab = tab;
       document.querySelectorAll('#userTabs .tab').forEach(function(t) {
-        t.classList.toggle('active', t.dataset.tab === tab);
+        t.classList.toggle('on', t.dataset.tab === tab);
       });
       loadUserList(tab);
     }
