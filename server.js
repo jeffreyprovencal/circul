@@ -6214,8 +6214,14 @@ app.put('/api/admin/processors/:id', requireAdmin, async (req, res) => {
     params.push(req.params.id);
     const result = await pool.query(`UPDATE processors SET ${fields.join(',')} WHERE id=$${params.length} RETURNING id, name, company, email, is_active`, params);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'processor_updated', target_type: 'processor',
+      target_id: parseInt(req.params.id, 10),
+      details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'password' && f !== 'password_hash') }
+    });
     res.json({ success: true, processor: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { console.error('[processors PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
 app.get('/api/admin/converters', requireAdmin, async (req, res) => {
@@ -6762,6 +6768,11 @@ app.post('/api/admin/approve', requireAdmin, async (req, res) => {
     const table = CirculRoles.TABLE_MAP[role];
     if (!table) return res.status(400).json({ success: false, message: 'Invalid role' });
     await pool.query(`UPDATE ${table} SET is_active=true WHERE id=$1`, [id]);
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'role_access_approved', target_type: role || 'unknown',
+      target_id: parseInt(id, 10), details: { role: role }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('Approve error:', err);
@@ -6775,6 +6786,11 @@ app.post('/api/admin/reject', requireAdmin, async (req, res) => {
     const table = CirculRoles.TABLE_MAP[role];
     if (!table) return res.status(400).json({ success: false, message: 'Invalid role' });
     await pool.query(`DELETE FROM ${table} WHERE id=$1`, [id]);
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'role_access_rejected', target_type: role || 'unknown',
+      target_id: parseInt(id, 10), details: { role: role }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('Reject error:', err);
