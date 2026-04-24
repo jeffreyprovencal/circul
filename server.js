@@ -6342,6 +6342,57 @@ app.post('/api/admin/users/:type/:id/change-phone-confirm', requireAdmin, async 
   }
 });
 
+// Admin force-set phone. Skips OTP — ops-only path (demo cleanup, migration).
+// Distinct audit action (`admin_forced_phone_change`) so elevated-risk events
+// are filterable separately from the normal OTP-verified phone-change flow.
+app.post('/api/admin/users/:type/:id/force-set-phone', requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const { new_phone, confirm } = req.body;
+    if (!['collector','aggregator','agent'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid user type' });
+    }
+    if (confirm !== true) {
+      return res.status(400).json({ success: false, message: 'Confirmation required (pass { confirm: true })' });
+    }
+    let normalizedNew = null;
+    if (new_phone !== null && new_phone !== undefined && new_phone !== '') {
+      normalizedNew = normalizeGhanaPhone(new_phone);
+      if (!normalizedNew) return res.status(400).json({ success: false, message: 'Invalid phone format' });
+    }
+    const userTable = type === 'collector' ? 'collectors' : type === 'aggregator' ? 'aggregators' : 'agents';
+    const selfKey = id + ':' + type;
+    if (normalizedNew) {
+      const variants = getPhoneVariants(normalizedNew);
+      const collisions = await pool.query(
+        `SELECT 'collector' AS t, id FROM collectors WHERE phone = ANY($1) AND id::text || ':collector' != $2
+         UNION ALL SELECT 'aggregator', id FROM aggregators WHERE phone = ANY($1) AND id::text || ':aggregator' != $2
+         UNION ALL SELECT 'agent',      id FROM agents      WHERE phone = ANY($1) AND id::text || ':agent' != $2`,
+        [variants, selfKey]
+      );
+      if (collisions.rows.length) {
+        return res.status(409).json({ success: false, message: 'Phone already in use', collision: collisions.rows[0] });
+      }
+    }
+    const before = await pool.query(`SELECT phone FROM ${userTable} WHERE id = $1`, [id]);
+    if (!before.rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+    const oldPhone = before.rows[0].phone;
+    await pool.query(`UPDATE ${userTable} SET phone = $1 WHERE id = $2`, [normalizedNew, id]);
+    await recordAdminAction(null, {
+      actor_type: 'admin',
+      actor_email: req.admin.email,
+      action: 'admin_forced_phone_change',
+      target_type: type,
+      target_id: parseInt(id, 10),
+      details: { old_phone: oldPhone, new_phone: normalizedNew, skipped_otp: true }
+    });
+    res.json({ success: true, new_phone: normalizedNew, old_phone: oldPhone });
+  } catch (err) {
+    console.error('[force-set-phone]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 async function firePhoneChangeNotifications(userType, userId, oldPhone, newPhone, adminEmail) {
   const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   await notify(EVENTS.PHONE_CHANGED_NEW, newPhone, {});

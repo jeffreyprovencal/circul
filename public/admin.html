@@ -66,6 +66,11 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
 .btn-primary:disabled{opacity:0.5;cursor:not-allowed}
 .btn-danger{padding:8px 16px;background:transparent;color:#f87171;border:1px solid #f87171;border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
 .btn-danger:hover{background:rgba(239,68,68,0.1)}
+.btn-warning{padding:8px 16px;background:transparent;color:#ffc107;border:1px solid #ffc107;border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
+.btn-warning:hover{background:rgba(255,193,7,0.1)}
+.btn-secondary{padding:8px 16px;background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
+.btn-secondary:hover{border-color:var(--text-1);color:var(--text-1)}
+.warn{padding:10px 12px;background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:var(--r-sm);color:#ffc107;font-size:0.78rem;margin:8px 0}
 
 /* ── Audit log ── */
 .audit-row{padding:10px 12px;border-bottom:1px solid var(--border);font-size:0.78rem}
@@ -726,6 +731,7 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       html += '<div class="action-row">' +
         '<button class="btn-primary" onclick="openPhoneChange(\'' + type + '\',' + id + ',\'' + esc(user.phone || '') + '\')">Change phone</button>' +
         '<button class="btn-danger" onclick="openResetPin(\'' + type + '\',' + id + ',\'' + esc(name) + '\')">Reset PIN</button>' +
+        '<button class="btn-warning" onclick="openForceSetPhone(\'' + type + '\',' + id + ',\'' + esc(user.phone || '') + '\')">Force Set Phone (admin)</button>' +
       '</div>';
       document.getElementById('userModalBody').innerHTML = html;
       openModal('userModal');
@@ -838,6 +844,55 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
         }
         closeModal('pinModal');
         showToast('PIN reset triggered');
+        loadUserList(currentUserTab);
+        loadAuditLog();
+      });
+    }
+
+    /* ── Force Set Phone (admin-forced, skips OTP — writes distinct audit action) ── */
+
+    function openForceSetPhone(type, id, currentPhone) {
+      closeModal('userModal');
+      var body = document.getElementById('phoneModalBody');
+      document.querySelector('#phoneModal .modal-title').textContent = 'Force set phone';
+      body.innerHTML =
+        '<div class="warn">\u26A0 This bypasses OTP verification. Use only for admin operations (demo cleanup, migration, emergencies). Regular phone changes should use "Change phone" instead.</div>' +
+        '<div class="hint">Current phone: <span style="font-family:\'Courier New\',monospace">' + esc(currentPhone || '(none)') + '</span></div>' +
+        '<label>New phone (leave empty to clear)</label>' +
+        '<input id="forcePhoneInput" type="tel" placeholder="e.g. 0244998877 or blank" autocomplete="off">' +
+        '<label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:0.78rem"><input type="checkbox" id="forcePhoneConfirm"> I understand this skips OTP verification and writes a dedicated audit row.</label>' +
+        '<div class="error hidden" id="forcePhoneErr"></div>' +
+        '<div class="action-row">' +
+          '<button class="btn-warning" id="forcePhoneBtn" onclick="submitForceSetPhone(\'' + type + '\',' + id + ')">Force set</button>' +
+          '<button class="btn-small" onclick="closeModal(\'phoneModal\')">Cancel</button>' +
+        '</div>';
+      openModal('phoneModal');
+    }
+
+    function submitForceSetPhone(type, id) {
+      var newPhone = (document.getElementById('forcePhoneInput').value || '').trim();
+      var confirmed = document.getElementById('forcePhoneConfirm').checked;
+      var err = document.getElementById('forcePhoneErr');
+      var btn = document.getElementById('forcePhoneBtn');
+      err.classList.add('hidden');
+      if (!confirmed) {
+        err.textContent = 'You must confirm you understand OTP is skipped.';
+        err.classList.remove('hidden');
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'Setting\u2026';
+      adminFetch('/api/admin/users/' + type + '/' + id + '/force-set-phone', {
+        method: 'POST',
+        body: JSON.stringify({ new_phone: newPhone === '' ? null : newPhone, confirm: true })
+      }).then(function(res) {
+        btn.disabled = false; btn.textContent = 'Force set';
+        if (!res.ok || !res.body.success) {
+          err.textContent = (res.body && res.body.message) || 'Failed';
+          err.classList.remove('hidden');
+          return;
+        }
+        closeModal('phoneModal');
+        showToast('Phone force-set');
         loadUserList(currentUserTab);
         loadAuditLog();
       });
