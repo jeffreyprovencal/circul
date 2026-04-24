@@ -5822,11 +5822,16 @@ app.get('/api/admin/aggregators', requireAdmin, async (req, res) => {
 app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
   try {
     const { name, company, phone, pin, is_active, is_flagged, city, region, country } = req.body;
+    if (pin !== undefined && (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin))) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    }
+    let hashedPin;
+    if (pin !== undefined) hashedPin = await hashPassword(pin);
     const fields = [], params = [];
     if (name !== undefined) { params.push(name); fields.push(`name=$${params.length}`); }
     if (company !== undefined) { params.push(company); fields.push(`company=$${params.length}`); }
     if (phone !== undefined) { params.push(phone); fields.push(`phone=$${params.length}`); }
-    if (pin !== undefined) { params.push(pin); fields.push(`pin=$${params.length}`); }
+    if (pin !== undefined) { params.push(hashedPin); fields.push(`pin=$${params.length}`); }
     if (is_active !== undefined) { params.push(is_active); fields.push(`is_active=$${params.length}`); }
     if (is_flagged !== undefined) { params.push(is_flagged); fields.push(`is_flagged=$${params.length}`); }
     if (city !== undefined) { params.push(city); fields.push(`city=$${params.length}`); }
@@ -5842,6 +5847,20 @@ app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
       target_id: parseInt(req.params.id, 10),
       details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'pin') }
     });
+    if (pin !== undefined) {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const targetPhone = result.rows[0].phone;
+      if (targetPhone) {
+        notify(EVENTS.ADMIN_PIN_CHANGED, targetPhone, { time: time }).catch(err => {
+          console.warn('[admin-pin-changed] notify failed:', err.message);
+        });
+      }
+      await recordAdminAction(null, {
+        actor_type: 'admin', actor_email: req.admin.email,
+        action: 'admin_pin_changed', target_type: 'aggregator',
+        target_id: parseInt(req.params.id, 10), details: {}
+      });
+    }
     res.json({ success: true, aggregator: result.rows[0] });
   } catch (err) { console.error('[aggregators PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -5849,11 +5868,16 @@ app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
 app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
   try {
     const { first_name, last_name, phone, pin, is_active, is_flagged, city, region } = req.body;
+    if (pin !== undefined && (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin))) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    }
+    let hashedPin;
+    if (pin !== undefined) hashedPin = await hashPassword(pin);
     const fields = [], params = [];
     if (first_name  !== undefined) { params.push(first_name);  fields.push(`first_name=$${params.length}`); }
     if (last_name   !== undefined) { params.push(last_name);   fields.push(`last_name=$${params.length}`); }
     if (phone       !== undefined) { params.push(phone);       fields.push(`phone=$${params.length}`); }
-    if (pin         !== undefined) { params.push(pin);         fields.push(`pin=$${params.length}`); }
+    if (pin         !== undefined) { params.push(hashedPin);   fields.push(`pin=$${params.length}`); }
     if (is_active   !== undefined) { params.push(is_active);   fields.push(`is_active=$${params.length}`); }
     if (is_flagged  !== undefined) { params.push(is_flagged);  fields.push(`is_flagged=$${params.length}`); }
     if (city        !== undefined) { params.push(city);        fields.push(`city=$${params.length}`); }
@@ -5871,6 +5895,20 @@ app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
       target_id: parseInt(req.params.id, 10),
       details: { updated_fields: fields.map(f => f.split('=')[0]).filter(f => f !== 'pin') }
     });
+    if (pin !== undefined) {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const targetPhone = result.rows[0].phone;
+      if (targetPhone) {
+        notify(EVENTS.ADMIN_PIN_CHANGED, targetPhone, { time: time }).catch(err => {
+          console.warn('[admin-pin-changed] notify failed:', err.message);
+        });
+      }
+      await recordAdminAction(null, {
+        actor_type: 'admin', actor_email: req.admin.email,
+        action: 'admin_pin_changed', target_type: 'collector',
+        target_id: parseInt(req.params.id, 10), details: {}
+      });
+    }
     res.json({ success: true, collector: result.rows[0] });
   } catch (err) { console.error('[collectors PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
