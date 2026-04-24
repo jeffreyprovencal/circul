@@ -2940,7 +2940,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   const m = parts.slice(pinIndex + 1);
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. Marketplace\n4. My Stats\n0. Exit';
+  if (depth === 0) return 'CON 1. Log Transaction\n2. Pending Drop-offs\n3. Marketplace\n4. My Stats\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
@@ -2996,9 +2996,15 @@ async function handleAggregatorUssd(parts, aggregator) {
     return await handleAggregatorPending(m.slice(1), aggregator);
   }
 
-  // ── Log Purchase ──
+  // ── Log Transaction (Purchase or Sale) ──
   if (m[0] === '1') {
-    return await handleAggregatorPurchase(m.slice(1), aggregator);
+    if (m.length === 1) {
+      return 'CON Log Transaction\n\n1. Purchase (from collector)\n2. Sale (to processor)\n0. Back';
+    }
+    if (m[1] === '0') return 'END Cancelled.';
+    if (m[1] === '1') return await handleAggregatorPurchase(m.slice(2), aggregator);
+    if (m[1] === '2') return await handleAggregatorSale(m.slice(2), aggregator);
+    return 'END Invalid option.\nDial again to retry.';
   }
 
   return 'END Invalid option.\nDial again to retry.';
@@ -3115,6 +3121,265 @@ async function handleAggregatorPurchase(m, aggregator) {
   }
 
   return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Aggregator sell-upstream flow ──
+// parts: what the aggregator typed after direction=2 was chosen.
+//   depth 0: pick material (inventory shown inline)
+//   depth 1: pick form (loose/baled)
+//   depth 2: enter weight
+//   depth 3: declare-shortfall prompt (only when weight > tracked)
+//   depth 4: pick buyer
+//   depth 5: confirm
+async function handleAggregatorSale(m, aggregator) {
+  const depth = m.length;
+
+  // Tracked inventory per material — mirrors attributeAndInsert FIFO filter
+  // exactly so the number we show == the number we can attribute.
+  const inventoryRows = await pool.query(
+    `SELECT material_type, COALESCE(SUM(remaining_kg), 0)::numeric AS available_kg
+       FROM pending_transactions
+      WHERE aggregator_id = $1
+        AND transaction_type IN ('collector_sale', 'aggregator_purchase')
+        AND remaining_kg > 0
+        AND created_at >= NOW() - INTERVAL '30 days'
+        AND status NOT IN ('rejected', 'dispatch_rejected', 'grade_c_flagged')
+      GROUP BY material_type`,
+    [aggregator.id]
+  );
+  const inventoryByMat = Object.create(null);
+  for (const r of inventoryRows.rows) {
+    inventoryByMat[r.material_type] = parseFloat(r.available_kg);
+  }
+
+  const MATERIALS = [
+    { key: '1', name: 'PET' },
+    { key: '2', name: 'HDPE' },
+    { key: '3', name: 'LDPE' },
+    { key: '4', name: 'PP' }
+  ];
+
+  // Screen S1: material + inventory
+  if (depth === 0) {
+    let msg = 'CON Sell which material?\n';
+    for (const mat of MATERIALS) {
+      const kg = inventoryByMat[mat.name] || 0;
+      msg += `${mat.key}. ${mat.name} (${kg.toFixed(0)} kg)\n`;
+    }
+    msg += '0. Back';
+    return msg;
+  }
+
+  if (m[0] === '0') return 'END Cancelled.';
+  const material = (MATERIALS.find(x => x.key === m[0]) || {}).name;
+  if (!material) return 'END Invalid material.\nDial again to retry.';
+
+  const trackedKg = inventoryByMat[material] || 0;
+
+  // Screen S2: form toggle
+  if (depth === 1) {
+    return `CON ${material} available: ${trackedKg.toFixed(0)} kg\n\nForm:\n1. Loose\n2. Baled\n0. Cancel`;
+  }
+
+  if (m[1] === '0') return 'END Cancelled.';
+  const form = m[1] === '1' ? 'loose' : m[1] === '2' ? 'baled' : null;
+  if (!form) return 'END Invalid form.\nDial again to retry.';
+
+  // Screen S3: weight entry
+  if (depth === 2) {
+    return 'CON Enter weight in kg:\n(Max is whatever you hold — you can declare extra stock on the next screen.)';
+  }
+
+  const weight = parseFloat(m[2]);
+  if (isNaN(weight) || weight <= 0 || weight > 99999) {
+    return 'END Invalid weight.\nDial again to retry.';
+  }
+
+  const declared = Math.max(0, weight - trackedKg);
+  const needsDeclare = declared > 0;
+
+  // Screens S3.5a / S3.5b: declare-shortfall (conditional)
+  if (needsDeclare && depth === 3) {
+    if (trackedKg > 0) {
+      // Variant a: partial shortfall
+      return `CON You have ${trackedKg.toFixed(0)}kg ${material} tracked.\nYou entered ${weight.toFixed(0)}kg.\n\nDeclare ${declared.toFixed(0)}kg as existing stock?\n\n1. Yes, declare + sell ${weight.toFixed(0)}kg\n2. No, sell ${trackedKg.toFixed(0)}kg only\n0. Cancel`;
+    }
+    // Variant b: zero tracked
+    return `CON You have 0kg ${material} tracked.\nYou entered ${weight.toFixed(0)}kg.\n\nDeclare ${weight.toFixed(0)}kg as existing stock and proceed?\n\n1. Yes\n0. Cancel`;
+  }
+
+  // Process declare choice
+  let saleWeight = weight;
+  let saleDeclared = declared;
+  let declareDepthConsumed = 0;
+  if (needsDeclare) {
+    declareDepthConsumed = 1;
+    const choice = m[3];
+    if (choice === '0') return 'END Cancelled.';
+    if (trackedKg > 0 && choice === '2') {
+      saleWeight = trackedKg;
+      saleDeclared = 0;
+    } else if (choice === '1') {
+      // declare+sell full weight — already the default
+    } else {
+      return 'END Invalid option.\nDial again to retry.';
+    }
+  }
+
+  // Buyer discovery — region-preferred, country-wide fallback.
+  async function loadBuyers() {
+    const base =
+      `SELECT pp.poster_type, pp.poster_id, pp.price_per_kg_ghs,
+              CASE pp.poster_type
+                WHEN 'processor' THEN (SELECT company FROM processors WHERE id = pp.poster_id)
+                WHEN 'recycler'  THEN (SELECT company FROM recyclers  WHERE id = pp.poster_id)
+                WHEN 'converter' THEN (SELECT company FROM converters WHERE id = pp.poster_id)
+              END AS name,
+              CASE pp.poster_type
+                WHEN 'processor' THEN (SELECT phone FROM processors WHERE id = pp.poster_id)
+                WHEN 'recycler'  THEN (SELECT phone FROM recyclers  WHERE id = pp.poster_id)
+                WHEN 'converter' THEN (SELECT phone FROM converters WHERE id = pp.poster_id)
+              END AS phone,
+              CASE pp.poster_type
+                WHEN 'processor' THEN (SELECT city FROM processors WHERE id = pp.poster_id)
+                WHEN 'recycler'  THEN (SELECT city FROM recyclers  WHERE id = pp.poster_id)
+                WHEN 'converter' THEN (SELECT city FROM converters WHERE id = pp.poster_id)
+              END AS city
+         FROM posted_prices pp
+        WHERE pp.material_type = $1
+          AND pp.is_active = true
+          AND pp.poster_type IN ('processor','recycler','converter')`;
+    let rows = (await pool.query(
+      base + ' AND (pp.region = $2 OR pp.region IS NULL) ORDER BY pp.price_per_kg_ghs DESC LIMIT 10',
+      [material, aggregator.region || null]
+    )).rows;
+    if (!rows.length) {
+      rows = (await pool.query(
+        base + ' ORDER BY pp.price_per_kg_ghs DESC LIMIT 10',
+        [material]
+      )).rows;
+    }
+    return rows;
+  }
+
+  // Screen S4: buyer list
+  if (depth === 3 + declareDepthConsumed) {
+    const buyers = await loadBuyers();
+    if (!buyers.length) {
+      return `END No buyers for ${material}\nright now.\n\nTry Marketplace (menu 3)\nto post a listing.`;
+    }
+    const BADGE = { processor: 'P', recycler: 'R', converter: 'C' };
+    let msg = 'CON Sell to:\n';
+    const limit = Math.min(4, buyers.length);
+    for (let i = 0; i < limit; i++) {
+      const b = buyers[i];
+      const badge = BADGE[b.poster_type] || '?';
+      msg += `${i + 1}. ${b.name} (${badge})\n   ${b.city || '—'} GH₵${parseFloat(b.price_per_kg_ghs).toFixed(2)}/kg\n`;
+    }
+    msg += '0. Cancel';
+    return msg;
+  }
+
+  // Process buyer choice
+  const buyerTok = m[3 + declareDepthConsumed];
+  if (buyerTok === '0') return 'END Cancelled.';
+  const buyerIdx = parseInt(buyerTok, 10);
+  if (isNaN(buyerIdx) || buyerIdx < 1) return 'END Invalid choice.\nDial again to retry.';
+
+  const buyers = await loadBuyers();
+  const buyer = buyers[buyerIdx - 1];
+  if (!buyer) return 'END Invalid buyer.\nDial again to retry.';
+  const price = parseFloat(buyer.price_per_kg_ghs);
+  const total = saleWeight * price;
+
+  // Screen S5: confirm (with traced/declared split when declared > 0)
+  if (depth === 4 + declareDepthConsumed) {
+    let msg = `CON Confirm sale:\n${saleWeight.toFixed(0)}kg ${material} (${form})\nTo: ${buyer.name}\nPrice: GH₵${price.toFixed(2)}/kg\nTotal: GH₵${total.toFixed(2)}\n`;
+    if (saleDeclared > 0) {
+      const traced = saleWeight - saleDeclared;
+      msg += `\nTraced: ${traced.toFixed(0)}kg\nDeclared: ${saleDeclared.toFixed(0)}kg\n`;
+    }
+    msg += '\n1. Confirm\n2. Cancel';
+    return msg;
+  }
+
+  // Screen S6: commit
+  const confirmTok = m[4 + declareDepthConsumed];
+  if (confirmTok === '2') return 'END Cancelled.';
+  if (confirmTok !== '1') return 'END Invalid option.\nDial again to retry.';
+
+  const buyerFkCol = buyer.poster_type === 'processor' ? 'processor_id'
+                   : buyer.poster_type === 'recycler'  ? 'recycler_id'
+                   : 'converter_id';
+
+  const client = await pool.connect();
+  let txnId;
+  try {
+    await client.query('BEGIN');
+
+    if (saleDeclared > 0) {
+      await insertRootTransaction(client, {
+        transaction_type: 'aggregator_purchase',
+        status: 'confirmed',
+        aggregator_id: aggregator.id,
+        collector_id: null,
+        material_type: material,
+        gross_weight_kg: saleDeclared,
+        net_weight_kg: saleDeclared,
+        price_per_kg: 0,
+        total_price: 0,
+        source: 'ussd_declared',
+        notes: 'Aggregator-declared existing stock (untraced origin)'
+      });
+    }
+
+    const target = {
+      transaction_type: 'aggregator_sale',
+      status: 'pending',
+      aggregator_id: aggregator.id,
+      material_type: material,
+      gross_weight_kg: saleWeight,
+      net_weight_kg: saleWeight,
+      price_per_kg: price,
+      total_price: total,
+      source: 'ussd',
+      form: form
+    };
+    target[buyerFkCol] = buyer.poster_id;
+    const { row } = await attributeAndInsert(client, target);
+    txnId = row.id;
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (err instanceof InsufficientSourceError) {
+      return 'END Inventory changed since\nyou started. Dial again\nto retry with current\nnumbers.';
+    }
+    console.error('[aggregator-sale]', err);
+    return 'END System error.\nTry again later.';
+  } finally {
+    client.release();
+  }
+
+  const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(txnId).padStart(4, '0');
+
+  try {
+    if (buyer.phone) {
+      await notify(EVENTS.DELIVERY_PENDING, buyer.phone, {
+        sender_name: aggregator.name,
+        qty: saleWeight,
+        material: material
+      });
+    }
+  } catch (e) { console.warn('[NOTIFY] delivery_pending failed:', e.message); }
+
+  let successMsg = `END SALE LOGGED\nRef: ${ref}\n${saleWeight.toFixed(0)}kg ${material} → ${buyer.name}\n`;
+  if (saleDeclared > 0) {
+    const traced = saleWeight - saleDeclared;
+    successMsg += `${traced.toFixed(0)}kg traced + ${saleDeclared.toFixed(0)}kg declared\n`;
+  }
+  successMsg += `Status: Pending arrival\n\nContact: ${buyer.phone || '—'}, ${buyer.city || '—'}`;
+  return successMsg;
 }
 
 async function resolveCollectorForPurchase(m, aggregator) {
@@ -6354,6 +6619,12 @@ const STAGE_TYPE_BY_BUYER = {
 function _traceActorFor(row) {
   try {
     if (row.transaction_type === 'collector_sale' || row.transaction_type === 'aggregator_purchase') {
+      // Declared-stock root: aggregator_purchase with no collector_id. The
+      // aggregator is the party that possesses the material at this stage.
+      if (row.transaction_type === 'aggregator_purchase' && row.collector_id == null) {
+        if (row.aggregator_id == null) return null;
+        return { kind: 'aggregator', id: Number(row.aggregator_id) };
+      }
       return resolveSeller(row);
     }
     return resolveBuyer(row);
@@ -6515,6 +6786,9 @@ app.get('/api/trace/:batch_id', async (req, res) => {
         material_type: row.material_type,
         weight_in_kg: weight_in_kg,
         weight_out_kg: row.gross_weight_kg != null ? Math.round(parseFloat(row.gross_weight_kg) * 100) / 100 : null,
+        // An aggregator_purchase root row with no collector_id is aggregator-declared
+        // existing stock — origin untraced. Surface to the public passport.
+        is_declared: row.transaction_type === 'aggregator_purchase' && row.collector_id == null,
         pending_tx_id: Number(row.id)
       };
       if (sourceEdges.length > 1) stage.commingled = true;

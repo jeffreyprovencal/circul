@@ -296,9 +296,9 @@ async function main() {
       'mismatched-material source flagged as invalid');
   });
 
-  await runTest('db: PR4-A source outside 14-day window → invalid_source_ids', async (client) => {
+  await runTest('db: PR4-A source outside freshness window → invalid_source_ids', async (client) => {
     await isolateScope(client);
-    // Seed a root with created_at 30 days ago (outside 14d window). Use a
+    // Seed a root with created_at 60 days ago (outside the 30d window). Use a
     // raw INSERT since insertRootTransaction uses NOW().
     const batch_id = '00000000-0000-0000-0000-000000000042';
     const oldResult = await client.query(
@@ -307,7 +307,7 @@ async function main() {
          gross_weight_kg, net_weight_kg, price_per_kg, total_price,
          batch_id, remaining_kg, created_at)
        VALUES ('collector_sale','pending',1,$1,'PET',100,100,2,200,$2::uuid,100,
-               NOW() - INTERVAL '30 days')
+               NOW() - INTERVAL '60 days')
        RETURNING id`,
       [AGG_ID, batch_id]
     );

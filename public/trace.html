@@ -114,6 +114,13 @@ body {
   z-index: 1;
 }
 .stage.merged::before { background: var(--warning); }
+.stage-untraced-tag {
+  display: inline-block; margin-left: 8px;
+  padding: 2px 8px; border-radius: 10px;
+  background: rgba(255, 193, 7, 0.12); color: #ffc107;
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 0.02em;
+  vertical-align: middle;
+}
 .stage-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 20px; }
 .stage-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
 .stage-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: var(--accent); text-transform: uppercase; }
@@ -395,7 +402,9 @@ function renderStageCard(stage, isLast, totalStages) {
           (isCurrent ? ' (current)' : '') + '</span>' +
         '<span class="stage-date">' + escapeHtml(fmtDate(stage.date)) + '</span>' +
       '</div>' +
-      '<div class="stage-actor">' + escapeHtml(actor.display_name || '—') + '</div>' +
+      '<div class="stage-actor">' + escapeHtml(actor.display_name || '—') +
+        (stage.is_declared ? '<span class="stage-untraced-tag" title="Aggregator-declared existing stock. Origin outside this chain.">Aggregator-declared (untraced origin)</span>' : '') +
+      '</div>' +
       (placeOf(actor) ? '<div class="stage-place">' + escapeHtml(placeOf(actor)) + '</div>' : '') +
       weightHtml +
       noteHtml +

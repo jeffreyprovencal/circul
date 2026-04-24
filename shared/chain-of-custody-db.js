@@ -43,7 +43,7 @@ const {
   ROOT_TYPES
 } = require('./chain-of-custody');
 
-const WINDOW_DAYS = 14;
+const WINDOW_DAYS = 30;
 
 // ── InsufficientSourceError ────────────────────────────────────────────────
 //
@@ -411,15 +411,15 @@ async function attributeAndInsert(client, target) {
     '  aggregator_id, processor_id, converter_id, recycler_id, collector_id, ' +
     '  material_type, gross_weight_kg, net_weight_kg, price_per_kg, total_price, ' +
     '  batch_id, remaining_kg, ' +
-    '  source, notes, ' +
+    '  source, notes, form, ' +
     '  photos_required, photos_submitted, photo_urls, dispatch_approved' +
     ') VALUES (' +
     '  $1, COALESCE($2, \'pending\'), ' +
     '  $3, $4, $5, $6, $7, ' +
     '  $8, $9::numeric, $10::numeric, $11, $12, ' +
     '  $13::uuid, $9::numeric, ' +
-    '  COALESCE($14, \'direct\'), $15, ' +
-    '  COALESCE($16, false), COALESCE($17, false), COALESCE($18::text[], \'{}\'::text[]), COALESCE($19, false)' +
+    '  COALESCE($14, \'direct\'), $15, $16, ' +
+    '  COALESCE($17, false), COALESCE($18, false), COALESCE($19::text[], \'{}\'::text[]), COALESCE($20, false)' +
     ') RETURNING *',
     [
       target.transaction_type,
@@ -437,6 +437,7 @@ async function attributeAndInsert(client, target) {
       plan.batch_id,
       target.source || null,
       target.notes != null ? target.notes : null,
+      target.form || null,
       target.photos_required != null ? target.photos_required : null,
       target.photos_submitted != null ? target.photos_submitted : null,
       target.photo_urls || null,
@@ -507,13 +508,13 @@ async function insertRootTransaction(client, target) {
     '  aggregator_id, processor_id, converter_id, recycler_id, collector_id, ' +
     '  material_type, gross_weight_kg, net_weight_kg, price_per_kg, total_price, ' +
     '  batch_id, remaining_kg, ' +
-    '  source, notes' +
+    '  source, notes, form' +
     ') VALUES (' +
     '  $1, COALESCE($2, \'pending\'), ' +
     '  $3, $4, $5, $6, $7, ' +
     '  $8, $9::numeric, $10::numeric, $11, $12, ' +
     '  $13::uuid, $9::numeric, ' +
-    '  COALESCE($14, \'direct\'), $15' +
+    '  COALESCE($14, \'direct\'), $15, $16' +
     ') RETURNING *',
     [
       target.transaction_type,
@@ -530,7 +531,8 @@ async function insertRootTransaction(client, target) {
       target.total_price != null ? target.total_price : 0,
       batch_id,
       target.source || null,
-      target.notes != null ? target.notes : null
+      target.notes != null ? target.notes : null,
+      target.form || null
     ]
   );
 
