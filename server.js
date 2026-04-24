@@ -2432,26 +2432,85 @@ const USSD_CITIES = USSD_CITIES_LIST.reduce(function (acc, c, i) {
   return acc;
 }, {});
 
+// Render the paginated city-picker screen for a given slice of input parts.
+// Returns { screen, offset, more } where screen is the CON text, offset is the
+// item-index start for this page, and more=true if further pages exist.
+function renderCityPickerScreen(pickerParts) {
+  const sel = parsePaginatedSelection(pickerParts || []);
+  const offset = sel.offset;
+  const page = USSD_CITIES_LIST.slice(offset, offset + 3);
+  if (page.length === 0) {
+    return { screen: 'END Invalid city.\nDial again to retry.', offset: -1, more: false };
+  }
+  const more = (offset + 3) < USSD_CITIES_LIST.length;
+  let msg = 'CON Select your city:\n';
+  for (let i = 0; i < page.length; i++) {
+    msg += (i + 1) + '. ' + page[i].city + '\n';
+  }
+  if (more) msg += '4. More \u2192\n';
+  msg += '0. Cancel';
+  return { screen: msg, offset: offset, more: more };
+}
+
+// Resolve the city record the user picked from a paginated input sequence.
+// pickerParts is shaped as zero or more '4' (advance-page) followed by a
+// final 1/2/3 city selection. Returns null if the pick is invalid or absent.
+function resolveCityFromPaginatedParts(pickerParts) {
+  const sel = parsePaginatedSelection(pickerParts || []);
+  if (sel.remaining.length === 0) return null;
+  const pick = parseInt(sel.remaining[0], 10);
+  if (isNaN(pick) || pick < 1 || pick > 3) return null;
+  const idx = sel.offset + (pick - 1);
+  if (idx >= USSD_CITIES_LIST.length) return null;
+  return USSD_CITIES_LIST[idx];
+}
+
 async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
-  if (level === 0) return 'CON Welcome to Circul\n1. Register\n2. Exit';
-  if (parts[0] === '2') return 'END Thank you for using Circul.';
+
+  // Welcome — role split (collector vs aggregator vs exit)
+  if (level === 0) return 'CON Welcome to Circul\nThe operating system for\nGhana\'s waste workers.\n\nSell. Track. Get paid.\n\nRegister as:\n1. Collector\n2. Aggregator\n0. Exit';
+
+  if (parts[0] === '0') return 'END Thank you for using Circul.';
+
+  // Aggregator path — hand off to request handler (added in Phase 4)
+  if (parts[0] === '2') {
+    return await handleAggregatorRegistrationRequest(parts.slice(1), phone);
+  }
+
+  // Collector path
   if (parts[0] === '1') {
-    if (level === 1) return 'CON Enter your first name:';
-    if (level === 2) return 'CON Enter last name\n(0 to skip):';
-    if (level === 3) return 'CON Select your city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
-    if (level === 4) {
-      const cityData = USSD_CITIES[parts[3]];
-      if (!cityData) return 'END Invalid city.\nDial again to retry.';
-      return 'CON Create a 4-digit PIN:';
+    if (level === 1) return 'CON Collector registration\n\nEnter your first name:';
+    if (level === 2) return 'CON Enter your last name:';
+
+    const firstName = parts[1].trim();
+    const lastName = parts[2].trim();
+    if (!lastName) return 'END Last name required.\nDial again.';
+
+    // parts.slice(3) is the city-picker input — variable length due to pagination.
+    const pickerParts = parts.slice(3);
+    if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+    if (pickerParts[0] === '0') return 'END Cancelled.';
+
+    const sel = parsePaginatedSelection(pickerParts);
+    if (sel.remaining.length === 0) {
+      // All parts so far are '4's — show the next page
+      return renderCityPickerScreen(pickerParts).screen;
     }
-    if (level === 5) {
-      const firstName = parts[1].trim();
-      const lastName = parts[2] === '0' ? '' : parts[2].trim();
-      const cityData = USSD_CITIES[parts[3]];
-      const pin = parts[4].trim();
-      if (!cityData) return 'END Invalid city.\nDial again to retry.';
-      if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return 'END PIN must be 4-6 digits.\nDial again to retry.';
+
+    const cityData = resolveCityFromPaginatedParts(pickerParts);
+    if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+    // After city pick, collect PIN. City consumed (sel.page + 1) parts.
+    const cityPartsLen = sel.page + 1;
+    const pinDepth = level - 3 - cityPartsLen;
+
+    if (pinDepth === 0) return 'CON Create a 4-digit PIN:';
+    if (pinDepth === 1) {
+      const pin = parts[level - 1].trim();
+      if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+        return 'END PIN must be 4-6 digits.\nDial again to retry.';
+      }
       try {
         const hashedPin = await hashPassword(pin);
         await pool.query(
@@ -2464,7 +2523,9 @@ async function handleUnregisteredUssd(parts, phone) {
         throw err;
       }
     }
+    return 'END Invalid option.\nDial again to retry.';
   }
+
   return 'END Invalid option.\nDial again to retry.';
 }
 
