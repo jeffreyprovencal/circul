@@ -57,7 +57,6 @@ circul/
 │   ├── collector-dashboard.html
 │   ├── collector-passport.html
 │   ├── converter-dashboard.html
-│   ├── dashboard.html           ⚠ legacy; redirects to aggregator-dashboard
 │   ├── demo-access.html
 │   ├── index.html
 │   ├── login.html
@@ -113,7 +112,7 @@ All routes are defined in [server.js](server.js). Auth is a **custom HMAC-SHA256
 | GET | `/health` | 48 | Health check |
 | GET | `/` | 5442 | index.html (marketing + price widget) |
 | GET | `/collect` | 5449 | collect.html (collector drop-off app) |
-| GET | `/dashboard` | 5450 | dashboard.html (legacy, redirects client-side) |
+| GET | `/dashboard` | 6990 | 301 redirect to /aggregator-dashboard.html |
 | GET | `/admin` | 5451 | admin.html |
 | GET | `/collector-dashboard` | 5452 | collector-dashboard.html |
 | GET | `/aggregator-dashboard` | 5453 | aggregator-dashboard.html |
@@ -356,10 +355,6 @@ Calls: `GET /api/collectors/:id/passport`.
 Source recycled material, place orders, track arrivals, Discovery, ratings.
 Calls: `/api/auth/login`, `/api/converters/:id`, `/api/prices?role=converter`, `/api/orders*`, `/api/pending-transactions/converter-queue`, `/api/pending-transactions/:id/converter-dispatch-decision|converter-arrival`, `/api/ratings`, `/api/listings*`, `/api/offers*`.
 
-### [dashboard.html](public/dashboard.html) — ⚠ Legacy operator page
-Old unified operator dashboard. Per memory it was the login routing hub; inspection shows it now redirects to `/aggregator-dashboard`. Safe to remove.
-Calls: `POST /api/auth/login`, `GET /api/stats`, `GET /api/transactions`, `POST /api/payments/initiate` (⚠ endpoint not found in server.js).
-
 ### [demo-access.html](public/demo-access.html) — Public
 Static tile page linking to pre-filled demo logins. No API calls.
 
@@ -394,7 +389,7 @@ Collector passport viewer + aggregator tx reports.
 Calls: `GET /api/transactions?aggregator_id=`, `GET /api/collectors/:id`.
 
 **Page-level flags**
-- `dashboard.html` and `mockup-rating-system.html` are dead.
+- `mockup-rating-system.html` is dead. (`dashboard.html` was removed; `/dashboard` now 301-redirects to `/aggregator-dashboard.html`.)
 - `prices.html` is half-disconnected (still in `public/`, calls a dropped auth table).
 - `/code-export.txt` route exposes the raw source file publicly.
 
@@ -736,7 +731,7 @@ None of these exist today. The backend can **log** every stage, but it cannot **
 1. Two public POST endpoints write data without `requireAuth`: `POST /api/prices` ([server.js:5312](server.js:5312)) and `POST /api/processors/:id/prices` ([server.js:1690](server.js:1690)).
 2. `GET /code-export.txt` serves the raw `server.js` text publicly.
 3. `public/prices.html` calls `/api/buyers/login` and `/api/buyers/me/prices` — the `buyers` table was dropped and these endpoints do not exist.
-4. `public/dashboard.html` and `public/mockup-rating-system.html` are dead; `dashboard.html` also calls `POST /api/payments/initiate` which isn't in `server.js`.
+4. `public/mockup-rating-system.html` is dead. (`public/dashboard.html` was removed in the dead-code cleanup; `/dashboard` now 301-redirects to `/aggregator-dashboard.html`.)
 5. `transactions.processor_id` / `converter_id` are **not in the final schema** — added by the `1774100000000` and `1774200000000` migrations, then dropped (with the rest of the `transactions` table) by `1774500000000_restructure_tiers` CASCADE. Lineage past collector→aggregator lives on `pending_transactions`. Evidence: [server.js:1899-1901](server.js:1899).
 6. `payments` table exists but is orphaned.
 7. `operators` role still defined in [shared/roles.js:97](shared/roles.js:97) even though the `operators` table was dropped.

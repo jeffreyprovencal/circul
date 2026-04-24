@@ -6962,7 +6962,7 @@ app.get('/api/reports/product-journey/:transaction_id', async (req, res) => {
 // ============================================
 
 app.get('/code-export.txt', (req, res) => {
-  const exportFiles = ['server.js','migrate.js','package.json','render.yaml','.gitignore','.nvmrc','README.md','public/index.html','public/collect.html','public/login.html','public/dashboard.html','public/admin.html','public/collector-dashboard.html','public/aggregator-dashboard.html','public/processor-dashboard.html','public/converter-dashboard.html','public/report.html'];
+  const exportFiles = ['server.js','migrate.js','package.json','render.yaml','.gitignore','.nvmrc','README.md','public/index.html','public/collect.html','public/login.html','public/admin.html','public/collector-dashboard.html','public/aggregator-dashboard.html','public/processor-dashboard.html','public/converter-dashboard.html','public/report.html'];
   let output = `CIRCUL CODEBASE EXPORT\nGenerated: ${new Date().toISOString()}\n\n`;
   for (const filePath of exportFiles) {
     const fullPath = path.join(__dirname, filePath);
@@ -6987,7 +6987,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/collect',              (req, res) => res.sendFile(path.join(__dirname, 'public', 'collect.html')));
-app.get('/dashboard',            (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
+app.get('/dashboard',            (req, res) => res.redirect(301, '/aggregator-dashboard.html'));
 app.get('/admin',                (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/collector-dashboard',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'collector-dashboard.html')));
 app.get('/aggregator-dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'aggregator-dashboard.html')));
