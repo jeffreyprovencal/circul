@@ -2443,7 +2443,7 @@ async function handleUnregisteredUssd(parts, phone) {
           `INSERT INTO collectors (first_name, last_name, phone, pin, city, region) VALUES ($1,$2,$3,$4,$5,$6)`,
           [firstName, lastName, phone, hashedPin, cityData.city, cityData.region]
         );
-        return `END Registered! Welcome ${firstName}.\nCity: ${cityData.city}\nDial again to start.`;
+        return `END Registered! Welcome ${firstName}.\nCity: ${cityData.city}\n\nYour phone = your Circul ID. Keep PIN secret. Lose phone? Call your aggregator.\n\nDial again.`;
       } catch (err) {
         if (err.code === '23505') return 'END Phone already registered.\nDial again to login.';
         throw err;
