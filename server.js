@@ -358,7 +358,7 @@ app.patch('/api/collectors/:id/change-pin', requireAuth, async (req, res) => {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     if (parseInt(req.params.id) !== req.user.id) return res.status(403).json({ success: false, message: 'Can only change your own PIN' });
     const { pin } = req.body;
-    if (!pin || !/^\d{4}$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be exactly 4 digits' });
+    if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
     const hashedPin = await hashPassword(pin);
     await pool.query(`UPDATE collectors SET pin=$1, must_change_pin=false, updated_at=NOW() WHERE id=$2`, [hashedPin, req.user.id]);
     res.json({ success: true, message: 'PIN changed successfully' });
@@ -6923,7 +6923,7 @@ app.post('/api/agents', requireAuth, async (req, res) => {
     if (!first_name || !last_name || !phone || !pin) {
       return res.status(400).json({ success: false, message: 'first_name, last_name, phone, pin required' });
     }
-    if (pin.length < 4) return res.status(400).json({ success: false, message: 'PIN must be at least 4 digits' });
+    if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
     const hashedPin = await hashPassword(pin.trim());
     const result = await pool.query(
       `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card)
