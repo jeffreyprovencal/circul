@@ -6143,6 +6143,56 @@ app.get('/api/admin/audit-log', requireAdmin, async (req, res) => {
   }
 });
 
+// List active user lockouts with resolved display names — for the admin UI.
+app.get('/api/admin/lockouts', requireAdmin, async (req, res) => {
+  try {
+    const rows = await pool.query(
+      `SELECT l.id, l.user_type, l.user_id, l.phone, l.reason, l.locked_until, l.created_at,
+              CASE l.user_type
+                WHEN 'collector'  THEN (SELECT first_name || ' ' || COALESCE(last_name, '') FROM collectors  WHERE id = l.user_id)
+                WHEN 'aggregator' THEN (SELECT name FROM aggregators WHERE id = l.user_id)
+                WHEN 'agent'      THEN (SELECT first_name || ' ' || COALESCE(last_name, '') FROM agents      WHERE id = l.user_id)
+              END AS user_name
+         FROM user_lockouts l
+        WHERE l.locked_until > NOW()
+        ORDER BY l.locked_until ASC`
+    );
+    res.json({ success: true, lockouts: rows.rows });
+  } catch (err) {
+    console.error('[admin/lockouts]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Manually clear an active lockout + audit. No-op if the user isn't locked.
+app.delete('/api/admin/users/:type/:id/lockout', requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    if (!['collector','aggregator','agent'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid user type' });
+    }
+    const result = await pool.query(
+      `DELETE FROM user_lockouts WHERE user_type = $1 AND user_id = $2 AND locked_until > NOW() RETURNING id, phone, reason`,
+      [type, parseInt(id, 10)]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, message: 'No active lockout for this user' });
+    }
+    await recordAdminAction(null, {
+      actor_type: 'admin',
+      actor_email: req.admin.email,
+      action: 'lockout_cleared',
+      target_type: type,
+      target_id: parseInt(id, 10),
+      details: { lockout_id: result.rows[0].id, reason: result.rows[0].reason, phone: result.rows[0].phone }
+    });
+    res.json({ success: true, cleared: result.rows[0] });
+  } catch (err) {
+    console.error('[admin/lockout-clear]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.get('/api/admin/processors', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`SELECT id, name, company, email, phone, city, region, is_active, created_at FROM processors ORDER BY created_at DESC`);

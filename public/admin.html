@@ -219,6 +219,20 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     </div>
   </div>
 
+  <!-- ACTIVE LOCKOUTS -->
+  <div class="section" id="lockoutsSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Active Lockouts</div>
+        <div class="section-sub">Users currently locked out from USSD login</div>
+      </div>
+      <button class="btn-small" onclick="loadLockouts()">Refresh</button>
+    </div>
+    <div id="lockoutsBody" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);min-height:80px">
+      <div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>
+    </div>
+  </div>
+
   <!-- AUDIT LOG -->
   <div class="section" id="auditLogSection">
     <div class="section-head">
@@ -841,7 +855,51 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       });
     }
 
+    /* ── Active lockouts ── */
+
+    function loadLockouts() {
+      var body = document.getElementById('lockoutsBody');
+      body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>';
+      adminFetch('/api/admin/lockouts').then(function(res) {
+        if (!res.ok) {
+          body.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem">Failed to load lockouts.</div>';
+          return;
+        }
+        var rows = res.body.lockouts || [];
+        if (!rows.length) {
+          body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">No active lockouts.</div>';
+          return;
+        }
+        body.innerHTML = rows.map(function(l) {
+          var until = new Date(l.locked_until);
+          var mins = Math.max(0, Math.ceil((until.getTime() - Date.now()) / 60000));
+          return '<div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+            '<div>' +
+              '<div style="font-weight:600">' + esc((l.user_name || '').trim() || l.user_type + ' #' + l.user_id) + '</div>' +
+              '<div style="color:var(--text-3);font-size:0.72rem">' + esc(l.user_type) + ' \u00b7 ' + esc(l.phone) + ' \u00b7 reason: ' + esc(l.reason) + '</div>' +
+              '<div style="color:var(--text-3);font-size:0.72rem">Locked until ' + until.toLocaleString('en-GB') + ' (' + mins + ' min)</div>' +
+            '</div>' +
+            '<button class="btn-small" onclick="unlockUser(\'' + esc(l.user_type) + '\',' + l.user_id + ')" style="color:#f87171;border-color:#f87171">Unlock</button>' +
+          '</div>';
+        }).join('');
+      });
+    }
+
+    function unlockUser(type, id) {
+      if (!confirm('Clear lockout for ' + type + ' #' + id + '?')) return;
+      adminFetch('/api/admin/users/' + type + '/' + id + '/lockout', { method: 'DELETE' }).then(function(res) {
+        if (!res.ok || !res.body.success) {
+          alert((res.body && res.body.message) || 'Failed to unlock');
+          return;
+        }
+        showToast('Lockout cleared');
+        loadLockouts();
+        loadAuditLog();
+      });
+    }
+
     loadUserList('collectors');
+    loadLockouts();
     loadAuditLog();
 </script>
 
