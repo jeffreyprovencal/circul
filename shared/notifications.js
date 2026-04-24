@@ -44,8 +44,34 @@ var EVENTS = {
   PURCHASE_LOGGED:   'purchase_logged',
   AGENT_COLLECTION:  'agent_collection',
   PAYMENT_SENT:      'payment_sent',
-  PAYMENT_CONFIRMED: 'payment_confirmed'
+  PAYMENT_CONFIRMED: 'payment_confirmed',
+  // Account recovery
+  PIN_RESET_OTP:                 'pin_reset_otp',
+  PIN_RESET_COMPLETED:           'pin_reset_completed',
+  PIN_RESET_UPSTREAM_COLLECTOR:  'pin_reset_upstream_collector',
+  PIN_RESET_UPSTREAM_AGGREGATOR: 'pin_reset_upstream_aggregator',
+  PIN_RESET_UPSTREAM_AGENT:      'pin_reset_upstream_agent',
+  PHONE_CHANGE_OTP:              'phone_change_otp',
+  PHONE_CHANGED_NEW:             'phone_changed_new',
+  PHONE_CHANGED_OLD:             'phone_changed_old',
+  PHONE_CHANGED_UPSTREAM:        'phone_changed_upstream',
+  ADMIN_PIN_RESET_TRIGGERED:     'admin_pin_reset_triggered'
 };
+
+// Security events bypass the daily SMS cap — an account-recovery alert that
+// gets swallowed by a rate limit is worse than one extra SMS/day.
+var SECURITY_EVENTS = new Set([
+  EVENTS.PIN_RESET_OTP,
+  EVENTS.PIN_RESET_COMPLETED,
+  EVENTS.PIN_RESET_UPSTREAM_COLLECTOR,
+  EVENTS.PIN_RESET_UPSTREAM_AGGREGATOR,
+  EVENTS.PIN_RESET_UPSTREAM_AGENT,
+  EVENTS.PHONE_CHANGE_OTP,
+  EVENTS.PHONE_CHANGED_NEW,
+  EVENTS.PHONE_CHANGED_OLD,
+  EVENTS.PHONE_CHANGED_UPSTREAM,
+  EVENTS.ADMIN_PIN_RESET_TRIGGERED
+]);
 
 var TEMPLATES = {
   new_offer: function (data) {
@@ -90,6 +116,37 @@ var TEMPLATES = {
   },
   payment_confirmed: function (data) {
     return 'Circul: ' + data.seller_name + ' confirmed receipt of GH\u20b5' + data.amount + ' for ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Transaction complete.';
+  },
+  // Account recovery — templates use { code, minutes, time, user_name, user_code, old_phone, new_phone, admin_email }
+  pin_reset_otp: function (d) {
+    return 'Your Circul reset code: ' + d.code + '\n\nEnter this on *920*54# to set a new PIN. Expires in ' + d.minutes + ' min. Never share this code.';
+  },
+  pin_reset_completed: function (d) {
+    return 'Your Circul PIN was reset at ' + d.time + '.\n\nIf this wasn\'t you, call your aggregator immediately and request an account freeze.';
+  },
+  pin_reset_upstream_collector: function (d) {
+    return 'Collector PIN reset: ' + d.user_name + ' (' + d.user_code + ') reset their PIN at ' + d.time + '.\n\nWatch for unusual activity; contact Circul support if suspicious.';
+  },
+  pin_reset_upstream_aggregator: function (d) {
+    return 'Aggregator PIN reset: ' + d.user_name + ' (' + d.user_code + ') reset their PIN at ' + d.time + '.\n\nWatch for unusual dispatch approvals or drop-off confirmations. Contact Circul support if suspicious.';
+  },
+  pin_reset_upstream_agent: function (d) {
+    return 'Agent PIN reset: ' + d.user_name + ' (' + d.user_code + ') reset their PIN at ' + d.time + '. Agent works under you.\n\nWatch for unusual activity.';
+  },
+  phone_change_otp: function (d) {
+    return 'Your Circul verification code: ' + d.code + '\n\nGive this to Circul admin to confirm the phone change to this number. Expires in ' + d.minutes + ' min. Never share unless you requested a phone change.';
+  },
+  phone_changed_new: function (d) {
+    return 'Your Circul phone was changed to this number. All your history is preserved.\n\nIf this wasn\'t you, call Circul support immediately.';
+  },
+  phone_changed_old: function (d) {
+    return 'Your Circul phone number was changed to ' + d.new_phone + ' by Circul admin at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
+  },
+  phone_changed_upstream: function (d) {
+    return 'Phone change: ' + d.user_code + ' (' + d.user_name + ') \u2014 phone updated by Circul admin at ' + d.time + '. Was ' + d.old_phone + ', now ' + d.new_phone + '. Watch for unusual activity.';
+  },
+  admin_pin_reset_triggered: function (d) {
+    return 'Circul admin triggered a PIN reset for your account at ' + d.time + '. Dial *920*54# and follow the prompts to set a new PIN.\n\nIf you didn\'t request this, call Circul support immediately.';
   }
 };
 
@@ -107,11 +164,11 @@ async function notify(event, recipientPhone, data) {
   }
 
   if (provider === 'africastalking') {
-    // Pre-check cap (don't increment yet)
+    var isSecurity = SECURITY_EVENTS.has(event);
     var day = _todayKey();
     if (!_smsCounts[day]) _smsCounts = { [day]: {} };
     var bucket = _smsCounts[day];
-    if ((bucket[phone] || 0) >= SMS_DAILY_CAP) {
+    if (!isSecurity && (bucket[phone] || 0) >= SMS_DAILY_CAP) {
       console.warn('[NOTIFY] daily cap reached for ' + phone + ' (' + event + ')');
       return { sent: false, reason: 'daily cap reached' };
     }
@@ -130,4 +187,4 @@ async function notify(event, recipientPhone, data) {
   return { sent: false, reason: 'unknown provider' };
 }
 
-module.exports = { EVENTS: EVENTS, TEMPLATES: TEMPLATES, notify: notify };
+module.exports = { EVENTS: EVENTS, TEMPLATES: TEMPLATES, notify: notify, SECURITY_EVENTS: SECURITY_EVENTS };
