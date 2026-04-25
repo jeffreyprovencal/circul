@@ -3712,14 +3712,19 @@ async function handleAggregatorUssd(parts, aggregator) {
   const m = gate.menuParts;
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Register Collector\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+  if (depth === 0) return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
 
-  // ── Register Collector (top-level path) ──
+  // ── Register sub-menu (Collector / Agent) ──
   if (m[0] === '1') {
-    return await handleAggregatorRegister(m.slice(1), aggregator, null);
+    const sub = m.slice(1);
+    if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n0. Back';
+    if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+    if (sub[0] === '1') return await handleAggregatorRegister(sub.slice(1), aggregator, null);
+    if (sub[0] === '2') return await handleAggregatorRegisterAgent(sub.slice(1), aggregator);
+    return 'END Invalid option.\nDial again to retry.';
   }
 
   // ── Log Transaction (Purchase or Sale) ──
@@ -3741,7 +3746,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   // ── More sub-menu (Marketplace + My Stats) ──
   if (m[0] === '4') {
     if (m.length === 1) return 'CON More options\n1. Marketplace\n2. My Stats\n0. Back';
-    if (m[1] === '0') return 'CON 1. Register Collector\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
     // Marketplace
     if (m[1] === '1') return await handleAggregatorMarketplace(m.slice(2), aggregator);
