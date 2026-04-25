@@ -208,6 +208,28 @@
 
 </div>
 
+<!-- FORCE-CHANGE-PIN OVERLAY (must_change_pin=true on agents) -->
+<div class="rating-overlay hidden" id="pinChangeOverlay">
+  <div class="rating-box" style="max-width:360px">
+    <h3>Welcome! Set your PIN</h3>
+    <div class="sub">Please set a new PIN to secure your account.</div>
+    <div style="display:grid;gap:12px;margin:16px 0;">
+      <div>
+        <label class="form-label">New PIN (4 digits)</label>
+        <input type="password" id="newPin" class="form-input" maxlength="4" pattern="\d{4}" placeholder="••••" inputmode="numeric">
+      </div>
+      <div>
+        <label class="form-label">Confirm PIN</label>
+        <input type="password" id="confirmPin" class="form-input" maxlength="4" pattern="\d{4}" placeholder="••••" inputmode="numeric">
+      </div>
+    </div>
+    <div id="pinChangeError" class="hidden" style="color:var(--accent-red,#ff5252);font-size:0.8rem;margin-bottom:10px;"></div>
+    <div class="modal-actions">
+      <button class="btn-submit" onclick="submitAgentPinChange()">Set PIN</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast"></div>
 
@@ -242,7 +264,59 @@ function checkAuth() {
 
 function showDashboard() {
   document.getElementById('loginOverlay').classList.add('hidden');
+  // Force-change-PIN gate: if must_change_pin is set, block the dashboard
+  // until the agent sets a real PIN.
+  if (_agentState && _agentState.must_change_pin) {
+    document.getElementById('pinChangeOverlay').classList.remove('hidden');
+    return;
+  }
   loadAll();
+}
+
+function submitAgentPinChange() {
+  var newPin = (document.getElementById('newPin').value || '').trim();
+  var confirmPin = (document.getElementById('confirmPin').value || '').trim();
+  var errEl = document.getElementById('pinChangeError');
+
+  if (!newPin || !/^\d{4}$/.test(newPin)) {
+    errEl.textContent = 'PIN must be exactly 4 digits.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (newPin !== confirmPin) {
+    errEl.textContent = 'PINs do not match.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (newPin === '0000') {
+    errEl.textContent = 'Please choose a PIN other than 0000.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  var id = _agentState.id;
+  var token = _agentState.token || localStorage.getItem('circul_token') || '';
+  fetch('/api/agents/' + id + '/change-pin', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ pin: newPin })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        _agentState.must_change_pin = false;
+        localStorage.setItem('circul_user', JSON.stringify(_agentState));
+        document.getElementById('pinChangeOverlay').classList.add('hidden');
+        loadAll();
+      } else {
+        errEl.textContent = data.message || 'Error changing PIN.';
+        errEl.classList.remove('hidden');
+      }
+    })
+    .catch(function() {
+      errEl.textContent = 'Network error.';
+      errEl.classList.remove('hidden');
+    });
 }
 
 function handleAgentLogin() {

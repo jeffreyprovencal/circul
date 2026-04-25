@@ -368,6 +368,23 @@ app.patch('/api/collectors/:id/change-pin', requireAuth, async (req, res) => {
   }
 });
 
+// Agent self-service change-PIN — mirrors collector pattern. Used by the
+// must_change_pin force-change modal at first login on the web dashboard.
+app.patch('/api/agents/:id/change-pin', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('agent')) return res.status(403).json({ success: false, message: 'Agent access only' });
+    if (parseInt(req.params.id) !== req.user.id) return res.status(403).json({ success: false, message: 'Can only change your own PIN' });
+    const { pin } = req.body;
+    if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    const hashedPin = await hashPassword(pin);
+    await pool.query(`UPDATE agents SET pin=$1, must_change_pin=false WHERE id=$2`, [hashedPin, req.user.id]);
+    res.json({ success: true, message: 'PIN changed successfully' });
+  } catch (err) {
+    console.error('PATCH /api/agents/:id/change-pin error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.post('/api/collectors/login', async (req, res) => {
   try {
     const { phone, pin } = req.body;
@@ -3237,7 +3254,104 @@ async function handleForgotPinUssd(parts, resetRow) {
     console.error('[RESET] notification error:', err.message);
   });
 
-  return 'END PIN reset successfully.\n\nDial *920*54# and log in\nwith your new PIN.';
+  return 'END PIN reset successfully.\n\nUse this PIN next time\nyou log in.';
+}
+
+// Force-change-PIN gate. Fires on any USSD login where user.must_change_pin = true,
+// for all three roles. Universal — collectors, aggregators, agents share this code path.
+//
+// Caller passes:
+//   m         — slice of dial parts AFTER the validated PIN (i.e. parts.slice(pinIndex + 1)).
+//   user      — fetched row including must_change_pin.
+//   userTable — 'collectors' | 'aggregators' | 'agents' (whitelisted).
+//
+// Returns { needsGate, response, menuParts }:
+//   needsGate=true → caller returns `response` directly without entering main menu logic.
+//   needsGate=false → caller treats `menuParts` as the input to its main-menu dispatch.
+//
+// Depth math under USSD's stateless replay:
+//   m=[]                                  → G1 prompt new PIN
+//   m=[pin]                               → G2 prompt confirm
+//   m=[pin, confirm] (matches)            → G3 success bridge — UPDATE happens here
+//   m=[pin, confirm, '1']                 → continue to main menu (menuParts = m.slice(3))
+//   m=[pin, confirm, '0']                 → END
+const ALLOWED_USER_TABLES_FOR_GATE = ['collectors', 'aggregators', 'agents'];
+async function gateForceChangePin(m, user, userTable) {
+  if (!ALLOWED_USER_TABLES_FOR_GATE.includes(userTable)) {
+    throw new Error('gateForceChangePin: invalid userTable: ' + userTable);
+  }
+  if (!user || !user.must_change_pin) {
+    return { needsGate: false, menuParts: m };
+  }
+
+  // G1: prompt new PIN
+  if (m.length === 0) {
+    return {
+      needsGate: true,
+      response: 'CON You must set a new PIN.\n\nEnter new 4-digit PIN:\n4\u20136 digits, numbers only.\nAvoid 0000, 1234, or your\nbirth year.'
+    };
+  }
+
+  const newPin = m[0];
+  if (!/^\d{4,6}$/.test(newPin)) {
+    return {
+      needsGate: true,
+      response: 'END PIN must be 4-6 digits.\nDial *920*54# to retry.'
+    };
+  }
+
+  // G2: prompt confirm
+  if (m.length === 1) {
+    return {
+      needsGate: true,
+      response: 'CON Confirm new PIN:'
+    };
+  }
+
+  const confirm = m[1];
+  if (confirm !== newPin) {
+    return {
+      needsGate: true,
+      response: 'END PINs don\'t match.\nDial *920*54# to retry.'
+    };
+  }
+
+  // G3: success bridge — DO NOT update yet. USSD replays the full text on the
+  // next dial; if we UPDATE here, the next dial would fail PIN validation against
+  // the old default and mis-route. Defer UPDATE to the bridge response so it
+  // happens in the same dial as either Continue or Exit.
+  if (m.length === 2) {
+    return {
+      needsGate: true,
+      response: 'CON PIN saved!\n\nUse this PIN next time\nyou log in.\n\n1. Continue\n0. Exit'
+    };
+  }
+
+  // Bridge response: UPDATE happens here so subsequent dials use the new PIN.
+  if (m[2] === '0') {
+    const hashed = await hashPassword(newPin);
+    await pool.query(
+      `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
+      [hashed, user.id]
+    );
+    return {
+      needsGate: true,
+      response: 'END Done. Dial *920*54# again to use the platform.'
+    };
+  }
+  if (m[2] === '1') {
+    const hashed = await hashPassword(newPin);
+    await pool.query(
+      `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
+      [hashed, user.id]
+    );
+    return { needsGate: false, menuParts: m.slice(3) };
+  }
+
+  return {
+    needsGate: true,
+    response: 'END Invalid option.\nDial *920*54# to retry.'
+  };
 }
 
 async function fireResetCompletedNotifications(userType, userId, userPhone) {
@@ -3404,7 +3518,11 @@ async function handleRegisteredUssd(parts, collector) {
   }
 
   // ── Menu navigation (parts after valid PIN) ──
-  const m = parts.slice(pinIndex + 1);
+  // PIN validated. Apply force-change-PIN gate before main menu.
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, collector, 'collectors');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
   const depth = m.length;
 
   if (depth === 0) return 'CON 1. Log Drop-off\n2. Sell My Material\n3. Discovery\n4. My Stats\n0. Exit';
@@ -3604,17 +3722,26 @@ async function handleAggregatorUssd(parts, aggregator) {
   }
 
   // ── Menu navigation (parts after valid PIN) ──
-  const m = parts.slice(pinIndex + 1);
+  // PIN validated. Apply force-change-PIN gate before main menu.
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, aggregator, 'aggregators');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Register Collector\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+  if (depth === 0) return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
 
-  // ── Register Collector (top-level path) ──
+  // ── Register sub-menu (Collector / Agent) ──
   if (m[0] === '1') {
-    return await handleAggregatorRegister(m.slice(1), aggregator, null);
+    const sub = m.slice(1);
+    if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n0. Back';
+    if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+    if (sub[0] === '1') return await handleAggregatorRegister(sub.slice(1), aggregator, null);
+    if (sub[0] === '2') return await handleAggregatorRegisterAgent(sub.slice(1), aggregator);
+    return 'END Invalid option.\nDial again to retry.';
   }
 
   // ── Log Transaction (Purchase or Sale) ──
@@ -3636,7 +3763,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   // ── More sub-menu (Marketplace + My Stats) ──
   if (m[0] === '4') {
     if (m.length === 1) return 'CON More options\n1. Marketplace\n2. My Stats\n0. Back';
-    if (m[1] === '0') return 'CON 1. Register Collector\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
     // Marketplace
     if (m[1] === '1') return await handleAggregatorMarketplace(m.slice(2), aggregator);
@@ -3808,9 +3935,73 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
             })
           ]
         );
-        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\n\nTell them to dial\n*920*54# and change\ntheir PIN on first use.`;
+        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\n\nThey'll be asked to set\ntheir own PIN at first use.`;
       } catch (err) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
+        throw err;
+      }
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Aggregator registers an agent (USSD top-level Register sub-menu) ──
+//
+// Mirrors handleAggregatorRegister (collector version) field-for-field, with two
+// data-model differences:
+//   1. INSERT is into agents (with aggregator_id FK) instead of collectors.
+//   2. NO PIN entry — agent picks their own PIN at first login via the
+//      gateForceChangePin universal gate. INSERT bakes default '0000' (hashed)
+//      + must_change_pin=true. Bootstrap-then-force pattern.
+async function handleAggregatorRegisterAgent(m, aggregator) {
+  const depth = m.length;
+
+  // depth 0: first name
+  if (depth === 0) return 'CON Enter agent\'s\nfirst name:';
+  const firstName = m[0];
+
+  // depth 1: last name
+  if (depth === 1) return 'CON Enter agent\'s\nlast name:';
+  const lastName = m[1];
+
+  // depth 2: phone
+  if (depth === 2) return 'CON Enter agent\'s\nphone number:';
+  const phone = m[2];
+
+  // depth 3: city
+  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+  const cityData = USSD_CITIES[m[3]];
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  // depth 4: confirm
+  if (depth === 4) {
+    const normalized = normalizeGhanaPhone(phone);
+    const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    return `CON Register agent:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  // depth 5: execute
+  if (depth === 5) {
+    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '1') {
+      try {
+        const hashedPin = await hashPassword('0000');
+        const normalized = normalizeGhanaPhone(phone);
+        const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+        const result = await pool.query(
+          `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, must_change_pin)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING id`,
+          [aggregator.id, firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+        );
+        await pool.query(
+          `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description)
+           VALUES ($1, $2, 'registered', 'Agent registered by aggregator (USSD)')`,
+          [result.rows[0].id, aggregator.id]
+        );
+        return `END Agent registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\n\nTell them to dial\n*920*54# and use PIN\n0000 \u2014 they'll be\nasked to set their\nown PIN.`;
+      } catch (err) {
+        if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nIf this is your existing\nagent, they can log in\ndirectly with *920*54#.';
         throw err;
       }
     }
@@ -4463,7 +4654,11 @@ async function handleAgentUssd(parts, agent) {
     return `CON Wrong PIN. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
   }
 
-  const m = parts.slice(pinIndex + 1);
+  // PIN validated. Apply force-change-PIN gate before main menu.
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, agent, 'agents');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
   const depth = m.length;
 
   // Main menu — 4 items (at the spec max)
@@ -4864,7 +5059,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
              `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
              result.rows[0].id]
           );
-          return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nAsk them to change\ntheir PIN on first use.\n\nFor: ${agent.aggregator_name}`;
+          return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nThey'll be asked to set\ntheir own PIN at first use.\n\nFor: ${agent.aggregator_name}`;
         } catch (err) {
           if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
           throw err;
@@ -4913,7 +5108,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
            `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
            result.rows[0].id]
         );
-        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nAsk them to change\ntheir PIN on first use.\n\nFor: ${agent.aggregator_name}`;
+        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nThey'll be asked to set\ntheir own PIN at first use.\n\nFor: ${agent.aggregator_name}`;
       } catch (err) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
         throw err;
@@ -5663,7 +5858,7 @@ app.post('/api/ussd', async (req, res) => {
         } else {
         // 1. Check collectors first (largest USSD user group)
         const collResult = await pool.query(
-          `SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+          `SELECT id, first_name, last_name, phone, pin, city, must_change_pin FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
           [phoneVariants]
         );
         if (collResult.rows.length) {
@@ -5672,7 +5867,7 @@ app.post('/api/ussd', async (req, res) => {
         } else {
           // 2. Check aggregators
           const aggResult = await pool.query(
-            `SELECT id, name, company, phone, pin, city, region FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+            `SELECT id, name, company, phone, pin, city, region, must_change_pin FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
             [phoneVariants]
           );
           if (aggResult.rows.length) {
@@ -5681,7 +5876,7 @@ app.post('/api/ussd', async (req, res) => {
           } else {
             // 3. Check agents
             const agentResult = await pool.query(
-              `SELECT a.id, a.aggregator_id, a.first_name, a.last_name, a.phone, a.pin, a.city, a.region,
+              `SELECT a.id, a.aggregator_id, a.first_name, a.last_name, a.phone, a.pin, a.city, a.region, a.must_change_pin,
                       agg.name AS aggregator_name, agg.phone AS aggregator_phone
                FROM agents a
                JOIN aggregators agg ON agg.id = a.aggregator_id
@@ -6821,14 +7016,14 @@ app.post('/api/auth/login', async (req, res) => {
 
       // 2. Aggregators
       const aggResult = await pool.query(
-        `SELECT id, name, company, phone, pin FROM aggregators WHERE phone=$1 AND is_active=true`,
+        `SELECT id, name, company, phone, pin, must_change_pin FROM aggregators WHERE phone=$1 AND is_active=true`,
         [phone.trim()]
       );
       if (aggResult.rows.length && await verifyPassword(pin.trim(), aggResult.rows[0].pin)) {
         clearLoginAttempts(phone.trim());
         const a = aggResult.rows[0];
         const token = generateToken({ type: 'aggregator', id: a.id, phone: a.phone, role: 'aggregator' }, AUTH_SECRET);
-        return res.json({ success: true, role: 'aggregator', roles: null, token, user: { id: a.id, name: a.name, company: a.company||null, phone: a.phone, role: 'aggregator' } });
+        return res.json({ success: true, role: 'aggregator', roles: null, token, user: { id: a.id, name: a.name, company: a.company||null, phone: a.phone, role: 'aggregator', must_change_pin: !!a.must_change_pin } });
       }
 
       // 3. Agents (sub-accounts under aggregators)
@@ -8325,15 +8520,17 @@ app.get('/api/agents', requireAuth, async (req, res) => {
 app.post('/api/agents', requireAuth, async (req, res) => {
   try {
     if (req.user.role !== 'aggregator') return res.status(403).json({ success: false, message: 'Aggregators only' });
-    const { first_name, last_name, phone, pin, city, region, ghana_card } = req.body;
-    if (!first_name || !last_name || !phone || !pin) {
-      return res.status(400).json({ success: false, message: 'first_name, last_name, phone, pin required' });
+    const { first_name, last_name, phone, city, region, ghana_card } = req.body;
+    if (!first_name || !last_name || !phone) {
+      return res.status(400).json({ success: false, message: 'first_name, last_name, phone required' });
     }
-    if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
-    const hashedPin = await hashPassword(pin.trim());
+    // PIN policy alignment: aggregator no longer sets the agent's PIN.
+    // Server bakes default '0000' (hashed) + must_change_pin=true. Agent picks
+    // their own PIN at first login via the universal force-change-PIN gate.
+    const hashedPin = await hashPassword('0000');
     const result = await pool.query(
-      `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, first_name, last_name, phone, city`,
+      `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card, must_change_pin)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true) RETURNING id, first_name, last_name, phone, city`,
       [req.user.id, first_name.trim(), last_name.trim(), phone.trim(), hashedPin, city||null, region||null, ghana_card||null]
     );
     await pool.query(
