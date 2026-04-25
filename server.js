@@ -4208,6 +4208,13 @@ async function resolveCollectorForPurchase(m, aggregator) {
   const hasList = collectors.rows.length > 0;
   const phoneOptionIndex = hasList ? collectors.rows.length + 1 : null;
 
+  // Detect mid-inline-register state from m's structure: a non-numeric input
+  // at the register-firstName slot signals the user typed a name, so we're in
+  // the inline register flow regardless of whether the lookup now finds the
+  // freshly-inserted collector. (USSD is stateless — without this check, the
+  // post-INSERT lookup would mis-route mid-flow inputs as found-confirm + material.)
+  const looksLikeName = function (s) { return typeof s === 'string' && /[a-zA-Z]/.test(s); };
+
   // ── Empty state: m[0] is a phone number directly ──
   if (!hasList) {
     if (m.length === 0) return { response: null };
@@ -4218,8 +4225,33 @@ async function resolveCollectorForPurchase(m, aggregator) {
       `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
       [phoneVariants]
     );
-    if (!found.rows.length) {
-      return { response: 'END Collector not registered.\nAsk them to dial *920*123#\nto register first.' };
+
+    // Inline-register signature: m[1]='1' AND (lookup says not-found OR m[2] looks
+    // like a name). Either path lands us in the inline register handling.
+    const inlineSignature = m.length >= 2 && m[1] === '1' && (!found.rows.length || looksLikeName(m[2]));
+    if (!found.rows.length || inlineSignature) {
+      // m shape:
+      //   m[0]=phone, m[1]='1' (yes register) or '0' (cancel)
+      //   m[2..5] = firstName, lastName, city, confirm — passed to handleAggregatorRegister
+      //   m[6] = bridge response ('1' continue purchase, '0' done)
+      //   m[7..] = material/weight/price/confirm picked up by handleAggregatorPurchase
+      if (m.length === 1) {
+        return { response: 'CON ' + m[0] + ' is not\nregistered on Circul.\n\nRegister them now to\nlog this purchase?\n\n1. Yes, register\n0. Cancel' };
+      }
+      if (m[1] === '0') return { response: 'END Cancelled.' };
+      if (m[1] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const regSlice = m.slice(2);
+      if (regSlice.length <= 4) {
+        return { response: await handleAggregatorRegister(regSlice, aggregator, m[0]) };
+      }
+      if (regSlice[4] === '0') return { response: 'END Done. Thanks for registering.' };
+      if (regSlice[4] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const found2 = await pool.query(
+        `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+        [phoneVariants]
+      );
+      if (!found2.rows.length) return { response: 'END Error: collector not found after registration.' };
+      return { collector: found2.rows[0], menuParts: m.slice(7) };
     }
     const coll = found.rows[0];
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
@@ -4245,8 +4277,27 @@ async function resolveCollectorForPurchase(m, aggregator) {
       `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
       [phoneVariants]
     );
-    if (!found.rows.length) {
-      return { response: 'END Collector not registered.\nAsk them to dial *920*123#\nto register first.' };
+    // Inline-register signature for has-list variant: m[2]='1' AND (lookup not-found OR m[3] looks like a name).
+    const inlineSig2 = m.length >= 3 && m[2] === '1' && (!found.rows.length || looksLikeName(m[3]));
+    if (!found.rows.length || inlineSig2) {
+      // m shape: m[0]=phoneOptIdx, m[1]=phone, m[2]='1'/'0', m[3..6]=register, m[7]=bridge, m[8..]=purchase
+      if (m.length === 2) {
+        return { response: 'CON ' + m[1] + ' is not\nregistered on Circul.\n\nRegister them now to\nlog this purchase?\n\n1. Yes, register\n0. Cancel' };
+      }
+      if (m[2] === '0') return { response: 'END Cancelled.' };
+      if (m[2] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const regSlice = m.slice(3);
+      if (regSlice.length <= 4) {
+        return { response: await handleAggregatorRegister(regSlice, aggregator, m[1]) };
+      }
+      if (regSlice[4] === '0') return { response: 'END Done. Thanks for registering.' };
+      if (regSlice[4] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const found2 = await pool.query(
+        `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+        [phoneVariants]
+      );
+      if (!found2.rows.length) return { response: 'END Error: collector not found after registration.' };
+      return { collector: found2.rows[0], menuParts: m.slice(8) };
     }
     const coll = found.rows[0];
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
