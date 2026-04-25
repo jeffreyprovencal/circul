@@ -3240,6 +3240,103 @@ async function handleForgotPinUssd(parts, resetRow) {
   return 'END PIN reset successfully.\n\nDial *920*54# and log in\nwith your new PIN.';
 }
 
+// Force-change-PIN gate. Fires on any USSD login where user.must_change_pin = true,
+// for all three roles. Universal — collectors, aggregators, agents share this code path.
+//
+// Caller passes:
+//   m         — slice of dial parts AFTER the validated PIN (i.e. parts.slice(pinIndex + 1)).
+//   user      — fetched row including must_change_pin.
+//   userTable — 'collectors' | 'aggregators' | 'agents' (whitelisted).
+//
+// Returns { needsGate, response, menuParts }:
+//   needsGate=true → caller returns `response` directly without entering main menu logic.
+//   needsGate=false → caller treats `menuParts` as the input to its main-menu dispatch.
+//
+// Depth math under USSD's stateless replay:
+//   m=[]                                  → G1 prompt new PIN
+//   m=[pin]                               → G2 prompt confirm
+//   m=[pin, confirm] (matches)            → G3 success bridge — UPDATE happens here
+//   m=[pin, confirm, '1']                 → continue to main menu (menuParts = m.slice(3))
+//   m=[pin, confirm, '0']                 → END
+const ALLOWED_USER_TABLES_FOR_GATE = ['collectors', 'aggregators', 'agents'];
+async function gateForceChangePin(m, user, userTable) {
+  if (!ALLOWED_USER_TABLES_FOR_GATE.includes(userTable)) {
+    throw new Error('gateForceChangePin: invalid userTable: ' + userTable);
+  }
+  if (!user || !user.must_change_pin) {
+    return { needsGate: false, menuParts: m };
+  }
+
+  // G1: prompt new PIN
+  if (m.length === 0) {
+    return {
+      needsGate: true,
+      response: 'CON You must set a new PIN.\n\nEnter new 4-digit PIN:\n4\u20136 digits, numbers only.\nAvoid 0000, 1234, or your\nbirth year.'
+    };
+  }
+
+  const newPin = m[0];
+  if (!/^\d{4,6}$/.test(newPin)) {
+    return {
+      needsGate: true,
+      response: 'END PIN must be 4-6 digits.\nDial *920*54# to retry.'
+    };
+  }
+
+  // G2: prompt confirm
+  if (m.length === 1) {
+    return {
+      needsGate: true,
+      response: 'CON Confirm new PIN:'
+    };
+  }
+
+  const confirm = m[1];
+  if (confirm !== newPin) {
+    return {
+      needsGate: true,
+      response: 'END PINs don\'t match.\nDial *920*54# to retry.'
+    };
+  }
+
+  // G3: success bridge — DO NOT update yet. USSD replays the full text on the
+  // next dial; if we UPDATE here, the next dial would fail PIN validation against
+  // the old default and mis-route. Defer UPDATE to the bridge response so it
+  // happens in the same dial as either Continue or Exit.
+  if (m.length === 2) {
+    return {
+      needsGate: true,
+      response: 'CON PIN saved!\n\nUse this PIN next time\nyou log in.\n\n1. Continue\n0. Exit'
+    };
+  }
+
+  // Bridge response: UPDATE happens here so subsequent dials use the new PIN.
+  if (m[2] === '0') {
+    const hashed = await hashPassword(newPin);
+    await pool.query(
+      `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
+      [hashed, user.id]
+    );
+    return {
+      needsGate: true,
+      response: 'END Done. Dial *920*54# again to use the platform.'
+    };
+  }
+  if (m[2] === '1') {
+    const hashed = await hashPassword(newPin);
+    await pool.query(
+      `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
+      [hashed, user.id]
+    );
+    return { needsGate: false, menuParts: m.slice(3) };
+  }
+
+  return {
+    needsGate: true,
+    response: 'END Invalid option.\nDial *920*54# to retry.'
+  };
+}
+
 async function fireResetCompletedNotifications(userType, userId, userPhone) {
   const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   await notify(EVENTS.PIN_RESET_COMPLETED, userPhone, { time: time });
