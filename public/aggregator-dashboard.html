@@ -63,6 +63,24 @@
 .bs-photo-ok{font-size:0.75rem;color:var(--accent)}
 .bs-photo-warn{font-size:0.75rem;color:#ffb74d}
 .bs-reject-reason{font-size:0.8rem;color:#ef4444;margin-top:6px;padding:8px;background:rgba(239,68,68,0.08);border-radius:var(--r-sm)}
+
+/* ── REPORTS SECTION ── */
+.reports-toggle{display:inline-flex;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;margin:14px 0 18px}
+.reports-toggle-btn{padding:7px 18px;font-size:0.78rem;font-weight:600;background:transparent;border:none;color:var(--text-2);cursor:pointer;font-family:var(--font)}
+.reports-toggle-btn.on{background:var(--accent);color:#000}
+.reports-form{display:flex;flex-direction:column;gap:14px;max-width:760px}
+.reports-form .field{display:flex;flex-direction:column;gap:4px}
+.reports-form .field label{font-size:0.7rem;font-weight:600;letter-spacing:0.04em;color:var(--text-3);text-transform:uppercase}
+.reports-form .field input,.reports-form .field select{padding:8px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-family:var(--font);font-size:0.85rem}
+.reports-form .field-row{display:flex;gap:12px;flex-wrap:wrap}
+.reports-form .field-row .field{flex:1;min-width:160px}
+.reports-form .chips{display:flex;flex-wrap:wrap;gap:6px}
+.reports-form .chip{padding:5px 12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer;font-size:0.75rem;font-weight:600;font-family:var(--font)}
+.reports-form .chip.on{background:var(--accent);color:#000;border-color:var(--accent)}
+.reports-form .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.reports-form .btn{padding:9px 18px;font-size:0.82rem;font-weight:700;border:none;border-radius:var(--r-sm);background:var(--accent);color:#000;cursor:pointer;font-family:var(--font)}
+.reports-form .btn.outline{background:transparent;color:var(--text-1);border:1px solid var(--border)}
+.reports-form .btn.sec{background:var(--surface-alt);color:var(--text-1);border:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -576,6 +594,58 @@
             <button class="btn-submit" onclick="submitSuggestion()">Submit for Approval</button>
             <button class="btn-cancel" onclick="backToExpenseForm()">Back</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="section" id="reportsCard">
+      <div class="section-title">Reports</div>
+      <div class="section-sub">Generate a transaction report for a date range. Sourcing reports show what you bought from collectors. Sales reports show what you sold to buyers. Both export as CSV (for your records) or PDF (to send to a buyer or brand).</div>
+
+      <div class="reports-toggle" role="tablist">
+        <button class="reports-toggle-btn on" data-report-type="sourcing" onclick="switchReportType('sourcing')">Sourcing</button>
+        <button class="reports-toggle-btn"    data-report-type="sales"    onclick="switchReportType('sales')">Sales</button>
+      </div>
+
+      <div class="reports-form">
+        <div class="field" id="counterpartyField">
+          <label id="counterpartyLabel">Collector</label>
+          <select id="counterpartySelect">
+            <option value="">All collectors (default)</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field"><label>From date</label><input type="date" id="reportFrom"></div>
+          <div class="field"><label>To date</label><input type="date" id="reportTo"></div>
+        </div>
+
+        <div class="field"><label>Materials</label>
+          <div class="chips" id="reportMaterialChips">
+            <div class="chip on" data-material="ALL">All</div>
+            <div class="chip" data-material="PET">PET</div>
+            <div class="chip" data-material="HDPE">HDPE</div>
+            <div class="chip" data-material="LDPE">LDPE</div>
+            <div class="chip" data-material="PP">PP</div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn outline" onclick="reportPreview()">Preview</button>
+          <button class="btn sec" onclick="reportDownloadCSV()">Download CSV</button>
+          <button class="btn" onclick="reportDownloadPDF()">Download PDF</button>
+        </div>
+      </div>
+
+      <div class="reports-preview hidden" id="reportsPreview">
+        <h4 id="reportsPreviewTitle"></h4>
+        <div class="summary" id="reportsSummary"></div>
+        <div class="table-wrap"><table class="txn-table" id="reportsTable"></table></div>
+        <div class="btn-row">
+          <button class="btn outline" onclick="reportEditFilters()">Edit filters</button>
+          <button class="btn sec" onclick="reportDownloadCSV()">Download CSV</button>
+          <button class="btn" onclick="reportDownloadPDF()">Download PDF</button>
         </div>
       </div>
     </div>
@@ -3505,5 +3575,171 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 });
+
+/* ══════════════════════════════════════════════════════════════
+   AGGREGATOR REPORTS — Sourcing + Sales
+   Privacy: collector names appear ONLY in the dropdown filter UI.
+   They never round-trip into any export. Backend SQL is also locked
+   (no JOIN to collectors on the sourcing endpoint).
+   ══════════════════════════════════════════════════════════════ */
+
+var reportsState = {
+    type: 'sourcing',
+    selectedMaterials: ['ALL'],
+    collectorsList: null,
+    buyersList: null,
+    lastResponse: null,
+    lastFiltersUsed: null
+};
+
+function reportsTodayIso() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function reportsYearStartIso() {
+    return new Date().getFullYear() + '-01-01';
+}
+
+function initReportsSection() {
+    if (!document.getElementById('reportsCard')) return;
+    document.getElementById('reportFrom').value = reportsYearStartIso();
+    document.getElementById('reportTo').value = reportsTodayIso();
+    var chipsRoot = document.getElementById('reportMaterialChips');
+    chipsRoot.querySelectorAll('.chip').forEach(function (c) {
+        c.addEventListener('click', function () { toggleReportMaterial(c.dataset.material); });
+    });
+    loadReportsCounterpartyList('sourcing');
+}
+
+function toggleReportMaterial(mat) {
+    var chipsRoot = document.getElementById('reportMaterialChips');
+    if (mat === 'ALL') {
+        reportsState.selectedMaterials = ['ALL'];
+    } else {
+        var sel = reportsState.selectedMaterials.filter(function (m) { return m !== 'ALL'; });
+        var i = sel.indexOf(mat);
+        if (i >= 0) sel.splice(i, 1); else sel.push(mat);
+        reportsState.selectedMaterials = sel.length === 0 ? ['ALL'] : sel;
+    }
+    chipsRoot.querySelectorAll('.chip').forEach(function (c) {
+        c.classList.toggle('on', reportsState.selectedMaterials.indexOf(c.dataset.material) !== -1);
+    });
+    reportsState.lastResponse = null;
+    reportsState.lastFiltersUsed = null;
+}
+
+function switchReportType(type) {
+    reportsState.type = type;
+    document.querySelectorAll('.reports-toggle-btn').forEach(function (b) {
+        b.classList.toggle('on', b.dataset.reportType === type);
+    });
+    document.getElementById('counterpartyLabel').textContent = type === 'sourcing' ? 'Collector' : 'Buyer';
+    var sel = document.getElementById('counterpartySelect');
+    sel.innerHTML = type === 'sourcing'
+        ? '<option value="">All collectors (default)</option>'
+        : '<option value="">All buyers (default)</option>';
+    document.getElementById('reportsPreview').classList.add('hidden');
+    reportsState.lastResponse = null;
+    reportsState.lastFiltersUsed = null;
+    loadReportsCounterpartyList(type);
+}
+
+function loadReportsCounterpartyList(type) {
+    var url = type === 'sourcing'
+        ? '/api/aggregator/reports/collectors-list'
+        : '/api/aggregator/reports/buyers-list';
+    apiFetch(url).then(function (r) { return r.json(); }).then(function (data) {
+        if (!data.success) return;
+        var sel = document.getElementById('counterpartySelect');
+        if (type === 'sourcing') {
+            reportsState.collectorsList = data.collectors;
+            data.collectors.forEach(function (c) {
+                var opt = document.createElement('option');
+                opt.value = c.collector_id;
+                // Name visible in DROPDOWN only; never written to any export
+                opt.textContent = (c.name || c.collector_code) + ' (' + c.collector_code + ') · ' + c.sale_count + ' sales · GH\u20b5' + c.total_ghs.toLocaleString();
+                sel.appendChild(opt);
+            });
+        } else {
+            reportsState.buyersList = data.buyers;
+            data.buyers.forEach(function (b) {
+                var opt = document.createElement('option');
+                opt.value = b.buyer_kind + ':' + b.buyer_id;
+                opt.textContent = b.buyer_name + ' (' + b.buyer_code + ') · ' + b.sale_count + ' sales · GH\u20b5' + b.total_ghs.toLocaleString();
+                sel.appendChild(opt);
+            });
+        }
+    }).catch(function (e) { console.warn('[reports] counterparty list load failed:', e.message); });
+}
+
+function readReportFilters() {
+    var type = reportsState.type;
+    var from = document.getElementById('reportFrom').value;
+    var to = document.getElementById('reportTo').value;
+    var counterpartyVal = document.getElementById('counterpartySelect').value;
+    var matsState = reportsState.selectedMaterials;
+    var materials = matsState.indexOf('ALL') !== -1 ? null : matsState.join(',');
+    var filters = { type: type, from: from, to: to, materials: materials };
+    if (type === 'sourcing') {
+        filters.collector_id = counterpartyVal || null;
+    } else {
+        if (counterpartyVal) {
+            var bits = counterpartyVal.split(':');
+            filters.buyer_kind = bits[0];
+            filters.buyer_id = bits[1];
+        } else {
+            filters.buyer_kind = null;
+            filters.buyer_id = null;
+        }
+    }
+    return filters;
+}
+
+function buildReportQs(filters) {
+    var qs = ['from=' + encodeURIComponent(filters.from), 'to=' + encodeURIComponent(filters.to)];
+    if (filters.materials) qs.push('materials=' + encodeURIComponent(filters.materials));
+    if (filters.type === 'sourcing') {
+        if (filters.collector_id) qs.push('collector_id=' + encodeURIComponent(filters.collector_id));
+    } else {
+        if (filters.buyer_kind) qs.push('buyer_kind=' + encodeURIComponent(filters.buyer_kind));
+        if (filters.buyer_id) qs.push('buyer_id=' + encodeURIComponent(filters.buyer_id));
+    }
+    return qs.join('&');
+}
+
+function fetchReport(filters) {
+    var url = '/api/aggregator/reports/' + filters.type + '?' + buildReportQs(filters);
+    return apiFetch(url).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; }); });
+}
+
+function reportEditFilters() {
+    document.getElementById('reportsPreview').classList.add('hidden');
+    document.getElementById('reportsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Stubs filled in by later phases — defined here so the toolbar buttons don't NPE before phase 4/5/6 land.
+function reportPreview() { console.warn('[reports] preview not yet wired'); }
+function reportDownloadCSV() { console.warn('[reports] CSV not yet wired'); }
+function reportDownloadPDF() { console.warn('[reports] PDF not yet wired'); }
+
+(function () {
+    var initialized = false;
+    var poll = setInterval(function () {
+        if (initialized) return;
+        var dash = document.getElementById('dashboard');
+        var card = document.getElementById('reportsCard');
+        if (!dash || !card) return;
+        if (dash.classList.contains('hidden')) return;
+        if (!window.state || !state.operator) return;
+        try {
+            initReportsSection();
+            initialized = true;
+            clearInterval(poll);
+        } catch (e) {
+            console.warn('[reports] init failed:', e.message);
+        }
+    }, 250);
+    setTimeout(function () { clearInterval(poll); }, 30000);
+})();
 </script>
 </html>
