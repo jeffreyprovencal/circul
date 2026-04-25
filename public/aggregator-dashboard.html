@@ -3854,8 +3854,123 @@ function renderSalesTable(rows) {
     return headers + '<tbody>' + body + '</tbody>';
 }
 
-// Stubs filled by Phase 5 + 6
-function reportDownloadCSV() { console.warn('[reports] CSV not yet wired'); }
+/* ── CSV export ── */
+
+function csvEscape(v) {
+    if (v == null) return '';
+    var s = String(v);
+    if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
+        return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+}
+
+function buildCsv(headerRow, rowsArr) {
+    var lines = [headerRow.join(',')];
+    for (var i = 0; i < rowsArr.length; i++) {
+        lines.push(rowsArr[i].map(csvEscape).join(','));
+    }
+    return lines.join('\n');
+}
+
+function downloadAsFile(filename, content, mime) {
+    var blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
+function reportFilenameBase(filters) {
+    var aggCode = 'AGG-' + String(state.operator.id).padStart(4, '0');
+    var slugFor;
+    if (filters.type === 'sourcing') {
+        slugFor = filters.collector_id ? 'col-' + filters.collector_id : 'all-collectors';
+    } else {
+        if (filters.buyer_kind && filters.buyer_id) {
+            var bn = (reportsState.buyersList || []).find(function (b) { return b.buyer_kind === filters.buyer_kind && String(b.buyer_id) === String(filters.buyer_id); });
+            slugFor = bn ? bn.buyer_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : (filters.buyer_kind + '-' + filters.buyer_id);
+        } else {
+            slugFor = 'all-buyers';
+        }
+    }
+    return 'circul_' + filters.type + '_' + aggCode + '_' + slugFor + '_' + filters.from + '_to_' + filters.to;
+}
+
+function ensureLatestReport(callback) {
+    var filters = readReportFilters();
+    if (!filters.from || !filters.to) {
+        alert('Pick a from and to date.');
+        return;
+    }
+    var key = JSON.stringify(filters);
+    if (reportsState.lastResponse && reportsState.lastFiltersUsed === key) {
+        callback(filters, reportsState.lastResponse);
+        return;
+    }
+    fetchReport(filters).then(function (res) {
+        if (!res.ok || !res.body.success) {
+            alert('Report failed: ' + ((res.body && res.body.message) || 'unknown error'));
+            return;
+        }
+        reportsState.lastResponse = res.body;
+        reportsState.lastFiltersUsed = key;
+        callback(filters, res.body);
+    });
+}
+
+function reportDownloadCSV() {
+    ensureLatestReport(function (filters, response) {
+        var csv;
+        if (filters.type === 'sourcing') {
+            // PRIVACY: no collector_name column. Codes only.
+            var headers = ['date','ref','collector_code','material','form','gross_kg','net_kg','price_per_kg_ghs','total_ghs','payment_status','paid_at'];
+            var rows = response.rows.map(function (r) {
+                return [
+                    new Date(r.date).toISOString().slice(0, 10),
+                    r.ref,
+                    r.collector_code,
+                    r.material_type,
+                    r.form || '',
+                    Number(r.gross_weight_kg).toFixed(2),
+                    Number(r.net_weight_kg).toFixed(2),
+                    Number(r.price_per_kg).toFixed(2),
+                    Number(r.total_price).toFixed(2),
+                    r.payment_status || '',
+                    r.paid_at ? new Date(r.paid_at).toISOString() : ''
+                ];
+            });
+            csv = buildCsv(headers, rows);
+        } else {
+            var headersS = ['date','ref','buyer_kind','buyer_code','buyer_name','material','form','gross_kg','net_kg','price_per_kg_ghs','total_ghs','traced_pct','collector_codes','payment_status','paid_at'];
+            var rowsS = response.rows.map(function (r) {
+                return [
+                    new Date(r.date).toISOString().slice(0, 10),
+                    r.ref,
+                    r.buyer_kind || '',
+                    r.buyer_code || '',
+                    r.buyer_name || '',
+                    r.material_type,
+                    r.form || '',
+                    Number(r.gross_weight_kg).toFixed(2),
+                    Number(r.net_weight_kg).toFixed(2),
+                    Number(r.price_per_kg).toFixed(2),
+                    Number(r.total_price).toFixed(2),
+                    String(r.traced_pct),
+                    (r.collector_codes || []).join(','),
+                    r.payment_status || '',
+                    r.paid_at ? new Date(r.paid_at).toISOString() : ''
+                ];
+            });
+            csv = buildCsv(headersS, rowsS);
+        }
+        downloadAsFile(reportFilenameBase(filters) + '.csv', csv, 'text/csv;charset=utf-8');
+    });
+}
+
+// Stub filled by Phase 6
 function reportDownloadPDF() { console.warn('[reports] PDF not yet wired'); }
 
 (function () {
