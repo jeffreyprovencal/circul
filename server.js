@@ -3501,7 +3501,11 @@ async function handleRegisteredUssd(parts, collector) {
   }
 
   // ── Menu navigation (parts after valid PIN) ──
-  const m = parts.slice(pinIndex + 1);
+  // PIN validated. Apply force-change-PIN gate before main menu.
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, collector, 'collectors');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
   const depth = m.length;
 
   if (depth === 0) return 'CON 1. Log Drop-off\n2. Sell My Material\n3. Discovery\n4. My Stats\n0. Exit';
@@ -3701,7 +3705,11 @@ async function handleAggregatorUssd(parts, aggregator) {
   }
 
   // ── Menu navigation (parts after valid PIN) ──
-  const m = parts.slice(pinIndex + 1);
+  // PIN validated. Apply force-change-PIN gate before main menu.
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, aggregator, 'aggregators');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
   const depth = m.length;
 
   if (depth === 0) return 'CON 1. Register Collector\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
@@ -4560,7 +4568,11 @@ async function handleAgentUssd(parts, agent) {
     return `CON Wrong PIN. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
   }
 
-  const m = parts.slice(pinIndex + 1);
+  // PIN validated. Apply force-change-PIN gate before main menu.
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, agent, 'agents');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
   const depth = m.length;
 
   // Main menu — 4 items (at the spec max)
@@ -5760,7 +5772,7 @@ app.post('/api/ussd', async (req, res) => {
         } else {
         // 1. Check collectors first (largest USSD user group)
         const collResult = await pool.query(
-          `SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+          `SELECT id, first_name, last_name, phone, pin, city, must_change_pin FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
           [phoneVariants]
         );
         if (collResult.rows.length) {
@@ -5769,7 +5781,7 @@ app.post('/api/ussd', async (req, res) => {
         } else {
           // 2. Check aggregators
           const aggResult = await pool.query(
-            `SELECT id, name, company, phone, pin, city, region FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+            `SELECT id, name, company, phone, pin, city, region, must_change_pin FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
             [phoneVariants]
           );
           if (aggResult.rows.length) {
@@ -5778,7 +5790,7 @@ app.post('/api/ussd', async (req, res) => {
           } else {
             // 3. Check agents
             const agentResult = await pool.query(
-              `SELECT a.id, a.aggregator_id, a.first_name, a.last_name, a.phone, a.pin, a.city, a.region,
+              `SELECT a.id, a.aggregator_id, a.first_name, a.last_name, a.phone, a.pin, a.city, a.region, a.must_change_pin,
                       agg.name AS aggregator_name, agg.phone AS aggregator_phone
                FROM agents a
                JOIN aggregators agg ON agg.id = a.aggregator_id
@@ -6918,14 +6930,14 @@ app.post('/api/auth/login', async (req, res) => {
 
       // 2. Aggregators
       const aggResult = await pool.query(
-        `SELECT id, name, company, phone, pin FROM aggregators WHERE phone=$1 AND is_active=true`,
+        `SELECT id, name, company, phone, pin, must_change_pin FROM aggregators WHERE phone=$1 AND is_active=true`,
         [phone.trim()]
       );
       if (aggResult.rows.length && await verifyPassword(pin.trim(), aggResult.rows[0].pin)) {
         clearLoginAttempts(phone.trim());
         const a = aggResult.rows[0];
         const token = generateToken({ type: 'aggregator', id: a.id, phone: a.phone, role: 'aggregator' }, AUTH_SECRET);
-        return res.json({ success: true, role: 'aggregator', roles: null, token, user: { id: a.id, name: a.name, company: a.company||null, phone: a.phone, role: 'aggregator' } });
+        return res.json({ success: true, role: 'aggregator', roles: null, token, user: { id: a.id, name: a.name, company: a.company||null, phone: a.phone, role: 'aggregator', must_change_pin: !!a.must_change_pin } });
       }
 
       // 3. Agents (sub-accounts under aggregators)
