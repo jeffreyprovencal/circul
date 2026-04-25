@@ -4013,7 +4013,7 @@ function reportDownloadPDF() {
         doc.setTextColor(13, 31, 20);
         doc.text(aggDisplayName, pageW - margin, margin + 4, { align: 'right' });
         doc.setFontSize(8);
-        doc.setFont('courier', 'normal');
+        doc.setFont('helvetica', 'normal');
         doc.setTextColor(90, 117, 102);
         doc.text(aggCode, pageW - margin, margin + 9, { align: 'right' });
 
@@ -4080,7 +4080,7 @@ function reportDownloadPDF() {
             doc.setTextColor(90, 117, 102);
             doc.text(cards[i].label.toUpperCase(), x + 3, summaryY + 4);
             doc.setFontSize(11);
-            doc.setFont('courier', 'bold');
+            doc.setFont('helvetica', 'bold');
             doc.setTextColor(13, 31, 20);
             doc.text(String(cards[i].value), x + 3, summaryY + 10);
             if (cards[i].sub) {
