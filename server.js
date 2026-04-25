@@ -368,6 +368,23 @@ app.patch('/api/collectors/:id/change-pin', requireAuth, async (req, res) => {
   }
 });
 
+// Agent self-service change-PIN — mirrors collector pattern. Used by the
+// must_change_pin force-change modal at first login on the web dashboard.
+app.patch('/api/agents/:id/change-pin', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('agent')) return res.status(403).json({ success: false, message: 'Agent access only' });
+    if (parseInt(req.params.id) !== req.user.id) return res.status(403).json({ success: false, message: 'Can only change your own PIN' });
+    const { pin } = req.body;
+    if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    const hashedPin = await hashPassword(pin);
+    await pool.query(`UPDATE agents SET pin=$1, must_change_pin=false WHERE id=$2`, [hashedPin, req.user.id]);
+    res.json({ success: true, message: 'PIN changed successfully' });
+  } catch (err) {
+    console.error('PATCH /api/agents/:id/change-pin error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.post('/api/collectors/login', async (req, res) => {
   try {
     const { phone, pin } = req.body;
