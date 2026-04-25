@@ -3254,7 +3254,7 @@ async function handleForgotPinUssd(parts, resetRow) {
     console.error('[RESET] notification error:', err.message);
   });
 
-  return 'END PIN reset successfully.\n\nDial *920*54# and log in\nwith your new PIN.';
+  return 'END PIN reset successfully.\n\nUse this PIN next time\nyou log in.';
 }
 
 // Force-change-PIN gate. Fires on any USSD login where user.must_change_pin = true,
@@ -3935,7 +3935,7 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
             })
           ]
         );
-        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\n\nTell them to dial\n*920*54# and change\ntheir PIN on first use.`;
+        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\n\nThey'll be asked to set\ntheir own PIN at first use.`;
       } catch (err) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
         throw err;
@@ -5059,7 +5059,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
              `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
              result.rows[0].id]
           );
-          return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nAsk them to change\ntheir PIN on first use.\n\nFor: ${agent.aggregator_name}`;
+          return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nThey'll be asked to set\ntheir own PIN at first use.\n\nFor: ${agent.aggregator_name}`;
         } catch (err) {
           if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
           throw err;
@@ -5108,7 +5108,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
            `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
            result.rows[0].id]
         );
-        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nAsk them to change\ntheir PIN on first use.\n\nFor: ${agent.aggregator_name}`;
+        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nThey'll be asked to set\ntheir own PIN at first use.\n\nFor: ${agent.aggregator_name}`;
       } catch (err) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
         throw err;
