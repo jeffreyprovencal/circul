@@ -2948,7 +2948,7 @@ async function handleAggregatorRegistrationRequest(parts, phone) {
       phone: phone
     }).catch(function (e) { console.warn('[agg-reg-request] notify-admin failed:', e.message); });
 
-    return 'END Request submitted.\n\nThank you, ' + firstName + '. Circul\nsupport will review your\napplication.\n\nYou\'ll receive an SMS\nwithin 24 hours.\n\nCall 024 131 48 41 for\nhelp.';
+    return 'END Request submitted, ' + firstName + '.\n\nCircul support will SMS\nyou in 24h.\n\nQuestions: 024 131 48 41';
   }
 
   return 'END Invalid option.\nDial again to retry.';
