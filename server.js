@@ -8503,15 +8503,17 @@ app.get('/api/agents', requireAuth, async (req, res) => {
 app.post('/api/agents', requireAuth, async (req, res) => {
   try {
     if (req.user.role !== 'aggregator') return res.status(403).json({ success: false, message: 'Aggregators only' });
-    const { first_name, last_name, phone, pin, city, region, ghana_card } = req.body;
-    if (!first_name || !last_name || !phone || !pin) {
-      return res.status(400).json({ success: false, message: 'first_name, last_name, phone, pin required' });
+    const { first_name, last_name, phone, city, region, ghana_card } = req.body;
+    if (!first_name || !last_name || !phone) {
+      return res.status(400).json({ success: false, message: 'first_name, last_name, phone required' });
     }
-    if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
-    const hashedPin = await hashPassword(pin.trim());
+    // PIN policy alignment: aggregator no longer sets the agent's PIN.
+    // Server bakes default '0000' (hashed) + must_change_pin=true. Agent picks
+    // their own PIN at first login via the universal force-change-PIN gate.
+    const hashedPin = await hashPassword('0000');
     const result = await pool.query(
-      `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, first_name, last_name, phone, city`,
+      `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card, must_change_pin)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true) RETURNING id, first_name, last_name, phone, city`,
       [req.user.id, first_name.trim(), last_name.trim(), phone.trim(), hashedPin, city||null, region||null, ghana_card||null]
     );
     await pool.query(

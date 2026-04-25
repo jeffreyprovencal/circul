@@ -716,7 +716,6 @@
           <div><label class="form-label">First Name</label><input class="form-input" id="agentFirstName" placeholder="First name"></div>
           <div><label class="form-label">Last Name</label><input class="form-input" id="agentLastName" placeholder="Last name"></div>
           <div><label class="form-label">Phone</label><input class="form-input" id="agentPhone" type="tel" placeholder="0241 000 000"></div>
-          <div><label class="form-label">PIN (min 4 digits)</label><input class="form-input" id="agentPin" type="password" maxlength="6" placeholder="••••"></div>
           <div>
             <label class="form-label">City</label>
             <select class="form-input" id="agentCity">
@@ -3438,25 +3437,24 @@ function submitAgentRegistration() {
   var first = (document.getElementById('agentFirstName').value || '').trim();
   var last = (document.getElementById('agentLastName').value || '').trim();
   var phone = (document.getElementById('agentPhone').value || '').trim();
-  var pin = (document.getElementById('agentPin').value || '').trim();
   var city = document.getElementById('agentCity').value;
   var gc = (document.getElementById('agentGhanaCard').value || '').trim();
-  if (!first || !last || !phone || !pin) { showToast('All required fields must be filled'); return; }
-  if (pin.length < 4) { showToast('PIN must be at least 4 digits'); return; }
+  if (!first || !last || !phone) { showToast('All required fields must be filled'); return; }
+  // Server bakes default PIN '0000' + must_change_pin=true. Agent picks their
+  // own PIN at first login via the universal force-change-PIN gate.
   apiFetch('/api/agents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ first_name: first, last_name: last, phone: phone, pin: pin, city: city || null, ghana_card: gc || null })
+    body: JSON.stringify({ first_name: first, last_name: last, phone: phone, city: city || null, ghana_card: gc || null })
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success) {
-        showToast('Agent registered successfully');
+        showToast('Agent registered. They\'ll set their own PIN at first login (default 0000).');
         toggleAgentForm();
         document.getElementById('agentFirstName').value = '';
         document.getElementById('agentLastName').value = '';
         document.getElementById('agentPhone').value = '';
-        document.getElementById('agentPin').value = '';
         document.getElementById('agentCity').value = '';
         document.getElementById('agentGhanaCard').value = '';
         loadAgents();
