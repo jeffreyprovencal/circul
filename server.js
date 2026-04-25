@@ -3929,6 +3929,70 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
   return 'END Invalid option.\nDial again to retry.';
 }
 
+// ── Aggregator registers an agent (USSD top-level Register sub-menu) ──
+//
+// Mirrors handleAggregatorRegister (collector version) field-for-field, with two
+// data-model differences:
+//   1. INSERT is into agents (with aggregator_id FK) instead of collectors.
+//   2. NO PIN entry — agent picks their own PIN at first login via the
+//      gateForceChangePin universal gate. INSERT bakes default '0000' (hashed)
+//      + must_change_pin=true. Bootstrap-then-force pattern.
+async function handleAggregatorRegisterAgent(m, aggregator) {
+  const depth = m.length;
+
+  // depth 0: first name
+  if (depth === 0) return 'CON Enter agent\'s\nfirst name:';
+  const firstName = m[0];
+
+  // depth 1: last name
+  if (depth === 1) return 'CON Enter agent\'s\nlast name:';
+  const lastName = m[1];
+
+  // depth 2: phone
+  if (depth === 2) return 'CON Enter agent\'s\nphone number:';
+  const phone = m[2];
+
+  // depth 3: city
+  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+  const cityData = USSD_CITIES[m[3]];
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  // depth 4: confirm
+  if (depth === 4) {
+    const normalized = normalizeGhanaPhone(phone);
+    const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    return `CON Register agent:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  // depth 5: execute
+  if (depth === 5) {
+    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '1') {
+      try {
+        const hashedPin = await hashPassword('0000');
+        const normalized = normalizeGhanaPhone(phone);
+        const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+        const result = await pool.query(
+          `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, must_change_pin)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING id`,
+          [aggregator.id, firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+        );
+        await pool.query(
+          `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description)
+           VALUES ($1, $2, 'registered', 'Agent registered by aggregator (USSD)')`,
+          [result.rows[0].id, aggregator.id]
+        );
+        return `END Agent registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\n\nTell them to dial\n*920*54# and use PIN\n0000 \u2014 they'll be\nasked to set their\nown PIN.`;
+      } catch (err) {
+        if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nIf this is your existing\nagent, they can log in\ndirectly with *920*54#.';
+        throw err;
+      }
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
 async function handleAggregatorPurchase(m, aggregator) {
   const depth = m.length;
 
