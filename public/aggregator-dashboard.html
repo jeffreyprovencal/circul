@@ -81,6 +81,17 @@
 .reports-form .btn{padding:9px 18px;font-size:0.82rem;font-weight:700;border:none;border-radius:var(--r-sm);background:var(--accent);color:#000;cursor:pointer;font-family:var(--font)}
 .reports-form .btn.outline{background:transparent;color:var(--text-1);border:1px solid var(--border)}
 .reports-form .btn.sec{background:var(--surface-alt);color:var(--text-1);border:1px solid var(--border)}
+.reports-preview{margin-top:24px;padding-top:18px;border-top:1px solid var(--border)}
+.reports-preview h4{font-size:0.95rem;font-weight:700;margin:0 0 14px}
+.reports-preview .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.reports-preview .summary-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px}
+.reports-preview .summary-card .label{font-size:0.65rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase}
+.reports-preview .summary-card .value{font-size:1.2rem;font-weight:700;color:var(--text-1);margin-top:4px;font-family:'Courier New',monospace}
+.reports-preview .summary-card .sub{font-size:0.7rem;color:var(--text-3);margin-top:2px}
+.reports-preview .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.reports-preview .btn-row .btn{padding:9px 18px;font-size:0.82rem;font-weight:700;border:none;border-radius:var(--r-sm);background:var(--accent);color:#000;cursor:pointer;font-family:var(--font)}
+.reports-preview .btn-row .btn.outline{background:transparent;color:var(--text-1);border:1px solid var(--border)}
+.reports-preview .btn-row .btn.sec{background:var(--surface-alt);color:var(--text-1);border:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -3717,8 +3728,133 @@ function reportEditFilters() {
     document.getElementById('reportsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// Stubs filled in by later phases — defined here so the toolbar buttons don't NPE before phase 4/5/6 land.
-function reportPreview() { console.warn('[reports] preview not yet wired'); }
+function fmtKg(n) {
+    return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' kg';
+}
+function fmtGhs(n) {
+    return 'GH\u20b5 ' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+function fmtPaymentStatus(s) {
+    if (s === 'paid') return 'Paid';
+    if (s === 'payment_sent') return 'Sent';
+    return 'Pending';
+}
+
+function reportPreview() {
+    var filters = readReportFilters();
+    if (!filters.from || !filters.to) {
+        alert('Pick a from and to date.');
+        return;
+    }
+    fetchReport(filters).then(function (res) {
+        if (!res.ok || !res.body.success) {
+            alert('Report failed: ' + ((res.body && res.body.message) || 'unknown error'));
+            return;
+        }
+        reportsState.lastResponse = res.body;
+        reportsState.lastFiltersUsed = JSON.stringify(filters);
+        renderReportPreview(filters, res.body);
+    });
+}
+
+function renderReportPreview(filters, response) {
+    var preview = document.getElementById('reportsPreview');
+    var titleEl = document.getElementById('reportsPreviewTitle');
+    var sumEl = document.getElementById('reportsSummary');
+    var tableEl = document.getElementById('reportsTable');
+    var s = response.summary;
+    var rows = response.rows;
+
+    if (filters.type === 'sourcing') {
+        titleEl.textContent = 'Sourcing Report — ' + filters.from + ' to ' + filters.to;
+        var avgPerKg = s.total_sourced_kg > 0 ? (s.total_paid_out_ghs / s.total_sourced_kg) : 0;
+        sumEl.innerHTML = [
+            renderSummaryCard('Total Sourced', fmtKg(s.total_sourced_kg), s.transaction_count + ' transactions'),
+            renderSummaryCard('Total Paid Out', fmtGhs(s.total_paid_out_ghs), 'avg ' + fmtGhs(avgPerKg) + '/kg'),
+            renderSummaryCard('Collectors', String(s.collector_count), 'all registered'),
+            renderSummaryCard('Largest Supplier', s.largest_supplier_code || '\u2014', s.largest_supplier_pct + '% \u00b7 ' + fmtKg(s.largest_supplier_kg))
+        ].join('');
+        tableEl.innerHTML = renderSourcingTable(rows);
+    } else {
+        titleEl.textContent = 'Sales Report — ' + filters.from + ' to ' + filters.to;
+        var avgPerKgS = s.total_volume_kg > 0 ? (s.total_value_ghs / s.total_volume_kg) : 0;
+        sumEl.innerHTML = [
+            renderSummaryCard('Total Volume', fmtKg(s.total_volume_kg), s.transaction_count + ' transactions'),
+            renderSummaryCard('Total Value', fmtGhs(s.total_value_ghs), 'avg ' + fmtGhs(avgPerKgS) + '/kg'),
+            renderSummaryCard('Buyers', String(s.buyer_count), ''),
+            renderSummaryCard('Traced %', s.traced_pct_by_kg + '%', fmtKg(s.traced_kg) + ' traced of ' + fmtKg(s.total_volume_kg))
+        ].join('');
+        tableEl.innerHTML = renderSalesTable(rows);
+    }
+    preview.classList.remove('hidden');
+    preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderSummaryCard(label, value, sub) {
+    return '<div class="summary-card">' +
+        '<div class="label">' + label + '</div>' +
+        '<div class="value">' + value + '</div>' +
+        (sub ? '<div class="sub">' + sub + '</div>' : '') +
+        '</div>';
+}
+
+function htmlEsc(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderSourcingTable(rows) {
+    var headers = '<thead><tr><th>Date</th><th>Ref</th><th>Collector</th><th>Material</th><th style="text-align:right">Net kg</th><th style="text-align:right">GH\u20b5/kg</th><th style="text-align:right">Total</th><th>Status</th></tr></thead>';
+    if (!rows.length) {
+        return headers + '<tbody><tr><td colspan="8" class="empty" style="text-align:center;padding:18px">No transactions in this range.</td></tr></tbody>';
+    }
+    var shown = rows.slice(0, 5);
+    var body = shown.map(function (r) {
+        // PRIVACY: render collector_code only. Never any name field.
+        return '<tr>' +
+            '<td>' + htmlEsc(new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })) + '</td>' +
+            '<td style="font-family:\'Courier New\',monospace;font-size:0.78rem">' + htmlEsc(r.ref) + '</td>' +
+            '<td style="font-family:\'Courier New\',monospace;font-size:0.78rem">' + htmlEsc(r.collector_code) + '</td>' +
+            '<td>' + htmlEsc(r.material_type) + '</td>' +
+            '<td style="text-align:right">' + Number(r.net_weight_kg).toFixed(2) + '</td>' +
+            '<td style="text-align:right">' + Number(r.price_per_kg).toFixed(2) + '</td>' +
+            '<td style="text-align:right">' + Number(r.total_price).toFixed(2) + '</td>' +
+            '<td><span class="pill pill-' + (r.payment_status === 'paid' ? 'paid' : r.payment_status === 'payment_sent' ? 'sent' : 'pending') + '">' + fmtPaymentStatus(r.payment_status) + '</span></td>' +
+            '</tr>';
+    }).join('');
+    if (rows.length > shown.length) {
+        body += '<tr><td colspan="8" style="text-align:center;color:var(--text-3);font-size:0.78rem;padding:10px">… ' + (rows.length - shown.length) + ' more rows in CSV / PDF</td></tr>';
+    }
+    return headers + '<tbody>' + body + '</tbody>';
+}
+
+function renderSalesTable(rows) {
+    var headers = '<thead><tr><th>Date</th><th>Ref</th><th>Buyer</th><th>Material</th><th style="text-align:right">Net kg</th><th style="text-align:right">GH\u20b5/kg</th><th style="text-align:right">Total</th><th>Trace</th><th>Status</th></tr></thead>';
+    if (!rows.length) {
+        return headers + '<tbody><tr><td colspan="9" class="empty" style="text-align:center;padding:18px">No transactions in this range.</td></tr></tbody>';
+    }
+    var shown = rows.slice(0, 5);
+    var body = shown.map(function (r) {
+        var traceCls = r.trace_kind === 'traced' ? 'pill-traced' : 'pill-declared';
+        var traceTxt = r.trace_kind === 'traced' ? 'Traced' : 'Declared';
+        return '<tr>' +
+            '<td>' + htmlEsc(new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })) + '</td>' +
+            '<td style="font-family:\'Courier New\',monospace;font-size:0.78rem">' + htmlEsc(r.ref) + '</td>' +
+            '<td>' + htmlEsc(r.buyer_code) + ' <span style="color:var(--text-3)">' + htmlEsc(r.buyer_name || '') + '</span></td>' +
+            '<td>' + htmlEsc(r.material_type) + '</td>' +
+            '<td style="text-align:right">' + Number(r.net_weight_kg).toFixed(2) + '</td>' +
+            '<td style="text-align:right">' + Number(r.price_per_kg).toFixed(2) + '</td>' +
+            '<td style="text-align:right">' + Number(r.total_price).toFixed(2) + '</td>' +
+            '<td><span class="pill ' + traceCls + '">' + traceTxt + '</span></td>' +
+            '<td><span class="pill pill-' + (r.payment_status === 'paid' ? 'paid' : r.payment_status === 'payment_sent' ? 'sent' : 'pending') + '">' + fmtPaymentStatus(r.payment_status) + '</span></td>' +
+            '</tr>';
+    }).join('');
+    if (rows.length > shown.length) {
+        body += '<tr><td colspan="9" style="text-align:center;color:var(--text-3);font-size:0.78rem;padding:10px">… ' + (rows.length - shown.length) + ' more rows in CSV / PDF</td></tr>';
+    }
+    return headers + '<tbody>' + body + '</tbody>';
+}
+
+// Stubs filled by Phase 5 + 6
 function reportDownloadCSV() { console.warn('[reports] CSV not yet wired'); }
 function reportDownloadPDF() { console.warn('[reports] PDF not yet wired'); }
 
