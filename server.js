@@ -3607,64 +3607,18 @@ async function handleAggregatorUssd(parts, aggregator) {
   const m = parts.slice(pinIndex + 1);
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Log Transaction\n2. Pending Drop-offs\n3. Marketplace\n4. My Stats\n0. Exit';
+  if (depth === 0) return 'CON 1. Register Collector\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
 
-  // ── Marketplace ──
-  if (m[0] === '3') return await handleAggregatorMarketplace(m.slice(1), aggregator);
-
-  // ── My Stats (with rating sub-menu) ──
-  if (m[0] === '4') {
-    if (m.length === 1) {
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
-      const [volume, unpaid, rating, collCount, pendingCount] = await Promise.all([
-        pool.query(
-          `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
-                  COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
-                  COALESCE(SUM(total_price), 0) as revenue
-           FROM transactions WHERE aggregator_id = $1 AND transaction_date >= $3`,
-          [aggregator.id, monthStart, yearStart]
-        ),
-        pool.query(
-          `SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0) as value
-           FROM transactions WHERE aggregator_id = $1 AND payment_status = 'unpaid' AND total_price > 0`,
-          [aggregator.id]
-        ),
-        pool.query(
-          `SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count
-           FROM ratings WHERE rated_type = 'aggregator' AND rated_id = $1`,
-          [aggregator.id]
-        ),
-        pool.query(
-          `SELECT COUNT(DISTINCT collector_id) as count FROM transactions WHERE aggregator_id = $1`,
-          [aggregator.id]
-        ),
-        pool.query(
-          `SELECT COUNT(*) as count FROM pending_transactions
-           WHERE aggregator_id = $1 AND status = 'pending'
-             AND transaction_type IN ('collector_sale','aggregator_purchase')`,
-          [aggregator.id]
-        )
-      ]);
-      const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
-      return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GH\u20b5${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GH\u20b5${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
-    }
-    if (m[1] === '0') return `END Thank you, ${aggregator.name}!`;
-    if (m[1] === '1') return await handleUssdRating(m.slice(2), 'aggregator', aggregator.id);
-    return 'END Invalid option.\nDial again to retry.';
-  }
-
-  // ── Pending Drop-offs ──
-  if (m[0] === '2') {
-    return await handleAggregatorPending(m.slice(1), aggregator);
+  // ── Register Collector (top-level path) ──
+  if (m[0] === '1') {
+    return await handleAggregatorRegister(m.slice(1), aggregator, null);
   }
 
   // ── Log Transaction (Purchase or Sale) ──
-  if (m[0] === '1') {
+  if (m[0] === '2') {
     if (m.length === 1) {
       return 'CON Log Transaction\n\n1. Purchase (from collector)\n2. Sale (to processor)\n0. Back';
     }
@@ -3672,6 +3626,194 @@ async function handleAggregatorUssd(parts, aggregator) {
     if (m[1] === '1') return await handleAggregatorPurchase(m.slice(2), aggregator);
     if (m[1] === '2') return await handleAggregatorSale(m.slice(2), aggregator);
     return 'END Invalid option.\nDial again to retry.';
+  }
+
+  // ── Pending Drop-offs ──
+  if (m[0] === '3') {
+    return await handleAggregatorPending(m.slice(1), aggregator);
+  }
+
+  // ── More sub-menu (Marketplace + My Stats) ──
+  if (m[0] === '4') {
+    if (m.length === 1) return 'CON More options\n1. Marketplace\n2. My Stats\n0. Back';
+    if (m[1] === '0') return 'CON 1. Register Collector\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+
+    // Marketplace
+    if (m[1] === '1') return await handleAggregatorMarketplace(m.slice(2), aggregator);
+
+    // My Stats (with rating sub-menu) — depth offset by 2 (m[0]='4', m[1]='2')
+    if (m[1] === '2') {
+      if (m.length === 2) {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+        const [volume, unpaid, rating, collCount, pendingCount] = await Promise.all([
+          pool.query(
+            `SELECT COALESCE(SUM(CASE WHEN transaction_date >= $2 THEN net_weight_kg ELSE 0 END), 0) as month_kg,
+                    COALESCE(SUM(net_weight_kg), 0) as ytd_kg,
+                    COALESCE(SUM(total_price), 0) as revenue
+             FROM transactions WHERE aggregator_id = $1 AND transaction_date >= $3`,
+            [aggregator.id, monthStart, yearStart]
+          ),
+          pool.query(
+            `SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0) as value
+             FROM transactions WHERE aggregator_id = $1 AND payment_status = 'unpaid' AND total_price > 0`,
+            [aggregator.id]
+          ),
+          pool.query(
+            `SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count
+             FROM ratings WHERE rated_type = 'aggregator' AND rated_id = $1`,
+            [aggregator.id]
+          ),
+          pool.query(
+            `SELECT COUNT(DISTINCT collector_id) as count FROM transactions WHERE aggregator_id = $1`,
+            [aggregator.id]
+          ),
+          pool.query(
+            `SELECT COUNT(*) as count FROM pending_transactions
+             WHERE aggregator_id = $1 AND status = 'pending'
+               AND transaction_type IN ('collector_sale','aggregator_purchase')`,
+            [aggregator.id]
+          )
+        ]);
+        const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
+        return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GH\u20b5${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GH\u20b5${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
+      }
+      if (m[2] === '0') return `END Thank you, ${aggregator.name}!`;
+      if (m[2] === '1') return await handleUssdRating(m.slice(3), 'aggregator', aggregator.id);
+      return 'END Invalid option.\nDial again to retry.';
+    }
+    return 'END Invalid option.\nDial again to retry.';
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Aggregator registers a collector ──
+//
+// Mirrors handleAgentRegister (line ~4622) field-for-field. Two differences:
+//   1. Audit log target is admin_audit_log (aggregators have no agent_activity).
+//   2. Inline-path success returns CON (bridge prompt) instead of END so the
+//      caller can drop back into the purchase flow with the new collector_id.
+//
+// `prefilledPhone` non-null = inline-at-purchase path (skips phone entry,
+// shorter parts list). null = top-level menu path (full flow).
+async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
+  const depth = m.length;
+
+  // depth 0: first name
+  if (depth === 0) return 'CON Enter collector\'s\nfirst name:';
+  const firstName = m[0];
+
+  // depth 1: last name
+  if (depth === 1) return 'CON Enter collector\'s\nlast name:';
+  const lastName = m[1];
+
+  if (prefilledPhone) {
+    // Inline path — skip phone entry, go straight to city
+    if (depth === 2) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+    const cityData = USSD_CITIES[m[2]];
+    if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+    if (depth === 3) {
+      const phone = normalizeGhanaPhone(prefilledPhone);
+      const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
+      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+    }
+
+    if (depth === 4) {
+      if (m[3] === '2') return 'END Cancelled.';
+      if (m[3] === '1') {
+        try {
+          const hashedPin = await hashPassword('0000');
+          const normalized = normalizeGhanaPhone(prefilledPhone);
+          const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : prefilledPhone;
+          const result = await pool.query(
+            `INSERT INTO collectors (first_name, last_name, phone, pin, city, region, must_change_pin)
+             VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+            [firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+          );
+          await pool.query(
+            `INSERT INTO admin_audit_log (actor_type, actor_id, actor_email, action, target_type, target_id, details)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              'aggregator',
+              aggregator.id,
+              null,
+              'aggregator_registered_collector',
+              'collector',
+              result.rows[0].id,
+              JSON.stringify({
+                collector_phone: phoneToStore,
+                collector_name: firstName.trim() + ' ' + lastName.trim(),
+                city: cityData.city,
+                via: 'inline_purchase',
+                source: 'ussd'
+              })
+            ]
+          );
+          // Inline-path success: bridge CON back to caller (resolveCollectorForPurchase)
+          return `CON ${firstName} registered!\nPIN: 0000 (tell them\nto change on first use)\n\nContinue purchase:\n1. Yes, log purchase\n0. Done for now`;
+        } catch (err) {
+          if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
+          throw err;
+        }
+      }
+    }
+    return 'END Invalid option.\nDial again to retry.';
+  }
+
+  // Top-level path — collect phone in flow
+  if (depth === 2) return 'CON Enter collector\'s\nphone number:';
+  const phone = m[2];
+
+  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+  const cityData = USSD_CITIES[m[3]];
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  if (depth === 4) {
+    const normalized = normalizeGhanaPhone(phone);
+    const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  if (depth === 5) {
+    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '1') {
+      try {
+        const hashedPin = await hashPassword('0000');
+        const normalized = normalizeGhanaPhone(phone);
+        const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+        const result = await pool.query(
+          `INSERT INTO collectors (first_name, last_name, phone, pin, city, region, must_change_pin)
+           VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+          [firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+        );
+        await pool.query(
+          `INSERT INTO admin_audit_log (actor_type, actor_id, actor_email, action, target_type, target_id, details)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            'aggregator',
+            aggregator.id,
+            null,
+            'aggregator_registered_collector',
+            'collector',
+            result.rows[0].id,
+            JSON.stringify({
+              collector_phone: phoneToStore,
+              collector_name: firstName.trim() + ' ' + lastName.trim(),
+              city: cityData.city,
+              via: 'top_level',
+              source: 'ussd'
+            })
+          ]
+        );
+        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\n\nTell them to dial\n*920*54# and change\ntheir PIN on first use.`;
+      } catch (err) {
+        if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
+        throw err;
+      }
+    }
   }
 
   return 'END Invalid option.\nDial again to retry.';
@@ -4066,6 +4208,13 @@ async function resolveCollectorForPurchase(m, aggregator) {
   const hasList = collectors.rows.length > 0;
   const phoneOptionIndex = hasList ? collectors.rows.length + 1 : null;
 
+  // Detect mid-inline-register state from m's structure: a non-numeric input
+  // at the register-firstName slot signals the user typed a name, so we're in
+  // the inline register flow regardless of whether the lookup now finds the
+  // freshly-inserted collector. (USSD is stateless — without this check, the
+  // post-INSERT lookup would mis-route mid-flow inputs as found-confirm + material.)
+  const looksLikeName = function (s) { return typeof s === 'string' && /[a-zA-Z]/.test(s); };
+
   // ── Empty state: m[0] is a phone number directly ──
   if (!hasList) {
     if (m.length === 0) return { response: null };
@@ -4076,8 +4225,33 @@ async function resolveCollectorForPurchase(m, aggregator) {
       `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
       [phoneVariants]
     );
-    if (!found.rows.length) {
-      return { response: 'END Collector not registered.\nAsk them to dial *920*123#\nto register first.' };
+
+    // Inline-register signature: m[1]='1' AND (lookup says not-found OR m[2] looks
+    // like a name). Either path lands us in the inline register handling.
+    const inlineSignature = m.length >= 2 && m[1] === '1' && (!found.rows.length || looksLikeName(m[2]));
+    if (!found.rows.length || inlineSignature) {
+      // m shape:
+      //   m[0]=phone, m[1]='1' (yes register) or '0' (cancel)
+      //   m[2..5] = firstName, lastName, city, confirm — passed to handleAggregatorRegister
+      //   m[6] = bridge response ('1' continue purchase, '0' done)
+      //   m[7..] = material/weight/price/confirm picked up by handleAggregatorPurchase
+      if (m.length === 1) {
+        return { response: 'CON ' + m[0] + ' is not\nregistered on Circul.\n\nRegister them now to\nlog this purchase?\n\n1. Yes, register\n0. Cancel' };
+      }
+      if (m[1] === '0') return { response: 'END Cancelled.' };
+      if (m[1] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const regSlice = m.slice(2);
+      if (regSlice.length <= 4) {
+        return { response: await handleAggregatorRegister(regSlice, aggregator, m[0]) };
+      }
+      if (regSlice[4] === '0') return { response: 'END Done. Thanks for registering.' };
+      if (regSlice[4] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const found2 = await pool.query(
+        `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+        [phoneVariants]
+      );
+      if (!found2.rows.length) return { response: 'END Error: collector not found after registration.' };
+      return { collector: found2.rows[0], menuParts: m.slice(7) };
     }
     const coll = found.rows[0];
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
@@ -4103,8 +4277,27 @@ async function resolveCollectorForPurchase(m, aggregator) {
       `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
       [phoneVariants]
     );
-    if (!found.rows.length) {
-      return { response: 'END Collector not registered.\nAsk them to dial *920*123#\nto register first.' };
+    // Inline-register signature for has-list variant: m[2]='1' AND (lookup not-found OR m[3] looks like a name).
+    const inlineSig2 = m.length >= 3 && m[2] === '1' && (!found.rows.length || looksLikeName(m[3]));
+    if (!found.rows.length || inlineSig2) {
+      // m shape: m[0]=phoneOptIdx, m[1]=phone, m[2]='1'/'0', m[3..6]=register, m[7]=bridge, m[8..]=purchase
+      if (m.length === 2) {
+        return { response: 'CON ' + m[1] + ' is not\nregistered on Circul.\n\nRegister them now to\nlog this purchase?\n\n1. Yes, register\n0. Cancel' };
+      }
+      if (m[2] === '0') return { response: 'END Cancelled.' };
+      if (m[2] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const regSlice = m.slice(3);
+      if (regSlice.length <= 4) {
+        return { response: await handleAggregatorRegister(regSlice, aggregator, m[1]) };
+      }
+      if (regSlice[4] === '0') return { response: 'END Done. Thanks for registering.' };
+      if (regSlice[4] !== '1') return { response: 'END Invalid option.\nDial again to retry.' };
+      const found2 = await pool.query(
+        `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+        [phoneVariants]
+      );
+      if (!found2.rows.length) return { response: 'END Error: collector not found after registration.' };
+      return { collector: found2.rows[0], menuParts: m.slice(8) };
     }
     const coll = found.rows[0];
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
