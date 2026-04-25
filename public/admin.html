@@ -39,12 +39,8 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
 .stats-strip{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:var(--gap)}
 .stats-strip .stat{flex:1;min-width:120px}
 
-/* ── User management tabs ── */
-.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border)}
-.tab{padding:8px 16px;background:transparent;border:none;color:var(--text-3);font-family:var(--font);font-size:0.82rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
-.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.tab:hover{color:var(--text-1)}
-.user-row-actions{display:flex;gap:6px}
+/* ── User management tabs — styling inherited from shared.css (.tabs + .tab + .tab.on) ── */
+.user-row-actions{display:flex;gap:6px;margin:12px 0}
 .btn-small{padding:4px 10px;font-size:0.72rem;font-weight:600;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--text-1);cursor:pointer;font-family:var(--font)}
 .btn-small:hover{border-color:var(--accent);color:var(--accent)}
 
@@ -70,6 +66,11 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
 .btn-primary:disabled{opacity:0.5;cursor:not-allowed}
 .btn-danger{padding:8px 16px;background:transparent;color:#f87171;border:1px solid #f87171;border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
 .btn-danger:hover{background:rgba(239,68,68,0.1)}
+.btn-warning{padding:8px 16px;background:transparent;color:#ffc107;border:1px solid #ffc107;border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
+.btn-warning:hover{background:rgba(255,193,7,0.1)}
+.btn-secondary{padding:8px 16px;background:transparent;color:var(--text-2);border:1px solid var(--border);border-radius:var(--r-sm);font-weight:600;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
+.btn-secondary:hover{border-color:var(--text-1);color:var(--text-1)}
+.warn{padding:10px 12px;background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:var(--r-sm);color:#ffc107;font-size:0.78rem;margin:8px 0}
 
 /* ── Audit log ── */
 .audit-row{padding:10px 12px;border-bottom:1px solid var(--border);font-size:0.78rem}
@@ -196,8 +197,13 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
         <div class="section-sub">Change phone numbers, reset PINs, view user accounts</div>
       </div>
     </div>
+    <div style="margin:12px 0;display:flex;gap:8px;align-items:center">
+      <input type="text" id="userSearch" placeholder="Search by name or phone…" oninput="applyUserFilter()"
+             style="flex:1;max-width:360px;padding:8px 12px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-size:0.82rem;font-family:var(--font)" />
+      <span id="userSearchCount" style="color:var(--text-3);font-size:0.78rem"></span>
+    </div>
     <div class="tabs" id="userTabs">
-      <button class="tab active" data-tab="collectors" onclick="switchUserTab('collectors')">Collectors</button>
+      <button class="tab on" data-tab="collectors" onclick="switchUserTab('collectors')">Collectors</button>
       <button class="tab" data-tab="aggregators" onclick="switchUserTab('aggregators')">Aggregators</button>
       <button class="tab" data-tab="agents" onclick="switchUserTab('agents')">Agents</button>
     </div>
@@ -619,9 +625,30 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     function switchUserTab(tab) {
       currentUserTab = tab;
       document.querySelectorAll('#userTabs .tab').forEach(function(t) {
-        t.classList.toggle('active', t.dataset.tab === tab);
+        t.classList.toggle('on', t.dataset.tab === tab);
       });
       loadUserList(tab);
+      // applyUserFilter() is invoked from renderUserList after the new rows land.
+    }
+
+    // Client-side filter over the visible user-table rows. Re-invoked on every
+    // keystroke and after every tab-data render. Rows hidden via display:none
+    // so row indices returned by openUserDetail still match userCache.
+    function applyUserFilter() {
+      var q = (document.getElementById('userSearch').value || '').trim().toLowerCase();
+      var tbody = document.getElementById('userTableBody');
+      if (!tbody) return;
+      var rows = tbody.querySelectorAll('tr');
+      var shown = 0;
+      rows.forEach(function(row) {
+        if (!q) { row.style.display = ''; shown++; return; }
+        var text = (row.textContent || '').toLowerCase();
+        var match = text.indexOf(q) !== -1;
+        row.style.display = match ? '' : 'none';
+        if (match) shown++;
+      });
+      var cnt = document.getElementById('userSearchCount');
+      if (cnt) cnt.textContent = q ? (shown + ' of ' + rows.length + ' match') : '';
     }
 
     function loadUserList(tab) {
@@ -667,6 +694,7 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
           '</div></td>' +
         '</tr>';
       }).join('');
+      applyUserFilter();
     }
 
     function singularType(tab) {
@@ -703,6 +731,7 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       html += '<div class="action-row">' +
         '<button class="btn-primary" onclick="openPhoneChange(\'' + type + '\',' + id + ',\'' + esc(user.phone || '') + '\')">Change phone</button>' +
         '<button class="btn-danger" onclick="openResetPin(\'' + type + '\',' + id + ',\'' + esc(name) + '\')">Reset PIN</button>' +
+        '<button class="btn-warning" onclick="openForceSetPhone(\'' + type + '\',' + id + ',\'' + esc(user.phone || '') + '\')">Force Set Phone (admin)</button>' +
       '</div>';
       document.getElementById('userModalBody').innerHTML = html;
       openModal('userModal');
@@ -815,6 +844,55 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
         }
         closeModal('pinModal');
         showToast('PIN reset triggered');
+        loadUserList(currentUserTab);
+        loadAuditLog();
+      });
+    }
+
+    /* ── Force Set Phone (admin-forced, skips OTP — writes distinct audit action) ── */
+
+    function openForceSetPhone(type, id, currentPhone) {
+      closeModal('userModal');
+      var body = document.getElementById('phoneModalBody');
+      document.querySelector('#phoneModal .modal-title').textContent = 'Force set phone';
+      body.innerHTML =
+        '<div class="warn">\u26A0 This bypasses OTP verification. Use only for admin operations (demo cleanup, migration, emergencies). Regular phone changes should use "Change phone" instead.</div>' +
+        '<div class="hint">Current phone: <span style="font-family:\'Courier New\',monospace">' + esc(currentPhone || '(none)') + '</span></div>' +
+        '<label>New phone (leave empty to clear)</label>' +
+        '<input id="forcePhoneInput" type="tel" placeholder="e.g. 0244998877 or blank" autocomplete="off">' +
+        '<label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:0.78rem"><input type="checkbox" id="forcePhoneConfirm"> I understand this skips OTP verification and writes a dedicated audit row.</label>' +
+        '<div class="error hidden" id="forcePhoneErr"></div>' +
+        '<div class="action-row">' +
+          '<button class="btn-warning" id="forcePhoneBtn" onclick="submitForceSetPhone(\'' + type + '\',' + id + ')">Force set</button>' +
+          '<button class="btn-small" onclick="closeModal(\'phoneModal\')">Cancel</button>' +
+        '</div>';
+      openModal('phoneModal');
+    }
+
+    function submitForceSetPhone(type, id) {
+      var newPhone = (document.getElementById('forcePhoneInput').value || '').trim();
+      var confirmed = document.getElementById('forcePhoneConfirm').checked;
+      var err = document.getElementById('forcePhoneErr');
+      var btn = document.getElementById('forcePhoneBtn');
+      err.classList.add('hidden');
+      if (!confirmed) {
+        err.textContent = 'You must confirm you understand OTP is skipped.';
+        err.classList.remove('hidden');
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'Setting\u2026';
+      adminFetch('/api/admin/users/' + type + '/' + id + '/force-set-phone', {
+        method: 'POST',
+        body: JSON.stringify({ new_phone: newPhone === '' ? null : newPhone, confirm: true })
+      }).then(function(res) {
+        btn.disabled = false; btn.textContent = 'Force set';
+        if (!res.ok || !res.body.success) {
+          err.textContent = (res.body && res.body.message) || 'Failed';
+          err.classList.remove('hidden');
+          return;
+        }
+        closeModal('phoneModal');
+        showToast('Phone force-set');
         loadUserList(currentUserTab);
         loadAuditLog();
       });
