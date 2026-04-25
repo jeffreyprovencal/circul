@@ -56,7 +56,13 @@ var EVENTS = {
   PHONE_CHANGED_OLD:             'phone_changed_old',
   PHONE_CHANGED_UPSTREAM:        'phone_changed_upstream',
   ADMIN_PIN_RESET_TRIGGERED:     'admin_pin_reset_triggered',
-  ADMIN_PIN_CHANGED:             'admin_pin_changed'
+  ADMIN_PIN_CHANGED:             'admin_pin_changed',
+  // Aggregator registration
+  AGGREGATOR_REQUEST_RECEIVED:             'aggregator_request_received',
+  AGGREGATOR_CODE_ISSUED:                  'aggregator_code_issued',
+  AGGREGATOR_REQUEST_REJECTED:             'aggregator_request_rejected',
+  AGGREGATOR_REGISTRATION_COMPLETED:       'aggregator_registration_completed',
+  AGGREGATOR_REGISTRATION_COMPLETED_ADMIN: 'aggregator_registration_completed_admin'
 };
 
 // Security events bypass the daily SMS cap — an account-recovery alert that
@@ -72,7 +78,9 @@ var SECURITY_EVENTS = new Set([
   EVENTS.PHONE_CHANGED_OLD,
   EVENTS.PHONE_CHANGED_UPSTREAM,
   EVENTS.ADMIN_PIN_RESET_TRIGGERED,
-  EVENTS.ADMIN_PIN_CHANGED
+  EVENTS.ADMIN_PIN_CHANGED,
+  EVENTS.AGGREGATOR_CODE_ISSUED,
+  EVENTS.AGGREGATOR_REQUEST_REJECTED
 ]);
 
 var TEMPLATES = {
@@ -136,22 +144,38 @@ var TEMPLATES = {
     return 'Agent PIN reset: ' + d.user_name + ' (' + d.user_code + ') reset their PIN at ' + d.time + '. Agent works under you.\n\nWatch for unusual activity.';
   },
   phone_change_otp: function (d) {
-    return 'Your Circul verification code: ' + d.code + '\n\nGive this to Circul admin to confirm the phone change to this number. Expires in ' + d.minutes + ' min. Never share unless you requested a phone change.';
+    return 'Your Circul verification code: ' + d.code + '\n\nGive this to Circul support to confirm the phone change to this number. Expires in ' + d.minutes + ' min. Never share unless you requested a phone change.';
   },
   phone_changed_new: function (d) {
     return 'Your Circul phone was changed to this number. All your history is preserved.\n\nIf this wasn\'t you, call Circul support immediately.';
   },
   phone_changed_old: function (d) {
-    return 'Your Circul phone number was changed to ' + d.new_phone + ' by Circul admin at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
+    return 'Your Circul phone number was changed to ' + d.new_phone + ' by Circul support at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
   },
   phone_changed_upstream: function (d) {
-    return 'Phone change: ' + d.user_code + ' (' + d.user_name + ') \u2014 phone updated by Circul admin at ' + d.time + '. Was ' + d.old_phone + ', now ' + d.new_phone + '. Watch for unusual activity.';
+    return 'Phone change: ' + d.user_code + ' (' + d.user_name + ') \u2014 phone updated by Circul support at ' + d.time + '. Was ' + d.old_phone + ', now ' + d.new_phone + '. Watch for unusual activity.';
   },
   admin_pin_reset_triggered: function (d) {
-    return 'Circul admin triggered a PIN reset for your account at ' + d.time + '. Dial *920*54# and follow the prompts to set a new PIN.\n\nIf you didn\'t request this, call Circul support immediately.';
+    return 'Circul support triggered a PIN reset for your account at ' + d.time + '. Dial *920*54# and follow the prompts to set a new PIN.\n\nIf you didn\'t request this, call Circul support immediately.';
   },
   admin_pin_changed: function (d) {
-    return 'Your Circul PIN was changed by Circul admin at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
+    return 'Your Circul PIN was changed by Circul support at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
+  },
+  // Aggregator registration — templates use { name, company, city, phone, code, minutes, reason, agg_code, time }
+  aggregator_request_received: function (d) {
+    return 'New aggregator request: ' + d.name + (d.company ? ' (' + d.company + ')' : '') + ', ' + d.city + '. Phone ' + d.phone + '.\n\nReview at circul.polsia.app/admin.html';
+  },
+  aggregator_code_issued: function (d) {
+    return 'Your Circul aggregator code: ' + d.code + '\n\nDial *920*54# and enter this code to finish registration. Expires in ' + d.minutes + ' min. Never share this code.';
+  },
+  aggregator_request_rejected: function (d) {
+    return 'Your Circul aggregator registration wasn\'t approved.\n\nReason: ' + d.reason + '\n\nCall Circul support on 024 131 48 41 with questions.';
+  },
+  aggregator_registration_completed: function (d) {
+    return 'Welcome to Circul, ' + d.name + '! You\'re now an aggregator' + (d.company ? ' at ' + d.company : '') + '.\n\nDial *920*54# and enter your PIN to start logging purchases.';
+  },
+  aggregator_registration_completed_admin: function (d) {
+    return 'Aggregator registration completed: ' + d.name + (d.company ? ' (' + d.company + ', ' + d.city + ')' : ' (' + d.city + ')') + ' is now ' + d.agg_code + ' on Circul.';
   }
 };
 
@@ -192,4 +216,48 @@ async function notify(event, recipientPhone, data) {
   return { sent: false, reason: 'unknown provider' };
 }
 
-module.exports = { EVENTS: EVENTS, TEMPLATES: TEMPLATES, notify: notify, SECURITY_EVENTS: SECURITY_EVENTS };
+// Dual-channel admin alert: ntfy.sh push (primary, works internationally) +
+// Ghana SMS fallback. Either channel can be disabled by leaving its env var unset.
+// Both fire in parallel via Promise.allSettled — one channel failing doesn't block
+// the other. Body rendered once from TEMPLATES[event](data) and sent identically
+// on both channels.
+async function notifyAdmin(event, data) {
+  var template = TEMPLATES[event];
+  if (!template) {
+    console.warn('[NOTIFY-ADMIN] Unknown event:', event);
+    return { ntfy: false, sms: false, reason: 'unknown event' };
+  }
+  var message = template(data);
+  var ntfyTopic = process.env.NTFY_ADMIN_TOPIC;
+  var adminPhone = process.env.ADMIN_ALERT_PHONE;
+
+  if (!ntfyTopic && !adminPhone) {
+    console.warn('[NOTIFY-ADMIN] both NTFY_ADMIN_TOPIC and ADMIN_ALERT_PHONE unset; admin will not be notified for event:', event);
+    return { ntfy: false, sms: false, reason: 'no channels configured' };
+  }
+
+  var ntfyPromise = ntfyTopic
+    ? fetch('https://ntfy.sh/' + ntfyTopic, {
+        method: 'POST',
+        headers: { 'Title': event, 'Priority': 'default', 'Tags': 'building' },
+        body: message
+      }).then(function (r) { return { sent: r.ok, status: r.status }; })
+      .catch(function (e) { return { sent: false, reason: e.message }; })
+    : Promise.resolve({ sent: false, reason: 'NTFY_ADMIN_TOPIC unset' });
+
+  var smsPromise = adminPhone
+    ? notify(event, adminPhone, data).then(function (r) { return r; })
+    : Promise.resolve({ sent: false, reason: 'ADMIN_ALERT_PHONE unset' });
+
+  var results = await Promise.allSettled([ntfyPromise, smsPromise]);
+  var ntfyResult = results[0].status === 'fulfilled' ? results[0].value : { sent: false, reason: 'rejected' };
+  var smsResult  = results[1].status === 'fulfilled' ? results[1].value : { sent: false, reason: 'rejected' };
+
+  if (!ntfyResult.sent && !smsResult.sent) {
+    console.warn('[NOTIFY-ADMIN] both channels failed for event ' + event + ':', JSON.stringify({ ntfy: ntfyResult.reason, sms: smsResult.reason }));
+  }
+
+  return { ntfy: ntfyResult.sent, sms: smsResult.sent };
+}
+
+module.exports = { EVENTS: EVENTS, TEMPLATES: TEMPLATES, notify: notify, notifyAdmin: notifyAdmin, SECURITY_EVENTS: SECURITY_EVENTS };

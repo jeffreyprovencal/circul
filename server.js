@@ -5,7 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 const CirculRoles = require('./shared/roles');
-const { EVENTS, notify } = require('./shared/notifications');
+const { EVENTS, notify, notifyAdmin } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
 const { getPendingRatings, createRating } = require('./shared/ratings');
 const {
@@ -2410,33 +2410,328 @@ function parsePaginatedSelection(menuParts) {
 }
 
 const USSD_MATERIALS = { '1': 'PET', '2': 'HDPE', '3': 'LDPE', '4': 'PP' };
-const USSD_CITIES = {
-  '1': { city: 'Accra', region: 'Greater Accra' },
-  '2': { city: 'Kumasi', region: 'Ashanti' },
-  '3': { city: 'Tamale', region: 'Northern' },
-  '4': { city: 'Takoradi', region: 'Western' }
-};
+// Pilot regional capitals — 8 cities across 3 paginated USSD pages (3 + 3 + 2 layout)
+// matching the parsePaginatedSelection helper convention. Add post-pilot regional
+// capitals (Wa / Bolgatanga / Techiman / Sekondi / Dambai / Nalerigu / Damongo / Goaso)
+// when geographic footprint warrants it.
+const USSD_CITIES_LIST = [
+  { city: 'Accra',      region: 'Greater Accra' },
+  { city: 'Kumasi',     region: 'Ashanti' },
+  { city: 'Tamale',     region: 'Northern' },
+  { city: 'Takoradi',   region: 'Western' },
+  { city: 'Cape Coast', region: 'Central' },
+  { city: 'Koforidua',  region: 'Eastern' },
+  { city: 'Ho',         region: 'Volta' },
+  { city: 'Sunyani',    region: 'Bono' }
+];
+
+// Backwards-compat object form keyed by 1-based string index for any code still
+// indexing by parts[N] directly (legacy non-paginated callers).
+const USSD_CITIES = USSD_CITIES_LIST.reduce(function (acc, c, i) {
+  acc[String(i + 1)] = c;
+  return acc;
+}, {});
+
+// Render the paginated city-picker screen for a given slice of input parts.
+// Returns { screen, offset, more } where screen is the CON text, offset is the
+// item-index start for this page, and more=true if further pages exist.
+function renderCityPickerScreen(pickerParts) {
+  const sel = parsePaginatedSelection(pickerParts || []);
+  const offset = sel.offset;
+  const page = USSD_CITIES_LIST.slice(offset, offset + 3);
+  if (page.length === 0) {
+    return { screen: 'END Invalid city.\nDial again to retry.', offset: -1, more: false };
+  }
+  const more = (offset + 3) < USSD_CITIES_LIST.length;
+  let msg = 'CON Select your city:\n';
+  for (let i = 0; i < page.length; i++) {
+    msg += (i + 1) + '. ' + page[i].city + '\n';
+  }
+  if (more) msg += '4. More \u2192\n';
+  msg += '0. Cancel';
+  return { screen: msg, offset: offset, more: more };
+}
+
+// Resolve the city record the user picked from a paginated input sequence.
+// pickerParts is shaped as zero or more '4' (advance-page) followed by a
+// final 1/2/3 city selection. Returns null if the pick is invalid or absent.
+function resolveCityFromPaginatedParts(pickerParts) {
+  const sel = parsePaginatedSelection(pickerParts || []);
+  if (sel.remaining.length === 0) return null;
+  const pick = parseInt(sel.remaining[0], 10);
+  if (isNaN(pick) || pick < 1 || pick > 3) return null;
+  const idx = sel.offset + (pick - 1);
+  if (idx >= USSD_CITIES_LIST.length) return null;
+  return USSD_CITIES_LIST[idx];
+}
+
+// Aggregator registration request flow — candidate collects first name, last
+// name, optional company, city (paginated), then confirms. Creates a pending
+// request row, fires admin notification (ntfy + Ghana SMS fallback), ENDs the
+// USSD session. Admin approves via dashboard → 6-digit code is SMSed →
+// candidate re-dials and the dispatch routes to handleAggregatorRegistrationCode.
+async function handleAggregatorRegistrationRequest(parts, phone) {
+  // Caller has consumed parts[0]='2' (aggregator role). This function sees
+  // everything after: firstName, lastName, company (or '0'), city-picker, confirm.
+  const level = parts.length;
+
+  if (level === 0) {
+    const phoneVariants = getPhoneVariants(phone);
+
+    // Collision: existing collector on this phone
+    const existingCol = await pool.query(
+      `SELECT 1 FROM collectors WHERE phone = ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+    if (existingCol.rows.length) {
+      return 'END A collector on Circul is\nusing this phone. To\nregister as an aggregator\ninstead, contact Circul\nsupport first.';
+    }
+
+    // Defensive: registered aggregator shouldn't land here (dispatch routes to
+    // handleAggregatorUssd first), but guard anyway.
+    const existingAgg = await pool.query(
+      `SELECT 1 FROM aggregators WHERE phone = ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+    if (existingAgg.rows.length) {
+      return 'END This phone is already an\naggregator on Circul.\n\nDial *920*54# and enter\nyour PIN to log in.';
+    }
+
+    // Rate limit: 3 requests / phone / 24h
+    const recentCount = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM aggregator_registration_requests
+       WHERE phone = ANY($1) AND created_at > NOW() - INTERVAL '24 hours'`,
+      [phoneVariants]
+    );
+    if (recentCount.rows[0].n >= 3) {
+      return 'END Too many requests.\n\nYou\'ve submitted 3 requests\nin the last 24 hours. Wait\n24 hours before trying\nagain.\n\nCall 024 131 48 41\nfor urgent help.';
+    }
+
+    // An active pending/code_issued request blocks new submissions.
+    const activeReq = await pool.query(
+      `SELECT 1 FROM aggregator_registration_requests
+       WHERE phone = ANY($1) AND status IN ('pending', 'code_issued') LIMIT 1`,
+      [phoneVariants]
+    );
+    if (activeReq.rows.length) {
+      return 'END Request already pending.\n\nYou have an active\naggregator registration\nrequest. Wait for Circul\nsupport to review it.\n\nCall 024 131 48 41 if\nit\'s been over 24 hours.';
+    }
+
+    return 'CON Aggregator registration\n\nEnter your first name:';
+  }
+
+  if (level === 1) return 'CON Enter your last name:';
+
+  if (level === 2) {
+    const lastName = parts[1].trim();
+    if (!lastName) return 'END Last name required.\nDial again.';
+    return 'CON Company name\n(Optional \u2014 dial 0 to skip):';
+  }
+
+  // parts.slice(3) is the city-picker input (variable length due to pagination)
+  const pickerParts = parts.slice(3);
+  if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+  if (pickerParts[0] === '0') return 'END Cancelled.';
+
+  const sel = parsePaginatedSelection(pickerParts);
+  if (sel.remaining.length === 0) {
+    // Still paging — show next page
+    return renderCityPickerScreen(pickerParts).screen;
+  }
+
+  const cityData = resolveCityFromPaginatedParts(pickerParts);
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  const cityPartsLen = sel.page + 1;
+  const afterCity = level - 3 - cityPartsLen;  // 0 = show confirm, 1 = commit/cancel
+
+  const firstName = parts[0].trim();
+  const lastName = parts[1].trim();
+  const company = parts[2] === '0' ? null : parts[2].trim();
+  const fullName = firstName + ' ' + lastName;
+
+  if (afterCity === 0) {
+    return 'CON Confirm request:\n\n' + fullName + (company ? '\n' + company : '') + '\n' + cityData.city + '\n\n1. Submit\n0. Cancel';
+  }
+
+  if (afterCity === 1) {
+    const choice = parts[level - 1];
+    if (choice === '0') return 'END Cancelled.';
+    if (choice !== '1') return 'END Invalid option.\nDial again to retry.';
+
+    try {
+      await pool.query(
+        `INSERT INTO aggregator_registration_requests (phone, name, company, city, region, status, source)
+         VALUES ($1, $2, $3, $4, $5, 'pending', 'ussd')`,
+        [phone, fullName, company, cityData.city, cityData.region]
+      );
+    } catch (err) {
+      console.error('[agg-reg-request] insert failed:', err);
+      return 'END System error.\nTry again later.';
+    }
+
+    // Fire admin notification — non-blocking
+    notifyAdmin(EVENTS.AGGREGATOR_REQUEST_RECEIVED, {
+      name: fullName,
+      company: company,
+      city: cityData.city,
+      phone: phone
+    }).catch(function (e) { console.warn('[agg-reg-request] notify-admin failed:', e.message); });
+
+    return 'END Request submitted.\n\nThank you, ' + firstName + '. Circul\nsupport will review your\napplication.\n\nYou\'ll receive an SMS\nwithin 24 hours.\n\nCall 024 131 48 41 for\nhelp.';
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// Aggregator registration code-entry flow — dispatched by /api/ussd when an
+// active aggregator_registration_requests row exists with status='code_issued'.
+// Candidate enters code → sets PIN → confirms PIN → registration commits
+// atomically (INSERT aggregator + mark request completed + write audit row).
+async function handleAggregatorRegistrationCode(parts, requestRow) {
+  const level = parts.length;
+
+  if (level === 0) {
+    const remainMs = new Date(requestRow.code_expires_at).getTime() - Date.now();
+    const remainMin = Math.max(0, Math.floor(remainMs / 60000));
+    const remainSec = Math.max(0, Math.floor((remainMs % 60000) / 1000));
+    return 'CON Welcome back, ' + requestRow.name.split(' ')[0] + '!\n\nFinish your aggregator\nregistration.\n\nEnter the 6-digit code\nfrom your SMS:\n(Expires in ' + remainMin + ' min ' + remainSec + 's)';
+  }
+
+  const enteredCode = parts[0];
+
+  if (!verifyOtp(enteredCode, requestRow.code_hash)) {
+    const remaining = requestRow.code_attempts_remaining - 1;
+    if (remaining <= 0) {
+      await pool.query(
+        `UPDATE aggregator_registration_requests SET status = 'code_failed', code_attempts_remaining = 0, updated_at = NOW() WHERE id = $1`,
+        [requestRow.id]
+      );
+      return 'END Too many wrong codes.\n\nYour code is invalid.\nCall Circul support\nat 024 131 48 41\nfor a new code.';
+    }
+    await pool.query(
+      `UPDATE aggregator_registration_requests SET code_attempts_remaining = $1, updated_at = NOW() WHERE id = $2`,
+      [remaining, requestRow.id]
+    );
+    return 'CON Wrong code. ' + remaining + ' attempt' + (remaining > 1 ? 's' : '') + ' left.\n\nEnter the 6-digit code\nfrom your SMS:';
+  }
+
+  if (level === 1) {
+    return "CON Create a 4-digit PIN:\n\n4\u20136 digits, numbers only.\nAvoid 0000, 1234, or your\nbirth year.";
+  }
+
+  const newPin = parts[1];
+  if (newPin.length < 4 || newPin.length > 6 || !/^\d+$/.test(newPin)) {
+    return 'END PIN must be 4-6 digits.\nDial again to retry.';
+  }
+
+  if (level === 2) return 'CON Confirm PIN:';
+
+  const confirmPin = parts[2];
+  if (confirmPin !== newPin) return 'END PINs did not match.\nDial again to retry.';
+
+  // Atomic commit: insert aggregator + mark request completed + audit
+  const hashedPin = await hashPassword(newPin);
+  const firstName = requestRow.name.split(' ')[0];
+  const aggName = requestRow.name;
+
+  const client = await pool.connect();
+  let aggregatorId;
+  try {
+    await client.query('BEGIN');
+    const aggInsert = await client.query(
+      `INSERT INTO aggregators (name, company, phone, pin, city, region, country, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+       RETURNING id`,
+      [aggName, requestRow.company, requestRow.phone, hashedPin, requestRow.city, requestRow.region, requestRow.country || 'Ghana']
+    );
+    aggregatorId = aggInsert.rows[0].id;
+    await client.query(
+      `UPDATE aggregator_registration_requests
+       SET status = 'completed', aggregator_id = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [aggregatorId, requestRow.id]
+    );
+    await recordAdminAction(client, {
+      actor_type: 'system',
+      actor_email: null,
+      action: 'aggregator_registration_completed',
+      target_type: 'aggregator',
+      target_id: aggregatorId,
+      details: { request_id: requestRow.id, name: aggName, company: requestRow.company, city: requestRow.city, source: 'ussd' }
+    });
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(function () {});
+    if (err.code === '23505') return 'END Phone already registered.\nDial again to login.';
+    console.error('[agg-reg-code] commit failed:', err);
+    return 'END System error.\nTry again later.';
+  } finally {
+    client.release();
+  }
+
+  const aggCode = 'AGG-' + String(aggregatorId).padStart(4, '0');
+  notify(EVENTS.AGGREGATOR_REGISTRATION_COMPLETED, requestRow.phone, {
+    name: firstName,
+    company: requestRow.company
+  }).catch(function (e) { console.warn('[agg-reg-code] welcome SMS failed:', e.message); });
+
+  notifyAdmin(EVENTS.AGGREGATOR_REGISTRATION_COMPLETED_ADMIN, {
+    name: aggName,
+    company: requestRow.company,
+    city: requestRow.city,
+    agg_code: aggCode
+  }).catch(function (e) { console.warn('[agg-reg-code] admin notify failed:', e.message); });
+
+  return 'END Welcome to Circul,\n' + firstName + '!\n\nYou\'re now an aggregator' + (requestRow.company ? '\nat ' + requestRow.company : '') + '.\n\nDial *920*54# to log\npurchases and sales.\n\nCall 024 131 48 41 for\nhelp.';
+}
 
 async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
-  if (level === 0) return 'CON Welcome to Circul\n1. Register\n2. Exit';
-  if (parts[0] === '2') return 'END Thank you for using Circul.';
+
+  // Welcome — role split (collector vs aggregator vs exit)
+  if (level === 0) return 'CON Welcome to Circul\nThe operating system for\nGhana\'s waste workers.\n\nSell. Track. Get paid.\n\nRegister as:\n1. Collector\n2. Aggregator\n0. Exit';
+
+  if (parts[0] === '0') return 'END Thank you for using Circul.';
+
+  // Aggregator path — hand off to request handler (Phase 4)
+  if (parts[0] === '2') {
+    return await handleAggregatorRegistrationRequest(parts.slice(1), phone);
+  }
+
+  // Collector path
   if (parts[0] === '1') {
-    if (level === 1) return 'CON Enter your first name:';
-    if (level === 2) return 'CON Enter last name\n(0 to skip):';
-    if (level === 3) return 'CON Select your city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
-    if (level === 4) {
-      const cityData = USSD_CITIES[parts[3]];
-      if (!cityData) return 'END Invalid city.\nDial again to retry.';
-      return 'CON Create a 4-digit PIN:';
+    if (level === 1) return 'CON Collector registration\n\nEnter your first name:';
+    if (level === 2) return 'CON Enter your last name:';
+
+    const firstName = parts[1].trim();
+    const lastName = parts[2].trim();
+    if (!lastName) return 'END Last name required.\nDial again.';
+
+    // parts.slice(3) is the city-picker input — variable length due to pagination.
+    const pickerParts = parts.slice(3);
+    if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+    if (pickerParts[0] === '0') return 'END Cancelled.';
+
+    const sel = parsePaginatedSelection(pickerParts);
+    if (sel.remaining.length === 0) {
+      // All parts so far are '4's — show the next page
+      return renderCityPickerScreen(pickerParts).screen;
     }
-    if (level === 5) {
-      const firstName = parts[1].trim();
-      const lastName = parts[2] === '0' ? '' : parts[2].trim();
-      const cityData = USSD_CITIES[parts[3]];
-      const pin = parts[4].trim();
-      if (!cityData) return 'END Invalid city.\nDial again to retry.';
-      if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) return 'END PIN must be 4-6 digits.\nDial again to retry.';
+
+    const cityData = resolveCityFromPaginatedParts(pickerParts);
+    if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+    // After city pick, collect PIN. City consumed (sel.page + 1) parts.
+    const cityPartsLen = sel.page + 1;
+    const pinDepth = level - 3 - cityPartsLen;
+
+    if (pinDepth === 0) return 'CON Create a 4-digit PIN:';
+    if (pinDepth === 1) {
+      const pin = parts[level - 1].trim();
+      if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+        return 'END PIN must be 4-6 digits.\nDial again to retry.';
+      }
       try {
         const hashedPin = await hashPassword(pin);
         await pool.query(
@@ -2449,7 +2744,9 @@ async function handleUnregisteredUssd(parts, phone) {
         throw err;
       }
     }
+    return 'END Invalid option.\nDial again to retry.';
   }
+
   return 'END Invalid option.\nDial again to retry.';
 }
 
@@ -4791,6 +5088,16 @@ app.post('/api/ussd', async (req, res) => {
         else if (row.user_type === 'aggregator') aggregatorId = row.user_id;
         else if (row.user_type === 'agent') agentId = row.user_id;
       } else {
+        // ── Active aggregator-registration code check (precedence over welcome) ──
+        const activeAggReg = await pool.query(
+          `SELECT * FROM aggregator_registration_requests
+           WHERE phone=ANY($1) AND status = 'code_issued' AND code_expires_at > NOW()
+           ORDER BY created_at DESC LIMIT 1`,
+          [phoneVariants]
+        );
+        if (activeAggReg.rows.length) {
+          response = await handleAggregatorRegistrationCode(parts, activeAggReg.rows[0]);
+        } else {
         // 1. Check collectors first (largest USSD user group)
         const collResult = await pool.query(
           `SELECT id, first_name, last_name, phone, pin, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
@@ -4822,11 +5129,12 @@ app.post('/api/ussd', async (req, res) => {
               agentId = agentResult.rows[0].id;
               response = await handleAgentUssd(parts, agentResult.rows[0]);
             } else {
-              // 4. Unregistered — collector self-registration
+              // 4. Unregistered — collector self-registration or aggregator request
               response = await handleUnregisteredUssd(parts, phone);
             }
           }
         }
+        }  // close active-aggregator-registration else
       }
     }
   } catch (err) { console.error('[USSD] Error:', err); response = 'END System error. Try again later.'; }
@@ -6493,6 +6801,112 @@ app.get('/api/admin/audit-log', requireAdmin, async (req, res) => {
     res.json({ success: true, entries: rows.rows, limit: limit, offset: offset });
   } catch (err) {
     console.error('[audit-log]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// List aggregator-registration requests, filtered by status (default 'pending').
+app.get('/api/admin/aggregator-requests', requireAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const validStatuses = ['pending', 'code_issued', 'completed', 'rejected', 'expired', 'code_failed', 'all'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status filter' });
+    }
+    const where = status === 'all' ? '' : `WHERE status = $1`;
+    const params = status === 'all' ? [limit] : [status, limit];
+    const sql =
+      `SELECT id, phone, name, company, city, region, status, created_at, approved_at, rejected_at, rejection_reason, aggregator_id
+       FROM aggregator_registration_requests
+       ${where}
+       ORDER BY created_at ASC
+       LIMIT $${params.length}`;
+    const rows = await pool.query(sql, params);
+    res.json({ success: true, requests: rows.rows });
+  } catch (err) {
+    console.error('[admin/aggregator-requests]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Approve a pending aggregator request: generate 6-digit code, SMS the candidate,
+// transition status to code_issued. First-write-wins via WHERE status='pending'.
+app.post('/api/admin/aggregator-requests/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const code = generateOtp();
+    const codeHash = hashOtp(code);
+    const result = await pool.query(
+      `UPDATE aggregator_registration_requests
+       SET status = 'code_issued',
+           code_hash = $1,
+           code_expires_at = NOW() + INTERVAL '10 minutes',
+           code_attempts_remaining = 3,
+           approved_by_admin_email = $2,
+           approved_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $3 AND status = 'pending'
+       RETURNING id, phone, name, company, city`,
+      [codeHash, req.admin.email, id]
+    );
+    if (!result.rows.length) {
+      return res.status(409).json({ success: false, message: 'Request not in pending status (already approved, rejected, or expired)' });
+    }
+    const row = result.rows[0];
+    await recordAdminAction(null, {
+      actor_type: 'admin',
+      actor_email: req.admin.email,
+      action: 'aggregator_request_approved',
+      target_type: 'aggregator_request',
+      target_id: parseInt(id, 10),
+      details: { phone: row.phone, name: row.name }
+    });
+    notify(EVENTS.AGGREGATOR_CODE_ISSUED, row.phone, { code: code, minutes: 10 })
+      .catch(function (e) { console.warn('[agg-req-approve] code SMS failed:', e.message); });
+    res.json({ success: true, request: row });
+  } catch (err) {
+    console.error('[admin/aggregator-request approve]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Reject a pending aggregator request with a reason; SMSes the candidate.
+app.post('/api/admin/aggregator-requests/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, message: 'Rejection reason required' });
+    }
+    const result = await pool.query(
+      `UPDATE aggregator_registration_requests
+       SET status = 'rejected',
+           rejected_by_admin_email = $1,
+           rejected_at = NOW(),
+           rejection_reason = $2,
+           updated_at = NOW()
+       WHERE id = $3 AND status = 'pending'
+       RETURNING id, phone, name`,
+      [req.admin.email, reason.trim(), id]
+    );
+    if (!result.rows.length) {
+      return res.status(409).json({ success: false, message: 'Request not in pending status' });
+    }
+    const row = result.rows[0];
+    await recordAdminAction(null, {
+      actor_type: 'admin',
+      actor_email: req.admin.email,
+      action: 'aggregator_request_rejected',
+      target_type: 'aggregator_request',
+      target_id: parseInt(id, 10),
+      details: { phone: row.phone, name: row.name, reason: reason.trim() }
+    });
+    notify(EVENTS.AGGREGATOR_REQUEST_REJECTED, row.phone, { reason: reason.trim() })
+      .catch(function (e) { console.warn('[agg-req-reject] notify failed:', e.message); });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[admin/aggregator-request reject]', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

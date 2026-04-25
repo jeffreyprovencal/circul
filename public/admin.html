@@ -225,6 +225,20 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     </div>
   </div>
 
+  <!-- PENDING AGGREGATOR REQUESTS -->
+  <div class="section" id="aggregatorRequestsSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Pending Aggregator Requests</div>
+        <div class="section-sub">Review and approve aggregators registering via USSD</div>
+      </div>
+      <button class="btn-small" onclick="loadAggregatorRequests()">Refresh</button>
+    </div>
+    <div id="aggregatorRequestsBody" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);min-height:80px">
+      <div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>
+    </div>
+  </div>
+
   <!-- ACTIVE LOCKOUTS -->
   <div class="section" id="lockoutsSection">
     <div class="section-head">
@@ -976,7 +990,105 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       });
     }
 
+    /* ── Pending aggregator requests ── */
+
+    function loadAggregatorRequests() {
+      var body = document.getElementById('aggregatorRequestsBody');
+      body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>';
+      adminFetch('/api/admin/aggregator-requests?status=pending').then(function(res) {
+        if (!res.ok) {
+          body.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem">Failed to load aggregator requests.</div>';
+          return;
+        }
+        var rows = (res.body.requests || []);
+        if (!rows.length) {
+          body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">No pending aggregator requests.</div>';
+          return;
+        }
+        body.innerHTML = rows.map(function(r) {
+          var ageMs = Date.now() - new Date(r.created_at).getTime();
+          var ageMin = Math.floor(ageMs / 60000);
+          var ageStr = ageMin < 60 ? ageMin + ' min ago' : Math.floor(ageMin / 60) + ' hr ago';
+          return '<div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+            '<div>' +
+              '<div style="font-weight:600">' + esc(r.name) + '</div>' +
+              '<div style="color:var(--text-3);font-size:0.72rem">' + (r.company ? esc(r.company) + ' \u00b7 ' : '') + esc(r.city) + ' \u00b7 ' + esc(r.phone) + '</div>' +
+              '<div style="color:var(--text-3);font-size:0.72rem">' + ageStr + '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px">' +
+              '<button class="btn-primary" onclick="approveAggregatorRequest(' + r.id + ')" style="padding:6px 14px;font-size:0.72rem">Approve</button>' +
+              '<button class="btn-danger" onclick="openRejectAggregatorRequest(' + r.id + ',\'' + esc(r.name).replace(/'/g, "\\'") + '\')" style="padding:6px 12px;font-size:0.72rem">Reject</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      });
+    }
+
+    function approveAggregatorRequest(id) {
+      if (!confirm('Approve this aggregator request? A 6-digit code will be SMSed to the candidate.')) return;
+      adminFetch('/api/admin/aggregator-requests/' + id + '/approve', { method: 'POST' }).then(function(res) {
+        if (!res.ok || !res.body.success) {
+          alert('Failed: ' + ((res.body && res.body.message) || 'unknown error'));
+          return;
+        }
+        showToast('Approved — code SMSed');
+        loadAggregatorRequests();
+        loadAuditLog();
+      });
+    }
+
+    function openRejectAggregatorRequest(id, name) {
+      var existing = document.getElementById('rejectAggregatorRequestModal');
+      if (existing) existing.remove();
+      var wrap = document.createElement('div');
+      wrap.id = 'rejectAggregatorRequestModal';
+      wrap.className = 'modal-backdrop';
+      wrap.innerHTML =
+        '<div class="modal" style="max-width:480px">' +
+          '<div class="modal-header"><div class="modal-title">Reject request \u2014 ' + esc(name) + '</div>' +
+            '<button class="modal-close" onclick="closeRejectAggregatorRequest()">\u2715</button></div>' +
+          '<div class="modal-body">' +
+            '<div class="hint">The reason below will be SMSed to the candidate verbatim.</div>' +
+            '<label>Rejection reason</label>' +
+            '<textarea id="aggRejectReason" rows="4" placeholder="e.g. Circul currently operates in select regional capitals only. Contact Circul support for updates." style="width:100%;padding:8px 12px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-size:0.82rem;font-family:var(--font)"></textarea>' +
+            '<div id="aggRejectErr" class="error hidden"></div>' +
+            '<div class="action-row">' +
+              '<button class="btn-danger" onclick="submitRejectAggregatorRequest(' + id + ')">Confirm reject</button>' +
+              '<button class="btn-small" onclick="closeRejectAggregatorRequest()">Cancel</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(wrap);
+    }
+
+    function closeRejectAggregatorRequest() {
+      var el = document.getElementById('rejectAggregatorRequestModal');
+      if (el) el.remove();
+    }
+
+    function submitRejectAggregatorRequest(id) {
+      var reason = (document.getElementById('aggRejectReason').value || '').trim();
+      var err = document.getElementById('aggRejectErr');
+      err.classList.add('hidden');
+      if (!reason) { err.textContent = 'Reason is required.'; err.classList.remove('hidden'); return; }
+      adminFetch('/api/admin/aggregator-requests/' + id + '/reject', {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason })
+      }).then(function(res) {
+        if (!res.ok || !res.body.success) {
+          err.textContent = (res.body && res.body.message) || 'Reject failed';
+          err.classList.remove('hidden');
+          return;
+        }
+        closeRejectAggregatorRequest();
+        showToast('Request rejected');
+        loadAggregatorRequests();
+        loadAuditLog();
+      });
+    }
+
     loadUserList('collectors');
+    loadAggregatorRequests();
     loadLockouts();
     loadAuditLog();
 </script>
