@@ -1746,6 +1746,376 @@ app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
 });
 
 // ============================================
+// AGGREGATOR REPORTS — Sourcing + Sales
+// ============================================
+//
+// Privacy contract:
+//   Sourcing endpoint MUST NOT join the collectors table. Names cannot enter
+//   the response. Sourcing rows are filtered to collector_id IS NOT NULL at
+//   the SQL layer — declared / walk-in stock is excluded by construction.
+//
+//   The collectors-list lookup endpoint (UI-input only) DOES join collectors
+//   to render `Ama Mensah (COL-0026)` in the dropdown. That data must not
+//   round-trip into any export.
+
+// Shared filter validators
+function _reportsValidateCommon(req, res) {
+  const { from, to, materials, collector_id, buyer_kind, buyer_id } = req.query;
+  if (!from || !to) {
+    res.status(400).json({ success: false, message: 'from and to (YYYY-MM-DD) required' });
+    return null;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    res.status(400).json({ success: false, message: 'from and to must be YYYY-MM-DD' });
+    return null;
+  }
+  const fromDate = new Date(from + 'T00:00:00Z');
+  const toDate = new Date(to + 'T00:00:00Z');
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    res.status(400).json({ success: false, message: 'from or to is not a valid date' });
+    return null;
+  }
+  if (fromDate > toDate) {
+    res.status(400).json({ success: false, message: 'from must be <= to' });
+    return null;
+  }
+  // SQL injection defence on materials — only A-Z and commas allowed.
+  if (materials && !/^[A-Z]+(,[A-Z]+)*$/.test(materials)) {
+    res.status(400).json({ success: false, message: 'materials must be CSV of uppercase letters' });
+    return null;
+  }
+  if (collector_id !== undefined && collector_id !== '' && !/^\d+$/.test(collector_id)) {
+    res.status(400).json({ success: false, message: 'collector_id must be a positive integer' });
+    return null;
+  }
+  if (buyer_kind !== undefined && buyer_kind !== '' && !['processor','recycler','converter'].includes(buyer_kind)) {
+    res.status(400).json({ success: false, message: 'buyer_kind must be processor, recycler, or converter' });
+    return null;
+  }
+  if (buyer_id !== undefined && buyer_id !== '' && !/^\d+$/.test(buyer_id)) {
+    res.status(400).json({ success: false, message: 'buyer_id must be a positive integer' });
+    return null;
+  }
+  if ((buyer_id !== undefined && buyer_id !== '') && (!buyer_kind || buyer_kind === '')) {
+    res.status(400).json({ success: false, message: 'buyer_id requires buyer_kind' });
+    return null;
+  }
+  // Inclusive `to`: shift to the next day's 00:00 so created_at < that captures the whole day.
+  const toDatePlusOne = new Date(toDate.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    from: fromDate.toISOString(),
+    toExclusive: toDatePlusOne.toISOString(),
+    materials: materials || null,
+    collector_id: collector_id ? parseInt(collector_id, 10) : null,
+    buyer_kind: buyer_kind || null,
+    buyer_id: buyer_id ? parseInt(buyer_id, 10) : null
+  };
+}
+
+// Sourcing report — collectors → this aggregator. Registered-only by SQL filter.
+// Privacy: NO JOIN to collectors. Only collector_code (COL-XXXX) returned.
+app.get('/api/aggregator/reports/sourcing', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const filters = _reportsValidateCommon(req, res);
+    if (!filters) return;
+    const aggId = req.user.id;
+    const result = await pool.query(
+      `SELECT
+         pt.id,
+         pt.created_at AS date,
+         'TXN-' || TO_CHAR(pt.created_at, 'YYYYMMDD') || '-' || LPAD(pt.id::text, 4, '0') AS ref,
+         pt.collector_id,
+         'COL-' || LPAD(pt.collector_id::text, 4, '0') AS collector_code,
+         pt.material_type,
+         pt.form,
+         pt.gross_weight_kg,
+         COALESCE(pt.net_weight_kg, pt.gross_weight_kg) AS net_weight_kg,
+         pt.price_per_kg,
+         pt.total_price,
+         pt.payment_status,
+         pt.payment_completed_at AS paid_at
+       FROM pending_transactions pt
+       WHERE pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+         AND pt.aggregator_id = $1
+         AND pt.collector_id IS NOT NULL
+         AND pt.created_at >= $2 AND pt.created_at < $3
+         AND ($4::text IS NULL OR pt.material_type = ANY(string_to_array($4, ',')))
+         AND ($5::int IS NULL OR pt.collector_id = $5)
+       ORDER BY pt.created_at DESC`,
+      [aggId, filters.from, filters.toExclusive, filters.materials, filters.collector_id]
+    );
+    const rows = result.rows;
+    // Coerce numerics to JS numbers for client side ergonomics
+    rows.forEach(function (r) {
+      r.gross_weight_kg = Number(r.gross_weight_kg || 0);
+      r.net_weight_kg = Number(r.net_weight_kg || 0);
+      r.price_per_kg = Number(r.price_per_kg || 0);
+      r.total_price = Number(r.total_price || 0);
+    });
+    // Summary
+    const totalSourcedKg = rows.reduce(function (s, r) { return s + r.net_weight_kg; }, 0);
+    const totalPaidGhs = rows.reduce(function (s, r) { return s + r.total_price; }, 0);
+    const byCollector = {};
+    for (let i = 0; i < rows.length; i++) {
+      const code = rows[i].collector_code;
+      byCollector[code] = (byCollector[code] || 0) + rows[i].net_weight_kg;
+    }
+    let largestSupplierCode = null;
+    let largestSupplierKg = 0;
+    Object.keys(byCollector).forEach(function (code) {
+      if (byCollector[code] > largestSupplierKg) {
+        largestSupplierKg = byCollector[code];
+        largestSupplierCode = code;
+      }
+    });
+    const largestSupplierPct = totalSourcedKg > 0 ? Math.round((largestSupplierKg / totalSourcedKg) * 100) : 0;
+    const materialsPresent = Array.from(new Set(rows.map(function (r) { return r.material_type; }))).sort();
+    res.json({
+      success: true,
+      summary: {
+        total_sourced_kg: Math.round(totalSourcedKg * 100) / 100,
+        total_paid_out_ghs: Math.round(totalPaidGhs * 100) / 100,
+        transaction_count: rows.length,
+        collector_count: Object.keys(byCollector).length,
+        largest_supplier_code: largestSupplierCode,
+        largest_supplier_kg: Math.round(largestSupplierKg * 100) / 100,
+        largest_supplier_pct: largestSupplierPct
+      },
+      rows: rows,
+      materials_present: materialsPresent
+    });
+  } catch (err) {
+    console.error('[aggregator/reports/sourcing]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Sales report — this aggregator → processor / recycler / converter.
+app.get('/api/aggregator/reports/sales', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const filters = _reportsValidateCommon(req, res);
+    if (!filters) return;
+    const aggId = req.user.id;
+    const result = await pool.query(
+      `WITH sales AS (
+         SELECT
+           pt.id,
+           pt.created_at AS date,
+           'TXN-' || TO_CHAR(pt.created_at, 'YYYYMMDD') || '-' || LPAD(pt.id::text, 4, '0') AS ref,
+           CASE
+             WHEN pt.processor_id IS NOT NULL THEN 'processor'
+             WHEN pt.recycler_id  IS NOT NULL THEN 'recycler'
+             WHEN pt.converter_id IS NOT NULL THEN 'converter'
+           END AS buyer_kind,
+           CASE
+             WHEN pt.processor_id IS NOT NULL THEN 'PRO-' || LPAD(pt.processor_id::text, 4, '0')
+             WHEN pt.recycler_id  IS NOT NULL THEN 'REC-' || LPAD(pt.recycler_id::text, 4, '0')
+             WHEN pt.converter_id IS NOT NULL THEN 'CNV-' || LPAD(pt.converter_id::text, 4, '0')
+           END AS buyer_code,
+           COALESCE(p.company, p.name, r.company, r.name, c.company, c.name) AS buyer_name,
+           pt.material_type,
+           pt.form,
+           pt.gross_weight_kg,
+           COALESCE(pt.net_weight_kg, pt.gross_weight_kg) AS net_weight_kg,
+           pt.price_per_kg,
+           pt.total_price,
+           pt.payment_status,
+           pt.payment_completed_at AS paid_at
+         FROM pending_transactions pt
+         LEFT JOIN processors  p ON p.id = pt.processor_id
+         LEFT JOIN recyclers   r ON r.id = pt.recycler_id
+         LEFT JOIN converters  c ON c.id = pt.converter_id
+         WHERE pt.transaction_type = 'aggregator_sale'
+           AND pt.aggregator_id = $1
+           AND pt.created_at >= $2 AND pt.created_at < $3
+           AND ($4::text IS NULL OR pt.material_type = ANY(string_to_array($4, ',')))
+           AND (
+             $5::text IS NULL
+             OR ($5 = 'processor' AND pt.processor_id IS NOT NULL AND ($6::int IS NULL OR pt.processor_id = $6))
+             OR ($5 = 'recycler'  AND pt.recycler_id  IS NOT NULL AND ($6::int IS NULL OR pt.recycler_id  = $6))
+             OR ($5 = 'converter' AND pt.converter_id IS NOT NULL AND ($6::int IS NULL OR pt.converter_id = $6))
+           )
+       )
+       SELECT
+         s.*,
+         COALESCE((
+           SELECT SUM(pts.weight_kg_attributed)
+           FROM pending_transaction_sources pts
+           JOIN pending_transactions src ON src.id = pts.source_pending_tx_id
+           WHERE pts.child_pending_tx_id = s.id AND src.collector_id IS NOT NULL
+         ), 0) AS traced_kg_in_row,
+         COALESCE((
+           SELECT SUM(pts.weight_kg_attributed)
+           FROM pending_transaction_sources pts
+           WHERE pts.child_pending_tx_id = s.id
+         ), 0) AS attributed_kg_in_row,
+         (
+           SELECT ARRAY_AGG(DISTINCT 'COL-' || LPAD(src.collector_id::text, 4, '0') ORDER BY 'COL-' || LPAD(src.collector_id::text, 4, '0'))
+           FROM pending_transaction_sources pts
+           JOIN pending_transactions src ON src.id = pts.source_pending_tx_id
+           WHERE pts.child_pending_tx_id = s.id AND src.collector_id IS NOT NULL
+         ) AS collector_codes_array
+       FROM sales s
+       ORDER BY s.date DESC`,
+      [aggId, filters.from, filters.toExclusive, filters.materials, filters.buyer_kind, filters.buyer_id]
+    );
+    const rows = result.rows.map(function (r) {
+      const grossKg = Number(r.gross_weight_kg || 0);
+      const netKg = Number(r.net_weight_kg || 0);
+      const tracedInRow = Number(r.traced_kg_in_row || 0);
+      const attributedInRow = Number(r.attributed_kg_in_row || 0);
+      const tracedPct = attributedInRow > 0 ? Math.round((tracedInRow / attributedInRow) * 100) : 0;
+      return {
+        id: r.id,
+        date: r.date,
+        ref: r.ref,
+        buyer_kind: r.buyer_kind,
+        buyer_code: r.buyer_code,
+        buyer_name: r.buyer_name,
+        material_type: r.material_type,
+        form: r.form,
+        gross_weight_kg: grossKg,
+        net_weight_kg: netKg,
+        price_per_kg: Number(r.price_per_kg || 0),
+        total_price: Number(r.total_price || 0),
+        traced_pct: tracedPct,
+        collector_codes: r.collector_codes_array || [],
+        trace_kind: tracedPct >= 100 ? 'traced' : 'declared',
+        payment_status: r.payment_status,
+        paid_at: r.paid_at
+      };
+    });
+    // Summary
+    const totalVolumeKg = rows.reduce(function (s, r) { return s + r.net_weight_kg; }, 0);
+    const totalValueGhs = rows.reduce(function (s, r) { return s + r.total_price; }, 0);
+    let tracedKgSum = 0;
+    let attributedKgSum = 0;
+    for (let i = 0; i < result.rows.length; i++) {
+      tracedKgSum += Number(result.rows[i].traced_kg_in_row || 0);
+      attributedKgSum += Number(result.rows[i].attributed_kg_in_row || 0);
+    }
+    const tracedPctByKg = totalVolumeKg > 0 ? Math.round((tracedKgSum / totalVolumeKg) * 100) : 0;
+    const declaredKg = Math.max(0, totalVolumeKg - tracedKgSum);
+    const buyerCount = new Set(rows.map(function (r) { return r.buyer_code; })).size;
+    const materialsPresent = Array.from(new Set(rows.map(function (r) { return r.material_type; }))).sort();
+    res.json({
+      success: true,
+      summary: {
+        total_volume_kg: Math.round(totalVolumeKg * 100) / 100,
+        total_value_ghs: Math.round(totalValueGhs * 100) / 100,
+        transaction_count: rows.length,
+        buyer_count: buyerCount,
+        traced_pct_by_kg: tracedPctByKg,
+        traced_kg: Math.round(tracedKgSum * 100) / 100,
+        declared_kg: Math.round(declaredKg * 100) / 100
+      },
+      rows: rows,
+      materials_present: materialsPresent
+    });
+  } catch (err) {
+    console.error('[aggregator/reports/sales]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Lookup: distinct registered collectors this aggregator has sourced from.
+// Joins collectors for name display in the FILTER UI only — never written to
+// any export. Output here is consumed by the dropdown in the dashboard form.
+app.get('/api/aggregator/reports/collectors-list', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const result = await pool.query(
+      `SELECT
+         c.id AS collector_id,
+         'COL-' || LPAD(c.id::text, 4, '0') AS collector_code,
+         TRIM(c.first_name || ' ' || COALESCE(c.last_name, '')) AS name,
+         COUNT(pt.id) AS sale_count,
+         COALESCE(SUM(pt.net_weight_kg), 0) AS total_kg,
+         COALESCE(SUM(pt.total_price), 0) AS total_ghs
+       FROM pending_transactions pt
+       JOIN collectors c ON c.id = pt.collector_id
+       WHERE pt.aggregator_id = $1
+         AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+         AND pt.collector_id IS NOT NULL
+       GROUP BY c.id, c.first_name, c.last_name
+       ORDER BY total_kg DESC`,
+      [aggId]
+    );
+    res.json({
+      success: true,
+      collectors: result.rows.map(function (r) {
+        return {
+          collector_id: r.collector_id,
+          collector_code: r.collector_code,
+          name: r.name,
+          sale_count: parseInt(r.sale_count, 10),
+          total_kg: Math.round(Number(r.total_kg) * 100) / 100,
+          total_ghs: Math.round(Number(r.total_ghs) * 100) / 100
+        };
+      })
+    });
+  } catch (err) {
+    console.error('[aggregator/reports/collectors-list]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Lookup: distinct buyers this aggregator has sold to (across all 3 buyer kinds).
+app.get('/api/aggregator/reports/buyers-list', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const result = await pool.query(
+      `SELECT
+         CASE
+           WHEN pt.processor_id IS NOT NULL THEN 'processor'
+           WHEN pt.recycler_id  IS NOT NULL THEN 'recycler'
+           WHEN pt.converter_id IS NOT NULL THEN 'converter'
+         END AS buyer_kind,
+         COALESCE(pt.processor_id, pt.recycler_id, pt.converter_id) AS buyer_id,
+         CASE
+           WHEN pt.processor_id IS NOT NULL THEN 'PRO-' || LPAD(pt.processor_id::text, 4, '0')
+           WHEN pt.recycler_id  IS NOT NULL THEN 'REC-' || LPAD(pt.recycler_id::text, 4, '0')
+           WHEN pt.converter_id IS NOT NULL THEN 'CNV-' || LPAD(pt.converter_id::text, 4, '0')
+         END AS buyer_code,
+         COALESCE(p.company, p.name, r.company, r.name, c.company, c.name) AS buyer_name,
+         COUNT(pt.id) AS sale_count,
+         COALESCE(SUM(pt.net_weight_kg), 0) AS total_kg,
+         COALESCE(SUM(pt.total_price), 0) AS total_ghs
+       FROM pending_transactions pt
+       LEFT JOIN processors  p ON p.id = pt.processor_id
+       LEFT JOIN recyclers   r ON r.id = pt.recycler_id
+       LEFT JOIN converters  c ON c.id = pt.converter_id
+       WHERE pt.aggregator_id = $1
+         AND pt.transaction_type = 'aggregator_sale'
+       GROUP BY buyer_kind, buyer_id, buyer_code, buyer_name
+       ORDER BY total_kg DESC`,
+      [aggId]
+    );
+    res.json({
+      success: true,
+      buyers: result.rows.map(function (r) {
+        return {
+          buyer_kind: r.buyer_kind,
+          buyer_id: r.buyer_id,
+          buyer_code: r.buyer_code,
+          buyer_name: r.buyer_name,
+          sale_count: parseInt(r.sale_count, 10),
+          total_kg: Math.round(Number(r.total_kg) * 100) / 100,
+          total_ghs: Math.round(Number(r.total_ghs) * 100) / 100
+        };
+      })
+    });
+  } catch (err) {
+    console.error('[aggregator/reports/buyers-list]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
 // PROCESSORS
 // ============================================
 
