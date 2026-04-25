@@ -3689,6 +3689,136 @@ async function handleAggregatorUssd(parts, aggregator) {
   return 'END Invalid option.\nDial again to retry.';
 }
 
+// ── Aggregator registers a collector ──
+//
+// Mirrors handleAgentRegister (line ~4622) field-for-field. Two differences:
+//   1. Audit log target is admin_audit_log (aggregators have no agent_activity).
+//   2. Inline-path success returns CON (bridge prompt) instead of END so the
+//      caller can drop back into the purchase flow with the new collector_id.
+//
+// `prefilledPhone` non-null = inline-at-purchase path (skips phone entry,
+// shorter parts list). null = top-level menu path (full flow).
+async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
+  const depth = m.length;
+
+  // depth 0: first name
+  if (depth === 0) return 'CON Enter collector\'s\nfirst name:';
+  const firstName = m[0];
+
+  // depth 1: last name
+  if (depth === 1) return 'CON Enter collector\'s\nlast name:';
+  const lastName = m[1];
+
+  if (prefilledPhone) {
+    // Inline path — skip phone entry, go straight to city
+    if (depth === 2) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+    const cityData = USSD_CITIES[m[2]];
+    if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+    if (depth === 3) {
+      const phone = normalizeGhanaPhone(prefilledPhone);
+      const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
+      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+    }
+
+    if (depth === 4) {
+      if (m[3] === '2') return 'END Cancelled.';
+      if (m[3] === '1') {
+        try {
+          const hashedPin = await hashPassword('0000');
+          const normalized = normalizeGhanaPhone(prefilledPhone);
+          const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : prefilledPhone;
+          const result = await pool.query(
+            `INSERT INTO collectors (first_name, last_name, phone, pin, city, region, must_change_pin)
+             VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+            [firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+          );
+          await pool.query(
+            `INSERT INTO admin_audit_log (actor_type, actor_id, actor_email, action, target_type, target_id, details)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              'aggregator',
+              aggregator.id,
+              null,
+              'aggregator_registered_collector',
+              'collector',
+              result.rows[0].id,
+              JSON.stringify({
+                collector_phone: phoneToStore,
+                collector_name: firstName.trim() + ' ' + lastName.trim(),
+                city: cityData.city,
+                via: 'inline_purchase',
+                source: 'ussd'
+              })
+            ]
+          );
+          // Inline-path success: bridge CON back to caller (resolveCollectorForPurchase)
+          return `CON ${firstName} registered!\nPIN: 0000 (tell them\nto change on first use)\n\nContinue purchase:\n1. Yes, log purchase\n0. Done for now`;
+        } catch (err) {
+          if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
+          throw err;
+        }
+      }
+    }
+    return 'END Invalid option.\nDial again to retry.';
+  }
+
+  // Top-level path — collect phone in flow
+  if (depth === 2) return 'CON Enter collector\'s\nphone number:';
+  const phone = m[2];
+
+  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+  const cityData = USSD_CITIES[m[3]];
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  if (depth === 4) {
+    const normalized = normalizeGhanaPhone(phone);
+    const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+  }
+
+  if (depth === 5) {
+    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '1') {
+      try {
+        const hashedPin = await hashPassword('0000');
+        const normalized = normalizeGhanaPhone(phone);
+        const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+        const result = await pool.query(
+          `INSERT INTO collectors (first_name, last_name, phone, pin, city, region, must_change_pin)
+           VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+          [firstName.trim(), lastName.trim(), phoneToStore, hashedPin, cityData.city, cityData.region]
+        );
+        await pool.query(
+          `INSERT INTO admin_audit_log (actor_type, actor_id, actor_email, action, target_type, target_id, details)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            'aggregator',
+            aggregator.id,
+            null,
+            'aggregator_registered_collector',
+            'collector',
+            result.rows[0].id,
+            JSON.stringify({
+              collector_phone: phoneToStore,
+              collector_name: firstName.trim() + ' ' + lastName.trim(),
+              city: cityData.city,
+              via: 'top_level',
+              source: 'ussd'
+            })
+          ]
+        );
+        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\n\nTell them to dial\n*920*54# and change\ntheir PIN on first use.`;
+      } catch (err) {
+        if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
+        throw err;
+      }
+    }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
 async function handleAggregatorPurchase(m, aggregator) {
   const depth = m.length;
 
