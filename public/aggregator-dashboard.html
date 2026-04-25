@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 /* ── LOGIN OVERLAY ── */
 .login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
@@ -92,6 +93,8 @@
 .reports-preview .btn-row .btn{padding:9px 18px;font-size:0.82rem;font-weight:700;border:none;border-radius:var(--r-sm);background:var(--accent);color:#000;cursor:pointer;font-family:var(--font)}
 .reports-preview .btn-row .btn.outline{background:transparent;color:var(--text-1);border:1px solid var(--border)}
 .reports-preview .btn-row .btn.sec{background:var(--surface-alt);color:var(--text-1);border:1px solid var(--border)}
+.pill-declared{background:rgba(255,179,0,0.15);color:#ffb74d}
+.pill-traced{background:rgba(0,230,118,0.15);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -3970,8 +3973,203 @@ function reportDownloadCSV() {
     });
 }
 
-// Stub filled by Phase 6
-function reportDownloadPDF() { console.warn('[reports] PDF not yet wired'); }
+/* ── PDF export (jsPDF landscape + autoTable) ── */
+
+function formatDdMmYyyy(date) {
+    var d = String(date.getDate()).padStart(2, '0');
+    var m = String(date.getMonth() + 1).padStart(2, '0');
+    var y = date.getFullYear();
+    return d + '/' + m + '/' + y;
+}
+function formatGeneratedTimestamp(date) {
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        + ' ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function reportDownloadPDF() {
+    ensureLatestReport(function (filters, response) {
+        var jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        var doc = new jsPDFCls({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        var pageW = doc.internal.pageSize.getWidth();
+        var pageH = doc.internal.pageSize.getHeight();
+        var margin = 14;
+
+        var aggDisplayName = state.operator.company || state.operator.name || 'Aggregator';
+        var aggCode = 'AGG-' + String(state.operator.id).padStart(4, '0');
+        var titleStr = filters.type === 'sourcing' ? 'Aggregator Sourcing Report' : 'Aggregator Sales Report';
+
+        // Header
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(13, 31, 20);
+        doc.text(titleStr, margin, margin + 4);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(90, 117, 102);
+        doc.text('CIRCUL', margin, margin + 9);
+
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(13, 31, 20);
+        doc.text(aggDisplayName, pageW - margin, margin + 4, { align: 'right' });
+        doc.setFontSize(8);
+        doc.setFont('courier', 'normal');
+        doc.setTextColor(90, 117, 102);
+        doc.text(aggCode, pageW - margin, margin + 9, { align: 'right' });
+
+        doc.setDrawColor(13, 31, 20);
+        doc.setLineWidth(0.4);
+        doc.line(margin, margin + 12, pageW - margin, margin + 12);
+
+        // Meta line
+        var fromDate = new Date(filters.from + 'T00:00:00Z');
+        var toDate = new Date(filters.to + 'T00:00:00Z');
+        var metaParts = [
+            formatDdMmYyyy(fromDate) + ' to ' + formatDdMmYyyy(toDate),
+            'Materials: ' + (response.materials_present.length ? response.materials_present.join(', ') : '\u2014')
+        ];
+        if (filters.type === 'sourcing' && filters.collector_id) {
+            // Collector code only — names never enter the PDF
+            metaParts.push('Collector: COL-' + String(filters.collector_id).padStart(4, '0'));
+        }
+        if (filters.type === 'sales' && filters.buyer_kind && filters.buyer_id) {
+            var b = (reportsState.buyersList || []).find(function (x) { return x.buyer_kind === filters.buyer_kind && String(x.buyer_id) === String(filters.buyer_id); });
+            // Buyer name allowed (privacy rule applies to collectors only)
+            metaParts.push('Sold to: ' + (b ? b.buyer_name : (filters.buyer_kind + ' #' + filters.buyer_id)));
+        }
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(13, 31, 20);
+        doc.text(metaParts.join(' \u00b7 '), margin, margin + 17);
+
+        doc.setFontSize(7);
+        doc.setTextColor(90, 117, 102);
+        doc.text('Generated ' + formatGeneratedTimestamp(new Date()) + ' by Circul \u00b7 circul.polsia.app', margin, margin + 21);
+
+        // Summary cards (4 in a row)
+        var summary = response.summary;
+        var summaryY = margin + 26;
+        var cardGap = 3;
+        var cardW = (pageW - margin * 2 - cardGap * 3) / 4;
+        var cardH = 18;
+        var cards;
+        if (filters.type === 'sourcing') {
+            var avg = summary.total_sourced_kg > 0 ? (summary.total_paid_out_ghs / summary.total_sourced_kg) : 0;
+            cards = [
+                { label: 'Total Sourced',    value: Number(summary.total_sourced_kg).toLocaleString() + ' kg',     sub: summary.transaction_count + ' transactions' },
+                { label: 'Total Paid Out',   value: 'GHS ' + Number(summary.total_paid_out_ghs).toLocaleString(),  sub: 'avg GHS ' + avg.toFixed(2) + '/kg' },
+                { label: 'Collectors',       value: String(summary.collector_count),                               sub: 'all registered' },
+                { label: 'Largest Supplier', value: summary.largest_supplier_code || '\u2014',                     sub: summary.largest_supplier_pct + '% \u00b7 ' + Number(summary.largest_supplier_kg).toLocaleString() + ' kg' }
+            ];
+        } else {
+            var avgS = summary.total_volume_kg > 0 ? (summary.total_value_ghs / summary.total_volume_kg) : 0;
+            cards = [
+                { label: 'Total Volume', value: Number(summary.total_volume_kg).toLocaleString() + ' kg',  sub: summary.transaction_count + ' transactions' },
+                { label: 'Total Value',  value: 'GHS ' + Number(summary.total_value_ghs).toLocaleString(), sub: 'avg GHS ' + avgS.toFixed(2) + '/kg' },
+                { label: 'Buyers',       value: String(summary.buyer_count),                               sub: '' },
+                { label: 'Traced %',     value: summary.traced_pct_by_kg + '%',                            sub: Number(summary.traced_kg).toLocaleString() + ' kg traced of ' + Number(summary.total_volume_kg).toLocaleString() + ' kg' }
+            ];
+        }
+        for (var i = 0; i < cards.length; i++) {
+            var x = margin + i * (cardW + cardGap);
+            doc.setDrawColor(200, 215, 207);
+            doc.setFillColor(248, 250, 249);
+            doc.roundedRect(x, summaryY, cardW, cardH, 1.5, 1.5, 'FD');
+            doc.setFontSize(6.5);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(90, 117, 102);
+            doc.text(cards[i].label.toUpperCase(), x + 3, summaryY + 4);
+            doc.setFontSize(11);
+            doc.setFont('courier', 'bold');
+            doc.setTextColor(13, 31, 20);
+            doc.text(String(cards[i].value), x + 3, summaryY + 10);
+            if (cards[i].sub) {
+                doc.setFontSize(6.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(90, 117, 102);
+                doc.text(cards[i].sub, x + 3, summaryY + 15);
+            }
+        }
+
+        // Transactions table
+        var headers, body;
+        if (filters.type === 'sourcing') {
+            headers = ['Date', 'Ref', 'Collector', 'Material', 'Net kg', 'GHS/kg', 'Total GHS', 'Status'];
+            body = response.rows.map(function (r) {
+                // PRIVACY: collector_code only.
+                return [
+                    formatDdMmYyyy(new Date(r.date)),
+                    r.ref,
+                    r.collector_code,
+                    r.material_type,
+                    Number(r.net_weight_kg).toFixed(2),
+                    Number(r.price_per_kg).toFixed(2),
+                    Number(r.total_price).toFixed(2),
+                    fmtPaymentStatus(r.payment_status)
+                ];
+            });
+        } else {
+            headers = ['Date', 'Ref', 'Buyer', 'Material', 'Net kg', 'GHS/kg', 'Total GHS', 'Trace', 'Status'];
+            body = response.rows.map(function (r) {
+                return [
+                    formatDdMmYyyy(new Date(r.date)),
+                    r.ref,
+                    r.buyer_code + (r.buyer_name ? ' ' + r.buyer_name : ''),
+                    r.material_type,
+                    Number(r.net_weight_kg).toFixed(2),
+                    Number(r.price_per_kg).toFixed(2),
+                    Number(r.total_price).toFixed(2),
+                    r.trace_kind === 'traced' ? 'Traced' : 'Declared',
+                    fmtPaymentStatus(r.payment_status)
+                ];
+            });
+        }
+
+        doc.autoTable({
+            startY: summaryY + cardH + 5,
+            margin: { left: margin, right: margin },
+            head: [headers],
+            body: body,
+            styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.6 },
+            headStyles: { fillColor: [232, 239, 233], textColor: [13, 31, 20], fontStyle: 'bold', fontSize: 7 },
+            bodyStyles: { textColor: [13, 31, 20] },
+            alternateRowStyles: { fillColor: [248, 250, 249] },
+            columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } },
+            theme: 'plain',
+            didDrawPage: function (data) {
+                var str = 'Page ' + data.pageNumber + ' of ' + doc.internal.getNumberOfPages();
+                doc.setFontSize(7);
+                doc.setTextColor(90, 117, 102);
+                doc.text(str, pageW - margin, pageH - 8, { align: 'right' });
+            }
+        });
+
+        // Final-page footer
+        var finalY = doc.lastAutoTable.finalY + 8;
+        if (finalY > pageH - 30) { doc.addPage(); finalY = margin + 6; }
+        doc.setFontSize(7);
+        doc.setTextColor(90, 117, 102);
+        var paidCount = response.rows.filter(function (r) { return r.payment_status === 'paid'; }).length;
+        var paidTotal = response.rows.filter(function (r) { return r.payment_status === 'paid'; })
+            .reduce(function (s, r) { return s + Number(r.total_price); }, 0);
+        var pendingCount = response.rows.filter(function (r) { return r.payment_status === 'unpaid' || r.payment_status == null; }).length;
+        var sentCount = response.rows.filter(function (r) { return r.payment_status === 'payment_sent'; }).length;
+
+        var line1, line2;
+        if (filters.type === 'sourcing') {
+            line1 = 'Supplier verification: 100% of sourced volume (' + Number(summary.total_sourced_kg).toLocaleString() + ' kg) came from ' + summary.collector_count + ' collector' + (summary.collector_count === 1 ? '' : 's') + ' registered on Circul with phone-linked, verifiable identity profiles. Every transaction in this report is traceable to an identified supplier.';
+            line2 = 'Payment: ' + paidCount + ' transaction' + (paidCount === 1 ? '' : 's') + ' paid (GHS ' + paidTotal.toLocaleString() + ')' + (pendingCount > 0 ? ', ' + pendingCount + ' pending settlement' : '') + (sentCount > 0 ? ', ' + sentCount + ' payment sent awaiting confirmation' : '') + '.';
+        } else {
+            line1 = 'Traceability: ' + summary.traced_pct_by_kg + '% of volume (' + Number(summary.traced_kg).toLocaleString() + ' kg) traced via chain-of-custody to registered collectors. ' + (100 - summary.traced_pct_by_kg) + '% (' + Number(summary.declared_kg).toLocaleString() + ' kg) sourced from aggregator-declared stock (origin not chain-linked).';
+            line2 = 'Payment: ' + paidCount + ' transaction' + (paidCount === 1 ? '' : 's') + ' paid (GHS ' + paidTotal.toLocaleString() + ')' + (pendingCount > 0 ? ', ' + pendingCount + ' pending settlement' : '') + (sentCount > 0 ? ', ' + sentCount + ' payment sent awaiting confirmation' : '') + '.';
+        }
+        doc.text(doc.splitTextToSize(line1, pageW - margin * 2), margin, finalY);
+        doc.text(doc.splitTextToSize(line2, pageW - margin * 2), margin, finalY + 8);
+        doc.text('For audit questions: hello@circul.app', margin, finalY + 14);
+
+        doc.save(reportFilenameBase(filters) + '.pdf');
+    });
+}
 
 (function () {
     var initialized = false;
