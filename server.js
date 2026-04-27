@@ -7004,8 +7004,11 @@ app.post('/api/auth/login', async (req, res) => {
       const rl = checkRateLimit(phone.trim());
       if (rl.blocked) return res.status(429).json({ success: false, message: 'Too many failed attempts. Try again in ' + rl.remainMin + ' minutes.' });
 
+      const phoneVariants = getPhoneVariants(normalizeGhanaPhone(phone.trim()));
+      if (!phoneVariants.length) return res.status(401).json({ success: false, message: 'Invalid phone number or PIN' });
+
       // 1. Collectors
-      const collResult = await pool.query(`SELECT id, first_name, last_name, phone, pin, must_change_pin FROM collectors WHERE phone=$1 AND is_active=true`, [phone.trim()]);
+      const collResult = await pool.query(`SELECT id, first_name, last_name, phone, pin, must_change_pin FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`, [phoneVariants]);
       if (collResult.rows.length && await verifyPassword(pin.trim(), collResult.rows[0].pin)) {
         clearLoginAttempts(phone.trim());
         const c = collResult.rows[0];
@@ -7016,8 +7019,8 @@ app.post('/api/auth/login', async (req, res) => {
 
       // 2. Aggregators
       const aggResult = await pool.query(
-        `SELECT id, name, company, phone, pin, must_change_pin FROM aggregators WHERE phone=$1 AND is_active=true`,
-        [phone.trim()]
+        `SELECT id, name, company, phone, pin, must_change_pin FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+        [phoneVariants]
       );
       if (aggResult.rows.length && await verifyPassword(pin.trim(), aggResult.rows[0].pin)) {
         clearLoginAttempts(phone.trim());
@@ -7029,7 +7032,7 @@ app.post('/api/auth/login', async (req, res) => {
       // 3. Agents (sub-accounts under aggregators)
       const agentResult = await pool.query(
         `SELECT id, aggregator_id, first_name, last_name, phone, pin, city, region, must_change_pin
-         FROM agents WHERE phone=$1 AND is_active=true`, [phone.trim()]
+         FROM agents WHERE phone=ANY($1) AND is_active=true LIMIT 1`, [phoneVariants]
       );
       if (agentResult.rows.length) {
         const ag = agentResult.rows[0];
