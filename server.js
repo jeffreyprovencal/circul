@@ -3623,12 +3623,12 @@ async function handleRegisteredUssd(parts, collector) {
       if (!agg) return 'END Invalid aggregator.\nDial again to retry.';
       const price = parseFloat(agg.price_per_kg_ghs);
       const total = (weight * price).toFixed(2);
-      return `CON Confirm drop-off:\n${weight}kg ${material}\nTo: ${agg.name}\nPrice: GH₵${price.toFixed(2)}/kg\nTotal: GH₵${total}\n\n1. Confirm\n2. Cancel`;
+      return `CON Confirm drop-off:\n${weight}kg ${material} to\n${agg.name}\nGH₵${total} (GH₵${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
     }
 
     // depth 5: execute
     if (depth === 5) {
-      if (m[4] === '2') return 'END Cancelled.';
+      if (m[4] === '0') return 'END Cancelled.';
       if (m[4] === '1') {
         const aggChoice = parseInt(m[3]);
         const city = collector.city || 'Accra';
@@ -3845,11 +3845,11 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
     if (depth === 3) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
-      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
     }
 
     if (depth === 4) {
-      if (m[3] === '2') return 'END Cancelled.';
+      if (m[3] === '0') return 'END Cancelled.';
       if (m[3] === '1') {
         try {
           const hashedPin = await hashPassword('0000');
@@ -3880,7 +3880,7 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
             ]
           );
           // Inline-path success: bridge CON back to caller (resolveCollectorForPurchase)
-          return `CON ${firstName} registered!\nPIN: 0000 (tell them\nto change on first use)\n\nContinue purchase:\n1. Yes, log purchase\n0. Done for now`;
+          return `CON ${firstName} registered!\nPIN: 0000\n\n1. Continue purchase\n0. Done`;
         } catch (err) {
           if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
           throw err;
@@ -3901,11 +3901,11 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
-    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 5) {
-    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '0') return 'END Cancelled.';
     if (m[4] === '1') {
       try {
         const hashedPin = await hashPassword('0000');
@@ -3935,7 +3935,7 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
             })
           ]
         );
-        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\n\nThey'll be asked to set\ntheir own PIN at first use.`;
+        return `END ${firstName} ${lastName} registered!\nPhone: ${phoneToStore}\nPIN: 0000 (auto-prompt\nto change at first use)`;
       } catch (err) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Transaction to\nrecord purchases from\nexisting collectors.';
         throw err;
@@ -3978,12 +3978,12 @@ async function handleAggregatorRegisterAgent(m, aggregator) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
-    return `CON Register agent:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+    return `CON Register agent:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
   }
 
   // depth 5: execute
   if (depth === 5) {
-    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '0') return 'END Cancelled.';
     if (m[4] === '1') {
       try {
         const hashedPin = await hashPassword('0000');
@@ -3999,7 +3999,7 @@ async function handleAggregatorRegisterAgent(m, aggregator) {
            VALUES ($1, $2, 'registered', 'Agent registered by aggregator (USSD)')`,
           [result.rows[0].id, aggregator.id]
         );
-        return `END Agent registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\n\nTell them to dial\n*920*54# and use PIN\n0000 \u2014 they'll be\nasked to set their\nown PIN.`;
+        return `END ${firstName} ${lastName} registered!\nPhone: ${phoneToStore}\nPIN: 0000 (auto-prompt\nto change at first use)`;
       } catch (err) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nIf this is your existing\nagent, they can log in\ndirectly with *920*54#.';
         throw err;
@@ -4072,12 +4072,12 @@ async function handleAggregatorPurchase(m, aggregator) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
-    return `CON Confirm purchase:\n${weight}kg ${material}\nFrom: ${collName} (${collCode})\nPrice: GH₵${price.toFixed(2)}/kg\nTotal: GH₵${total}\n\n1. Confirm\n2. Cancel`;
+    return `CON Confirm purchase:\n${weight}kg ${material} from\n${collName} (${collCode})\nGH₵${total} (GH₵${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
   }
 
   // Execute
   if (mpDepth === 4) {
-    if (mp[3] === '2') return 'END Cancelled.';
+    if (mp[3] === '0') return 'END Cancelled.';
     if (mp[3] === '1') {
       const ussdClient = await pool.connect();
       let rootRow;
@@ -4178,7 +4178,7 @@ async function handleAggregatorSale(m, aggregator) {
 
   // Screen S2: form toggle
   if (depth === 1) {
-    return `CON ${material} available: ${trackedKg.toFixed(0)} kg\n\nForm:\n1. Loose\n2. Baled\n0. Cancel`;
+    return `CON ${trackedKg.toFixed(0)}kg ${material} tracked\n\n1. Loose\n2. Baled\n0. Cancel`;
   }
 
   if (m[1] === '0') return 'END Cancelled.';
@@ -4202,10 +4202,10 @@ async function handleAggregatorSale(m, aggregator) {
   if (needsDeclare && depth === 3) {
     if (trackedKg > 0) {
       // Variant a: partial shortfall
-      return `CON You have ${trackedKg.toFixed(0)}kg ${material} tracked.\nYou entered ${weight.toFixed(0)}kg.\n\nDeclare ${declared.toFixed(0)}kg as existing stock?\n\n1. Yes, declare + sell ${weight.toFixed(0)}kg\n2. No, sell ${trackedKg.toFixed(0)}kg only\n0. Cancel`;
+      return `CON Tracked: ${trackedKg.toFixed(0)}kg, entered: ${weight.toFixed(0)}kg.\nDeclare ${declared.toFixed(0)}kg?\n\n1. Declare + sell ${weight.toFixed(0)}kg\n2. Sell ${trackedKg.toFixed(0)}kg only\n0. Cancel`;
     }
     // Variant b: zero tracked
-    return `CON You have 0kg ${material} tracked.\nYou entered ${weight.toFixed(0)}kg.\n\nDeclare ${weight.toFixed(0)}kg as existing stock and proceed?\n\n1. Yes\n0. Cancel`;
+    return `CON No ${material} tracked. Sell\n${weight.toFixed(0)}kg as declared?\n\n1. Yes\n0. Cancel`;
   }
 
   // Process declare choice
@@ -4299,13 +4299,13 @@ async function handleAggregatorSale(m, aggregator) {
       const traced = saleWeight - saleDeclared;
       msg += `\nTraced: ${traced.toFixed(0)}kg\nDeclared: ${saleDeclared.toFixed(0)}kg\n`;
     }
-    msg += '\n1. Confirm\n2. Cancel';
+    msg += '\n1. Confirm\n0. Cancel';
     return msg;
   }
 
   // Screen S6: commit
   const confirmTok = m[4 + declareDepthConsumed];
-  if (confirmTok === '2') return 'END Cancelled.';
+  if (confirmTok === '0') return 'END Cancelled.';
   if (confirmTok !== '1') return 'END Invalid option.\nDial again to retry.';
 
   const buyerFkCol = buyer.poster_type === 'processor' ? 'processor_id'
@@ -4448,7 +4448,7 @@ async function resolveCollectorForPurchase(m, aggregator) {
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
     const collCode = 'COL-' + String(coll.id).padStart(4, '0');
     if (m.length === 1) {
-      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm — proceed\n2. Try different number\n0. Cancel` };
+      return { response: `CON Collector found:\n${collName} (${collCode})\n\n1. Confirm\n2. Different number\n0. Cancel` };
     }
     if (m[1] === '0') return { response: 'END Cancelled.' };
     if (m[1] === '2') return { response: 'CON Enter collector phone\nnumber:' };
@@ -4494,7 +4494,7 @@ async function resolveCollectorForPurchase(m, aggregator) {
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
     const collCode = 'COL-' + String(coll.id).padStart(4, '0');
     if (m.length === 2) {
-      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm — proceed\n2. Try different number\n0. Cancel` };
+      return { response: `CON Collector found:\n${collName} (${collCode})\n\n1. Confirm\n2. Different number\n0. Cancel` };
     }
     if (m[2] === '0') return { response: 'END Cancelled.' };
     if (m[2] === '2') return { response: 'CON Enter collector phone\nnumber:' };
@@ -4574,7 +4574,7 @@ async function handleAggregatorPending(m, aggregator) {
     var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
     var date = new Date(selected.created_at);
     var dateStr = date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
-    return `CON Drop-off details:\n${name} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}\nSubmitted: ${dateStr}\nPhone: ${selected.collector_phone || '—'}\n\n1. Confirm receipt\n2. Reject\n0. Back`;
+    return `CON ${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type} from\n${name} (${selected.collector_code})\nSubmitted: ${dateStr}\n\n1. Confirm\n2. Reject\n0. Back`;
   }
 
   // depth 2: confirm or reject
@@ -4773,12 +4773,12 @@ async function handleAgentCollection(m, agent) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
-    return `CON Confirm collection:\n${weight}kg ${material}\nFrom: ${collName} (${collCode})\nPrice: GH\u20b5${price.toFixed(2)}/kg\nTotal: GH\u20b5${total}\n\n1. Confirm\n2. Cancel`;
+    return `CON Confirm collection:\n${weight}kg ${material} from\n${collName} (${collCode})\nGH\u20b5${total} (GH\u20b5${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
   }
 
   // Execute
   if (mpDepth === 4) {
-    if (mp[3] === '2') return 'END Cancelled.';
+    if (mp[3] === '0') return 'END Cancelled.';
     if (mp[3] === '1') {
       const ussdClient = await pool.connect();
       let rootRow;
@@ -4871,7 +4871,7 @@ async function resolveCollectorForAgent(m, agent) {
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
     const collCode = 'COL-' + String(coll.id).padStart(4, '0');
     if (m.length === 1) {
-      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm \u2014 proceed\n2. Try different number\n0. Cancel` };
+      return { response: `CON Collector found:\n${collName} (${collCode})\n\n1. Confirm\n2. Different number\n0. Cancel` };
     }
     if (m[1] === '0') return { response: 'END Cancelled.' };
     if (m[1] === '2') return { response: 'CON Enter collector phone\nnumber:' };
@@ -4903,7 +4903,7 @@ async function resolveCollectorForAgent(m, agent) {
     const collName = ((coll.first_name || '') + ' ' + (coll.last_name || '')).trim();
     const collCode = 'COL-' + String(coll.id).padStart(4, '0');
     if (m.length === 2) {
-      return { response: `CON Collector found:\n${collName} (${collCode})\n${coll.city || ''}\n\n1. Confirm \u2014 proceed\n2. Try different number\n0. Cancel` };
+      return { response: `CON Collector found:\n${collName} (${collCode})\n\n1. Confirm\n2. Different number\n0. Cancel` };
     }
     if (m[2] === '0') return { response: 'END Cancelled.' };
     if (m[2] === '2') return { response: 'CON Enter collector phone\nnumber:' };
@@ -4975,12 +4975,12 @@ async function handleAgentPayment(m, agent) {
 
   // depth 1: confirm payment
   if (depth === 1) {
-    return `CON Pay collector:\n${collName} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)} kg ${selected.material_type}\nAmount: GH\u20b5 ${parseFloat(selected.total_price).toFixed(2)}\n\n1. Confirm payment\n2. Cancel`;
+    return `CON Pay ${collName} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}: GH\u20b5${parseFloat(selected.total_price).toFixed(2)}\n\n1. Confirm\n0. Cancel`;
   }
 
   // depth 2: execute
   if (depth === 2) {
-    if (m[1] === '2') return 'END Cancelled.';
+    if (m[1] === '0') return 'END Cancelled.';
     if (m[1] === '1') {
       // Phase 5B: agent cash payments are out-of-band (paid on the spot in cash).
       // No PAYMENT_SENT or PAYMENT_CONFIRMED SMS — collector already has the money,
@@ -5036,12 +5036,12 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
     if (depth === 3) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
-      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
     }
 
     // depth 4: execute
     if (depth === 4) {
-      if (m[3] === '2') return 'END Cancelled.';
+      if (m[3] === '0') return 'END Cancelled.';
       if (m[3] === '1') {
         try {
           const hashedPin = await hashPassword('0000');
@@ -5059,7 +5059,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
              `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
              result.rows[0].id]
           );
-          return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nThey'll be asked to set\ntheir own PIN at first use.\n\nFor: ${agent.aggregator_name}`;
+          return `END ${firstName} ${lastName} registered!\nPhone: ${phoneToStore}\nPIN: 0000 (auto-prompt\nto change at first use)\n\nFor: ${agent.aggregator_name}`;
         } catch (err) {
           if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
           throw err;
@@ -5085,12 +5085,12 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
-    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n2. Cancel`;
+    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
   }
 
   // depth 5: execute
   if (depth === 5) {
-    if (m[4] === '2') return 'END Cancelled.';
+    if (m[4] === '0') return 'END Cancelled.';
     if (m[4] === '1') {
       try {
         const hashedPin = await hashPassword('0000');
@@ -5108,7 +5108,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
            `Registered collector ${firstName} ${lastName} (${phoneToStore}) via USSD`,
            result.rows[0].id]
         );
-        return `END Collector registered!\n\n${firstName} ${lastName}\nPhone: ${phoneToStore}\nDefault PIN: 0000\nThey'll be asked to set\ntheir own PIN at first use.\n\nFor: ${agent.aggregator_name}`;
+        return `END ${firstName} ${lastName} registered!\nPhone: ${phoneToStore}\nPIN: 0000 (auto-prompt\nto change at first use)\n\nFor: ${agent.aggregator_name}`;
       } catch (err) {
         if (err.code === '23505') return 'END This phone number is\nalready registered.\n\nUse Log Collection to\nrecord from existing\ncollectors.';
         throw err;
@@ -5153,11 +5153,11 @@ async function handleCollectorPostListing(m, collector) {
   const location = collector.city || 'Ghana';
 
   if (depth === 3) {
-    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n2. Cancel`;
+    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 4) {
-    if (m[3] === '2') return 'END Cancelled.';
+    if (m[3] === '0') return 'END Cancelled.';
     if (m[3] === '1') {
       await pool.query(
         `INSERT INTO listings (seller_id, seller_role, material_type, quantity_kg, original_qty_kg, price_per_kg, location, expires_at)
@@ -5539,11 +5539,11 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
     }
     const qty = parseFloat(selected.quantity_kg);
     const total = (qty * offerPrice).toFixed(2);
-    return `CON Confirm offer:\nTo: ${selected.seller_code}\nMaterial: ${material}, ${qty.toFixed(0)} kg\nYour offer: GH\u20b5 ${offerPrice.toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Send offer\n2. Cancel`;
+    return `CON Confirm offer:\nTo: ${selected.seller_code}\nMaterial: ${material}, ${qty.toFixed(0)} kg\nYour offer: GH\u20b5 ${offerPrice.toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Send offer\n0. Cancel`;
   }
 
   if (remaining.length === 3) {
-    if (remaining[2] === '2') return 'END Cancelled.';
+    if (remaining[2] === '0') return 'END Cancelled.';
     if (remaining[2] === '1') {
       let offerPrice = parseFloat(remaining[1]);
       if (offerPrice === 0 && selected.price_per_kg) offerPrice = parseFloat(selected.price_per_kg);
@@ -5590,11 +5590,11 @@ async function handleAggregatorPostBuyRequest(m, aggregator) {
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
-    return `CON Confirm buy request:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\n\n1. Confirm\n2. Cancel`;
+    return `CON Confirm buy request:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\n\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 4) {
-    if (m[3] === '2') return 'END Cancelled.';
+    if (m[3] === '0') return 'END Cancelled.';
     if (m[3] === '1') {
       await createOrder({
         buyerId: aggregator.id,
@@ -5633,11 +5633,11 @@ async function handleAggregatorSellToProcessors(m, aggregator) {
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
-    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n2. Cancel`;
+    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 4) {
-    if (m[3] === '2') return 'END Cancelled.';
+    if (m[3] === '0') return 'END Cancelled.';
     if (m[3] === '1') {
       await pool.query(
         `INSERT INTO listings (seller_id, seller_role, material_type, quantity_kg, original_qty_kg, price_per_kg, location, expires_at)
