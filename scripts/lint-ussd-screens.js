@@ -45,8 +45,8 @@ const VERBOSE = !!process.env.LINT_USSD_VERBOSE;
 //   - 9-11 line ENDs warn (info loss but no dead-end). 12+ errs.
 // Tune in one place if real-device testing surfaces a tighter iPhone budget.
 const BUDGETS = {
-  CON: { warn: 8, error: 10 },  // CON cap = 7 lines, 8-9 warn (sweep target), 10+ truncates badly
-  END: { warn: 9, error: 12 },  // END cap = 8 lines per memory, 9-11 warn, 12+ definitely clipped
+  CON: { warn: 6, error: 7 },   // iOS empirical cap: ≤5 ideal, ≤6 with 3 options, 7+ clips
+  END: { warn: 8, error: 10 },  // informational; less critical, looser budget
   perLineWarn: 33,              // > 32 chars likely wraps on iPhone (USSD dialog ≈ 32-36 wide)
   perLineInfo: 29,              // > 28 chars tight but usually OK — surfaced for awareness
 };
