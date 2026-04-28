@@ -8858,4 +8858,79 @@ app.use(async (err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// ============================================
+// PERIODIC ERROR DIGEST (3 pushes/day via ntfy)
+// ============================================
+
+const cron = require('node-cron');
+
+const DIGEST_SCHEDULES = [
+  { cron: '0 7 * * *',  hours: 15, label: '07:00 — overnight' },
+  { cron: '0 12 * * *', hours: 5,  label: '12:00 — morning'   },
+  { cron: '0 16 * * *', hours: 4,  label: '16:00 — afternoon' },
+];
+
+async function postErrorDigest(lookbackHours, label) {
+  try {
+    const result = await pool.query(
+      `SELECT
+         error_message,
+         COUNT(*) AS cnt
+       FROM error_log
+       WHERE created_at > NOW() - ($1 || ' hours')::interval
+       GROUP BY error_message
+       ORDER BY cnt DESC
+       LIMIT 5`,
+      [lookbackHours]
+    );
+
+    if (!result.rows.length) {
+      console.log('[DIGEST] ' + label + ': zero errors in last ' + lookbackHours + 'h, skipping');
+      return;
+    }
+
+    const totalRow = await pool.query(
+      `SELECT COUNT(*) AS total, COUNT(DISTINCT error_message) AS distinct_count
+       FROM error_log
+       WHERE created_at > NOW() - ($1 || ' hours')::interval`,
+      [lookbackHours]
+    );
+    const total = parseInt(totalRow.rows[0].total, 10);
+    const distinctCount = parseInt(totalRow.rows[0].distinct_count, 10);
+
+    let body = 'Past ' + lookbackHours + 'h: ' + total + ' total / ' + distinctCount + ' distinct\n';
+    for (const r of result.rows) {
+      const msg = (r.error_message || '').substring(0, 60);
+      body += r.cnt + 'x ' + msg + '\n';
+    }
+    if (distinctCount > 5) {
+      body += '(+' + (distinctCount - 5) + ' more distinct)\n';
+    }
+
+    const topic = process.env.NTFY_TOPIC || 'circul-errors';
+    const res = await fetch('https://ntfy.sh/' + topic, {
+      method: 'POST',
+      headers: {
+        'Title': 'Circul Error Digest — ' + label,
+        'Priority': 'default',
+        'Tags': 'newspaper'
+      },
+      body: body.trim()
+    });
+    if (!res.ok) {
+      console.warn('[DIGEST] ntfy POST failed status=' + res.status);
+    }
+  } catch (err) {
+    console.error('[DIGEST] failed:', err.message);
+  }
+}
+
+for (const s of DIGEST_SCHEDULES) {
+  cron.schedule(s.cron, () => postErrorDigest(s.hours, s.label), {
+    timezone: 'Africa/Accra'
+  });
+}
+
+console.log('[DIGEST] scheduled 3 daily error digests (Africa/Accra) on topic ' + (process.env.NTFY_TOPIC || 'circul-errors'));
+
 app.listen(port, () => console.log(`Circul server running on port ${port}`));
