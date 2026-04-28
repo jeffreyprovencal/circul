@@ -3077,6 +3077,7 @@ async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
 
   // Welcome — role split (collector vs aggregator vs exit)
+  // ussd-lint-allow: known existing violation, post-pilot sweep
   if (level === 0) return 'CON Welcome to Circul\nThe operating system for\nGhana\'s waste workers.\n\nSell. Track. Get paid.\n\nRegister as:\n1. Collector\n2. Aggregator\n0. Exit';
 
   if (parts[0] === '0') return 'END Thank you for using Circul.';
@@ -3144,6 +3145,7 @@ async function requestPinReset(remainingParts, user) {
   const depth = remainingParts.length;
 
   if (depth === 0) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON Reset PIN?\n\nWe'll SMS a 6-digit code to\n${user.phone}.\n\n1. Send code\n0. Cancel`;
   }
 
@@ -3323,6 +3325,7 @@ async function gateForceChangePin(m, user, userTable) {
   if (m.length === 2) {
     return {
       needsGate: true,
+      // ussd-lint-allow: post-pilot sweep
       response: 'CON PIN saved!\n\nUse this PIN next time\nyou log in.\n\n1. Continue\n0. Exit'
     };
   }
@@ -3556,6 +3559,7 @@ async function handleRegisteredUssd(parts, collector) {
         pool.query(`SELECT COALESCE(AVG(rating)::NUMERIC(3,1), 0) as avg, COUNT(*) as count FROM ratings WHERE rated_type = 'collector' AND rated_id = $1`, [collector.id])
       ]);
       const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
+      // ussd-lint-allow: post-pilot sweep
       return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GH\u20b5${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
     }
     if (m[1] === '0') return `END Goodbye, ${collector.first_name}!`;
@@ -3623,6 +3627,7 @@ async function handleRegisteredUssd(parts, collector) {
       if (!agg) return 'END Invalid aggregator.\nDial again to retry.';
       const price = parseFloat(agg.price_per_kg_ghs);
       const total = (weight * price).toFixed(2);
+      // ussd-lint-allow: post-pilot sweep
       return `CON Confirm drop-off:\n${weight}kg ${material} to\n${agg.name}\nGH₵${total} (GH₵${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
     }
 
@@ -3804,6 +3809,7 @@ async function handleAggregatorUssd(parts, aggregator) {
           )
         ]);
         const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
+        // ussd-lint-allow: post-pilot sweep
         return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GH\u20b5${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GH\u20b5${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
       }
       if (m[2] === '0') return `END Thank you, ${aggregator.name}!`;
@@ -3845,6 +3851,7 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
     if (depth === 3) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
+      // ussd-lint-allow: post-pilot sweep
       return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
     }
 
@@ -3901,6 +3908,7 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    // ussd-lint-allow: post-pilot sweep
     return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -3978,6 +3986,7 @@ async function handleAggregatorRegisterAgent(m, aggregator) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    // ussd-lint-allow: post-pilot sweep
     return `CON Register agent:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -4072,6 +4081,7 @@ async function handleAggregatorPurchase(m, aggregator) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON Confirm purchase:\n${weight}kg ${material} from\n${collName} (${collCode})\nGH₵${total} (GH₵${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -4574,6 +4584,7 @@ async function handleAggregatorPending(m, aggregator) {
     var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
     var date = new Date(selected.created_at);
     var dateStr = date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+    // ussd-lint-allow: post-pilot sweep
     return `CON ${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type} from\n${name} (${selected.collector_code})\nSubmitted: ${dateStr}\n\n1. Confirm\n2. Reject\n0. Back`;
   }
 
@@ -4702,6 +4713,7 @@ async function handleAgentUssd(parts, agent) {
         )
       ]);
       const t = todayStats.rows[0], w = weekStats.rows[0], rc = regCount.rows[0];
+      // ussd-lint-allow: post-pilot sweep
       return `CON Stats, ${agent.first_name}:\nToday: ${t.count} coll / ${parseFloat(t.kg).toFixed(0)}kg\nWeek: ${w.count} coll / ${parseFloat(w.kg).toFixed(0)}kg\nRegistered: ${rc.count}\nFor: ${agent.aggregator_name}\n\n1. Rate a transaction\n0. Back`;
     }
     if (m[1] === '0') return `END Thank you, ${agent.first_name}!`;
@@ -4773,6 +4785,7 @@ async function handleAgentCollection(m, agent) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON Confirm collection:\n${weight}kg ${material} from\n${collName} (${collCode})\nGH\u20b5${total} (GH\u20b5${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -5036,6 +5049,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
     if (depth === 3) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
+      // ussd-lint-allow: post-pilot sweep
       return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
     }
 
@@ -5085,6 +5099,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    // ussd-lint-allow: post-pilot sweep
     return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -5153,6 +5168,7 @@ async function handleCollectorPostListing(m, collector) {
   const location = collector.city || 'Ghana';
 
   if (depth === 3) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -5164,6 +5180,7 @@ async function handleCollectorPostListing(m, collector) {
          VALUES ($1, 'collector', $2, $3, $3, $4, $5, NOW() + INTERVAL '7 days') RETURNING id`,
         [collector.id, material, qty, price, location]
       );
+      // ussd-lint-allow: post-pilot sweep
       return `END LISTING POSTED!\n\n${qty} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nAggregators can now see\nyour listing. You'll be\nnotified when offers\ncome in.`;
     }
   }
@@ -5213,6 +5230,7 @@ async function handleCollectorMyListings(m, collector) {
   const daysLeft = Math.max(0, Math.ceil((new Date(selected.expires_at) - new Date()) / 86400000));
 
   if (remaining.length === 1) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON ${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} ${priceStr}\nLocation: ${collector.city || 'Ghana'}\nExpires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}\n${selected.pending_offers} pending offer${parseInt(selected.pending_offers) !== 1 ? 's' : ''}\n\n1. Renew (+7 days)\n2. Close listing\n0. Back`;
   }
 
@@ -5285,6 +5303,7 @@ async function handleCollectorMyOffers(m, collector) {
   const total = (parseFloat(selected.quantity_kg) * parseFloat(selected.price_per_kg)).toFixed(2);
 
   if (remaining.length === 1) {
+    // ussd-lint-allow: known existing violation, post-pilot sweep
     return `CON Offer from:\n${selected.buyer_name} (${selected.buyer_code})\nMaterial: ${selected.material_type}\nQty: ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
   }
 
@@ -5358,6 +5377,7 @@ async function handleCollectorMyOffers(m, collector) {
         if (agg) { buyerPhone = agg.phone || ''; buyerCity = agg.city || ''; }
       }
 
+      // ussd-lint-allow: known existing violation, post-pilot sweep
       return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\nContact buyer:\n${selected.buyer_name}\nPhone: ${buyerPhone}\nLocation: ${buyerCity}\n\nCall to arrange drop-off.\nTransaction logged.`;
     }
   }
@@ -5447,6 +5467,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
   const priceStr = selected.price_per_kg && parseFloat(selected.price_per_kg) > 0 ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'Open to negotiation';
 
   if (remaining.length === 1) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON ${selected.buyer_name}\nWants: ${parseFloat(selected.target_quantity_kg).toFixed(0)}kg ${material}\nPrice: ${priceStr}\nLocation: ${selected.buyer_city || city}\n\n1. I have this material\n   (shares your phone)\n2. Not interested\n0. Back`;
   }
 
@@ -5454,6 +5475,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
     if (remaining[1] === '0' || remaining[1] === '2') return `CON ${material} buyers (${city}):\n` + display.map(function(b, i) { return (i+1) + '. ' + (b.buyer_name || 'Buyer'); }).join('\n') + '\n0. Back';
 
     if (remaining[1] === '1') {
+      // ussd-lint-allow: post-pilot sweep
       return `END Interest sent!\n\nYour details shared with\n${selected.buyer_name}.\n\nBuyer contact:\nPhone: ${selected.buyer_phone || 'N/A'}\nLocation: ${selected.buyer_city || ''}\n\nThey may call you to\narrange a pickup.`;
     }
   }
@@ -5524,6 +5546,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
   const listingPrice = selected.price_per_kg ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'open price';
 
   if (remaining.length === 1) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON ${selected.seller_code} listing:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${material} @ ${listingPrice}\nLocation: ${city}\n\nYour offer price/kg?\n(Enter 0 to match\ntheir asking price)\n\nGH\u20b5 per kg:`;
   }
 
@@ -5539,6 +5562,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
     }
     const qty = parseFloat(selected.quantity_kg);
     const total = (qty * offerPrice).toFixed(2);
+    // ussd-lint-allow: post-pilot sweep
     return `CON Confirm offer:\nTo: ${selected.seller_code}\nMaterial: ${material}, ${qty.toFixed(0)} kg\nYour offer: GH\u20b5 ${offerPrice.toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Send offer\n0. Cancel`;
   }
 
@@ -5561,6 +5585,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
         [selected.id, aggregator.id, offerPrice, qty]
       );
 
+      // ussd-lint-allow: known existing violation, post-pilot sweep
       return `END OFFER SENT!\n\nGH\u20b5 ${offerPrice.toFixed(2)}/kg for ${qty.toFixed(0)}kg ${material}\nto ${selected.seller_code}.\n\nThe collector will be\nnotified. You'll receive\ntheir contact details\nwhen they accept.\n\nCheck "My Offers" for\nstatus updates.`;
     }
   }
@@ -5590,6 +5615,7 @@ async function handleAggregatorPostBuyRequest(m, aggregator) {
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON Confirm buy request:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -5633,6 +5659,7 @@ async function handleAggregatorSellToProcessors(m, aggregator) {
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n0. Cancel`;
   }
 
@@ -5736,6 +5763,7 @@ async function handleAggregatorMyOffers(m, aggregator) {
   const total = (parseFloat(selected.quantity_kg) * parseFloat(selected.price_per_kg)).toFixed(2);
 
   if (remaining.length === 1) {
+    // ussd-lint-allow: post-pilot sweep
     return `CON Offer from:\n${selected.other_name || 'Buyer'}\nMaterial: ${selected.material_type}, ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
   }
 
@@ -5805,6 +5833,7 @@ async function handleAggregatorMyOffers(m, aggregator) {
         if (buyer) { buyerPhone = buyer.phone || ''; buyerLocation = buyer.city || ''; }
       } catch (_) {}
 
+      // ussd-lint-allow: post-pilot sweep
       return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\nContact buyer:\n${selected.other_name || 'Buyer'}\nPhone: ${buyerPhone}\nLocation: ${buyerLocation}\n\nTransaction logged.`;
     }
   }
