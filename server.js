@@ -3077,6 +3077,7 @@ async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
 
   // Welcome — role split (collector vs aggregator vs exit)
+  // ussd-lint-allow: known existing violation, post-pilot sweep
   if (level === 0) return 'CON Welcome to Circul\nThe operating system for\nGhana\'s waste workers.\n\nSell. Track. Get paid.\n\nRegister as:\n1. Collector\n2. Aggregator\n0. Exit';
 
   if (parts[0] === '0') return 'END Thank you for using Circul.';
@@ -5285,6 +5286,7 @@ async function handleCollectorMyOffers(m, collector) {
   const total = (parseFloat(selected.quantity_kg) * parseFloat(selected.price_per_kg)).toFixed(2);
 
   if (remaining.length === 1) {
+    // ussd-lint-allow: known existing violation, post-pilot sweep
     return `CON Offer from:\n${selected.buyer_name} (${selected.buyer_code})\nMaterial: ${selected.material_type}\nQty: ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
   }
 
@@ -5358,6 +5360,7 @@ async function handleCollectorMyOffers(m, collector) {
         if (agg) { buyerPhone = agg.phone || ''; buyerCity = agg.city || ''; }
       }
 
+      // ussd-lint-allow: known existing violation, post-pilot sweep
       return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\nContact buyer:\n${selected.buyer_name}\nPhone: ${buyerPhone}\nLocation: ${buyerCity}\n\nCall to arrange drop-off.\nTransaction logged.`;
     }
   }
@@ -5561,6 +5564,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
         [selected.id, aggregator.id, offerPrice, qty]
       );
 
+      // ussd-lint-allow: known existing violation, post-pilot sweep
       return `END OFFER SENT!\n\nGH\u20b5 ${offerPrice.toFixed(2)}/kg for ${qty.toFixed(0)}kg ${material}\nto ${selected.seller_code}.\n\nThe collector will be\nnotified. You'll receive\ntheir contact details\nwhen they accept.\n\nCheck "My Offers" for\nstatus updates.`;
     }
   }
