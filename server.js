@@ -5901,7 +5901,13 @@ app.post('/api/ussd', async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, aggregator_id, agent_id, text_input, response)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (session_id) DO UPDATE SET
+         text_input = EXCLUDED.text_input,
+         response = EXCLUDED.response,
+         collector_id  = COALESCE(ussd_sessions.collector_id,  EXCLUDED.collector_id),
+         aggregator_id = COALESCE(ussd_sessions.aggregator_id, EXCLUDED.aggregator_id),
+         agent_id      = COALESCE(ussd_sessions.agent_id,      EXCLUDED.agent_id)`,
       [sessionId, phone, serviceCode, collectorId, aggregatorId, agentId, text||'', response]
     );
   } catch (logErr) { console.error('[USSD] Log error:', logErr); }
