@@ -2891,7 +2891,7 @@ async function handleAggregatorRegistrationRequest(parts, phone) {
       [phoneVariants]
     );
     if (recentCount.rows[0].n >= 3) {
-      return 'END Too many requests.\n\nYou\'ve submitted 3 requests\nin the last 24 hours. Wait\n24 hours before trying\nagain.\n\nCall 024 131 48 41\nfor urgent help.';
+      return 'END Too many requests.\n\n3 in 24h is the limit.\nWait 24h, then dial again.\n\nUrgent? 024 131 48 41.';
     }
 
     // An active pending/code_issued request blocks new submissions.
@@ -2901,7 +2901,7 @@ async function handleAggregatorRegistrationRequest(parts, phone) {
       [phoneVariants]
     );
     if (activeReq.rows.length) {
-      return 'END Request already pending.\n\nYou have an active\naggregator registration\nrequest. Wait for Circul\nsupport to review it.\n\nCall 024 131 48 41 if\nit\'s been over 24 hours.';
+      return 'END Request pending.\n\nYour aggregator request\nis under review.\n\nOver 24h? 024 131 48 41.';
     }
 
     return 'CON Aggregator registration\n\nEnter your first name:';
@@ -3126,7 +3126,7 @@ async function handleUnregisteredUssd(parts, phone) {
           `INSERT INTO collectors (first_name, last_name, phone, pin, city, region) VALUES ($1,$2,$3,$4,$5,$6)`,
           [firstName, lastName, phone, hashedPin, cityData.city, cityData.region]
         );
-        return `END Registered! Welcome ${firstName}.\nCity: ${cityData.city}\n\nYour phone = your Circul ID. Keep PIN secret. Lose phone? Call your aggregator.\n\nDial again.`;
+        return `END Registered, ${firstName}!\nCity: ${cityData.city}.\n\nKeep PIN private.\nLose phone? Call aggregator.\n\nDial again.`;
       } catch (err) {
         if (err.code === '23505') return 'END Phone already registered.\nDial again to login.';
         throw err;
@@ -3159,7 +3159,7 @@ async function requestPinReset(remainingParts, user) {
     [user.phone]
   );
   if (parseInt(recentCount.rows[0].n, 10) >= 3) {
-    return 'END Too many resets today.\n\nWait 24 hours before\nrequesting another\nreset code.\n\nContact your aggregator\nfor urgent help.';
+    return 'END Too many resets today.\n\nWait 24h, then dial again.\n\nUrgent? Call aggregator.';
   }
 
   // Invalidate any previous active reset for this phone
@@ -3207,7 +3207,7 @@ async function handleForgotPinUssd(parts, resetRow) {
       `UPDATE pin_reset_codes SET attempts_remaining = $1 WHERE id = $2`,
       [remaining, resetRow.id]
     );
-    return `CON Wrong code. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter the 6-digit code\nfrom your SMS:`;
+    return `CON Wrong code.\n${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter the 6-digit code\nfrom your SMS:`;
   }
 
   if (depth === 1) {
@@ -3339,7 +3339,7 @@ async function gateForceChangePin(m, user, userTable) {
     );
     return {
       needsGate: true,
-      response: 'END Done. Dial *920*54# again to use the platform.'
+      response: 'END Done.\nDial *920*54# again.'
     };
   }
   if (m[2] === '1') {
@@ -3596,7 +3596,7 @@ async function handleRegisteredUssd(parts, collector) {
          LIMIT 4`,
         [material, city]
       );
-      if (!aggs.rows.length) return `END No aggregators buying ${material} near ${city}.\nDial again to try another material.`;
+      if (!aggs.rows.length) return `END No aggregators buying\n${material} near ${city}.\n\nDial again to retry.`;
       let msg = 'CON Select aggregator:\n';
       aggs.rows.forEach(function(a, i) {
         var ratingStr = parseFloat(a.rating) > 0 ? ' ★' + parseFloat(a.rating).toFixed(1) : '';
@@ -4197,7 +4197,7 @@ async function handleAggregatorSale(m, aggregator) {
 
   // Screen S3: weight entry
   if (depth === 2) {
-    return 'CON Enter weight in kg:\n(Max is whatever you hold — you can declare extra stock on the next screen.)';
+    return 'CON Enter weight in kg:\n\n(Max = what you hold.\nAdd extra on next screen.)';
   }
 
   const weight = parseFloat(m[2]);
@@ -4451,7 +4451,7 @@ async function resolveCollectorForPurchase(m, aggregator) {
         `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
         [phoneVariants]
       );
-      if (!found2.rows.length) return { response: 'END Error: collector not found after registration.' };
+      if (!found2.rows.length) return { response: 'END System error.\nDial again to retry.' };
       return { collector: found2.rows[0], menuParts: m.slice(7) };
     }
     const coll = found.rows[0];
@@ -4497,7 +4497,7 @@ async function resolveCollectorForPurchase(m, aggregator) {
         `SELECT id, first_name, last_name, phone, city FROM collectors WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
         [phoneVariants]
       );
-      if (!found2.rows.length) return { response: 'END Error: collector not found after registration.' };
+      if (!found2.rows.length) return { response: 'END System error.\nDial again to retry.' };
       return { collector: found2.rows[0], menuParts: m.slice(8) };
     }
     const coll = found.rows[0];
@@ -4838,7 +4838,7 @@ async function handleAgentCollection(m, agent) {
           });
         }
       } catch (e) { console.warn('[NOTIFY] agent_collection failed:', e.message); }
-      return `END COLLECTION LOGGED\nRef: ${ref}\n${weight}kg ${material}\nFrom: ${collName}\nPhone: ${collector.phone}\nCity: ${collector.city || ''}\nTotal: GH\u20b5${total}\n\nFor: ${agent.aggregator_name}`;
+      return `END COLLECTION LOGGED\nRef: ${ref}\n${weight}kg ${material}\nFrom: ${collName}\nTotal: GH\u20b5${total}\n\nFor: ${agent.aggregator_name}`;
     }
   }
 
@@ -5013,7 +5013,7 @@ async function handleAgentPayment(m, agent) {
          selected.id]
       );
       const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(selected.id).padStart(4, '0');
-      return `END Payment recorded!\nRef: ${ref}\n\nGH\u20b5 ${parseFloat(selected.total_price).toFixed(2)} paid to\n${collName}\nPhone: ${selected.phone}\n\nFor: ${agent.aggregator_name}`;
+      return `END Payment recorded!\nRef: ${ref}\n\nGH\u20b5${parseFloat(selected.total_price).toFixed(2)} to ${collName}\n\nFor: ${agent.aggregator_name}`;
     }
   }
 
@@ -5629,7 +5629,7 @@ async function handleAggregatorPostBuyRequest(m, aggregator) {
         target_quantity_kg: qty,
         price_per_kg: price || 0
       });
-      return `END BUY REQUEST POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ''}\nLocation: ${location}\n\nCollectors can now see\nyour request and respond.\nYou'll be notified when\nsomeone has material.`;
+      return `END BUY REQUEST POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5' + price.toFixed(2) + '/kg' : ''}\nLocation: ${location}\n\nWe'll notify you when\ncollectors respond.`;
     }
   }
 
@@ -5671,7 +5671,7 @@ async function handleAggregatorSellToProcessors(m, aggregator) {
          VALUES ($1, 'aggregator', $2, $3, $3, $4, $5, NOW() + INTERVAL '7 days') RETURNING id`,
         [aggregator.id, material, qty, price, location]
       );
-      return `END LISTING POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nProcessors and recyclers\ncan now see your listing\nand make offers.`;
+      return `END LISTING POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nProcessors will see it.`;
     }
   }
 
