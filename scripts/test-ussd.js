@@ -43,6 +43,14 @@ const TEST_AGENT_PIN         = '3333';
 const TEST_GATE_PHONE        = '+233900000098'; // dialed as 0900000098, must_change_pin=true
 const TEST_UNREGISTERED      = '0900099999';    // not in any table
 
+// Marketplace fixtures for display_name regression coverage (PR-feat/ussd-critical-cons).
+// TEST_BUY_AGG owns an open buy request on PET in Accra so the collector
+// "browse buyers → match interest" flow has a deterministic target row.
+// TEST_OFFER_PROC sends an incoming offer to TestAgg Probe so the aggregator
+// "my offers → review" flow has a deterministic target row.
+const TEST_BUY_AGG_PHONE     = '+233900001050';
+const TEST_OFFER_PROC_EMAIL  = 'test-offer@circul-test.local';
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function arg(prefix) {
@@ -134,12 +142,38 @@ async function safeDelete(label, fn) {
 }
 
 async function cleanupTestData() {
-  // Order matters: agent_activity FKs to agents + aggregators, so it must
-  // be cleared first. Then agents (FK to aggregators), then aggregators,
-  // then collectors. Each step is best-effort and isolated so a failure in
-  // one doesn't skip the rest.
+  // Order matters: FK dependencies dictate sequence. Marketplace fixtures
+  // (offers → listings → orders) must clear before the parties they reference
+  // (aggregators, processors). agent_activity FKs to agents + aggregators, so
+  // it goes next, then agents, then aggregators, then collectors. Each step
+  // is best-effort and isolated so a failure in one doesn't skip the rest.
   await safeDelete('sessions', () =>
     pool.query(`DELETE FROM ussd_sessions WHERE session_id LIKE $1`, [TEST_SESSION_PREFIX + '%'])
+  );
+  await safeDelete('offers', () =>
+    pool.query(
+      `DELETE FROM offers
+       WHERE buyer_id IN (SELECT id FROM processors WHERE email LIKE 'test-%@circul-test.local')
+          OR buyer_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1))
+          OR listing_id IN (SELECT id FROM listings WHERE seller_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1)))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  await safeDelete('listings', () =>
+    pool.query(
+      `DELETE FROM listings
+       WHERE (seller_role = 'aggregator' AND seller_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1)))
+          OR (seller_role = 'collector'  AND seller_id IN (SELECT id FROM collectors  WHERE phone LIKE ANY($1)))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  await safeDelete('orders', () =>
+    pool.query(
+      `DELETE FROM orders
+       WHERE (buyer_role = 'aggregator' AND buyer_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1)))
+          OR (buyer_role = 'processor'  AND buyer_id IN (SELECT id FROM processors  WHERE email LIKE 'test-%@circul-test.local'))`,
+      [ANY_TEST_LIKES]
+    )
   );
   await safeDelete('agent_activity', () =>
     pool.query(
@@ -154,6 +188,9 @@ async function cleanupTestData() {
   );
   await safeDelete('aggregators', () =>
     pool.query(`DELETE FROM aggregators WHERE phone LIKE ANY($1)`, [ANY_TEST_LIKES])
+  );
+  await safeDelete('processors', () =>
+    pool.query(`DELETE FROM processors WHERE email LIKE 'test-%@circul-test.local'`)
   );
   await safeDelete('collectors', () =>
     pool.query(`DELETE FROM collectors WHERE phone LIKE ANY($1)`, [ANY_TEST_LIKES])
@@ -195,6 +232,48 @@ async function seedTestAccounts() {
      VALUES ('GateTest', 'Probe', $1, $2, 'Accra', 'Greater Accra', true, true)
      ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=true`,
     [TEST_GATE_PHONE, gatePin]
+  );
+
+  // ── Marketplace fixtures (display_name regression coverage) ─────────────────
+  // Buy-request aggregator with a known display_name. Drives the collector
+  // "match interest" screen so we can assert the bounded buyer_name renders.
+  const buyAggIns = await pool.query(
+    `INSERT INTO aggregators (name, display_name, phone, pin, city, region, is_active, must_change_pin)
+     VALUES ('Test Buy Co Aggregator', 'Test Buy Co', $1, $2, 'Accra', 'Greater Accra', true, false)
+     ON CONFLICT (phone) DO UPDATE SET display_name='Test Buy Co', is_active=true, must_change_pin=false
+     RETURNING id`,
+    [TEST_BUY_AGG_PHONE, aggPin]
+  );
+  const buyAggId = buyAggIns.rows[0].id;
+  await pool.query(
+    `INSERT INTO orders (buyer_id, buyer_role, material_type, target_quantity_kg, price_per_kg, status)
+     VALUES ($1, 'aggregator', 'PET', 100, 2.50, 'open')`,
+    [buyAggId]
+  );
+
+  // Offer-sender processor with a known display_name. Combined with a TestAgg
+  // listing + pending offer, drives the aggregator "my offers → review" screen.
+  const procPwd = await hashPin('demo1234');
+  const procIns = await pool.query(
+    `INSERT INTO processors (name, display_name, company, email, password_hash, city, region, is_active)
+     VALUES ('Test Offer Co Processor', 'Test Offer Co', 'Test Offer Co', $1, $2, 'Accra', 'Greater Accra', true)
+     ON CONFLICT (email) DO UPDATE SET display_name='Test Offer Co', is_active=true
+     RETURNING id`,
+    [TEST_OFFER_PROC_EMAIL, procPwd]
+  );
+  const procId = procIns.rows[0].id;
+  const testAgg = await pool.query(`SELECT id FROM aggregators WHERE phone = $1`, [TEST_AGGREGATOR_PHONE]);
+  const testAggId = testAgg.rows[0].id;
+  const listingIns = await pool.query(
+    `INSERT INTO listings (seller_id, seller_role, material_type, quantity_kg, original_qty_kg, price_per_kg, location, expires_at, status)
+     VALUES ($1, 'aggregator', 'PET', 500, 500, 2.00, 'Accra', NOW() + INTERVAL '7 days', 'active')
+     RETURNING id`,
+    [testAggId]
+  );
+  await pool.query(
+    `INSERT INTO offers (listing_id, buyer_id, buyer_role, price_per_kg, quantity_kg, offered_by, status)
+     VALUES ($1, $2, 'processor', 2.20, 500, 'processor', 'pending')`,
+    [listingIns.rows[0].id, procId]
   );
 }
 
@@ -349,7 +428,7 @@ const TESTS = [
       { input: '1',          match: /CON Select material/ },
       { input: '1',          match: /CON Enter weight in kg/ },
       { input: '5',          match: /CON Enter price per kg/ },
-      { input: '4.5',        match: /CON Confirm purchase:\n5kg PET from\nTestColl Probe.*\nGH₵22\.50 \(GH₵4\.50\/kg\)\n\n1\. Confirm\n0\. Cancel/ },
+      { input: '4.5',        match: /CON Confirm purchase:\n5kg PET\nfrom TestColl Probe\nGH₵22\.50\n1\. Confirm\n0\. Cancel/ },
       { input: '0',          match: /END Cancelled\./ },
     ],
   },
@@ -386,6 +465,38 @@ const TESTS = [
       { input: '0900000060', match: /CON Select city/ },
       { input: '1',          match: /CON Register collector:/ },
       { input: '1',          match: /END.*registered!\nPhone: 0900000060\nPIN: 0000.*\nFor: TestAgg Probe/s },
+    ],
+  },
+
+  // ─── display_name plumbing: collector match-interest (#7) ───────────────────
+  // Asserts the bounded buyer_name (via COALESCE(display_name, LEFT(name,24)))
+  // renders on the post-compression match-interest screen.
+  {
+    name: 'collector-match-interest-uses-display-name',
+    phoneNumber: '0900000001',
+    steps: [
+      { input: '',     match: /CON Circul Collector/ },
+      { input: '0000', match: /CON 1\. Log Drop-off/ },
+      { input: '3',    match: /CON Discovery:/ },
+      { input: '1',    match: /CON Browse buyers for:/ },
+      { input: '1',    match: /CON PET buyers/ },
+      { input: '1',    match: /CON Test Buy Co\nWants 100kg PET\n.*\n1\. Match \(share phone\)\n2\. Not interested\n0\. Back/ },
+    ],
+  },
+
+  // ─── display_name plumbing: aggregator offer-review (#12) ───────────────────
+  // Asserts the bounded other_name (via COALESCE(display_name, LEFT(name,24)))
+  // renders on the post-compression offer-review screen.
+  {
+    name: 'aggregator-offer-review-uses-display-name',
+    phoneNumber: '0900001001',
+    steps: [
+      { input: '',     match: /CON Circul Aggregator/ },
+      { input: '2222', match: /CON 1\. Register/ },
+      { input: '4',    match: /CON More options/ },
+      { input: '1',    match: /CON Marketplace:/ },
+      { input: '4',    match: /CON My offers:/ },
+      { input: '1',    match: /CON Offer from Test Offer Co:\n500kg PET\nGH₵ 2\.20\/kg = GH₵ 1100\.00\n1\. Accept\n2\. Decline\n0\. Back/ },
     ],
   },
 ];

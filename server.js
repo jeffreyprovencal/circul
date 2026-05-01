@@ -7,6 +7,7 @@ const multer = require('multer');
 const CirculRoles = require('./shared/roles');
 const { EVENTS, notify, notifyAdmin } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
+const { deriveDisplayName } = require('./shared/text');
 const { getPendingRatings, createRating } = require('./shared/ratings');
 const {
   resolveParties,
@@ -3027,10 +3028,10 @@ async function handleAggregatorRegistrationCode(parts, requestRow) {
   try {
     await client.query('BEGIN');
     const aggInsert = await client.query(
-      `INSERT INTO aggregators (name, company, phone, pin, city, region, country, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+      `INSERT INTO aggregators (name, display_name, company, phone, pin, city, region, country, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
        RETURNING id`,
-      [aggName, requestRow.company, requestRow.phone, hashedPin, requestRow.city, requestRow.region, requestRow.country || 'Ghana']
+      [aggName, deriveDisplayName(aggName), requestRow.company, requestRow.phone, hashedPin, requestRow.city, requestRow.region, requestRow.country || 'Ghana']
     );
     aggregatorId = aggInsert.rows[0].id;
     await client.query(
@@ -3627,8 +3628,7 @@ async function handleRegisteredUssd(parts, collector) {
       if (!agg) return 'END Invalid aggregator.\nDial again to retry.';
       const price = parseFloat(agg.price_per_kg_ghs);
       const total = (weight * price).toFixed(2);
-      // ussd-lint-allow: post-pilot sweep
-      return `CON Confirm drop-off:\n${weight}kg ${material} to\n${agg.name}\nGH₵${total} (GH₵${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
+      return `CON Confirm drop-off:\n${weight}kg ${material} to\n${agg.name}\nGH₵${total}\n1. Confirm\n0. Cancel`;
     }
 
     // depth 5: execute
@@ -3851,8 +3851,7 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
     if (depth === 3) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
-      // ussd-lint-allow: post-pilot sweep
-      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
+      return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
     }
 
     if (depth === 4) {
@@ -3908,8 +3907,7 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
+    return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 5) {
@@ -3986,8 +3984,7 @@ async function handleAggregatorRegisterAgent(m, aggregator) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Register agent:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
+    return `CON Register agent:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
   }
 
   // depth 5: execute
@@ -4081,8 +4078,7 @@ async function handleAggregatorPurchase(m, aggregator) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Confirm purchase:\n${weight}kg ${material} from\n${collName} (${collCode})\nGH₵${total} (GH₵${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
+    return `CON Confirm purchase:\n${weight}kg ${material}\nfrom ${collName}\nGH₵${total}\n1. Confirm\n0. Cancel`;
   }
 
   // Execute
@@ -4584,8 +4580,7 @@ async function handleAggregatorPending(m, aggregator) {
     var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
     var date = new Date(selected.created_at);
     var dateStr = date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
-    // ussd-lint-allow: post-pilot sweep
-    return `CON ${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type} from\n${name} (${selected.collector_code})\nSubmitted: ${dateStr}\n\n1. Confirm\n2. Reject\n0. Back`;
+    return `CON ${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type} from\n${name} (${selected.collector_code})\nSubmitted: ${dateStr}\n1. Confirm\n2. Reject\n0. Back`;
   }
 
   // depth 2: confirm or reject
@@ -4785,8 +4780,7 @@ async function handleAgentCollection(m, agent) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Confirm collection:\n${weight}kg ${material} from\n${collName} (${collCode})\nGH\u20b5${total} (GH\u20b5${price.toFixed(2)}/kg)\n\n1. Confirm\n0. Cancel`;
+    return `CON Confirm collection:\n${weight}kg ${material}\nfrom ${collName}\nGH\u20b5${total}\n1. Confirm\n0. Cancel`;
   }
 
   // Execute
@@ -5049,8 +5043,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
     if (depth === 3) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
-      // ussd-lint-allow: post-pilot sweep
-      return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
+      return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
     }
 
     // depth 4: execute
@@ -5099,8 +5092,7 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
   if (depth === 4) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Register collector:\nName: ${firstName} ${lastName}\nPhone: ${displayPhone}\nCity: ${cityData.city}\n\n1. Confirm\n0. Cancel`;
+    return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
   }
 
   // depth 5: execute
@@ -5168,8 +5160,7 @@ async function handleCollectorPostListing(m, collector) {
   const location = collector.city || 'Ghana';
 
   if (depth === 3) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n0. Cancel`;
+    return `CON Confirm listing:\n${qty}kg ${material}\n${priceStr}\n${location}, 7d\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 4) {
@@ -5230,8 +5221,7 @@ async function handleCollectorMyListings(m, collector) {
   const daysLeft = Math.max(0, Math.ceil((new Date(selected.expires_at) - new Date()) / 86400000));
 
   if (remaining.length === 1) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON ${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} ${priceStr}\nLocation: ${collector.city || 'Ghana'}\nExpires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}\n${selected.pending_offers} pending offer${parseInt(selected.pending_offers) !== 1 ? 's' : ''}\n\n1. Renew (+7 days)\n2. Close listing\n0. Back`;
+    return `CON ${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} ${priceStr}\n${collector.city || 'Ghana'}, ${daysLeft}d left\n${selected.pending_offers} pending offer${parseInt(selected.pending_offers) !== 1 ? 's' : ''}\n1. Renew (+7 days)\n2. Close listing\n0. Back`;
   }
 
   if (remaining.length === 2) {
@@ -5430,7 +5420,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
 
   const buyers = await pool.query(
     `SELECT o.id, o.target_quantity_kg, o.price_per_kg, o.buyer_id, o.buyer_role,
-            a.name as buyer_name, a.phone as buyer_phone, a.city as buyer_city
+            COALESCE(a.display_name, LEFT(a.name, 24)) as buyer_name, a.phone as buyer_phone, a.city as buyer_city
      FROM orders o
      JOIN aggregators a ON o.buyer_id = a.id AND o.buyer_role = 'aggregator'
      WHERE o.material_type = $1 AND o.status = 'open' AND a.city = $2
@@ -5467,8 +5457,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
   const priceStr = selected.price_per_kg && parseFloat(selected.price_per_kg) > 0 ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'Open to negotiation';
 
   if (remaining.length === 1) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON ${selected.buyer_name}\nWants: ${parseFloat(selected.target_quantity_kg).toFixed(0)}kg ${material}\nPrice: ${priceStr}\nLocation: ${selected.buyer_city || city}\n\n1. I have this material\n   (shares your phone)\n2. Not interested\n0. Back`;
+    return `CON ${selected.buyer_name}\nWants ${parseFloat(selected.target_quantity_kg).toFixed(0)}kg ${material}\n${priceStr}\n1. Match (share phone)\n2. Not interested\n0. Back`;
   }
 
   if (remaining.length === 2) {
@@ -5546,8 +5535,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
   const listingPrice = selected.price_per_kg ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'open price';
 
   if (remaining.length === 1) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON ${selected.seller_code} listing:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${material} @ ${listingPrice}\nLocation: ${city}\n\nYour offer price/kg?\n(Enter 0 to match\ntheir asking price)\n\nGH\u20b5 per kg:`;
+    return `CON ${selected.seller_code}: ${parseFloat(selected.quantity_kg).toFixed(0)}kg ${material}\n@ ${listingPrice}, in ${city}\n\nYour offer (GH\u20b5/kg)?\n(0 = match their price)`;
   }
 
   if (remaining.length === 2) {
@@ -5562,8 +5550,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
     }
     const qty = parseFloat(selected.quantity_kg);
     const total = (qty * offerPrice).toFixed(2);
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Confirm offer:\nTo: ${selected.seller_code}\nMaterial: ${material}, ${qty.toFixed(0)} kg\nYour offer: GH\u20b5 ${offerPrice.toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Send offer\n0. Cancel`;
+    return `CON Confirm offer:\nTo ${selected.seller_code}: ${qty.toFixed(0)}kg ${material}\nGH\u20b5 ${offerPrice.toFixed(2)}/kg = GH\u20b5 ${total}\n1. Send offer\n0. Cancel`;
   }
 
   if (remaining.length === 3) {
@@ -5615,8 +5602,7 @@ async function handleAggregatorPostBuyRequest(m, aggregator) {
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Confirm buy request:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\n\n1. Confirm\n0. Cancel`;
+    return `CON Confirm buy request:\n${qty.toFixed(0)}kg ${material}\n${priceStr}\n${location}\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 4) {
@@ -5659,8 +5645,7 @@ async function handleAggregatorSellToProcessors(m, aggregator) {
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Confirm listing:\nMaterial: ${material}\nQuantity: ${qty.toFixed(0)} kg\nPrice: ${priceStr}\nLocation: ${location}\nExpires: 7 days\n\n1. Confirm\n0. Cancel`;
+    return `CON Confirm listing:\n${qty.toFixed(0)}kg ${material}\n${priceStr}\n${location}, 7d\n1. Confirm\n0. Cancel`;
   }
 
   if (depth === 4) {
@@ -5699,9 +5684,9 @@ async function handleAggregatorMyOffers(m, aggregator) {
     `SELECT o.id, o.price_per_kg, o.quantity_kg, o.status, o.buyer_id, o.buyer_role, o.listing_id,
             l.material_type,
             CASE
-              WHEN o.buyer_role = 'processor' THEN (SELECT name FROM processors WHERE id = o.buyer_id)
-              WHEN o.buyer_role = 'recycler' THEN (SELECT name FROM recyclers WHERE id = o.buyer_id)
-              WHEN o.buyer_role = 'converter' THEN (SELECT name FROM converters WHERE id = o.buyer_id)
+              WHEN o.buyer_role = 'processor' THEN (SELECT COALESCE(display_name, LEFT(name, 24)) FROM processors WHERE id = o.buyer_id)
+              WHEN o.buyer_role = 'recycler' THEN (SELECT LEFT(name, 24) FROM recyclers WHERE id = o.buyer_id)
+              WHEN o.buyer_role = 'converter' THEN (SELECT LEFT(name, 24) FROM converters WHERE id = o.buyer_id)
               ELSE 'Buyer'
             END as other_name,
             'recv' as direction
@@ -5763,8 +5748,7 @@ async function handleAggregatorMyOffers(m, aggregator) {
   const total = (parseFloat(selected.quantity_kg) * parseFloat(selected.price_per_kg)).toFixed(2);
 
   if (remaining.length === 1) {
-    // ussd-lint-allow: post-pilot sweep
-    return `CON Offer from:\n${selected.other_name || 'Buyer'}\nMaterial: ${selected.material_type}, ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
+    return `CON Offer from ${selected.other_name || 'Buyer'}:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type}\nGH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg = GH\u20b5 ${total}\n1. Accept\n2. Decline\n0. Back`;
   }
 
   if (remaining.length === 2) {
@@ -7234,6 +7218,30 @@ app.put('/api/admin/aggregators/:id', requireAdmin, async (req, res) => {
   } catch (err) { console.error('[aggregators PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+app.patch('/api/admin/aggregators/:id/display-name', requireAdmin, async (req, res) => {
+  try {
+    const { display_name } = req.body || {};
+    if (!display_name || typeof display_name !== 'string') {
+      return res.status(400).json({ success: false, message: 'display_name required' });
+    }
+    if (display_name.length > 24) {
+      return res.status(400).json({ success: false, message: 'display_name max 24 chars' });
+    }
+    const result = await pool.query(
+      `UPDATE aggregators SET display_name=$1 WHERE id=$2 RETURNING id, name, display_name`,
+      [display_name, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'aggregator_display_name_updated', target_type: 'aggregator',
+      target_id: parseInt(req.params.id, 10),
+      details: { display_name: display_name }
+    });
+    res.json({ success: true, aggregator: result.rows[0] });
+  } catch (err) { console.error('[aggregators display-name PATCH]', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 app.put('/api/admin/collectors/:id', requireAdmin, async (req, res) => {
   try {
     const { first_name, last_name, phone, pin, is_active, is_flagged, city, region } = req.body;
@@ -7788,6 +7796,30 @@ app.put('/api/admin/processors/:id', requireAdmin, async (req, res) => {
   } catch (err) { console.error('[processors PUT]', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
+app.patch('/api/admin/processors/:id/display-name', requireAdmin, async (req, res) => {
+  try {
+    const { display_name } = req.body || {};
+    if (!display_name || typeof display_name !== 'string') {
+      return res.status(400).json({ success: false, message: 'display_name required' });
+    }
+    if (display_name.length > 24) {
+      return res.status(400).json({ success: false, message: 'display_name max 24 chars' });
+    }
+    const result = await pool.query(
+      `UPDATE processors SET display_name=$1 WHERE id=$2 RETURNING id, name, display_name`,
+      [display_name, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Not found' });
+    await recordAdminAction(null, {
+      actor_type: 'admin', actor_email: req.admin.email,
+      action: 'processor_display_name_updated', target_type: 'processor',
+      target_id: parseInt(req.params.id, 10),
+      details: { display_name: display_name }
+    });
+    res.json({ success: true, processor: result.rows[0] });
+  } catch (err) { console.error('[processors display-name PATCH]', err); res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
 app.get('/api/admin/converters', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`SELECT id, name, company, email, phone, city, region, country, is_active, created_at FROM converters ORDER BY created_at DESC`);
@@ -8280,8 +8312,8 @@ app.post('/api/auth/register', async (req, res) => {
     } else if (role === 'aggregator') {
       const { name, company } = req.body;
       await pool.query(
-        `INSERT INTO aggregators (name, company, phone, pin, is_active) VALUES ($1, $2, $3, $4, true)`,
-        [name, company, phone, hashedPin]
+        `INSERT INTO aggregators (name, display_name, company, phone, pin, is_active) VALUES ($1, $2, $3, $4, $5, true)`,
+        [name, deriveDisplayName(name), company, phone, hashedPin]
       );
     } else {
       return res.status(400).json({ success: false, message: 'Invalid role for self-registration' });
