@@ -402,7 +402,10 @@ const TESTS = [
     ],
   },
 
-  // ─── force-change-pin gate (PR #67) ─────────────────────────────────────────
+  // ─── force-change-pin gate (PR #67, refactored to UPDATE+END) ───────────────
+  // After both PINs match, gate UPDATEs immediately and returns END forcing
+  // redial. This eliminates the same-session slot-replay bug where stale gate
+  // digits would mis-route the next keystroke to "Invalid option".
   {
     name: 'force-change-pin-gate-collector',
     phoneNumber: '0900000098',
@@ -410,8 +413,23 @@ const TESTS = [
       { input: '',     match: /CON Circul Collector/ },
       { input: '0000', match: /CON You must set a new PIN/ },
       { input: '5678', match: /CON Confirm new PIN/ },
-      { input: '5678', match: /CON PIN saved!/ },
-      { input: '1',    match: /CON 1\. Log Drop-off/ }, // bridges into main menu
+      { input: '5678', match: /END PIN saved\.\nDial \*920\*54# again\nto continue\./ },
+    ],
+  },
+
+  // ─── post-PIN-change redial: gate is past, main menu navigates cleanly ─────
+  // Regression coverage for the slot-replay bug fixed alongside the gate
+  // refactor. Same test phone, fresh session — must_change_pin is now false
+  // (set by the previous test's UPDATE), so depth=0 yields the main menu and
+  // depth=1 ('2') routes into Sell My Material. Pre-fix this would have hit
+  // "END Invalid option" because m_raw still carried stale gate digits.
+  {
+    name: 'force-change-pin-gate-collector-post-redial',
+    phoneNumber: '0900000098',
+    steps: [
+      { input: '',     match: /CON Circul Collector/ },
+      { input: '5678', match: /CON 1\. Log Drop-off/ },
+      { input: '2',    match: /CON Sell My Material:/ },
     ],
   },
 
@@ -428,7 +446,7 @@ const TESTS = [
       { input: '1',          match: /CON Select material/ },
       { input: '1',          match: /CON Enter weight in kg/ },
       { input: '5',          match: /CON Enter price per kg/ },
-      { input: '4.5',        match: /CON Confirm purchase:\n5kg PET\nfrom TestColl Probe\nGH₵22\.50\n1\. Confirm\n0\. Cancel/ },
+      { input: '4.5',        match: /CON Confirm purchase:\n5kg PET\nfrom TestColl Probe\nGHS 22\.50\n1\. Confirm\n0\. Cancel/ },
       { input: '0',          match: /END Cancelled\./ },
     ],
   },
@@ -496,7 +514,7 @@ const TESTS = [
       { input: '4',    match: /CON More options/ },
       { input: '1',    match: /CON Marketplace:/ },
       { input: '4',    match: /CON My offers:/ },
-      { input: '1',    match: /CON Offer from Test Offer Co:\n500kg PET\nGH₵ 2\.20\/kg = GH₵ 1100\.00\n1\. Accept\n2\. Decline\n0\. Back/ },
+      { input: '1',    match: /CON Offer from Test Offer Co:\n500kg PET\nGHS 2\.20\/kg = GHS 1100\.00\n1\. Accept\n2\. Decline\n0\. Back/ },
     ],
   },
 ];

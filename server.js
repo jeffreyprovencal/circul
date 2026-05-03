@@ -3319,20 +3319,14 @@ async function gateForceChangePin(m, user, userTable) {
     };
   }
 
-  // G3: success bridge — DO NOT update yet. USSD replays the full text on the
-  // next dial; if we UPDATE here, the next dial would fail PIN validation against
-  // the old default and mis-route. Defer UPDATE to the bridge response so it
-  // happens in the same dial as either Continue or Exit.
+  // G3: success — UPDATE + END at the latest depth where both inputs are present.
+  // Why END (not a "1. Continue" bridge): USSD accumulates input across
+  // keystrokes within a session. If we released menuParts mid-session, the next
+  // keystroke would replay all gate slots, but the gate would now skip
+  // (must_change_pin=false), leaving stale gate digits as menu inputs that
+  // mis-route to "Invalid option". Forcing redial starts a fresh session with
+  // empty text, dodging the trap entirely.
   if (m.length === 2) {
-    return {
-      needsGate: true,
-      // ussd-lint-allow: post-pilot sweep
-      response: 'CON PIN saved!\n\nUse this PIN next time\nyou log in.\n\n1. Continue\n0. Exit'
-    };
-  }
-
-  // Bridge response: UPDATE happens here so subsequent dials use the new PIN.
-  if (m[2] === '0') {
     const hashed = await hashPassword(newPin);
     await pool.query(
       `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
@@ -3340,18 +3334,12 @@ async function gateForceChangePin(m, user, userTable) {
     );
     return {
       needsGate: true,
-      response: 'END Done.\nDial *920*54# again.'
+      response: 'END PIN saved.\nDial *920*54# again\nto continue.'
     };
   }
-  if (m[2] === '1') {
-    const hashed = await hashPassword(newPin);
-    await pool.query(
-      `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
-      [hashed, user.id]
-    );
-    return { needsGate: false, menuParts: m.slice(3) };
-  }
 
+  // Defensive: m.length === 2 always returns above. Anything else is impossible
+  // unless callers misuse the gate; fail closed with a redial prompt.
   return {
     needsGate: true,
     response: 'END Invalid option.\nDial *920*54# to retry.'
@@ -3561,7 +3549,7 @@ async function handleRegisteredUssd(parts, collector) {
       ]);
       const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
       // ussd-lint-allow: post-pilot sweep
-      return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GH\u20b5${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
+      return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GHS ${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
     }
     if (m[1] === '0') return `END Goodbye, ${collector.first_name}!`;
     if (m[1] === '1') return await handleUssdRating(m.slice(2), 'collector', collector.id);
@@ -3601,7 +3589,7 @@ async function handleRegisteredUssd(parts, collector) {
       let msg = 'CON Select aggregator:\n';
       aggs.rows.forEach(function(a, i) {
         var ratingStr = parseFloat(a.rating) > 0 ? ' ★' + parseFloat(a.rating).toFixed(1) : '';
-        msg += (i + 1) + '. ' + a.name + '\n   ' + a.city + ratingStr + ' GH₵' + parseFloat(a.price_per_kg_ghs).toFixed(2) + '/kg\n';
+        msg += (i + 1) + '. ' + a.name + '\n   ' + a.city + ratingStr + ' GHS ' + parseFloat(a.price_per_kg_ghs).toFixed(2) + '/kg\n';
       });
       msg += '0. Cancel';
       return msg;
@@ -3628,7 +3616,7 @@ async function handleRegisteredUssd(parts, collector) {
       if (!agg) return 'END Invalid aggregator.\nDial again to retry.';
       const price = parseFloat(agg.price_per_kg_ghs);
       const total = (weight * price).toFixed(2);
-      return `CON Confirm drop-off:\n${weight}kg ${material} to\n${agg.name}\nGH₵${total}\n1. Confirm\n0. Cancel`;
+      return `CON Confirm drop-off:\n${weight}kg ${material} to\n${agg.name}\nGHS ${total}\n1. Confirm\n0. Cancel`;
     }
 
     // depth 5: execute
@@ -3810,7 +3798,7 @@ async function handleAggregatorUssd(parts, aggregator) {
         ]);
         const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
         // ussd-lint-allow: post-pilot sweep
-        return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GH\u20b5${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GH\u20b5${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
+        return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GHS ${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GHS ${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
       }
       if (m[2] === '0') return `END Thank you, ${aggregator.name}!`;
       if (m[2] === '1') return await handleUssdRating(m.slice(3), 'aggregator', aggregator.id);
@@ -4067,7 +4055,7 @@ async function handleAggregatorPurchase(m, aggregator) {
   if (isNaN(weight) || weight <= 0 || weight > 9999) return 'END Invalid weight.\nDial again to retry.';
 
   // Enter price per kg
-  if (mpDepth === 2) return 'CON Enter price per kg\n(GH₵):';
+  if (mpDepth === 2) return 'CON Enter price per kg\n(GHS):';
 
   const price = parseFloat(mp[2]);
   if (isNaN(price) || price <= 0 || price > 999) return 'END Invalid price.\nDial again to retry.';
@@ -4078,7 +4066,7 @@ async function handleAggregatorPurchase(m, aggregator) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
-    return `CON Confirm purchase:\n${weight}kg ${material}\nfrom ${collName}\nGH₵${total}\n1. Confirm\n0. Cancel`;
+    return `CON Confirm purchase:\n${weight}kg ${material}\nfrom ${collName}\nGHS ${total}\n1. Confirm\n0. Cancel`;
   }
 
   // Execute
@@ -4122,7 +4110,7 @@ async function handleAggregatorPurchase(m, aggregator) {
           });
         }
       } catch (e) { console.warn('[NOTIFY] purchase_logged failed:', e.message); }
-      return `END PURCHASE LOGGED\nRef: ${ref}\n${weight}kg ${material} from ${collName}\nTotal: GH₵${total}\nStatus: Pending\nCollector: ${collector.phone}, ${collector.city || ''}`;
+      return `END PURCHASE LOGGED\nRef: ${ref}\n${weight}kg ${material} from ${collName}\nTotal: GHS ${total}`;
     }
   }
 
@@ -4280,7 +4268,7 @@ async function handleAggregatorSale(m, aggregator) {
     for (let i = 0; i < limit; i++) {
       const b = buyers[i];
       const badge = BADGE[b.poster_type] || '?';
-      msg += `${i + 1}. ${b.name} (${badge})\n   ${b.city || '—'} GH₵${parseFloat(b.price_per_kg_ghs).toFixed(2)}/kg\n`;
+      msg += `${i + 1}. ${b.name} (${badge})\n   ${b.city || '—'} GHS ${parseFloat(b.price_per_kg_ghs).toFixed(2)}/kg\n`;
     }
     msg += '0. Cancel';
     return msg;
@@ -4300,7 +4288,7 @@ async function handleAggregatorSale(m, aggregator) {
 
   // Screen S5: confirm (with traced/declared split when declared > 0)
   if (depth === 4 + declareDepthConsumed) {
-    let msg = `CON Confirm sale:\n${saleWeight.toFixed(0)}kg ${material} (${form})\nTo: ${buyer.name}\nPrice: GH₵${price.toFixed(2)}/kg\nTotal: GH₵${total.toFixed(2)}\n`;
+    let msg = `CON Confirm sale:\n${saleWeight.toFixed(0)}kg ${material} (${form})\nTo: ${buyer.name}\nPrice: GHS ${price.toFixed(2)}/kg\nTotal: GHS ${total.toFixed(2)}\n`;
     if (saleDeclared > 0) {
       const traced = saleWeight - saleDeclared;
       msg += `\nTraced: ${traced.toFixed(0)}kg\nDeclared: ${saleDeclared.toFixed(0)}kg\n`;
@@ -4769,7 +4757,7 @@ async function handleAgentCollection(m, agent) {
   if (isNaN(weight) || weight <= 0 || weight > 9999) return 'END Invalid weight.\nDial again to retry.';
 
   // Enter price per kg
-  if (mpDepth === 2) return 'CON Enter price per kg\n(GH\u20b5):';
+  if (mpDepth === 2) return 'CON Enter price per kg\n(GHS):';
 
   const price = parseFloat(mp[2]);
   if (isNaN(price) || price <= 0 || price > 999) return 'END Invalid price.\nDial again to retry.';
@@ -4780,7 +4768,7 @@ async function handleAgentCollection(m, agent) {
   const collCode = 'COL-' + String(collector.id).padStart(4, '0');
 
   if (mpDepth === 3) {
-    return `CON Confirm collection:\n${weight}kg ${material}\nfrom ${collName}\nGH\u20b5${total}\n1. Confirm\n0. Cancel`;
+    return `CON Confirm collection:\n${weight}kg ${material}\nfrom ${collName}\nGHS ${total}\n1. Confirm\n0. Cancel`;
   }
 
   // Execute
@@ -4832,7 +4820,7 @@ async function handleAgentCollection(m, agent) {
           });
         }
       } catch (e) { console.warn('[NOTIFY] agent_collection failed:', e.message); }
-      return `END COLLECTION LOGGED\nRef: ${ref}\n${weight}kg ${material}\nFrom: ${collName}\nTotal: GH\u20b5${total}\n\nFor: ${agent.aggregator_name}`;
+      return `END COLLECTION LOGGED\nRef: ${ref}\n${weight}kg ${material}\nFrom: ${collName}\nTotal: GHS ${total}\n\nFor: ${agent.aggregator_name}`;
     }
   }
 
@@ -4951,7 +4939,7 @@ async function handleAgentPayment(m, agent) {
     unpaid.rows.forEach(function(u, i) {
       var name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim();
       var shortName = name.length > 12 ? name.split(' ')[0] + ' ' + (name.split(' ')[1] || '').charAt(0) + '.' : name;
-      msg += (i + 1) + '. ' + shortName + ' ' + parseFloat(u.gross_weight_kg).toFixed(0) + 'kg ' + u.material_type + '\n   GH\u20b5 ' + parseFloat(u.total_price).toFixed(2) + '\n';
+      msg += (i + 1) + '. ' + shortName + ' ' + parseFloat(u.gross_weight_kg).toFixed(0) + 'kg ' + u.material_type + '\n   GHS ' + parseFloat(u.total_price).toFixed(2) + '\n';
     });
     msg += '0. Back';
     return msg;
@@ -4982,7 +4970,7 @@ async function handleAgentPayment(m, agent) {
 
   // depth 1: confirm payment
   if (depth === 1) {
-    return `CON Pay ${collName} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}: GH\u20b5${parseFloat(selected.total_price).toFixed(2)}\n\n1. Confirm\n0. Cancel`;
+    return `CON Pay ${collName} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}: GHS ${parseFloat(selected.total_price).toFixed(2)}\n\n1. Confirm\n0. Cancel`;
   }
 
   // depth 2: execute
@@ -5003,11 +4991,11 @@ async function handleAgentPayment(m, agent) {
         `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
          VALUES ($1, $2, 'payment', $3, $4, 'transaction')`,
         [agent.id, agent.aggregator_id,
-         `Paid GH\u20b5${parseFloat(selected.total_price).toFixed(2)} to ${collName} for ${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}`,
+         `Paid GHS ${parseFloat(selected.total_price).toFixed(2)} to ${collName} for ${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}`,
          selected.id]
       );
       const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(selected.id).padStart(4, '0');
-      return `END Payment recorded!\nRef: ${ref}\n\nGH\u20b5${parseFloat(selected.total_price).toFixed(2)} to ${collName}\n\nFor: ${agent.aggregator_name}`;
+      return `END Payment recorded!\nRef: ${ref}\n\nGHS ${parseFloat(selected.total_price).toFixed(2)} to ${collName}\n\nFor: ${agent.aggregator_name}`;
     }
   }
 
@@ -5151,12 +5139,12 @@ async function handleCollectorPostListing(m, collector) {
   if (isNaN(qty) || qty <= 0 || qty > 99999) return 'END Invalid quantity.\nDial again to retry.';
   if (qty < 30) return 'END Minimum listing is\n30 kg for collectors.\n\nCollect more material\nand try again.';
 
-  if (depth === 2) return `CON Your asking price\nper kg? (GH\u20b5)\n\n(Enter 0 if open\nto offers)`;
+  if (depth === 2) return `CON Your asking price\nper kg? (GHS)\n\n(Enter 0 if open\nto offers)`;
 
   const priceInput = parseFloat(m[2]);
   if (isNaN(priceInput) || priceInput < 0 || priceInput > 999) return 'END Invalid price.\nDial again to retry.';
   const price = priceInput === 0 ? null : priceInput;
-  const priceStr = price ? `GH\u20b5 ${price.toFixed(2)}/kg` : 'Open to offers';
+  const priceStr = price ? `GHS ${price.toFixed(2)}/kg` : 'Open to offers';
   const location = collector.city || 'Ghana';
 
   if (depth === 3) {
@@ -5172,7 +5160,7 @@ async function handleCollectorPostListing(m, collector) {
         [collector.id, material, qty, price, location]
       );
       // ussd-lint-allow: post-pilot sweep
-      return `END LISTING POSTED!\n\n${qty} kg ${material}${price ? ' at GH\u20b5 ' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nAggregators can now see\nyour listing. You'll be\nnotified when offers\ncome in.`;
+      return `END LISTING POSTED!\n\n${qty} kg ${material}${price ? ' at GHS ' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nAggregators can now see\nyour listing. You'll be\nnotified when offers\ncome in.`;
     }
   }
 
@@ -5201,7 +5189,7 @@ async function handleCollectorMyListings(m, collector) {
   if (remaining.length === 0) {
     let msg = 'CON Your listings:\n';
     display.forEach(function(l, i) {
-      const priceStr = l.price_per_kg ? 'GH\u20b5' + parseFloat(l.price_per_kg).toFixed(2) + '/kg' : '(open)';
+      const priceStr = l.price_per_kg ? 'GHS ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg' : '(open)';
       const daysLeft = Math.max(0, Math.ceil((new Date(l.expires_at) - new Date()) / 86400000));
       msg += (i + 1) + '. ' + parseFloat(l.quantity_kg).toFixed(0) + 'kg ' + l.material_type + ' ' + priceStr + '\n   Expires in ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + '\n';
     });
@@ -5217,7 +5205,7 @@ async function handleCollectorMyListings(m, collector) {
   const selected = display[selIdx];
   if (!selected) return 'END Invalid choice.\nDial again to retry.';
 
-  const priceStr = selected.price_per_kg ? 'GH\u20b5' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : '(open)';
+  const priceStr = selected.price_per_kg ? 'GHS ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : '(open)';
   const daysLeft = Math.max(0, Math.ceil((new Date(selected.expires_at) - new Date()) / 86400000));
 
   if (remaining.length === 1) {
@@ -5276,7 +5264,7 @@ async function handleCollectorMyOffers(m, collector) {
     let msg = 'CON Offers received:\n';
     display.forEach(function(o, i) {
       const name = (o.buyer_name || o.buyer_code).length > 16 ? (o.buyer_name || o.buyer_code).substring(0, 15) + '.' : (o.buyer_name || o.buyer_code);
-      msg += (i + 1) + '. ' + name + '\n   ' + parseFloat(o.quantity_kg).toFixed(0) + 'kg ' + o.material_type + ' @GH\u20b5' + parseFloat(o.price_per_kg).toFixed(2) + '/kg\n';
+      msg += (i + 1) + '. ' + name + '\n   ' + parseFloat(o.quantity_kg).toFixed(0) + 'kg ' + o.material_type + ' @GHS ' + parseFloat(o.price_per_kg).toFixed(2) + '/kg\n';
     });
     if (hasMore) msg += '4. More results \u2192\n';
     msg += '0. Back';
@@ -5294,7 +5282,7 @@ async function handleCollectorMyOffers(m, collector) {
 
   if (remaining.length === 1) {
     // ussd-lint-allow: known existing violation, post-pilot sweep
-    return `CON Offer from:\n${selected.buyer_name} (${selected.buyer_code})\nMaterial: ${selected.material_type}\nQty: ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
+    return `CON Offer from:\n${selected.buyer_name} (${selected.buyer_code})\nMaterial: ${selected.material_type}\nQty: ${parseFloat(selected.quantity_kg).toFixed(0)} kg\nOffer: GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GHS ${total}\n\n1. Accept offer\n2. Decline\n0. Back`;
   }
 
   if (remaining.length === 2) {
@@ -5368,7 +5356,7 @@ async function handleCollectorMyOffers(m, collector) {
       }
 
       // ussd-lint-allow: known existing violation, post-pilot sweep
-      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\nContact buyer:\n${selected.buyer_name}\nPhone: ${buyerPhone}\nLocation: ${buyerCity}\n\nCall to arrange drop-off.\nTransaction logged.`;
+      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GHS ${total}\n\nContact buyer:\n${selected.buyer_name}\nPhone: ${buyerPhone}\nLocation: ${buyerCity}\n\nCall to arrange drop-off.\nTransaction logged.`;
     }
   }
 
@@ -5396,7 +5384,7 @@ async function handleCollectorDiscovery(m, collector) {
     let msg = `END Prices Near Me (${city})\n\n`;
     prices.rows.forEach(function(p) {
       var name = (p.name || '').length > 10 ? p.name.substring(0, 9) + '.' : (p.name || '\u2014');
-      msg += p.material_type.padEnd(6) + 'GH\u20b5' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg  ' + name + '\n';
+      msg += p.material_type.padEnd(6) + 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg  ' + name + '\n';
     });
     msg += '\nDial again to log a drop-off.';
     return msg;
@@ -5439,7 +5427,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
     let msg = `CON ${material} buyers (${city}):\n`;
     display.forEach(function(b, i) {
       const name = (b.buyer_name || '').length > 16 ? b.buyer_name.substring(0, 15) + '.' : (b.buyer_name || 'Buyer');
-      const priceStr = b.price_per_kg && parseFloat(b.price_per_kg) > 0 ? '@GH\u20b5' + parseFloat(b.price_per_kg).toFixed(2) : '(open)';
+      const priceStr = b.price_per_kg && parseFloat(b.price_per_kg) > 0 ? '@GHS ' + parseFloat(b.price_per_kg).toFixed(2) : '(open)';
       msg += (i + 1) + '. ' + name + '\n   Wants ' + parseFloat(b.target_quantity_kg).toFixed(0) + 'kg ' + priceStr + '\n';
     });
     if (hasMore) msg += '4. More results \u2192\n';
@@ -5454,7 +5442,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
   const selected = display[selIdx];
   if (!selected) return 'END Invalid choice.\nDial again to retry.';
 
-  const priceStr = selected.price_per_kg && parseFloat(selected.price_per_kg) > 0 ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'Open to negotiation';
+  const priceStr = selected.price_per_kg && parseFloat(selected.price_per_kg) > 0 ? 'GHS ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'Open to negotiation';
 
   if (remaining.length === 1) {
     return `CON ${selected.buyer_name}\nWants ${parseFloat(selected.target_quantity_kg).toFixed(0)}kg ${material}\n${priceStr}\n1. Match (share phone)\n2. Not interested\n0. Back`;
@@ -5516,7 +5504,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
   if (remaining.length === 0) {
     let msg = `CON ${material} sellers (${city}):\n`;
     display.forEach(function(l, i) {
-      const priceStr = l.price_per_kg ? '@GH\u20b5' + parseFloat(l.price_per_kg).toFixed(2) + '/kg' : '(open price)';
+      const priceStr = l.price_per_kg ? '@GHS ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg' : '(open price)';
       const daysLeft = Math.max(0, Math.ceil((new Date(l.expires_at) - new Date()) / 86400000));
       msg += (i + 1) + '. ' + l.seller_code + '\n   ' + parseFloat(l.quantity_kg).toFixed(0) + 'kg ' + priceStr + '\n   ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left\n';
     });
@@ -5532,10 +5520,10 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
   const selected = display[selIdx];
   if (!selected) return 'END Invalid choice.\nDial again to retry.';
 
-  const listingPrice = selected.price_per_kg ? 'GH\u20b5 ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'open price';
+  const listingPrice = selected.price_per_kg ? 'GHS ' + parseFloat(selected.price_per_kg).toFixed(2) + '/kg' : 'open price';
 
   if (remaining.length === 1) {
-    return `CON ${selected.seller_code}: ${parseFloat(selected.quantity_kg).toFixed(0)}kg ${material}\n@ ${listingPrice}, in ${city}\n\nYour offer (GH\u20b5/kg)?\n(0 = match their price)`;
+    return `CON ${selected.seller_code}: ${parseFloat(selected.quantity_kg).toFixed(0)}kg ${material}\n@ ${listingPrice}, in ${city}\n\nYour offer (GHS/kg)?\n(0 = match their price)`;
   }
 
   if (remaining.length === 2) {
@@ -5550,7 +5538,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
     }
     const qty = parseFloat(selected.quantity_kg);
     const total = (qty * offerPrice).toFixed(2);
-    return `CON Confirm offer:\nTo ${selected.seller_code}: ${qty.toFixed(0)}kg ${material}\nGH\u20b5 ${offerPrice.toFixed(2)}/kg = GH\u20b5 ${total}\n1. Send offer\n0. Cancel`;
+    return `CON Confirm offer:\nTo ${selected.seller_code}: ${qty.toFixed(0)}kg ${material}\nGHS ${offerPrice.toFixed(2)}/kg = GHS ${total}\n1. Send offer\n0. Cancel`;
   }
 
   if (remaining.length === 3) {
@@ -5573,7 +5561,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
       );
 
       // ussd-lint-allow: known existing violation, post-pilot sweep
-      return `END OFFER SENT!\n\nGH\u20b5 ${offerPrice.toFixed(2)}/kg for ${qty.toFixed(0)}kg ${material}\nto ${selected.seller_code}.\n\nThe collector will be\nnotified. You'll receive\ntheir contact details\nwhen they accept.\n\nCheck "My Offers" for\nstatus updates.`;
+      return `END OFFER SENT!\n\nGHS ${offerPrice.toFixed(2)}/kg for ${qty.toFixed(0)}kg ${material}\nto ${selected.seller_code}.\n\nThe collector will be\nnotified. You'll receive\ntheir contact details\nwhen they accept.\n\nCheck "My Offers" for\nstatus updates.`;
     }
   }
 
@@ -5593,12 +5581,12 @@ async function handleAggregatorPostBuyRequest(m, aggregator) {
   const qty = parseFloat(m[1]);
   if (isNaN(qty) || qty <= 0 || qty > 99999) return 'END Invalid quantity.\nDial again to retry.';
 
-  if (depth === 2) return 'CON Your buying price\nper kg? (GH\u20b5)\n\n(Enter 0 if open\nto negotiation)';
+  if (depth === 2) return 'CON Your buying price\nper kg? (GHS)\n\n(Enter 0 if open\nto negotiation)';
 
   const priceInput = parseFloat(m[2]);
   if (isNaN(priceInput) || priceInput < 0 || priceInput > 999) return 'END Invalid price.\nDial again to retry.';
   const price = priceInput === 0 ? null : priceInput;
-  const priceStr = price ? `GH\u20b5 ${price.toFixed(2)}/kg` : 'Open to negotiation';
+  const priceStr = price ? `GHS ${price.toFixed(2)}/kg` : 'Open to negotiation';
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
@@ -5615,7 +5603,7 @@ async function handleAggregatorPostBuyRequest(m, aggregator) {
         target_quantity_kg: qty,
         price_per_kg: price || 0
       });
-      return `END BUY REQUEST POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5' + price.toFixed(2) + '/kg' : ''}\nLocation: ${location}\n\nWe'll notify you when\ncollectors respond.`;
+      return `END BUY REQUEST POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GHS ' + price.toFixed(2) + '/kg' : ''}\nLocation: ${location}\n\nWe'll notify you when\ncollectors respond.`;
     }
   }
 
@@ -5636,12 +5624,12 @@ async function handleAggregatorSellToProcessors(m, aggregator) {
   if (isNaN(qty) || qty <= 0 || qty > 99999) return 'END Invalid quantity.\nDial again to retry.';
   if (qty < 500) return 'END Minimum listing is\n500 kg for aggregators.\n\nConsolidate more material\nand try again.';
 
-  if (depth === 2) return `CON Your asking price\nper kg? (GH\u20b5)\n\n(Enter 0 if open\nto offers)`;
+  if (depth === 2) return `CON Your asking price\nper kg? (GHS)\n\n(Enter 0 if open\nto offers)`;
 
   const priceInput = parseFloat(m[2]);
   if (isNaN(priceInput) || priceInput < 0 || priceInput > 999) return 'END Invalid price.\nDial again to retry.';
   const price = priceInput === 0 ? null : priceInput;
-  const priceStr = price ? `GH\u20b5 ${price.toFixed(2)}/kg` : 'Open to offers';
+  const priceStr = price ? `GHS ${price.toFixed(2)}/kg` : 'Open to offers';
   const location = aggregator.city || 'Ghana';
 
   if (depth === 3) {
@@ -5656,7 +5644,7 @@ async function handleAggregatorSellToProcessors(m, aggregator) {
          VALUES ($1, 'aggregator', $2, $3, $3, $4, $5, NOW() + INTERVAL '7 days') RETURNING id`,
         [aggregator.id, material, qty, price, location]
       );
-      return `END LISTING POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GH\u20b5' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nProcessors will see it.`;
+      return `END LISTING POSTED!\n\n${qty.toFixed(0)} kg ${material}${price ? ' at GHS ' + price.toFixed(2) + '/kg' : ' (open to offers)'}\nLocation: ${location}\nExpires in 7 days.\n\nProcessors will see it.`;
     }
   }
 
@@ -5731,7 +5719,7 @@ async function handleAggregatorMyOffers(m, aggregator) {
 
   if (selected.direction === 'sent') {
     const statusMsg = selected.status === 'accepted' ? 'ACCEPTED!' : selected.status === 'pending' ? 'Pending' : selected.status;
-    let msg = `END Your offer to ${selected.other_code}:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nStatus: ${statusMsg}`;
+    let msg = `END Your offer to ${selected.other_code}:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nStatus: ${statusMsg}`;
     if (selected.status === 'accepted') {
       const sellerId = parseInt(selected.other_code.replace('COL-', ''));
       const coll = (await pool.query(`SELECT first_name, last_name, phone, city FROM collectors WHERE id = $1`, [sellerId])).rows[0];
@@ -5748,7 +5736,7 @@ async function handleAggregatorMyOffers(m, aggregator) {
   const total = (parseFloat(selected.quantity_kg) * parseFloat(selected.price_per_kg)).toFixed(2);
 
   if (remaining.length === 1) {
-    return `CON Offer from ${selected.other_name || 'Buyer'}:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type}\nGH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg = GH\u20b5 ${total}\n1. Accept\n2. Decline\n0. Back`;
+    return `CON Offer from ${selected.other_name || 'Buyer'}:\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type}\nGHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg = GHS ${total}\n1. Accept\n2. Decline\n0. Back`;
   }
 
   if (remaining.length === 2) {
@@ -5818,7 +5806,7 @@ async function handleAggregatorMyOffers(m, aggregator) {
       } catch (_) {}
 
       // ussd-lint-allow: post-pilot sweep
-      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GH\u20b5 ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GH\u20b5 ${total}\n\nContact buyer:\n${selected.other_name || 'Buyer'}\nPhone: ${buyerPhone}\nLocation: ${buyerLocation}\n\nTransaction logged.`;
+      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GHS ${total}\n\nContact buyer:\n${selected.other_name || 'Buyer'}\nPhone: ${buyerPhone}\nLocation: ${buyerLocation}\n\nTransaction logged.`;
     }
   }
 
