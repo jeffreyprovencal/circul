@@ -3319,20 +3319,14 @@ async function gateForceChangePin(m, user, userTable) {
     };
   }
 
-  // G3: success bridge — DO NOT update yet. USSD replays the full text on the
-  // next dial; if we UPDATE here, the next dial would fail PIN validation against
-  // the old default and mis-route. Defer UPDATE to the bridge response so it
-  // happens in the same dial as either Continue or Exit.
+  // G3: success — UPDATE + END at the latest depth where both inputs are present.
+  // Why END (not a "1. Continue" bridge): USSD accumulates input across
+  // keystrokes within a session. If we released menuParts mid-session, the next
+  // keystroke would replay all gate slots, but the gate would now skip
+  // (must_change_pin=false), leaving stale gate digits as menu inputs that
+  // mis-route to "Invalid option". Forcing redial starts a fresh session with
+  // empty text, dodging the trap entirely.
   if (m.length === 2) {
-    return {
-      needsGate: true,
-      // ussd-lint-allow: post-pilot sweep
-      response: 'CON PIN saved!\n\nUse this PIN next time\nyou log in.\n\n1. Continue\n0. Exit'
-    };
-  }
-
-  // Bridge response: UPDATE happens here so subsequent dials use the new PIN.
-  if (m[2] === '0') {
     const hashed = await hashPassword(newPin);
     await pool.query(
       `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
@@ -3340,18 +3334,12 @@ async function gateForceChangePin(m, user, userTable) {
     );
     return {
       needsGate: true,
-      response: 'END Done.\nDial *920*54# again.'
+      response: 'END PIN saved.\nDial *920*54# again\nto continue.'
     };
   }
-  if (m[2] === '1') {
-    const hashed = await hashPassword(newPin);
-    await pool.query(
-      `UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2`,
-      [hashed, user.id]
-    );
-    return { needsGate: false, menuParts: m.slice(3) };
-  }
 
+  // Defensive: m.length === 2 always returns above. Anything else is impossible
+  // unless callers misuse the gate; fail closed with a redial prompt.
   return {
     needsGate: true,
     response: 'END Invalid option.\nDial *920*54# to retry.'
