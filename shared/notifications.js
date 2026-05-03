@@ -85,7 +85,7 @@ var SECURITY_EVENTS = new Set([
 
 var TEMPLATES = {
   new_offer: function (data) {
-    return 'Circul: ' + data.buyer_name + ' made a GH\u20b5' + data.price + '/kg offer on your ' + data.material + ' listing (' + data.qty + 'kg). Log in to respond.';
+    return 'Circul: ' + data.buyer_name + ' made a GHS ' + data.price + '/kg offer on your ' + data.material + ' listing (' + data.qty + 'kg). Log in to respond.';
   },
   offer_accepted: function (data) {
     return 'Circul: Your offer on ' + data.material + ' (' + data.qty + 'kg) was accepted by ' + data.seller_name + '! A transaction has been created.';
@@ -94,7 +94,7 @@ var TEMPLATES = {
     return 'Circul: ' + data.seller_name + ' declined your offer on ' + data.material + '. Browse other listings on Circul.';
   },
   counter_offer: function (data) {
-    return 'Circul: ' + data.counterparty + ' countered your offer \u2014 GH\u20b5' + data.price + '/kg for ' + data.qty + 'kg ' + data.material + '. Log in to respond.';
+    return 'Circul: ' + data.counterparty + ' countered your offer \u2014 GHS ' + data.price + '/kg for ' + data.qty + 'kg ' + data.material + '. Log in to respond.';
   },
   delivery_pending: function (data) {
     return 'Circul: ' + data.sender_name + ' dispatched ' + data.qty + 'kg ' + data.material + ' to you. Log in to approve delivery.';
@@ -103,7 +103,7 @@ var TEMPLATES = {
     return 'Circul: ' + data.receiver_name + ' approved your ' + data.qty + 'kg ' + data.material + ' delivery. Payment is being processed.';
   },
   payment_received: function (data) {
-    return 'Circul: You received GH\u20b5' + data.amount + ' for ' + data.qty + 'kg ' + data.material + '. Check your dashboard for details.';
+    return 'Circul: You received GHS ' + data.amount + ' for ' + data.qty + 'kg ' + data.material + '. Check your dashboard for details.';
   },
   rating_received: function (data) {
     return 'Circul: ' + data.rater_name + ' rated you ' + data.stars + '\u2605. View your ratings on your dashboard.';
@@ -116,16 +116,16 @@ var TEMPLATES = {
     return 'Circul: ' + data.collector_name + ' logged a ' + data.qty + 'kg ' + data.material + ' drop-off (Ref ' + data.ref + '). Log in to confirm.';
   },
   purchase_logged: function (data) {
-    return 'Circul: ' + data.buyer_name + ' recorded a purchase of ' + data.qty + 'kg ' + data.material + ' from you for GH\u20b5' + data.amount + ' (Ref ' + data.ref + ').';
+    return 'Circul: ' + data.buyer_name + ' recorded a purchase of ' + data.qty + 'kg ' + data.material + ' from you for GHS ' + data.amount + ' (Ref ' + data.ref + ').';
   },
   agent_collection: function (data) {
-    return 'Circul: Agent collected ' + data.qty + 'kg ' + data.material + ' from you for ' + data.aggregator_name + '. Total GH\u20b5' + data.amount + ' (Ref ' + data.ref + ').';
+    return 'Circul: Agent collected ' + data.qty + 'kg ' + data.material + ' from you for ' + data.aggregator_name + '. Total GHS ' + data.amount + ' (Ref ' + data.ref + ').';
   },
   payment_sent: function (data) {
-    return 'Circul: ' + data.buyer_name + ' marked GH\u20b5' + data.amount + ' as sent for your ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Confirm receipt on Circul.';
+    return 'Circul: ' + data.buyer_name + ' marked GHS ' + data.amount + ' as sent for your ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Confirm receipt on Circul.';
   },
   payment_confirmed: function (data) {
-    return 'Circul: ' + data.seller_name + ' confirmed receipt of GH\u20b5' + data.amount + ' for ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Transaction complete.';
+    return 'Circul: ' + data.seller_name + ' confirmed receipt of GHS ' + data.amount + ' for ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Transaction complete.';
   },
   // Account recovery — templates use { code, minutes, time, user_name, user_code, old_phone, new_phone, admin_email }
   pin_reset_otp: function (d) {
