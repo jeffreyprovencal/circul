@@ -41,6 +41,8 @@ const TEST_AGGREGATOR_PIN    = '2222';
 const TEST_AGENT_PHONE       = '+233900002001'; // dialed as 0900002001
 const TEST_AGENT_PIN         = '3333';
 const TEST_GATE_PHONE        = '+233900000098'; // dialed as 0900000098, must_change_pin=true
+const TEST_AGG_GATE_PHONE    = '+233900001098'; // dialed as 0900001098, must_change_pin=true
+const TEST_AGENT_GATE_PHONE  = '+233900002098'; // dialed as 0900002098, must_change_pin=true
 const TEST_UNREGISTERED      = '0900099999';    // not in any table
 
 // Marketplace fixtures for display_name regression coverage (PR-feat/ussd-critical-cons).
@@ -232,6 +234,21 @@ async function seedTestAccounts() {
      VALUES ('GateTest', 'Probe', $1, $2, 'Accra', 'Greater Accra', true, true)
      ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=true`,
     [TEST_GATE_PHONE, gatePin]
+  );
+
+  await pool.query(
+    `INSERT INTO aggregators (name, phone, pin, city, region, is_active, must_change_pin)
+     VALUES ('AggGateTest Probe', $1, $2, 'Accra', 'Greater Accra', true, true)
+     ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=true`,
+    [TEST_AGG_GATE_PHONE, gatePin]
+  );
+
+  await pool.query(
+    `INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, is_active, must_change_pin)
+     SELECT id, 'AgentGateTest', 'Probe', $1, $2, 'Accra', 'Greater Accra', true, true
+     FROM aggregators WHERE phone = $3
+     ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=true`,
+    [TEST_AGENT_GATE_PHONE, gatePin, TEST_AGGREGATOR_PHONE]
   );
 
   // ── Marketplace fixtures (display_name regression coverage) ─────────────────
@@ -430,6 +447,54 @@ const TESTS = [
       { input: '',     match: /CON Circul Collector/ },
       { input: '5678', match: /CON 1\. Log Drop-off/ },
       { input: '2',    match: /CON Sell My Material:/ },
+    ],
+  },
+
+  // ─── force-change-pin gate (aggregator coverage, mirrors collector) ────────
+  // The same gateForceChangePin function is called by handleAggregatorUssd
+  // (server.js:3720). Same UPDATE+END behavior expected. Same post-redial
+  // slot-mismatch concern resolved.
+  {
+    name: 'force-change-pin-gate-aggregator',
+    phoneNumber: '0900001098',
+    steps: [
+      { input: '',     match: /CON Circul Aggregator/ },
+      { input: '0000', match: /CON You must set a new PIN/ },
+      { input: '5678', match: /CON Confirm new PIN/ },
+      { input: '5678', match: /END PIN saved\.\nDial \*920\*54# again\nto continue\./ },
+    ],
+  },
+  {
+    name: 'force-change-pin-gate-aggregator-post-redial',
+    phoneNumber: '0900001098',
+    steps: [
+      { input: '',     match: /CON Circul Aggregator/ },
+      { input: '5678', match: /CON 1\. Register/ },
+      { input: '2',    match: /CON Log Transaction/ },
+    ],
+  },
+
+  // ─── force-change-pin gate (agent coverage, mirrors collector) ─────────────
+  // Same gateForceChangePin function is called by handleAgentUssd
+  // (server.js:4653). Note the agent main menu's first item is "Log Collection",
+  // not "Log Drop-off" or "Register".
+  {
+    name: 'force-change-pin-gate-agent',
+    phoneNumber: '0900002098',
+    steps: [
+      { input: '',     match: /CON Circul Agent/ },
+      { input: '0000', match: /CON You must set a new PIN/ },
+      { input: '5678', match: /CON Confirm new PIN/ },
+      { input: '5678', match: /END PIN saved\.\nDial \*920\*54# again\nto continue\./ },
+    ],
+  },
+  {
+    name: 'force-change-pin-gate-agent-post-redial',
+    phoneNumber: '0900002098',
+    steps: [
+      { input: '',     match: /CON Circul Agent/ },
+      { input: '5678', match: /CON Working for:/ },
+      { input: '2',    match: /No unpaid collections|Unpaid collections/ },
     ],
   },
 
