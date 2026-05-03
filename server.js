@@ -5356,7 +5356,7 @@ async function handleCollectorMyOffers(m, collector) {
       }
 
       // ussd-lint-allow: known existing violation, post-pilot sweep
-      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GHS ${total}\n\nContact buyer:\n${selected.buyer_name}\nPhone: ${buyerPhone}\nLocation: ${buyerCity}\n\nCall to arrange drop-off.\nTransaction logged.`;
+      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GHS ${total}\n\nBuyer: ${selected.buyer_name}\n${buyerPhone}, ${buyerCity}\n\nCall to arrange drop-off.`;
     }
   }
 
@@ -5560,8 +5560,7 @@ async function handleAggregatorBrowseSellers(m, aggregator) {
         [selected.id, aggregator.id, offerPrice, qty]
       );
 
-      // ussd-lint-allow: known existing violation, post-pilot sweep
-      return `END OFFER SENT!\n\nGHS ${offerPrice.toFixed(2)}/kg for ${qty.toFixed(0)}kg ${material}\nto ${selected.seller_code}.\n\nThe collector will be\nnotified. You'll receive\ntheir contact details\nwhen they accept.\n\nCheck "My Offers" for\nstatus updates.`;
+      return `END OFFER SENT!\n\nGHS ${offerPrice.toFixed(2)}/kg for ${qty.toFixed(0)}kg ${material}\nto ${selected.seller_code}.\n\nYou'll be notified when\nthey accept.`;
     }
   }
 
@@ -5806,7 +5805,7 @@ async function handleAggregatorMyOffers(m, aggregator) {
       } catch (_) {}
 
       // ussd-lint-allow: post-pilot sweep
-      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GHS ${total}\n\nContact buyer:\n${selected.other_name || 'Buyer'}\nPhone: ${buyerPhone}\nLocation: ${buyerLocation}\n\nTransaction logged.`;
+      return `END OFFER ACCEPTED!\n\n${parseFloat(selected.quantity_kg).toFixed(0)}kg ${selected.material_type} @ GHS ${parseFloat(selected.price_per_kg).toFixed(2)}/kg\nTotal: GHS ${total}\n\nBuyer: ${selected.other_name || 'Buyer'}\n${buyerPhone}, ${buyerLocation}\n\nCall to arrange drop-off.`;
     }
   }
 
