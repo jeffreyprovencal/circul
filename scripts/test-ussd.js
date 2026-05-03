@@ -428,7 +428,7 @@ const TESTS = [
       { input: '1',          match: /CON Select material/ },
       { input: '1',          match: /CON Enter weight in kg/ },
       { input: '5',          match: /CON Enter price per kg/ },
-      { input: '4.5',        match: /CON Confirm purchase:\n5kg PET\nfrom TestColl Probe\nGH₵22\.50\n1\. Confirm\n0\. Cancel/ },
+      { input: '4.5',        match: /CON Confirm purchase:\n5kg PET\nfrom TestColl Probe\nGHS 22\.50\n1\. Confirm\n0\. Cancel/ },
       { input: '0',          match: /END Cancelled\./ },
     ],
   },
@@ -496,7 +496,7 @@ const TESTS = [
       { input: '4',    match: /CON More options/ },
       { input: '1',    match: /CON Marketplace:/ },
       { input: '4',    match: /CON My offers:/ },
-      { input: '1',    match: /CON Offer from Test Offer Co:\n500kg PET\nGH₵ 2\.20\/kg = GH₵ 1100\.00\n1\. Accept\n2\. Decline\n0\. Back/ },
+      { input: '1',    match: /CON Offer from Test Offer Co:\n500kg PET\nGHS 2\.20\/kg = GHS 1100\.00\n1\. Accept\n2\. Decline\n0\. Back/ },
     ],
   },
 ];
