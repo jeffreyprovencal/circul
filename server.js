@@ -4545,7 +4545,7 @@ async function handleAggregatorPending(m, aggregator) {
 
   // depth 1: show details of selected drop-off
   const choice = parseInt(m[0]);
-  if (m[0] === '0') return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. My Stats\n0. Exit';
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   // Re-fetch pending list to get the selected item
   const pending = await pool.query(
@@ -4573,7 +4573,7 @@ async function handleAggregatorPending(m, aggregator) {
 
   // depth 2: confirm or reject
   if (depth === 2) {
-    if (m[1] === '0') return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. My Stats\n0. Exit';
+    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
     if (m[1] === '1') {
       // Confirm
@@ -5463,7 +5463,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
 async function handleAggregatorMarketplace(m, aggregator) {
   if (m.length === 0) return 'CON Marketplace:\n1. Browse Sellers\n2. Post Buy Request\n3. Sell to Processors\n4. My Offers\n0. Back';
 
-  if (m[0] === '0') return 'CON 1. Log Purchase\n2. Pending Drop-offs\n3. Marketplace\n4. My Stats\n0. Exit';
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
   if (m[0] === '1') return await handleAggregatorBrowseSellers(m.slice(1), aggregator);
   if (m[0] === '2') return await handleAggregatorPostBuyRequest(m.slice(1), aggregator);
   if (m[0] === '3') return await handleAggregatorSellToProcessors(m.slice(1), aggregator);
