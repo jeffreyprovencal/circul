@@ -716,7 +716,26 @@ app.post('/api/collector/pending-purchases/:id/decline', requireAuth, async (req
       if (check.rows[0].status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction already ' + check.rows[0].status });
       return res.status(404).json({ success: false, message: 'Could not decline transaction' });
     }
-    res.json({ success: true, pending_transaction: result.rows[0] });
+    const pt = result.rows[0];
+    try {
+      const lookup = await pool.query(
+        `SELECT a.phone AS aggregator_phone,
+                TRIM(c.first_name || ' ' || COALESCE(c.last_name, '')) AS collector_name
+           FROM pending_transactions pt
+           JOIN aggregators a ON a.id = pt.aggregator_id
+           JOIN collectors c ON c.id = pt.collector_id
+          WHERE pt.id = $1`,
+        [pt.id]
+      );
+      if (lookup.rows.length && lookup.rows[0].aggregator_phone) {
+        await notify(EVENTS.PURCHASE_CLAIM_DECLINED, lookup.rows[0].aggregator_phone, {
+          collector_name: lookup.rows[0].collector_name || 'Collector',
+          qty: parseFloat(pt.gross_weight_kg || 0).toFixed(0),
+          material: pt.material_type
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] purchase_claim_declined failed:', e.message); }
+    res.json({ success: true, pending_transaction: pt });
   } catch (err) { console.error('POST /api/collector/pending-purchases/:id/decline error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -4522,7 +4541,7 @@ async function handleAggregatorPending(m, aggregator) {
   // depth 0: list pending drop-offs
   if (depth === 0) {
     const pending = await pool.query(
-      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.created_at,
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price, pt.created_at,
               c.first_name AS collector_first_name, c.last_name AS collector_last_name,
               c.phone AS collector_phone, c.city AS collector_city,
               'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
@@ -4552,7 +4571,7 @@ async function handleAggregatorPending(m, aggregator) {
 
   // Re-fetch pending list to get the selected item
   const pending = await pool.query(
-    `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.created_at,
+    `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price, pt.created_at,
             c.first_name AS collector_first_name, c.last_name AS collector_last_name,
             c.phone AS collector_phone, c.city AS collector_city,
             'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
@@ -4584,6 +4603,18 @@ async function handleAggregatorPending(m, aggregator) {
         `UPDATE pending_transactions SET status = 'confirmed', updated_at = NOW() WHERE id = $1`,
         [selected.id]
       );
+      try {
+        if (selected.collector_phone) {
+          const ref = 'TXN-' + new Date(selected.created_at).toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(selected.id).padStart(4, '0');
+          await notify(EVENTS.DROPOFF_CONFIRMED, selected.collector_phone, {
+            aggregator_name: aggregator.name,
+            qty: parseFloat(selected.gross_weight_kg).toFixed(0),
+            material: selected.material_type,
+            amount: parseFloat(selected.total_price || 0).toFixed(2),
+            ref: ref
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] dropoff_confirmed failed:', e.message); }
       const remainCount = await pool.query(
         `SELECT COUNT(*) as count FROM pending_transactions
          WHERE aggregator_id = $1 AND status = 'pending'
@@ -4608,6 +4639,16 @@ async function handleAggregatorPending(m, aggregator) {
       `UPDATE pending_transactions SET status = 'rejected', rejection_reason = $1, updated_at = NOW() WHERE id = $2`,
       [reason, selected.id]
     );
+    try {
+      if (selected.collector_phone) {
+        await notify(EVENTS.DROPOFF_REJECTED, selected.collector_phone, {
+          aggregator_name: aggregator.name,
+          qty: parseFloat(selected.gross_weight_kg).toFixed(0),
+          material: selected.material_type,
+          reason: reason
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] dropoff_rejected failed:', e.message); }
     const remainCount = await pool.query(
       `SELECT COUNT(*) as count FROM pending_transactions
        WHERE aggregator_id = $1 AND status = 'pending'

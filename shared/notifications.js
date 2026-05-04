@@ -45,6 +45,10 @@ var EVENTS = {
   AGENT_COLLECTION:  'agent_collection',
   PAYMENT_SENT:      'payment_sent',
   PAYMENT_CONFIRMED: 'payment_confirmed',
+  // Audit hygiene (PR #80)
+  DROPOFF_CONFIRMED:        'dropoff_confirmed',
+  DROPOFF_REJECTED:         'dropoff_rejected',
+  PURCHASE_CLAIM_DECLINED:  'purchase_claim_declined',
   // Account recovery
   PIN_RESET_OTP:                 'pin_reset_otp',
   PIN_RESET_COMPLETED:           'pin_reset_completed',
@@ -126,6 +130,16 @@ var TEMPLATES = {
   },
   payment_confirmed: function (data) {
     return 'Circul: ' + data.seller_name + ' confirmed receipt of GHS ' + data.amount + ' for ' + data.qty + 'kg ' + data.material + ' (Ref ' + data.ref + '). Transaction complete.';
+  },
+  // Audit hygiene (PR #80)
+  dropoff_confirmed: function (data) {
+    return 'Circul: ' + data.aggregator_name + ' confirmed your ' + data.qty + 'kg ' + data.material + ' drop-off. Total GHS ' + data.amount + ' (Ref ' + data.ref + ').';
+  },
+  dropoff_rejected: function (data) {
+    return 'Circul: ' + data.aggregator_name + ' rejected your ' + data.qty + 'kg ' + data.material + ' drop-off. Reason: ' + data.reason + '. Please collect your material.';
+  },
+  purchase_claim_declined: function (data) {
+    return 'Circul: ' + data.collector_name + ' declined your ' + data.qty + 'kg ' + data.material + ' purchase claim. Review on dashboard.';
   },
   // Account recovery — templates use { code, minutes, time, user_name, user_code, old_phone, new_phone, admin_email }
   pin_reset_otp: function (d) {
