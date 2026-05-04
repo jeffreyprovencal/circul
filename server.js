@@ -1855,6 +1855,7 @@ app.get('/api/aggregator/reports/sourcing', requireAuth, async (req, res) => {
          pt.payment_completed_at AS paid_at
        FROM pending_transactions pt
        WHERE pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+         AND pt.status NOT IN ('rejected', 'declined', 'dispatch_rejected', 'grade_c_flagged')
          AND pt.aggregator_id = $1
          AND pt.collector_id IS NOT NULL
          AND pt.created_at >= $2 AND pt.created_at < $3
@@ -1946,6 +1947,7 @@ app.get('/api/aggregator/reports/sales', requireAuth, async (req, res) => {
          LEFT JOIN recyclers   r ON r.id = pt.recycler_id
          LEFT JOIN converters  c ON c.id = pt.converter_id
          WHERE pt.transaction_type = 'aggregator_sale'
+           AND pt.status NOT IN ('rejected', 'declined', 'dispatch_rejected', 'grade_c_flagged')
            AND pt.aggregator_id = $1
            AND pt.created_at >= $2 AND pt.created_at < $3
            AND ($4::text IS NULL OR pt.material_type = ANY(string_to_array($4, ',')))
@@ -2057,6 +2059,7 @@ app.get('/api/aggregator/reports/collectors-list', requireAuth, async (req, res)
        JOIN collectors c ON c.id = pt.collector_id
        WHERE pt.aggregator_id = $1
          AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+         AND pt.status NOT IN ('rejected', 'declined', 'dispatch_rejected', 'grade_c_flagged')
          AND pt.collector_id IS NOT NULL
        GROUP BY c.id, c.first_name, c.last_name
        ORDER BY total_kg DESC`,
