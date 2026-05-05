@@ -3831,7 +3831,7 @@ async function handleAggregatorUssd(parts, aggregator) {
           pool.query(
             `SELECT COUNT(*) as count FROM pending_transactions
              WHERE aggregator_id = $1 AND status = 'pending'
-               AND transaction_type IN ('collector_sale','aggregator_purchase')`,
+               AND transaction_type = 'collector_sale'`,
             [aggregator.id]
           )
         ]);
@@ -4566,7 +4566,7 @@ async function handleAggregatorPending(m, aggregator) {
        FROM pending_transactions pt
        LEFT JOIN collectors c ON c.id = pt.collector_id
        WHERE pt.aggregator_id = $1 AND pt.status = 'pending'
-         AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+         AND pt.transaction_type = 'collector_sale'
        ORDER BY pt.created_at DESC
        LIMIT 4`,
       [aggregator.id]
@@ -4596,7 +4596,7 @@ async function handleAggregatorPending(m, aggregator) {
      FROM pending_transactions pt
      LEFT JOIN collectors c ON c.id = pt.collector_id
      WHERE pt.aggregator_id = $1 AND pt.status = 'pending'
-       AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+       AND pt.transaction_type = 'collector_sale'
      ORDER BY pt.created_at DESC
      LIMIT 4`,
     [aggregator.id]
@@ -4643,7 +4643,7 @@ async function handleAggregatorPending(m, aggregator) {
       const remainCount = await pool.query(
         `SELECT COUNT(*) as count FROM pending_transactions
          WHERE aggregator_id = $1 AND status = 'pending'
-           AND transaction_type IN ('collector_sale', 'aggregator_purchase')`,
+           AND transaction_type = 'collector_sale'`,
         [aggregator.id]
       );
       var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
@@ -4677,7 +4677,7 @@ async function handleAggregatorPending(m, aggregator) {
     const remainCount = await pool.query(
       `SELECT COUNT(*) as count FROM pending_transactions
        WHERE aggregator_id = $1 AND status = 'pending'
-         AND transaction_type IN ('collector_sale', 'aggregator_purchase')`,
+         AND transaction_type = 'collector_sale'`,
       [aggregator.id]
     );
     var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
@@ -6125,7 +6125,7 @@ app.get('/api/pending-transactions', async (req, res) => {
       query = `SELECT pt.*, COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     } else {
-      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'COL-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'COL-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type = 'collector_sale' ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     }
     const result = await pool.query(query, params);
@@ -6138,7 +6138,12 @@ app.get('/api/pending-transactions/collector-sales', requireAuth, async (req, re
     const { collector_id } = req.query;
     if (req.user.id !== parseInt(collector_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     if (!collector_id) return res.status(400).json({ success: false, message: 'collector_id required' });
-    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, t.price_per_kg AS final_price_per_kg, t.total_price AS final_total_price FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id LEFT JOIN transactions t ON t.id=pt.transaction_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
+    // F5 (PR #79): exclude rows that have already been promoted to transactions.
+    // Those are shown via /api/collector/transactions instead. Without this
+    // filter, the collector dashboard renders every confirmed transaction
+    // TWICE — once from this endpoint (the pending row with stale status),
+    // once from the transactions endpoint (the canonical row).
+    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 AND pt.transaction_id IS NULL ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/collector-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
