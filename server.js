@@ -3761,7 +3761,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   const m = gate.menuParts;
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+  if (depth === 0) return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
@@ -3770,7 +3770,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   if (m[0] === '1') {
     const sub = m.slice(1);
     if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n0. Back';
-    if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+    if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
     if (sub[0] === '1') return await handleAggregatorRegister(sub.slice(1), aggregator, null);
     if (sub[0] === '2') return await handleAggregatorRegisterAgent(sub.slice(1), aggregator);
     return 'END Invalid option.\nDial again to retry.';
@@ -3792,10 +3792,15 @@ async function handleAggregatorUssd(parts, aggregator) {
     return await handleAggregatorPending(m.slice(1), aggregator);
   }
 
-  // ── More sub-menu (Marketplace + My Stats) ──
+  // ── Record Payment ──
   if (m[0] === '4') {
+    return await handleAggregatorPayment(m.slice(1), aggregator);
+  }
+
+  // ── More sub-menu (Marketplace + My Stats) ──
+  if (m[0] === '5') {
     if (m.length === 1) return 'CON More options\n1. Marketplace\n2. My Stats\n0. Back';
-    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
 
     // Marketplace
     if (m[1] === '1') return await handleAggregatorMarketplace(m.slice(2), aggregator);
@@ -4585,7 +4590,7 @@ async function handleAggregatorPending(m, aggregator) {
 
   // depth 1: show details of selected drop-off
   const choice = parseInt(m[0]);
-  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
 
   // Re-fetch pending list to get the selected item
   const pending = await pool.query(
@@ -4613,7 +4618,7 @@ async function handleAggregatorPending(m, aggregator) {
 
   // depth 2: confirm or reject
   if (depth === 2) {
-    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
 
     if (m[1] === '1') {
       // Confirm — promote to transactions table (dual-row pattern).
@@ -4682,6 +4687,115 @@ async function handleAggregatorPending(m, aggregator) {
     );
     var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
     return `END DROP-OFF REJECTED\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type} from ${name}\nReason: ${reason}\n\nRemaining pending: ${remainCount.rows[0].count}`;
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Aggregator Record Payment USSD flow ──
+// Mirrors handleAgentPayment (server.js:~4990) but acts on the aggregator's
+// own payment obligations (not on agent_activity). Lists unpaid pending_
+// transactions for this aggregator's collectors, lets aggregator confirm
+// payment, and atomically updates BOTH pending_transactions.payment_status
+// AND transactions.payment_status (the H8 fix — agents and aggregators
+// keep both tables in sync so dashboard P&L COGS / Outstanding queries
+// reflect actual payment state).
+async function handleAggregatorPayment(m, aggregator) {
+  const depth = m.length;
+
+  // depth 0: list unpaid items
+  if (depth === 0) {
+    const unpaid = await pool.query(
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price, pt.transaction_id,
+              c.first_name, c.last_name, c.phone,
+              'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
+         FROM pending_transactions pt
+         JOIN collectors c ON pt.collector_id = c.id
+        WHERE pt.aggregator_id = $1
+          AND pt.payment_status = 'unpaid'
+          AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+          AND pt.status IN ('confirmed', 'accepted', 'completed')
+        ORDER BY pt.created_at DESC
+        LIMIT 3`,
+      [aggregator.id]
+    );
+    if (!unpaid.rows.length) return 'END No unpaid collections.\n\nWhen you have unpaid\ndrop-offs, they will\nappear here.';
+    let msg = 'CON Unpaid drop-offs:\n';
+    unpaid.rows.forEach(function(u, i) {
+      var name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim();
+      var shortName = name.length > 12 ? name.split(' ')[0] + ' ' + (name.split(' ')[1] || '').charAt(0) + '.' : name;
+      msg += (i + 1) + '. ' + shortName + ' ' + parseFloat(u.gross_weight_kg).toFixed(0) + 'kg ' + u.material_type + '\n   GHS ' + parseFloat(u.total_price).toFixed(2) + '\n';
+    });
+    msg += '0. Back';
+    return msg;
+  }
+
+  // depth 1+: re-fetch unpaid list, validate selection
+  const unpaid = await pool.query(
+    `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price, pt.transaction_id,
+            c.first_name, c.last_name, c.phone,
+            'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
+       FROM pending_transactions pt
+       JOIN collectors c ON pt.collector_id = c.id
+      WHERE pt.aggregator_id = $1
+        AND pt.payment_status = 'unpaid'
+        AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+        AND pt.status IN ('confirmed', 'accepted', 'completed')
+      ORDER BY pt.created_at DESC
+      LIMIT 3`,
+    [aggregator.id]
+  );
+
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+
+  const choice = parseInt(m[0]);
+  if (isNaN(choice) || choice < 1 || choice > unpaid.rows.length) {
+    return 'END Invalid choice.\nDial again to retry.';
+  }
+  const selected = unpaid.rows[choice - 1];
+  const collName = ((selected.first_name || '') + ' ' + (selected.last_name || '')).trim() || selected.collector_code;
+
+  // depth 1: confirm screen
+  if (depth === 1) {
+    return `CON Pay ${collName} (${selected.collector_code})\n${parseFloat(selected.gross_weight_kg).toFixed(0)}kg ${selected.material_type}: GHS ${parseFloat(selected.total_price).toFixed(2)}\n\n1. Confirm\n0. Cancel`;
+  }
+
+  // depth 2: execute
+  if (depth === 2) {
+    if (m[1] === '0') return 'END Cancelled.';
+    if (m[1] === '1') {
+      // Dual-table UPDATE — pending_transactions + transactions kept in sync.
+      // H8 pattern: PR #79 made transactions row exist for every confirmed
+      // pending row; this PR makes payment_status flip together.
+      const payClient = await pool.connect();
+      try {
+        await payClient.query('BEGIN');
+        await payClient.query(
+          `UPDATE pending_transactions
+              SET payment_status = 'paid', payment_method = 'cash',
+                  payment_completed_at = NOW(), updated_at = NOW()
+            WHERE id = $1 AND payment_status = 'unpaid'`,
+          [selected.id]
+        );
+        if (selected.transaction_id) {
+          await payClient.query(
+            `UPDATE transactions
+                SET payment_status = 'paid', payment_method = 'cash',
+                    payment_completed_at = NOW(), updated_at = NOW()
+              WHERE id = $1`,
+            [selected.transaction_id]
+          );
+        }
+        await payClient.query('COMMIT');
+      } catch (e) {
+        await payClient.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        payClient.release();
+      }
+      const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(selected.id).padStart(4, '0');
+      return `END Payment recorded!\nRef: ${ref}\n\nGHS ${parseFloat(selected.total_price).toFixed(2)} to ${collName}`;
+    }
   }
 
   return 'END Invalid option.\nDial again to retry.';
@@ -4992,7 +5106,7 @@ async function handleAgentPayment(m, agent) {
   // depth 0: list unpaid collections (agent-specific via agent_activity)
   if (depth === 0) {
     const unpaid = await pool.query(
-      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price,
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price, pt.transaction_id,
               c.first_name, c.last_name, c.phone,
               'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
        FROM agent_activity aa
@@ -5019,7 +5133,7 @@ async function handleAgentPayment(m, agent) {
 
   // Re-fetch to get selected item
   const unpaid = await pool.query(
-    `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price,
+    `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.total_price, pt.transaction_id,
             c.id AS collector_id, c.first_name, c.last_name, c.phone, c.city,
             'COL-' || LPAD(c.id::text, 4, '0') AS collector_code
      FROM agent_activity aa
@@ -5050,13 +5164,37 @@ async function handleAgentPayment(m, agent) {
       // Phase 5B: agent cash payments are out-of-band (paid on the spot in cash).
       // No PAYMENT_SENT or PAYMENT_CONFIRMED SMS — collector already has the money,
       // and PAYMENT_CONFIRMED semantically targets a remote buyer, not the seller.
-      await pool.query(
-        `UPDATE pending_transactions
-         SET payment_status = 'paid', payment_method = 'cash',
-             payment_completed_at = NOW(), updated_at = NOW()
-         WHERE id = $1 AND payment_status = 'unpaid'`,
-        [selected.id]
-      );
+      // H8 (PR #80): dual-table UPDATE — keep transactions.payment_status in
+      // sync with pending_transactions.payment_status. PR #79 ensured every
+      // confirmed pending row has a transactions row via promoteToTransactions;
+      // here we make payment_status flip together so dashboard P&L COGS /
+      // Outstanding queries reflect actual payment state.
+      const payClient = await pool.connect();
+      try {
+        await payClient.query('BEGIN');
+        await payClient.query(
+          `UPDATE pending_transactions
+              SET payment_status = 'paid', payment_method = 'cash',
+                  payment_completed_at = NOW(), updated_at = NOW()
+            WHERE id = $1 AND payment_status = 'unpaid'`,
+          [selected.id]
+        );
+        if (selected.transaction_id) {
+          await payClient.query(
+            `UPDATE transactions
+                SET payment_status = 'paid', payment_method = 'cash',
+                    payment_completed_at = NOW(), updated_at = NOW()
+              WHERE id = $1`,
+            [selected.transaction_id]
+          );
+        }
+        await payClient.query('COMMIT');
+      } catch (e) {
+        await payClient.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        payClient.release();
+      }
       await pool.query(
         `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
          VALUES ($1, $2, 'payment', $3, $4, 'transaction')`,
@@ -5541,7 +5679,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
 async function handleAggregatorMarketplace(m, aggregator) {
   if (m.length === 0) return 'CON Marketplace:\n1. Browse Sellers\n2. Post Buy Request\n3. Sell to Processors\n4. My Offers\n0. Back';
 
-  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
   if (m[0] === '1') return await handleAggregatorBrowseSellers(m.slice(1), aggregator);
   if (m[0] === '2') return await handleAggregatorPostBuyRequest(m.slice(1), aggregator);
   if (m[0] === '3') return await handleAggregatorSellToProcessors(m.slice(1), aggregator);
