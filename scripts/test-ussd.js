@@ -596,6 +596,58 @@ const TESTS = [
     },
   },
 
+  // ─── H7: Aggregator USSD Record Payment + H8 dual-table sync ─────────────
+  // Setup: log a fresh purchase as aggregator (auto-confirms, dual-row
+  // promotes via PR #79 path A). Then dial back in and use the new
+  // Record Payment menu item (option 4 post-PR-#80) to mark it paid.
+  // Assert payment_status='paid' on BOTH pending_transactions AND transactions
+  // — verifies H8 dual-table sync.
+  {
+    name: 'pr80-H7-aggregator-ussd-record-payment',
+    phoneNumber: TEST_AGGREGATOR_PHONE.replace('+233', '0'),
+    steps: [
+      { input: '',                                        match: /CON Circul Aggregator/ },
+      { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register/ },
+      // Step 1: log fresh purchase (auto-confirms via PR #79)
+      { input: '2',                                       match: /CON Log Transaction/ },
+      { input: '1',                                       match: /Enter collector phone|Select collector/ },
+      { input: TEST_COLLECTOR_PHONE.replace('+233', '0'), match: /CON Collector found:/ },
+      { input: '1',                                       match: /CON Select material/ },
+      { input: '1',                                       match: /CON Enter weight in kg/ },
+      { input: '13',                                      match: /CON Enter price per kg/ },
+      { input: '4',                                       match: /CON Confirm purchase:/ },
+      { input: '1',                                       match: /END PURCHASE LOGGED/ },
+    ],
+  },
+  {
+    name: 'pr80-H7-record-payment-flow',
+    phoneNumber: TEST_AGGREGATOR_PHONE.replace('+233', '0'),
+    steps: [
+      { input: '',                                        match: /CON Circul Aggregator/ },
+      { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register[\s\S]*4\. Record Payment[\s\S]*5\. More/ },
+      { input: '4',                                       match: /CON Unpaid drop-offs:/ },
+      { input: '1',                                       match: /CON Pay .* GHS/ },
+      { input: '1',                                       match: /END Payment recorded!/ },
+    ],
+    after: async () => {
+      // Verify H8: BOTH tables updated to payment_status='paid'.
+      const ptRes = await pool.query(
+        `SELECT pt.payment_status AS pt_pay, t.payment_status AS t_pay, pt.transaction_id
+           FROM pending_transactions pt
+           LEFT JOIN transactions t ON t.id = pt.transaction_id
+           JOIN aggregators a ON a.id = pt.aggregator_id
+           JOIN collectors c ON c.id = pt.collector_id
+          WHERE a.phone = $1 AND c.phone = $2 AND pt.material_type = 'PET' AND pt.gross_weight_kg = 13
+          ORDER BY pt.created_at DESC LIMIT 1`,
+        [TEST_AGGREGATOR_PHONE, TEST_COLLECTOR_PHONE]
+      );
+      if (!ptRes.rows.length) throw new Error('[H7/H8] no test row found');
+      const r = ptRes.rows[0];
+      if (r.pt_pay !== 'paid') throw new Error(`[H7/H8] pending_transactions.payment_status expected 'paid', got '${r.pt_pay}'`);
+      if (r.transaction_id && r.t_pay !== 'paid') throw new Error(`[H7/H8] transactions.payment_status expected 'paid', got '${r.t_pay}'`);
+    },
+  },
+
   // ─── confirm-action screens (post-#69 compressed) ───────────────────────────
   {
     name: 'aggregator-confirm-purchase-screen-renders',
