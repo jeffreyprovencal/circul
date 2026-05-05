@@ -70,6 +70,29 @@ function hashPin(pin) {
   });
 }
 
+async function assertPromoted({ aggregator_phone, collector_phone, material, qty, label, expectedStatus }) {
+  // Verify the most recent pending row matching the test flow has a non-null
+  // transaction_id, the matching transactions row exists, and pending status
+  // matches the expected promotion status.
+  const ptRes = await pool.query(
+    `SELECT pt.id, pt.transaction_id, pt.status
+       FROM pending_transactions pt
+       JOIN aggregators a ON a.id = pt.aggregator_id
+       JOIN collectors c ON c.id = pt.collector_id
+      WHERE a.phone = $1 AND c.phone = $2
+        AND pt.material_type = $3 AND pt.gross_weight_kg = $4
+      ORDER BY pt.created_at DESC LIMIT 1`,
+    [aggregator_phone, collector_phone, material, qty]
+  );
+  if (!ptRes.rows.length) throw new Error(`[${label}] no pending_transactions row found`);
+  const pt = ptRes.rows[0];
+  if (!pt.transaction_id) throw new Error(`[${label}] pending row ${pt.id} has NULL transaction_id (status=${pt.status}); expected promoted`);
+  if (pt.status !== expectedStatus) throw new Error(`[${label}] expected status='${expectedStatus}', got '${pt.status}'`);
+  const txnRes = await pool.query(`SELECT id FROM transactions WHERE id = $1`, [pt.transaction_id]);
+  if (!txnRes.rows.length) throw new Error(`[${label}] pending.transaction_id=${pt.transaction_id} but no transactions row exists`);
+  return { pendingId: pt.id, txnId: pt.transaction_id, status: pt.status };
+}
+
 function postUssd({ sessionId, phoneNumber, serviceCode = '*920*54#', text }) {
   const url = new URL(BASE + '/api/ussd');
   const lib = url.protocol === 'https:' ? https : http;
@@ -123,6 +146,13 @@ async function runTest(t) {
   for (let i = 0; i < t.steps.length; i++) {
     const r = await runStep(t.steps[i], history, sessionId, t.phoneNumber);
     if (!r.ok) return { name: t.name, ok: false, stepIndex: i, reason: r.reason };
+  }
+  if (typeof t.after === 'function') {
+    try {
+      await t.after();
+    } catch (e) {
+      return { name: t.name, ok: false, reason: 'after-hook failed: ' + e.message };
+    }
   }
   return { name: t.name, ok: true };
 }
@@ -496,6 +526,74 @@ const TESTS = [
       { input: '5678', match: /CON Working for:/ },
       { input: '2',    match: /No unpaid collections|Unpaid collections/ },
     ],
+  },
+
+  // ─── path A: aggregator USSD log-purchase auto-confirms + dual-row promotes ───
+  // Verifies the dual-row pattern: pending_transactions row has status='confirmed'
+  // and transaction_id set, transactions row exists.
+  {
+    name: 'path-A-aggregator-log-purchase-auto-promotes',
+    phoneNumber: TEST_AGGREGATOR_PHONE.replace('+233', '0'),
+    steps: [
+      { input: '',                                        match: /CON Circul Aggregator/ },
+      { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register/ },
+      { input: '2',                                       match: /CON Log Transaction/ },
+      { input: '1',                                       match: /Enter collector phone|Select collector/ },
+      { input: TEST_COLLECTOR_PHONE.replace('+233', '0'), match: /CON Collector found:/ },
+      { input: '1',                                       match: /CON Select material/ },
+      { input: '1',                                       match: /CON Enter weight in kg/ },
+      { input: '7',                                       match: /CON Enter price per kg/ },
+      { input: '3.5',                                     match: /CON Confirm purchase:/ },
+      { input: '1',                                       match: /END PURCHASE LOGGED/ },
+    ],
+    after: async () => {
+      await assertPromoted({
+        aggregator_phone: TEST_AGGREGATOR_PHONE,
+        collector_phone: TEST_COLLECTOR_PHONE,
+        material: 'PET',
+        qty: 7,
+        label: 'path-A',
+        expectedStatus: 'confirmed'
+      });
+    },
+  },
+
+  // ─── path B: aggregator confirms collector drop-off → dual-row promotes ───
+  // Setup: collector logs drop-off (creates pending status='pending').
+  // Then aggregator goes to Pending Drop-offs and confirms.
+  {
+    name: 'path-B-collector-drop-off',
+    phoneNumber: TEST_COLLECTOR_PHONE.replace('+233', '0'),
+    steps: [
+      { input: '',                 match: /CON Circul Collector/ },
+      { input: TEST_COLLECTOR_PIN, match: /CON 1\. Log Drop-off/ },
+      { input: '1',                match: /CON Select aggregator|CON Pick aggregator/ },
+      { input: '1',                match: /CON Select material/ },
+      { input: '1',                match: /CON Enter weight in kg/ },
+      { input: '11',               match: /CON Confirm drop-off:/ },
+      { input: '1',                match: /END DROP-OFF LOGGED|END Drop-off recorded/ },
+    ],
+  },
+  {
+    name: 'path-B-aggregator-confirm-promotes',
+    phoneNumber: TEST_AGGREGATOR_PHONE.replace('+233', '0'),
+    steps: [
+      { input: '',                  match: /CON Circul Aggregator/ },
+      { input: TEST_AGGREGATOR_PIN, match: /CON 1\. Register/ },
+      { input: '3',                 match: /CON Pending drop-offs:/ },
+      { input: '1',                 match: /from\n.*\(COL-/ },
+      { input: '1',                 match: /END DROP-OFF CONFIRMED/ },
+    ],
+    after: async () => {
+      await assertPromoted({
+        aggregator_phone: TEST_AGGREGATOR_PHONE,
+        collector_phone: TEST_COLLECTOR_PHONE,
+        material: 'PET',
+        qty: 11,
+        label: 'path-B',
+        expectedStatus: 'confirmed'
+      });
+    },
   },
 
   // ─── confirm-action screens (post-#69 compressed) ───────────────────────────

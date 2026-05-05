@@ -22,6 +22,7 @@ const {
 const {
   attributeAndInsert,
   insertRootTransaction,
+  promoteToTransactions,
   InsufficientSourceError
 } = require('./shared/chain-of-custody-db');
 const { ROOT_TYPES: COC_ROOT_TYPES } = require('./shared/chain-of-custody');
@@ -687,18 +688,28 @@ app.post('/api/collector/transactions/:id/confirm', requireAuth, async (req, res
 app.post('/api/collector/pending-purchases/:id/accept', requireAuth, async (req, res) => {
   try {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
-    const result = await pool.query(
-      `UPDATE pending_transactions SET status='accepted', updated_at=NOW() WHERE id=$1 AND collector_id=$2 AND status='pending' RETURNING *`,
-      [req.params.id, req.user.id]
-    );
-    if (!result.rows.length) {
-      const check = await pool.query(`SELECT id, collector_id, status FROM pending_transactions WHERE id=$1`, [req.params.id]);
-      if (!check.rows.length) return res.status(404).json({ success: false, message: 'Pending transaction not found' });
-      if (check.rows[0].collector_id !== req.user.id) return res.status(403).json({ success: false, message: 'This transaction belongs to a different collector' });
-      if (check.rows[0].status !== 'pending') return res.status(409).json({ success: false, message: 'Transaction already ' + check.rows[0].status });
-      return res.status(404).json({ success: false, message: 'Could not accept transaction' });
+    const acceptClient = await pool.connect();
+    let updated;
+    try {
+      await acceptClient.query('BEGIN');
+      const selected = await acceptClient.query(
+        `SELECT id, collector_id, status FROM pending_transactions WHERE id=$1 FOR UPDATE`,
+        [req.params.id]
+      );
+      if (!selected.rows.length) { await acceptClient.query('ROLLBACK'); return res.status(404).json({ success: false, message: 'Pending transaction not found' }); }
+      if (selected.rows[0].collector_id !== req.user.id) { await acceptClient.query('ROLLBACK'); return res.status(403).json({ success: false, message: 'This transaction belongs to a different collector' }); }
+      if (selected.rows[0].status !== 'pending') { await acceptClient.query('ROLLBACK'); return res.status(409).json({ success: false, message: 'Transaction already ' + selected.rows[0].status }); }
+      await promoteToTransactions(acceptClient, parseInt(req.params.id), 'accepted');
+      const final = await acceptClient.query(`SELECT * FROM pending_transactions WHERE id=$1`, [req.params.id]);
+      updated = final.rows[0];
+      await acceptClient.query('COMMIT');
+    } catch (e) {
+      await acceptClient.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      acceptClient.release();
     }
-    res.json({ success: true, pending_transaction: result.rows[0] });
+    res.json({ success: true, pending_transaction: updated });
   } catch (err) { console.error('POST /api/collector/pending-purchases/:id/accept error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -1592,6 +1603,12 @@ app.post('/api/offers/:id/accept', requireAuth, async (req, res) => {
         // junction edges. Throws InsufficientSourceError on shortfall.
         const { row } = await attributeAndInsert(client, target);
         ptRow = row;
+      }
+      // Dual-row promotion for collector_sale subtype only — transactions
+      // table is collector<->aggregator-only by schema. Higher-tier types
+      // stay in pending_transactions exclusively.
+      if (txnType === 'collector_sale') {
+        await promoteToTransactions(client, ptRow.id, 'confirmed');
       }
       await client.query('COMMIT');
       // Notify the buyer that their offer was accepted
@@ -3814,7 +3831,7 @@ async function handleAggregatorUssd(parts, aggregator) {
           pool.query(
             `SELECT COUNT(*) as count FROM pending_transactions
              WHERE aggregator_id = $1 AND status = 'pending'
-               AND transaction_type IN ('collector_sale','aggregator_purchase')`,
+               AND transaction_type = 'collector_sale'`,
             [aggregator.id]
           )
         ]);
@@ -4101,7 +4118,7 @@ async function handleAggregatorPurchase(m, aggregator) {
         await ussdClient.query('BEGIN');
         const { row } = await insertRootTransaction(ussdClient, {
           transaction_type: 'aggregator_purchase',
-          status: 'pending',
+          status: 'confirmed',
           collector_id: collector.id,
           aggregator_id: aggregator.id,
           material_type: material,
@@ -4111,6 +4128,7 @@ async function handleAggregatorPurchase(m, aggregator) {
           total_price: parseFloat(total),
           source: 'ussd'
         });
+        await promoteToTransactions(ussdClient, row.id, 'confirmed');
         await ussdClient.query('COMMIT');
         rootRow = row;
       } catch (e) {
@@ -4548,7 +4566,7 @@ async function handleAggregatorPending(m, aggregator) {
        FROM pending_transactions pt
        LEFT JOIN collectors c ON c.id = pt.collector_id
        WHERE pt.aggregator_id = $1 AND pt.status = 'pending'
-         AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+         AND pt.transaction_type = 'collector_sale'
        ORDER BY pt.created_at DESC
        LIMIT 4`,
       [aggregator.id]
@@ -4578,7 +4596,7 @@ async function handleAggregatorPending(m, aggregator) {
      FROM pending_transactions pt
      LEFT JOIN collectors c ON c.id = pt.collector_id
      WHERE pt.aggregator_id = $1 AND pt.status = 'pending'
-       AND pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+       AND pt.transaction_type = 'collector_sale'
      ORDER BY pt.created_at DESC
      LIMIT 4`,
     [aggregator.id]
@@ -4598,11 +4616,18 @@ async function handleAggregatorPending(m, aggregator) {
     if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
     if (m[1] === '1') {
-      // Confirm
-      await pool.query(
-        `UPDATE pending_transactions SET status = 'confirmed', updated_at = NOW() WHERE id = $1`,
-        [selected.id]
-      );
+      // Confirm — promote to transactions table (dual-row pattern).
+      const confirmClient = await pool.connect();
+      try {
+        await confirmClient.query('BEGIN');
+        await promoteToTransactions(confirmClient, selected.id, 'confirmed');
+        await confirmClient.query('COMMIT');
+      } catch (e) {
+        await confirmClient.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        confirmClient.release();
+      }
       try {
         if (selected.collector_phone) {
           const ref = 'TXN-' + new Date(selected.created_at).toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(selected.id).padStart(4, '0');
@@ -4618,7 +4643,7 @@ async function handleAggregatorPending(m, aggregator) {
       const remainCount = await pool.query(
         `SELECT COUNT(*) as count FROM pending_transactions
          WHERE aggregator_id = $1 AND status = 'pending'
-           AND transaction_type IN ('collector_sale', 'aggregator_purchase')`,
+           AND transaction_type = 'collector_sale'`,
         [aggregator.id]
       );
       var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
@@ -4652,7 +4677,7 @@ async function handleAggregatorPending(m, aggregator) {
     const remainCount = await pool.query(
       `SELECT COUNT(*) as count FROM pending_transactions
        WHERE aggregator_id = $1 AND status = 'pending'
-         AND transaction_type IN ('collector_sale', 'aggregator_purchase')`,
+         AND transaction_type = 'collector_sale'`,
       [aggregator.id]
     );
     var name = ((selected.collector_first_name || '') + ' ' + (selected.collector_last_name || '')).trim() || selected.collector_code;
@@ -4835,6 +4860,7 @@ async function handleAgentCollection(m, agent) {
           total_price: parseFloat(total),
           source: 'ussd'
         });
+        await promoteToTransactions(ussdClient, row.id, 'completed');
         await ussdClient.query('COMMIT');
         rootRow = row;
       } catch (e) {
@@ -5374,10 +5400,18 @@ async function handleCollectorMyOffers(m, collector) {
         if (sellerCol) target[sellerCol] = listing.seller_id;
         if (buyerCol && buyerCol !== sellerCol) target[buyerCol] = selected.buyer_id;
 
+        let ptRow;
         if (COC_ROOT_TYPES[txnType]) {
-          await insertRootTransaction(client, target);
+          const { row } = await insertRootTransaction(client, target);
+          ptRow = row;
         } else {
-          await attributeAndInsert(client, target);
+          const { row } = await attributeAndInsert(client, target);
+          ptRow = row;
+        }
+        // Dual-row promotion for collector_sale subtype only — transactions
+        // table is collector<->aggregator-only by schema.
+        if (txnType === 'collector_sale') {
+          await promoteToTransactions(client, ptRow.id, 'confirmed');
         }
 
         await client.query('COMMIT');
@@ -5825,10 +5859,18 @@ async function handleAggregatorMyOffers(m, aggregator) {
         if (sellerCol) target[sellerCol] = listing.seller_id;
         if (buyerCol && buyerCol !== sellerCol) target[buyerCol] = selected.buyer_id;
 
+        let ptRow;
         if (COC_ROOT_TYPES[txnType]) {
-          await insertRootTransaction(client, target);
+          const { row } = await insertRootTransaction(client, target);
+          ptRow = row;
         } else {
-          await attributeAndInsert(client, target);
+          const { row } = await attributeAndInsert(client, target);
+          ptRow = row;
+        }
+        // Dual-row promotion for collector_sale subtype only — transactions
+        // table is collector<->aggregator-only by schema.
+        if (txnType === 'collector_sale') {
+          await promoteToTransactions(client, ptRow.id, 'confirmed');
         }
         await client.query('COMMIT');
       } catch (txErr) {
@@ -6083,7 +6125,7 @@ app.get('/api/pending-transactions', async (req, res) => {
       query = `SELECT pt.*, COALESCE(p.company, p.name) AS processor_name, p.company AS processor_company FROM pending_transactions pt LEFT JOIN processors p ON p.id=pt.processor_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type='aggregator_sale' ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     } else {
-      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'COL-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type IN ('collector_sale','aggregator_purchase') ORDER BY pt.created_at DESC`;
+      query = `SELECT pt.*, c.first_name AS collector_first_name, c.last_name AS collector_last_name, 'COL-' || LPAD(c.id::text, 4, '0') AS collector_display_name FROM pending_transactions pt LEFT JOIN collectors c ON c.id=pt.collector_id WHERE pt.aggregator_id=$1 AND pt.status='pending' AND pt.transaction_type = 'collector_sale' ORDER BY pt.created_at DESC`;
       params = [aggregator_id];
     }
     const result = await pool.query(query, params);
@@ -6096,7 +6138,12 @@ app.get('/api/pending-transactions/collector-sales', requireAuth, async (req, re
     const { collector_id } = req.query;
     if (req.user.id !== parseInt(collector_id)) return res.status(403).json({ success: false, message: 'Access denied' });
     if (!collector_id) return res.status(400).json({ success: false, message: 'collector_id required' });
-    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company, t.price_per_kg AS final_price_per_kg, t.total_price AS final_total_price FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id LEFT JOIN transactions t ON t.id=pt.transaction_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
+    // F5 (PR #79): exclude rows that have already been promoted to transactions.
+    // Those are shown via /api/collector/transactions instead. Without this
+    // filter, the collector dashboard renders every confirmed transaction
+    // TWICE — once from this endpoint (the pending row with stale status),
+    // once from the transactions endpoint (the canonical row).
+    const result = await pool.query(`SELECT pt.*, a.name AS aggregator_name, a.company AS aggregator_company FROM pending_transactions pt LEFT JOIN aggregators a ON a.id=pt.aggregator_id WHERE pt.transaction_type='collector_sale' AND pt.collector_id=$1 AND pt.transaction_id IS NULL ORDER BY pt.created_at DESC LIMIT 20`, [collector_id]);
     res.json({ success: true, pending_transactions: result.rows });
   } catch (err) { console.error('GET /api/pending-transactions/collector-sales error:', err.message); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -6152,13 +6199,45 @@ app.patch('/api/pending-transactions/:id/review', requireAuth, async (req, res) 
         const updated = await pool.query(`UPDATE pending_transactions SET status='rejected', rejection_reason=$1, updated_at=NOW() WHERE id=$2 RETURNING *`, [rejection_reason, id]);
         return res.json({ success: true, pending_transaction: updated.rows[0] });
       }
-      const updated = await pool.query(`UPDATE pending_transactions SET status='confirmed', updated_at=NOW() WHERE id=$1 RETURNING *`, [id]);
-      return res.json({ success: true, pending_transaction: updated.rows[0] });
+      // Accept — dual-row promotion to transactions table.
+      const acceptClient = await pool.connect();
+      let updated;
+      try {
+        await acceptClient.query('BEGIN');
+        await promoteToTransactions(acceptClient, parseInt(id), 'confirmed');
+        const final = await acceptClient.query(`SELECT * FROM pending_transactions WHERE id=$1`, [id]);
+        updated = final.rows[0];
+        await acceptClient.query('COMMIT');
+      } catch (e) {
+        await acceptClient.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        acceptClient.release();
+      }
+      return res.json({ success: true, pending_transaction: updated });
     }
     if (pt.transaction_type !== 'collector_sale') return res.status(400).json({ success: false, message: 'Only collector_sale transactions can be reviewed this way' });
     if (action === 'reject') {
       if (!rejection_reason) return res.status(400).json({ success: false, message: 'rejection_reason is required' });
       const updated = await pool.query(`UPDATE pending_transactions SET status='rejected', rejected_at=NOW(), rejection_reason=$1, updated_at=NOW() WHERE id=$2 RETURNING *`, [rejection_reason, id]);
+      try {
+        const lookup = await pool.query(
+          `SELECT c.phone AS collector_phone, a.name AS aggregator_name
+             FROM pending_transactions pt
+             JOIN collectors c ON c.id = pt.collector_id
+             JOIN aggregators a ON a.id = pt.aggregator_id
+            WHERE pt.id = $1`,
+          [id]
+        );
+        if (lookup.rows.length && lookup.rows[0].collector_phone) {
+          await notify(EVENTS.DROPOFF_REJECTED, lookup.rows[0].collector_phone, {
+            aggregator_name: lookup.rows[0].aggregator_name || 'Aggregator',
+            qty: parseFloat(pt.gross_weight_kg).toFixed(0),
+            material: pt.material_type,
+            reason: rejection_reason
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] dropoff_rejected (web review) failed:', e.message); }
       return res.json({ success: true, pending_transaction: updated.rows[0] });
     }
     if (!grade || !['A','B','C'].includes(grade)) return res.status(400).json({ success: false, message: 'grade (A, B, or C) is required' });
@@ -6174,6 +6253,26 @@ app.patch('/api/pending-transactions/:id/review', requireAuth, async (req, res) 
     const totalPrice = parseFloat((adjustedPrice * parseFloat(pt.gross_weight_kg)).toFixed(2));
     const txnResult = await pool.query(`INSERT INTO transactions (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg, contamination_deduction_percent, price_per_kg, total_price, payment_status, notes) VALUES ($1,$2,$3,$4,$4,0,$5,$6,'unpaid',$7) RETURNING *`, [pt.collector_id, pt.aggregator_id, pt.material_type, pt.gross_weight_kg, adjustedPrice, totalPrice, 'grade:'+grade]);
     const updatedPt = await pool.query(`UPDATE pending_transactions SET status='confirmed', grade=$1, grade_notes=$2, transaction_id=$3, updated_at=NOW() WHERE id=$4 RETURNING *`, [grade, grade_notes||null, txnResult.rows[0].id, id]);
+    try {
+      const lookup = await pool.query(
+        `SELECT c.phone AS collector_phone, a.name AS aggregator_name
+           FROM pending_transactions pt
+           JOIN collectors c ON c.id = pt.collector_id
+           JOIN aggregators a ON a.id = pt.aggregator_id
+          WHERE pt.id = $1`,
+        [id]
+      );
+      if (lookup.rows.length && lookup.rows[0].collector_phone) {
+        const ref = 'TXN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(id).padStart(4, '0');
+        await notify(EVENTS.DROPOFF_CONFIRMED, lookup.rows[0].collector_phone, {
+          aggregator_name: lookup.rows[0].aggregator_name || 'Aggregator',
+          qty: parseFloat(pt.gross_weight_kg).toFixed(0),
+          material: pt.material_type,
+          amount: parseFloat(totalPrice).toFixed(2),
+          ref: ref
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] dropoff_confirmed (web review) failed:', e.message); }
     return res.json({ success: true, pending_transaction: updatedPt.rows[0], transaction: txnResult.rows[0], final_price_per_kg: adjustedPrice });
   } catch (err) { console.error('Review pending transaction error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
@@ -6196,7 +6295,7 @@ app.post('/api/pending-transactions/aggregator-purchase', requireAuth, async (re
       await client.query('BEGIN');
       const { row } = await insertRootTransaction(client, {
         transaction_type: 'aggregator_purchase',
-        status: 'pending',
+        status: 'confirmed',
         collector_id: parseInt(collector_id),
         aggregator_id: parseInt(aggregator_id),
         material_type: material_type.toUpperCase(),
@@ -6204,6 +6303,7 @@ app.post('/api/pending-transactions/aggregator-purchase', requireAuth, async (re
         price_per_kg: pricePer,
         total_price: totalPrice
       });
+      await promoteToTransactions(client, row.id, 'confirmed');
       await client.query('COMMIT');
       return res.status(201).json({ success: true, pending_transaction: row });
     } catch (e) {
@@ -8775,6 +8875,7 @@ app.post('/api/agent/log-collection', requireAuth, async (req, res) => {
         total_price: total
       });
       insertedId = row.id;
+      await promoteToTransactions(client, row.id, 'completed');
       await client.query(
         `INSERT INTO agent_activity (agent_id, aggregator_id, action_type, description, related_id, related_type)
          VALUES ($1,$2,'collection',$3,$4,'transaction')`,
