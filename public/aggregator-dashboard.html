@@ -318,7 +318,7 @@
       <div class="section-head">
         <div>
           <div class="section-title">Marketplace — My Prices</div>
-          <div class="section-sub">Current prices posted · GHS/kg</div>
+          <div class="section-sub">Current prices posted · GH¢/kg</div>
         </div>
       </div>
       <div class="price-grid" id="priceCards">
@@ -1211,7 +1211,27 @@ async function loadPL(range, manual) {
     if (!statsRes.ok) throw new Error(statsRes.status);
     var statsData = await statsRes.json();
     var pl = (statsData.stats || {}).pl;
-    plData = pl || { revenue:{amount:0,mom:0}, cogs:{amount:0,mom:0}, gross:{amount:0,mom:0,pct:0}, opex:{amount:0,mom:0}, net:{amount:0,mom:0,pct:0} };
+
+    if (range === 'ytd' && pl && pl.ytd) {
+      // F3 (PR #80): synthesize plData from YTD revenue + COGS. mom is
+      // meaningless for YTD (we don't fetch last-YTD totals) so we set it
+      // to 0; render code displays a flat trend pill in that case. opex/net
+      // get re-derived AFTER expenses fetch below using plExpenses.total.
+      var revYtd = pl.ytd.revenue || 0;
+      var cogsYtd = pl.ytd.cogs || 0;
+      var grossYtd = revYtd - cogsYtd;
+      var grossPctYtd = revYtd > 0 ? Math.round((grossYtd / revYtd) * 1000) / 10 : 0;
+      plData = {
+        revenue: { amount: revYtd, mom: 0 },
+        cogs:    { amount: cogsYtd, mom: 0 },
+        gross:   { amount: grossYtd, mom: 0, pct: grossPctYtd },
+        opex:    { amount: 0, mom: 0 },                                 // patched after expenses fetch
+        net:     { amount: grossYtd, mom: 0, pct: grossPctYtd },        // patched after expenses fetch
+        period:  pl.ytd.period
+      };
+    } else {
+      plData = pl || { revenue:{amount:0,mom:0}, cogs:{amount:0,mom:0}, gross:{amount:0,mom:0,pct:0}, opex:{amount:0,mom:0}, net:{amount:0,mom:0,pct:0} };
+    }
 
     // Expenses fetch is non-blocking — P&L renders even if expenses fail
     try {
@@ -1226,6 +1246,20 @@ async function loadPL(range, manual) {
     } catch (expErr) {
       console.warn('Expenses fetch failed, rendering P&L without expense breakdown:', expErr);
       plExpenses = null;
+    }
+
+    // F3 (PR #80): for YTD, re-derive opex + net from the YTD expenses we
+    // just fetched so the OpEx row + Net Margin reflect actual YTD totals
+    // (not the placeholder 0 we set above). Month range stays untouched —
+    // server-side opexThis already covers it.
+    if (range === 'ytd' && plExpenses && typeof plExpenses.total === 'number') {
+      var opexYtd = plExpenses.total;
+      var netYtd  = (plData.gross.amount || 0) - opexYtd;
+      var netPctYtd = (plData.revenue.amount || 0) > 0
+        ? Math.round((netYtd / plData.revenue.amount) * 1000) / 10
+        : 0;
+      plData.opex = { amount: opexYtd, mom: 0 };
+      plData.net  = { amount: netYtd,  mom: 0, pct: netPctYtd };
     }
 
     _plFailCount = 0; // reset on success
@@ -1303,8 +1337,8 @@ function renderPL() {
     html += '<div class="pl-empty">' +
       '<div class="pl-empty-icon">📊</div>' +
       '<div class="pl-empty-title">Your P&amp;L builds as you trade</div>' +
-      '<div class="pl-empty-text">Revenue and costs appear automatically from your purchases and sales. Log your first expense to start tracking profit.</div>' +
-      '<button class="pl-empty-cta" onclick="openLogExpense()">+ Log your first expense</button>' +
+      '<div class="pl-empty-text">No activity in this period. Use the YTD toggle above to see year-to-date performance, or log an expense if applicable.</div>' +
+      '<button class="pl-empty-cta" onclick="openLogExpense()">+ Log an expense</button>' +
     '</div>';
   }
 
@@ -2725,7 +2759,7 @@ function loadProcessorPrices() {
           return '<tr>' +
             '<td class="td-name">' + nameCell(p.processor_name, p.processor_code, p.name_visible) + '</td>' +
             '<td>' + esc(p.material_type) + '</td>' +
-            '<td class="td-green">GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg</td>' +
+            '<td class="td-green">GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg</td>' +
             '<td>' + fmtDate(p.updated_at) + '</td>' +
             '</tr>';
         }).join('') +
@@ -2793,7 +2827,7 @@ async function loadMyBuyRequests(){
         + '<td>'+fmtDate(o.created_at)+'</td>'
         + '<td>'+matPill(o.material_type)+'</td>'
         + '<td>'+parseFloat(o.target_quantity_kg).toLocaleString()+' kg</td>'
-        + '<td class="td-green">GHS '+parseFloat(o.price_per_kg).toFixed(2)+'</td>'
+        + '<td class="td-green">GH¢ '+parseFloat(o.price_per_kg).toFixed(2)+'</td>'
         + '<td style="color:var(--text-2);font-size:0.78rem;max-width:240px;white-space:normal">'+(o.notes ? escapeHtml(o.notes) : '<span style="color:var(--text-3)">—</span>')+'</td>'
         + '<td>'+statusPill(o.status)+'</td>'
         + '<td>'+(o.status==='open' ? '<button class="btn" onclick="cancelBuyRequest('+o.id+')">Cancel</button>' : '')+'</td>'
@@ -3738,7 +3772,7 @@ function fmtGhs(n) {
 function fmtPaymentStatus(s) {
     if (s === 'paid') return 'Paid';
     if (s === 'payment_sent') return 'Sent';
-    return 'Pending';
+    return 'Unpaid';
 }
 
 function reportPreview() {
@@ -3804,7 +3838,7 @@ function htmlEsc(v) {
 }
 
 function renderSourcingTable(rows) {
-    var headers = '<thead><tr><th>Date</th><th>Ref</th><th>Collector</th><th>Material</th><th style="text-align:right">Net kg</th><th style="text-align:right">GH\u20b5/kg</th><th style="text-align:right">Total</th><th>Status</th></tr></thead>';
+    var headers = '<thead><tr><th>Date</th><th>Ref</th><th>Collector</th><th>Material</th><th style="text-align:right">Net kg</th><th style="text-align:right">GH\u20b5/kg</th><th style="text-align:right">Total</th><th>Payment</th></tr></thead>';
     if (!rows.length) {
         return headers + '<tbody><tr><td colspan="8" class="empty" style="text-align:center;padding:18px">No transactions in this range.</td></tr></tbody>';
     }
@@ -3829,7 +3863,7 @@ function renderSourcingTable(rows) {
 }
 
 function renderSalesTable(rows) {
-    var headers = '<thead><tr><th>Date</th><th>Ref</th><th>Buyer</th><th>Material</th><th style="text-align:right">Net kg</th><th style="text-align:right">GH\u20b5/kg</th><th style="text-align:right">Total</th><th>Trace</th><th>Status</th></tr></thead>';
+    var headers = '<thead><tr><th>Date</th><th>Ref</th><th>Buyer</th><th>Material</th><th style="text-align:right">Net kg</th><th style="text-align:right">GH\u20b5/kg</th><th style="text-align:right">Total</th><th>Trace</th><th>Payment</th></tr></thead>';
     if (!rows.length) {
         return headers + '<tbody><tr><td colspan="9" class="empty" style="text-align:center;padding:18px">No transactions in this range.</td></tr></tbody>';
     }
@@ -4092,7 +4126,7 @@ function reportDownloadPDF() {
         // Transactions table
         var headers, body;
         if (filters.type === 'sourcing') {
-            headers = ['Date', 'Ref', 'Collector', 'Material', 'Net kg', 'GHS/kg', 'Total GHS', 'Status'];
+            headers = ['Date', 'Ref', 'Collector', 'Material', 'Net kg', 'GHS/kg', 'Total GHS', 'Payment'];
             body = response.rows.map(function (r) {
                 // PRIVACY: collector_code only.
                 return [
@@ -4107,7 +4141,7 @@ function reportDownloadPDF() {
                 ];
             });
         } else {
-            headers = ['Date', 'Ref', 'Buyer', 'Material', 'Net kg', 'GHS/kg', 'Total GHS', 'Trace', 'Status'];
+            headers = ['Date', 'Ref', 'Buyer', 'Material', 'Net kg', 'GHS/kg', 'Total GHS', 'Trace', 'Payment'];
             body = response.rows.map(function (r) {
                 return [
                     formatDdMmYyyy(new Date(r.date)),
