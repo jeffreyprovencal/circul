@@ -660,13 +660,37 @@ app.post('/api/collector/confirm-receipt', requireAuth, async (req, res) => {
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const { transaction_id } = req.body;
     if (!transaction_id) return res.status(400).json({ success: false, message: 'transaction_id required' });
-    const txn = await pool.query(`SELECT * FROM transactions WHERE id=$1 AND collector_id=$2`, [transaction_id, req.user.id]);
-    if (!txn.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
-    const result = await pool.query(
-      `UPDATE transactions SET payment_status='paid', updated_at=NOW() WHERE id=$1 AND collector_id=$2 RETURNING *`,
-      [transaction_id, req.user.id]
-    );
-    res.json({ success: true, transaction: result.rows[0] });
+    const client = await pool.connect();
+    let updated;
+    try {
+      await client.query('BEGIN');
+      const txn = await client.query(
+        `SELECT id, collector_id FROM transactions WHERE id=$1 AND collector_id=$2 FOR UPDATE`,
+        [transaction_id, req.user.id]
+      );
+      if (!txn.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Transaction not found' });
+      }
+      const result = await client.query(
+        `UPDATE transactions SET payment_status='paid', updated_at=NOW() WHERE id=$1 RETURNING *`,
+        [transaction_id]
+      );
+      updated = result.rows[0];
+      // H5 (PR #80): dual-update — keep pending_transactions.payment_status
+      // in sync. Find the pending row via transaction_id back-reference.
+      await client.query(
+        `UPDATE pending_transactions SET payment_status='paid', payment_completed_at=NOW(), updated_at=NOW() WHERE transaction_id=$1`,
+        [transaction_id]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+    res.json({ success: true, transaction: updated });
   } catch (err) { console.error('POST /api/collector/confirm-receipt error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
@@ -675,13 +699,36 @@ app.post('/api/collector/transactions/:id/confirm', requireAuth, async (req, res
     if (!req.user.hasRole('collector')) return res.status(403).json({ success: false, message: 'Collector access only' });
     const collectorId = req.user.id;
     const txnId = req.params.id;
-    const txn = await pool.query(`SELECT * FROM transactions WHERE id=$1 AND collector_id=$2`, [txnId, collectorId]);
-    if (!txn.rows.length) return res.status(404).json({ success: false, message: 'Transaction not found' });
-    const result = await pool.query(
-      `UPDATE transactions SET payment_status='paid', updated_at=NOW() WHERE id=$1 AND collector_id=$2 RETURNING *`,
-      [txnId, collectorId]
-    );
-    res.json({ success: true, transaction: result.rows[0] });
+    const client = await pool.connect();
+    let updated;
+    try {
+      await client.query('BEGIN');
+      const txn = await client.query(
+        `SELECT id, collector_id FROM transactions WHERE id=$1 AND collector_id=$2 FOR UPDATE`,
+        [txnId, collectorId]
+      );
+      if (!txn.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Transaction not found' });
+      }
+      const result = await client.query(
+        `UPDATE transactions SET payment_status='paid', updated_at=NOW() WHERE id=$1 RETURNING *`,
+        [txnId]
+      );
+      updated = result.rows[0];
+      // H5 (PR #80): dual-update — keep pending_transactions in sync.
+      await client.query(
+        `UPDATE pending_transactions SET payment_status='paid', payment_completed_at=NOW(), updated_at=NOW() WHERE transaction_id=$1`,
+        [txnId]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+    res.json({ success: true, transaction: updated });
   } catch (err) { console.error('POST /api/collector/transactions/:id/confirm error:', err); res.status(500).json({ success: false, message: 'Server error' }); }
 });
 
