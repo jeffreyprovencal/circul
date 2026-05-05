@@ -3864,14 +3864,9 @@ async function handleAggregatorUssd(parts, aggregator) {
     return await handleAggregatorPending(m.slice(1), aggregator);
   }
 
-  // ── Record Payment ──
+  // ── More sub-menu (Marketplace + My Stats + Record Payment) ──
   if (m[0] === '4') {
-    return await handleAggregatorPayment(m.slice(1), aggregator);
-  }
-
-  // ── More sub-menu (Marketplace + My Stats) ──
-  if (m[0] === '5') {
-    if (m.length === 1) return 'CON More options\n1. Marketplace\n2. My Stats\n0. Back';
+    if (m.length === 1) return 'CON More options\n1. Marketplace\n2. My Stats\n3. Record Payment\n0. Back';
     if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
     // Marketplace
@@ -3920,6 +3915,9 @@ async function handleAggregatorUssd(parts, aggregator) {
       if (m[2] === '1') return await handleUssdRating(m.slice(3), 'aggregator', aggregator.id);
       return 'END Invalid option.\nDial again to retry.';
     }
+
+    // Record Payment
+    if (m[1] === '3') return await handleAggregatorPayment(m.slice(2), aggregator);
     return 'END Invalid option.\nDial again to retry.';
   }
 
