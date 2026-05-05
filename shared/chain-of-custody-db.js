@@ -539,9 +539,61 @@ async function insertRootTransaction(client, target) {
   return { row: insertResult.rows[0] };
 }
 
+// ── promoteToTransactions ─────────────────────────────────────────────────
+// Dual-row promotion: given a confirmed pending_transactions row, INSERT a
+// matching row into the transactions table and back-reference via
+// pending_transactions.transaction_id. Used by every "confirm/accept" path
+// across USSD + web to keep the dashboard's transactions-table queries
+// consistent with the chain-of-custody pending_transactions state.
+//
+// Behavior:
+//   - SELECT ... FOR UPDATE on the pending row first — race-safe against
+//     concurrent confirm/decline attempts.
+//   - If collector_id IS NULL on the pending row (e.g., aggregator-declared
+//     shortfall stock at server.js:~4338), skip the INSERT — transactions
+//     table requires NOT NULL collector_id. Just update status + return null.
+//   - Otherwise INSERT into transactions with mapped columns, UPDATE the
+//     pending row's transaction_id + status, return the new transactions.id.
+//
+// Caller owns BEGIN/COMMIT.
+async function promoteToTransactions(client, ptId, finalStatus) {
+  const pt = await client.query(
+    'SELECT collector_id FROM pending_transactions WHERE id = $1 FOR UPDATE',
+    [ptId]
+  );
+  if (!pt.rows.length) {
+    throw new Error('promoteToTransactions: pending_transactions row not found: ' + ptId);
+  }
+  if (pt.rows[0].collector_id === null) {
+    await client.query(
+      'UPDATE pending_transactions SET status = $1, updated_at = NOW() WHERE id = $2',
+      [finalStatus, ptId]
+    );
+    return null;
+  }
+  const txn = await client.query(
+    `INSERT INTO transactions
+       (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
+        contamination_deduction_percent, price_per_kg, total_price, notes,
+        transaction_date, payment_status, created_at)
+     SELECT collector_id, aggregator_id, material_type, gross_weight_kg,
+            COALESCE(net_weight_kg, gross_weight_kg), 0, price_per_kg, total_price,
+            notes, created_at, COALESCE(payment_status, 'unpaid'), created_at
+       FROM pending_transactions WHERE id = $1
+     RETURNING id`,
+    [ptId]
+  );
+  await client.query(
+    'UPDATE pending_transactions SET status = $1, transaction_id = $2, updated_at = NOW() WHERE id = $3',
+    [finalStatus, txn.rows[0].id, ptId]
+  );
+  return txn.rows[0].id;
+}
+
 module.exports = {
   attributeAndInsert: attributeAndInsert,
   insertRootTransaction: insertRootTransaction,
+  promoteToTransactions: promoteToTransactions,
   InsufficientSourceError: InsufficientSourceError,
   WINDOW_DAYS: WINDOW_DAYS,
   EXCLUDED_STATUSES: EXCLUDED_STATUSES,
