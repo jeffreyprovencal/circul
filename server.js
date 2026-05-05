@@ -3833,7 +3833,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   const m = gate.menuParts;
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+  if (depth === 0) return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
@@ -3842,7 +3842,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   if (m[0] === '1') {
     const sub = m.slice(1);
     if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n0. Back';
-    if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+    if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
     if (sub[0] === '1') return await handleAggregatorRegister(sub.slice(1), aggregator, null);
     if (sub[0] === '2') return await handleAggregatorRegisterAgent(sub.slice(1), aggregator);
     return 'END Invalid option.\nDial again to retry.';
@@ -3872,7 +3872,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   // ── More sub-menu (Marketplace + My Stats) ──
   if (m[0] === '5') {
     if (m.length === 1) return 'CON More options\n1. Marketplace\n2. My Stats\n0. Back';
-    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
     // Marketplace
     if (m[1] === '1') return await handleAggregatorMarketplace(m.slice(2), aggregator);
@@ -4662,7 +4662,7 @@ async function handleAggregatorPending(m, aggregator) {
 
   // depth 1: show details of selected drop-off
   const choice = parseInt(m[0]);
-  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   // Re-fetch pending list to get the selected item
   const pending = await pool.query(
@@ -4690,7 +4690,7 @@ async function handleAggregatorPending(m, aggregator) {
 
   // depth 2: confirm or reject
   if (depth === 2) {
-    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+    if (m[1] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
     if (m[1] === '1') {
       // Confirm — promote to transactions table (dual-row pattern).
@@ -4818,7 +4818,7 @@ async function handleAggregatorPayment(m, aggregator) {
     [aggregator.id]
   );
 
-  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   const choice = parseInt(m[0]);
   if (isNaN(choice) || choice < 1 || choice > unpaid.rows.length) {
@@ -5751,7 +5751,7 @@ async function handleCollectorBrowseBuyers(m, collector) {
 async function handleAggregatorMarketplace(m, aggregator) {
   if (m.length === 0) return 'CON Marketplace:\n1. Browse Sellers\n2. Post Buy Request\n3. Sell to Processors\n4. My Offers\n0. Back';
 
-  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. Record Payment\n5. More\n0. Exit';
+  if (m[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
   if (m[0] === '1') return await handleAggregatorBrowseSellers(m.slice(1), aggregator);
   if (m[0] === '2') return await handleAggregatorPostBuyRequest(m.slice(1), aggregator);
   if (m[0] === '3') return await handleAggregatorSellToProcessors(m.slice(1), aggregator);
