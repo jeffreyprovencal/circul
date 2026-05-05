@@ -624,8 +624,9 @@ const TESTS = [
     phoneNumber: TEST_AGGREGATOR_PHONE.replace('+233', '0'),
     steps: [
       { input: '',                                        match: /CON Circul Aggregator/ },
-      { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register[\s\S]*4\. Record Payment[\s\S]*5\. More/ },
-      { input: '4',                                       match: /CON Unpaid drop-offs:/ },
+      { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register[\s\S]*4\. More[\s\S]*0\. Exit/ },
+      { input: '4',                                       match: /CON More options[\s\S]*3\. Record Payment[\s\S]*0\. Back/ },
+      { input: '3',                                       match: /CON Unpaid drop-offs:/ },
       { input: '1',                                       match: /CON Pay .* GHS/ },
       { input: '1',                                       match: /END Payment recorded!/ },
     ],
