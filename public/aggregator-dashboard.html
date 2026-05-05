@@ -1211,7 +1211,27 @@ async function loadPL(range, manual) {
     if (!statsRes.ok) throw new Error(statsRes.status);
     var statsData = await statsRes.json();
     var pl = (statsData.stats || {}).pl;
-    plData = pl || { revenue:{amount:0,mom:0}, cogs:{amount:0,mom:0}, gross:{amount:0,mom:0,pct:0}, opex:{amount:0,mom:0}, net:{amount:0,mom:0,pct:0} };
+
+    if (range === 'ytd' && pl && pl.ytd) {
+      // F3 (PR #80): synthesize plData from YTD revenue + COGS. mom is
+      // meaningless for YTD (we don't fetch last-YTD totals) so we set it
+      // to 0; render code displays a flat trend pill in that case. opex/net
+      // get re-derived AFTER expenses fetch below using plExpenses.total.
+      var revYtd = pl.ytd.revenue || 0;
+      var cogsYtd = pl.ytd.cogs || 0;
+      var grossYtd = revYtd - cogsYtd;
+      var grossPctYtd = revYtd > 0 ? Math.round((grossYtd / revYtd) * 1000) / 10 : 0;
+      plData = {
+        revenue: { amount: revYtd, mom: 0 },
+        cogs:    { amount: cogsYtd, mom: 0 },
+        gross:   { amount: grossYtd, mom: 0, pct: grossPctYtd },
+        opex:    { amount: 0, mom: 0 },                                 // patched after expenses fetch
+        net:     { amount: grossYtd, mom: 0, pct: grossPctYtd },        // patched after expenses fetch
+        period:  pl.ytd.period
+      };
+    } else {
+      plData = pl || { revenue:{amount:0,mom:0}, cogs:{amount:0,mom:0}, gross:{amount:0,mom:0,pct:0}, opex:{amount:0,mom:0}, net:{amount:0,mom:0,pct:0} };
+    }
 
     // Expenses fetch is non-blocking — P&L renders even if expenses fail
     try {
@@ -1226,6 +1246,20 @@ async function loadPL(range, manual) {
     } catch (expErr) {
       console.warn('Expenses fetch failed, rendering P&L without expense breakdown:', expErr);
       plExpenses = null;
+    }
+
+    // F3 (PR #80): for YTD, re-derive opex + net from the YTD expenses we
+    // just fetched so the OpEx row + Net Margin reflect actual YTD totals
+    // (not the placeholder 0 we set above). Month range stays untouched —
+    // server-side opexThis already covers it.
+    if (range === 'ytd' && plExpenses && typeof plExpenses.total === 'number') {
+      var opexYtd = plExpenses.total;
+      var netYtd  = (plData.gross.amount || 0) - opexYtd;
+      var netPctYtd = (plData.revenue.amount || 0) > 0
+        ? Math.round((netYtd / plData.revenue.amount) * 1000) / 10
+        : 0;
+      plData.opex = { amount: opexYtd, mom: 0 };
+      plData.net  = { amount: netYtd,  mom: 0, pct: netPctYtd };
     }
 
     _plFailCount = 0; // reset on success

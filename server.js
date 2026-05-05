@@ -945,7 +945,10 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
     const plLastEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
     const plToday     = now.toISOString().slice(0, 10);
 
-    const [revThis, revLast, cogsLast, opexThis, opexLast] = await Promise.all([
+    // F3 (PR #80): YTD start for P&L YTD calculation.
+    const ytdStartDate = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+
+    const [revThis, revLast, cogsLast, opexThis, opexLast, revYtd, cogsYtd] = await Promise.all([
       // Revenue this month (aggregator sales to processors)
       pool.query(
         `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
@@ -980,6 +983,20 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
         `SELECT COALESCE(SUM(amount),0) AS total FROM expense_entries
          WHERE aggregator_id=$1 AND expense_date >= $2 AND expense_date <= $3`,
         [id, plLastStart, plLastEnd]
+      ).catch(() => ({ rows: [{ total: 0 }] })),
+      // Revenue YTD (F3): aggregator sales to processors since Jan 1
+      pool.query(
+        `SELECT COALESCE(SUM(total_price),0) AS total FROM pending_transactions
+         WHERE aggregator_id=$1 AND transaction_type='aggregator_sale'
+           AND status IN ('dispatch_approved','arrived','completed')
+           AND created_at >= $2`,
+        [id, ytdStartDate]
+      ).catch(() => ({ rows: [{ total: 0 }] })),
+      // COGS YTD (F3): purchases from collectors since Jan 1
+      pool.query(
+        `SELECT COALESCE(SUM(total_price),0) AS total FROM transactions
+         WHERE aggregator_id=$1 AND transaction_date >= $2`,
+        [id, ytdStartDate]
       ).catch(() => ({ rows: [{ total: 0 }] }))
     ]);
 
@@ -1014,7 +1031,15 @@ app.get('/api/aggregators/:id/stats', async (req, res) => {
           gross:   { amount: gross,   mom: mom(gross, grossPrev), pct: pct(gross, revenue) },
           opex:    { amount: opex,    mom: mom(opex, opexPrev) },
           net:     { amount: net,     mom: mom(net, netPrev),     pct: pct(net, revenue) },
-          period:  { from: plThisStart, to: plToday }
+          period:  { from: plThisStart, to: plToday },
+          // F3 (PR #80): YTD calculations for the dashboard YTD toggle.
+          // OpEx YTD comes from the existing /api/aggregators/:id/expenses?from=jan1
+          // call the frontend already makes; this exposes Revenue + COGS YTD here.
+          ytd: {
+            revenue: parseFloat(revYtd.rows[0].total),
+            cogs:    parseFloat(cogsYtd.rows[0].total),
+            period:  { from: ytdStartDate, to: plToday }
+          }
         }
       }
     });
