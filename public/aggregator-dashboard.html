@@ -3404,8 +3404,8 @@ async function loadAggregatorTransactions() {
       var payClass = t.payment_status === 'paid' ? 'pill-paid' : t.payment_status === 'payment_sent' ? 'pill-sent' : 'pill-pending';
       return '<tr>' +
         '<td>' + fmtDate(t.transaction_date) + '</td>' +
-        '<td style="font-family:\'Courier New\',monospace;font-size:0.78rem">' + fmtRef(t.id, t.transaction_date) + '</td>' +
-        '<td><span style="color:var(--text-2);font-family:\'Courier New\',monospace;font-size:0.78rem">' + (t.collector_code || '') + '</span> ' + esc(name) + '</td>' +
+        '<td style="font-size:0.85rem;color:var(--text-2)">' + fmtRef(t.id, t.transaction_date) + '</td>' +
+        '<td><span style="color:var(--text-2);font-size:0.85rem">' + (t.collector_code || '') + '</span> ' + esc(name) + '</td>' +
         '<td>' + esc(t.material_type) + '</td>' +
         '<td style="text-align:right">' + Number(t.net_weight_kg).toFixed(2) + '</td>' +
         '<td style="text-align:right">' + Number(t.price_per_kg).toFixed(2) + '</td>' +
