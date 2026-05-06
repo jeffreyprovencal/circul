@@ -462,12 +462,12 @@
       </div>
     </div>
 
-    <!-- TRANSACTIONS -->
-    <div class="section">
+    <!-- TRANSACTIONS (FLAT LIST) -->
+    <div class="section" id="recentTxnSection">
       <div class="section-head">
         <div>
           <div class="section-title">Transactions</div>
-          <div class="section-sub">Supplier and buyer summaries</div>
+          <div class="section-sub">Your last 10 transactions · most recent first</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="date" id="tx-from" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
@@ -475,6 +475,16 @@
           <input type="date" id="tx-to" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
           <button class="btn btn-sm" onclick="exportToCSV('aggTxTables','circul-transactions')">↓ Export CSV</button>
         </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Ref</th><th>Collector</th><th>Material</th>
+            <th style="text-align:right">Net kg</th><th style="text-align:right">GH¢/kg</th>
+            <th style="text-align:right">Total</th><th>Payment</th>
+          </tr></thead>
+          <tbody id="aggTxnBody"><tr><td colspan="8" class="placeholder-cell">Loading…</td></tr></tbody>
+        </table>
       </div>
     </div>
     <div class="two-col" id="aggTxTables">
@@ -1028,6 +1038,7 @@ function loadAll() {
     loadCategories();
     loadPendingTxns();
     loadIncomingCollections();
+    loadAggregatorTransactions();
     loadMyBatchSales();
     loadProcessors();
     loadTopSuppliers('ytd');
@@ -3368,6 +3379,43 @@ async function loadTopBuyers(period) {
     var data = await apiFetch("/api/aggregator/top-buyers?period=" + period, opts).then(function(r){return r.json();});
     renderTopTable(tbody, data, "processor_name", 5);
   } catch(e) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p class="empty-action">Your processor and recycler buyers will appear after your first batch sale</p></div></td></tr>'; }
+}
+
+// PR #83: flat last-10 transactions (mirrors collector dashboard pattern)
+async function loadAggregatorTransactions() {
+  var tbody = document.getElementById('aggTxnBody');
+  if (!tbody) return;
+  try {
+    var token = localStorage.getItem('circul_token') || '';
+    var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
+    var data = await apiFetch('/api/aggregator/transactions?limit=10', opts).then(function(r) { return r.json(); });
+    if (!Array.isArray(data) || !data.length) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><p class="empty-action">No transactions yet</p><p class="empty-hint">Log your first purchase via USSD or web to see transactions here.</p></div></td></tr>';
+      return;
+    }
+    var fmtRef = function(id, dateStr) {
+      var d = dateStr ? new Date(dateStr) : new Date();
+      return 'TXN-' + d.toISOString().slice(0,10).replace(/-/g,'') + '-' + String(id).padStart(4,'0');
+    };
+    var fmtDate = function(d) { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }); };
+    var fmtPay = function(s) { return s === 'paid' ? 'Paid' : s === 'payment_sent' ? 'Sent' : 'Unpaid'; };
+    tbody.innerHTML = data.map(function(t) {
+      var name = t.collector_name && t.collector_name.trim() && t.collector_name.trim() !== 'null null' ? t.collector_name : (t.collector_code || '—');
+      var payClass = t.payment_status === 'paid' ? 'pill-paid' : t.payment_status === 'payment_sent' ? 'pill-sent' : 'pill-pending';
+      return '<tr>' +
+        '<td>' + fmtDate(t.transaction_date) + '</td>' +
+        '<td style="font-family:\'Courier New\',monospace;font-size:0.78rem">' + fmtRef(t.id, t.transaction_date) + '</td>' +
+        '<td><span style="color:var(--text-2);font-family:\'Courier New\',monospace;font-size:0.78rem">' + (t.collector_code || '') + '</span> ' + esc(name) + '</td>' +
+        '<td>' + esc(t.material_type) + '</td>' +
+        '<td style="text-align:right">' + Number(t.net_weight_kg).toFixed(2) + '</td>' +
+        '<td style="text-align:right">' + Number(t.price_per_kg).toFixed(2) + '</td>' +
+        '<td style="text-align:right">' + Number(t.total_price).toFixed(2) + '</td>' +
+        '<td><span class="pill ' + payClass + '">' + fmtPay(t.payment_status) + '</span></td>' +
+        '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><p class="empty-action">Failed to load transactions</p></div></td></tr>';
+  }
 }
 
 function renderTopTable(tbody, rows, nameKey, cols) {

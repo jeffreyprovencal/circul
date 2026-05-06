@@ -230,7 +230,7 @@
     <div class="section-head">
       <div>
         <div class="section-title">Transactions</div>
-        <div class="section-sub">Full chain: Collector → Aggregator → You</div>
+        <div class="section-sub">Your last 10 transactions · most recent first</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="date" id="tx-from" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
@@ -245,7 +245,7 @@
         <thead><tr>
           <th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Amount</th><th>Payment</th>
         </tr></thead>
-        <tbody id="txnsList"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+        <tbody id="procTxnBody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -654,7 +654,7 @@ function loadTxns() {
     fetch('/api/transactions?processor_id=' + state.operator.id + '&limit=30')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var tbody = document.getElementById('txnsList');
+            var tbody = document.getElementById('procTxnBody');
             if (!tbody) return;
             if (!data.success || !data.transactions.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = data.transactions.map(function(t) {
@@ -671,7 +671,7 @@ function loadTxns() {
             }).join('');
         })
         .catch(function() {
-            var tbody = document.getElementById('txnsList');
+            var tbody = document.getElementById('procTxnBody');
             if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty">Could not load transactions.</td></tr>';
         });
 }

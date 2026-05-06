@@ -365,7 +365,7 @@
           <thead><tr>
             <th>Date</th><th>Processor</th><th>Material</th><th>Weight</th><th>Price/KG</th><th>Amount</th><th>Status</th>
           </tr></thead>
-          <tbody id="supplyBody"><tr><td colspan="7" class="placeholder-cell">Loading...</td></tr></tbody>
+          <tbody id="recTxnBody"><tr><td colspan="7" class="placeholder-cell">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1142,7 +1142,7 @@ function loadTxns() {
     fetch('/api/pending-transactions/recycler-queue', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var tbody = document.getElementById('supplyBody');
+            var tbody = document.getElementById('recTxnBody');
             var txns = data.pending_transactions || [];
             if (!txns.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>'; return; }
             tbody.innerHTML = txns.map(function(t) {
@@ -1152,7 +1152,7 @@ function loadTxns() {
             }).join('');
         })
         .catch(function() {
-            document.getElementById('supplyBody').innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>';
+            document.getElementById('recTxnBody').innerHTML = '<tr><td colspan="7" class="empty">No transactions yet</td></tr>';
         });
 }
 

@@ -1871,6 +1871,35 @@ app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/aggregator/transactions — flat last-N transactions for the dashboard list view (PR #83)
+app.get('/api/aggregator/transactions', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const limit = Math.min(parseInt(req.query.limit || '10', 10) || 10, 50);
+    const result = await pool.query(
+      `SELECT t.id, t.transaction_date, t.material_type, t.net_weight_kg,
+              t.price_per_kg, t.total_price, t.payment_status,
+              t.collector_id, t.aggregator_id,
+              c.first_name || ' ' || c.last_name AS collector_name
+         FROM transactions t
+         LEFT JOIN collectors c ON c.id = t.collector_id
+        WHERE t.aggregator_id = $1
+        ORDER BY t.transaction_date DESC
+        LIMIT $2`,
+      [aggId, limit]
+    );
+    result.rows.forEach(r => {
+      r.collector_code = CirculRoles.circulCode('collector', r.collector_id);
+      r.collector_name_visible = true; // aggregator↔collector adjacent per privacy model
+    });
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /api/aggregator/transactions error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ============================================
 // AGGREGATOR REPORTS — Sourcing + Sales
 // ============================================
