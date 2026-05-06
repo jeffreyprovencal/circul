@@ -605,7 +605,7 @@ app.get('/api/collector/top-buyers', requireAuth, async (req, res) => {
        FROM transactions t
        JOIN aggregators a ON a.id=t.aggregator_id
        WHERE t.collector_id=$1
-       GROUP BY a.id ORDER BY ytd_kg DESC LIMIT 5`,
+       GROUP BY a.id ORDER BY ytd_kg DESC LIMIT 50`,
       [id, since]
     );
     result.rows.forEach(r => {
@@ -1824,7 +1824,7 @@ app.get('/api/aggregator/top-suppliers', requireAuth, async (req, res) => {
        FROM transactions t
        LEFT JOIN collectors c ON c.id = t.collector_id
        WHERE t.aggregator_id = $1 AND t.transaction_date >= $3
-       GROUP BY c.id ORDER BY ytd_kg DESC LIMIT 5`,
+       GROUP BY c.id ORDER BY ytd_kg DESC LIMIT 50`,
       [aggId, since, new Date(new Date().getFullYear(), 0, 1).toISOString()]
     );
     result.rows.forEach(r => {
@@ -1857,7 +1857,7 @@ app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN processors p ON p.id = pt.processor_id
        WHERE pt.aggregator_id = $1 AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $3
-       GROUP BY p.id ORDER BY ytd_kg DESC LIMIT 5`,
+       GROUP BY p.id ORDER BY ytd_kg DESC LIMIT 50`,
       [aggId, since, new Date(new Date().getFullYear(), 0, 1).toISOString()]
     );
     result.rows.forEach(r => {
@@ -1867,6 +1867,35 @@ app.get('/api/aggregator/top-buyers', requireAuth, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Aggregator top-buyers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/aggregator/transactions — flat last-N transactions for the dashboard list view (PR #83)
+app.get('/api/aggregator/transactions', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const limit = Math.min(parseInt(req.query.limit || '10', 10) || 10, 50);
+    const result = await pool.query(
+      `SELECT t.id, t.transaction_date, t.material_type, t.net_weight_kg,
+              t.price_per_kg, t.total_price, t.payment_status,
+              t.collector_id, t.aggregator_id,
+              c.first_name || ' ' || c.last_name AS collector_name
+         FROM transactions t
+         LEFT JOIN collectors c ON c.id = t.collector_id
+        WHERE t.aggregator_id = $1
+        ORDER BY t.transaction_date DESC
+        LIMIT $2`,
+      [aggId, limit]
+    );
+    result.rows.forEach(r => {
+      r.collector_code = CirculRoles.circulCode('collector', r.collector_id);
+      r.collector_name_visible = true; // aggregator↔collector adjacent per privacy model
+    });
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /api/aggregator/transactions error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -2366,7 +2395,7 @@ app.get('/api/processor/top-suppliers', requireAuth, async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN aggregators a ON a.id = pt.aggregator_id
        WHERE pt.processor_id IS NOT NULL AND pt.transaction_type = 'aggregator_sale' AND pt.created_at >= $1
-       GROUP BY a.id ORDER BY volume DESC LIMIT 5`,
+       GROUP BY a.id ORDER BY volume DESC LIMIT 50`,
       [since]
     );
     result.rows.forEach(r => {
@@ -2396,7 +2425,7 @@ app.get('/api/processor/top-buyers', requireAuth, async (req, res) => {
        LEFT JOIN converters c ON c.id = pt.converter_id
        LEFT JOIN recyclers r ON r.id = pt.recycler_id
        WHERE pt.processor_id = $2 AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
-       GROUP BY 1, 2, 3 ORDER BY volume DESC LIMIT 5`,
+       GROUP BY 1, 2, 3 ORDER BY volume DESC LIMIT 50`,
       [since, req.user.id]
     );
     result.rows.forEach(r => {
@@ -2568,7 +2597,7 @@ app.get('/api/converter/top-suppliers', requireAuth, async (req, res) => {
          AND pt.created_at >= $1
        GROUP BY 1, 2, 3
        ORDER BY volume DESC
-       LIMIT 5`,
+       LIMIT 50`,
       [since, converterId]
     );
     result.rows.forEach(r => {
@@ -2649,7 +2678,7 @@ app.get('/api/recycler/top-suppliers', requireAuth, async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN processors p ON p.id = pt.processor_id
        WHERE pt.recycler_id = $2 AND pt.transaction_type = 'processor_sale' AND pt.created_at >= $1
-       GROUP BY p.id ORDER BY volume DESC LIMIT 5`,
+       GROUP BY p.id ORDER BY volume DESC LIMIT 50`,
       [since, req.user.id]
     );
     result.rows.forEach(r => {
@@ -2675,7 +2704,7 @@ app.get('/api/recycler/top-buyers', requireAuth, async (req, res) => {
        FROM pending_transactions pt
        LEFT JOIN converters c ON c.id = pt.converter_id
        WHERE pt.recycler_id IS NOT NULL AND pt.transaction_type = 'recycler_sale' AND pt.created_at >= $1
-       GROUP BY c.id ORDER BY volume DESC LIMIT 5`,
+       GROUP BY c.id ORDER BY volume DESC LIMIT 50`,
       [since]
     );
     result.rows.forEach(r => {

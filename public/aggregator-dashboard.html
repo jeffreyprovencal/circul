@@ -462,12 +462,12 @@
       </div>
     </div>
 
-    <!-- TRANSACTIONS -->
-    <div class="section">
+    <!-- TRANSACTIONS (FLAT LIST) -->
+    <div class="section" id="recentTxnSection">
       <div class="section-head">
         <div>
           <div class="section-title">Transactions</div>
-          <div class="section-sub">Supplier and buyer summaries</div>
+          <div class="section-sub">Your last 10 transactions · most recent first</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="date" id="tx-from" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
@@ -475,6 +475,16 @@
           <input type="date" id="tx-to" class="form-input" style="width:130px;padding:5px 8px;font-size:0.75rem">
           <button class="btn btn-sm" onclick="exportToCSV('aggTxTables','circul-transactions')">↓ Export CSV</button>
         </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Ref</th><th>Collector</th><th>Material</th>
+            <th style="text-align:right">Net kg</th><th style="text-align:right">GH¢/kg</th>
+            <th style="text-align:right">Total</th><th>Payment</th>
+          </tr></thead>
+          <tbody id="aggTxnBody"><tr><td colspan="8" class="placeholder-cell">Loading…</td></tr></tbody>
+        </table>
       </div>
     </div>
     <div class="two-col" id="aggTxTables">
@@ -488,7 +498,7 @@
           <div class="tabs">
             <button class="tab" id="suppMonthBtn" onclick="switchTopSuppliers('month')">Month</button>
             <button class="tab on" id="suppYTDBtn" onclick="switchTopSuppliers('ytd')">YTD</button>
-            <span class="view-all">View all</span>
+            <button type="button" class="view-all-btn" data-state="capped" data-loader="loadTopSuppliers">View all</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -510,7 +520,7 @@
           <div class="tabs">
             <button class="tab" id="buyMonthBtn" onclick="switchTopBuyers('month')">Month</button>
             <button class="tab on" id="buyYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
-            <span class="view-all">View all</span>
+            <button type="button" class="view-all-btn" data-state="capped" data-loader="loadTopBuyers">View all</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -1028,6 +1038,7 @@ function loadAll() {
     loadCategories();
     loadPendingTxns();
     loadIncomingCollections();
+    loadAggregatorTransactions();
     loadMyBatchSales();
     loadProcessors();
     loadTopSuppliers('ytd');
@@ -3370,12 +3381,52 @@ async function loadTopBuyers(period) {
   } catch(e) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p class="empty-action">Your processor and recycler buyers will appear after your first batch sale</p></div></td></tr>'; }
 }
 
+// PR #83: flat last-10 transactions (mirrors collector dashboard pattern)
+async function loadAggregatorTransactions() {
+  var tbody = document.getElementById('aggTxnBody');
+  if (!tbody) return;
+  try {
+    var token = localStorage.getItem('circul_token') || '';
+    var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : { credentials: 'include' };
+    var data = await apiFetch('/api/aggregator/transactions?limit=10', opts).then(function(r) { return r.json(); });
+    if (!Array.isArray(data) || !data.length) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><p class="empty-action">No transactions yet</p><p class="empty-hint">Log your first purchase via USSD or web to see transactions here.</p></div></td></tr>';
+      return;
+    }
+    var fmtRef = function(id, dateStr) {
+      var d = dateStr ? new Date(dateStr) : new Date();
+      return 'TXN-' + d.toISOString().slice(0,10).replace(/-/g,'') + '-' + String(id).padStart(4,'0');
+    };
+    var fmtDate = function(d) { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }); };
+    var fmtPay = function(s) { return s === 'paid' ? 'Paid' : s === 'payment_sent' ? 'Sent' : 'Unpaid'; };
+    tbody.innerHTML = data.map(function(t) {
+      var name = t.collector_name && t.collector_name.trim() && t.collector_name.trim() !== 'null null' ? t.collector_name : (t.collector_code || '—');
+      var payClass = t.payment_status === 'paid' ? 'pill-paid' : t.payment_status === 'payment_sent' ? 'pill-sent' : 'pill-pending';
+      return '<tr>' +
+        '<td>' + fmtDate(t.transaction_date) + '</td>' +
+        '<td style="font-family:\'Courier New\',monospace;font-size:0.78rem">' + fmtRef(t.id, t.transaction_date) + '</td>' +
+        '<td><span style="color:var(--text-2);font-family:\'Courier New\',monospace;font-size:0.78rem">' + (t.collector_code || '') + '</span> ' + esc(name) + '</td>' +
+        '<td>' + esc(t.material_type) + '</td>' +
+        '<td style="text-align:right">' + Number(t.net_weight_kg).toFixed(2) + '</td>' +
+        '<td style="text-align:right">' + Number(t.price_per_kg).toFixed(2) + '</td>' +
+        '<td style="text-align:right">' + Number(t.total_price).toFixed(2) + '</td>' +
+        '<td><span class="pill ' + payClass + '">' + fmtPay(t.payment_status) + '</span></td>' +
+        '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><p class="empty-action">Failed to load transactions</p></div></td></tr>';
+  }
+}
+
 function renderTopTable(tbody, rows, nameKey, cols) {
   if (!rows || !Array.isArray(rows) || !rows.length) {
     tbody.innerHTML = "<tr><td colspan=\"" + cols + "\"><div class=\"empty\"><p class=\"empty-action\">No data yet</p></div></td></tr>";
     return;
   }
-  tbody.innerHTML = rows.slice(0,3).map(function(r,i) {
+  var section = tbody.closest('.section');
+  var btn = section ? section.querySelector('.view-all-btn') : null;
+  var displayRows = (btn && btn.dataset.state === 'expanded') ? rows : rows.slice(0,3);
+  tbody.innerHTML = displayRows.map(function(r,i) {
     var code = r.collector_code || r.processor_code || r.partner_code || '';
     var nm = nameCell(r[nameKey] || r.name, code, r.name_visible !== false);
     var vol = Math.round(r.ytd_kg || r.total_kg || 0) + " kg";
@@ -4232,5 +4283,21 @@ function reportDownloadPDF() {
     }, 250);
     setTimeout(function () { clearInterval(poll); }, 30000);
 })();
+
+/* ── View all expand/collapse — PR #83 ── */
+document.addEventListener('click', function(e) {
+  var btn = e.target;
+  if (!btn || !btn.classList || !btn.classList.contains('view-all-btn')) return;
+  var loader = btn.dataset.loader;
+  if (!loader || typeof window[loader] !== 'function') return;
+  btn.dataset.state = btn.dataset.state === 'expanded' ? 'capped' : 'expanded';
+  btn.textContent = btn.dataset.state === 'expanded' ? 'Show fewer' : 'View all';
+  var section = btn.closest('.section');
+  var activeTab = section ? section.querySelector('.tab.on') : null;
+  var period = activeTab && activeTab.dataset && activeTab.dataset.period
+             ? activeTab.dataset.period
+             : (activeTab && activeTab.id && activeTab.id.toLowerCase().indexOf('month') !== -1 ? 'month' : 'ytd');
+  window[loader](period);
+});
 </script>
 </html>
