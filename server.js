@@ -4646,7 +4646,7 @@ async function handleAggregatorPending(m, aggregator) {
        LIMIT 4`,
       [aggregator.id]
     );
-    if (!pending.rows.length) return 'END No pending drop-offs.';
+    if (!pending.rows.length) return 'CON No pending drop-offs.\n\n0. Back';
     let msg = 'CON Pending drop-offs:\n';
     pending.rows.forEach(function(p, i) {
       var name = ((p.collector_first_name || '') + ' ' + (p.collector_last_name || '')).trim() || p.collector_code;
