@@ -1023,7 +1023,8 @@ function loadAll() {
                 }
             }
         });
-    loadPL('month');
+    var activeRange = document.querySelector('[data-pl-range].active');
+    loadPL(activeRange ? activeRange.dataset.plRange : 'month');
     loadCategories();
     loadPendingTxns();
     loadIncomingCollections();
