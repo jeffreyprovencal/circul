@@ -407,7 +407,7 @@
         <div class="tabs" id="top-suppliers-toggle">
           <button class="tab" data-period="month" onclick="switchTopSuppliers('month')">Month</button>
           <button class="tab on" data-period="ytd" onclick="switchTopSuppliers('ytd')">YTD</button>
-          <span class="view-all">View all</span>
+          <button type="button" class="view-all-btn" data-state="capped" data-loader="loadTopSuppliers">View all</button>
         </div>
       </div>
       <div id="top-suppliers-list"><div class="placeholder-cell">Loading...</div></div>
@@ -420,7 +420,7 @@
         <div class="tabs" id="top-buyers-toggle">
           <button class="tab" data-period="month" onclick="switchTopBuyers('month')">Month</button>
           <button class="tab on" data-period="ytd" onclick="switchTopBuyers('ytd')">YTD</button>
-          <span class="view-all">View all</span>
+          <button type="button" class="view-all-btn" data-state="capped" data-loader="loadTopBuyers">View all</button>
         </div>
       </div>
       <div id="top-buyers-list"><div class="placeholder-cell">Loading...</div></div>
@@ -1383,7 +1383,9 @@ function loadTopSuppliers(period) {
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.suppliers || []);
       if (!items.length) { el.innerHTML = '<div class="empty"><p class="empty-action">Your top suppliers will appear after your first purchase</p></div>'; return; }
-      el.innerHTML = items.slice(0,3).map(function(p, i) {
+      var btn = document.querySelector('.view-all-btn[data-loader="loadTopSuppliers"]');
+      var displayItems = (btn && btn.dataset.state === 'expanded') ? items : items.slice(0,3);
+      el.innerHTML = displayItems.map(function(p, i) {
         return [
           '<div class="partner-row">',
           '  <span class="partner-rank">' + (i+1) + '</span>',
@@ -1445,7 +1447,9 @@ function loadTopBuyers(period) {
     .then(function(data) {
       var items = Array.isArray(data) ? data : (data.buyers || []);
       if (!items.length) { el.innerHTML = '<div class="empty"><p class="empty-action">Your converter buyers will appear after your first sale</p></div>'; return; }
-      el.innerHTML = items.slice(0,3).map(function(p, i) {
+      var btn = document.querySelector('.view-all-btn[data-loader="loadTopBuyers"]');
+      var displayItems = (btn && btn.dataset.state === 'expanded') ? items : items.slice(0,3);
+      el.innerHTML = displayItems.map(function(p, i) {
         return [
           '<div class="partner-row">',
           '  <span class="partner-rank">' + (i+1) + '</span>',
@@ -1767,6 +1771,22 @@ document.addEventListener('DOMContentLoaded', function () {
             initRecyclerSourcePicker();
         };
     }
+});
+
+/* ── View all expand/collapse — PR #83 ── */
+document.addEventListener('click', function(e) {
+  var btn = e.target;
+  if (!btn || !btn.classList || !btn.classList.contains('view-all-btn')) return;
+  var loader = btn.dataset.loader;
+  if (!loader || typeof window[loader] !== 'function') return;
+  btn.dataset.state = btn.dataset.state === 'expanded' ? 'capped' : 'expanded';
+  btn.textContent = btn.dataset.state === 'expanded' ? 'Show fewer' : 'View all';
+  var section = btn.closest('.section');
+  var activeTab = section ? section.querySelector('.tab.on') : null;
+  var period = activeTab && activeTab.dataset && activeTab.dataset.period
+             ? activeTab.dataset.period
+             : (activeTab && activeTab.id && activeTab.id.toLowerCase().indexOf('month') !== -1 ? 'month' : 'ytd');
+  window[loader](period);
 });
 </script>
 </html>

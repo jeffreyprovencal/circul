@@ -126,7 +126,7 @@
         <div class="tabs">
           <button class="tab" id="topBuyersMonthBtn" onclick="switchTopBuyers('month')">This Month</button>
           <button class="tab on" id="topBuyersYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
-          <span class="view-all">View all</span>
+          <button type="button" class="view-all-btn" data-state="capped" data-loader="switchTopBuyers">View all</button>
         </div>
       </div>
     </div>
@@ -794,7 +794,10 @@ function renderTopBuyers(rows) {
     tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p class="empty-action">Log your first collection to see top buyers</p><p class="empty-hint">Track which aggregators pay you the most</p></div></td></tr>';
     return;
   }
-  tbody.innerHTML = rows.slice(0,5).map((r,i) => `
+  var section = tbody.closest('.section');
+  var btn = section ? section.querySelector('.view-all-btn') : null;
+  var displayRows = (btn && btn.dataset.state === 'expanded') ? rows : rows.slice(0,5);
+  tbody.innerHTML = displayRows.map((r,i) => `
     <tr>
       <td style="color:${i===0?'var(--accent)':'var(--text-3)'};font-weight:700">${i+1}</td>
       <td class="td-name">${nameCell(r.aggregator_name, r.aggregator_code, r.name_visible)}</td>
@@ -1392,5 +1395,21 @@ function loadRequirements() {
 
 /* ── init ── */
 document.addEventListener('DOMContentLoaded', checkAuth);
+
+/* ── View all expand/collapse — PR #83 ── */
+document.addEventListener('click', function(e) {
+  var btn = e.target;
+  if (!btn || !btn.classList || !btn.classList.contains('view-all-btn')) return;
+  var loader = btn.dataset.loader;
+  if (!loader || typeof window[loader] !== 'function') return;
+  btn.dataset.state = btn.dataset.state === 'expanded' ? 'capped' : 'expanded';
+  btn.textContent = btn.dataset.state === 'expanded' ? 'Show fewer' : 'View all';
+  var section = btn.closest('.section');
+  var activeTab = section ? section.querySelector('.tab.on') : null;
+  var period = activeTab && activeTab.dataset && activeTab.dataset.period
+             ? activeTab.dataset.period
+             : (activeTab && activeTab.id && activeTab.id.toLowerCase().indexOf('month') !== -1 ? 'month' : 'ytd');
+  window[loader](period);
+});
 </script>
 </html>

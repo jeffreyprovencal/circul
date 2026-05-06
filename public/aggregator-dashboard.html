@@ -488,7 +488,7 @@
           <div class="tabs">
             <button class="tab" id="suppMonthBtn" onclick="switchTopSuppliers('month')">Month</button>
             <button class="tab on" id="suppYTDBtn" onclick="switchTopSuppliers('ytd')">YTD</button>
-            <span class="view-all">View all</span>
+            <button type="button" class="view-all-btn" data-state="capped" data-loader="loadTopSuppliers">View all</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -510,7 +510,7 @@
           <div class="tabs">
             <button class="tab" id="buyMonthBtn" onclick="switchTopBuyers('month')">Month</button>
             <button class="tab on" id="buyYTDBtn" onclick="switchTopBuyers('ytd')">YTD</button>
-            <span class="view-all">View all</span>
+            <button type="button" class="view-all-btn" data-state="capped" data-loader="loadTopBuyers">View all</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -3375,7 +3375,10 @@ function renderTopTable(tbody, rows, nameKey, cols) {
     tbody.innerHTML = "<tr><td colspan=\"" + cols + "\"><div class=\"empty\"><p class=\"empty-action\">No data yet</p></div></td></tr>";
     return;
   }
-  tbody.innerHTML = rows.slice(0,3).map(function(r,i) {
+  var section = tbody.closest('.section');
+  var btn = section ? section.querySelector('.view-all-btn') : null;
+  var displayRows = (btn && btn.dataset.state === 'expanded') ? rows : rows.slice(0,3);
+  tbody.innerHTML = displayRows.map(function(r,i) {
     var code = r.collector_code || r.processor_code || r.partner_code || '';
     var nm = nameCell(r[nameKey] || r.name, code, r.name_visible !== false);
     var vol = Math.round(r.ytd_kg || r.total_kg || 0) + " kg";
@@ -4232,5 +4235,21 @@ function reportDownloadPDF() {
     }, 250);
     setTimeout(function () { clearInterval(poll); }, 30000);
 })();
+
+/* ── View all expand/collapse — PR #83 ── */
+document.addEventListener('click', function(e) {
+  var btn = e.target;
+  if (!btn || !btn.classList || !btn.classList.contains('view-all-btn')) return;
+  var loader = btn.dataset.loader;
+  if (!loader || typeof window[loader] !== 'function') return;
+  btn.dataset.state = btn.dataset.state === 'expanded' ? 'capped' : 'expanded';
+  btn.textContent = btn.dataset.state === 'expanded' ? 'Show fewer' : 'View all';
+  var section = btn.closest('.section');
+  var activeTab = section ? section.querySelector('.tab.on') : null;
+  var period = activeTab && activeTab.dataset && activeTab.dataset.period
+             ? activeTab.dataset.period
+             : (activeTab && activeTab.id && activeTab.id.toLowerCase().indexOf('month') !== -1 ? 'month' : 'ytd');
+  window[loader](period);
+});
 </script>
 </html>

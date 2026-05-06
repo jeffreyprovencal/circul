@@ -74,6 +74,8 @@ nav{display:flex;align-items:center;padding:12px 24px;background:var(--nav-bg);b
 .tab{padding:5px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer;font-family:var(--font);white-space:nowrap}
 .tab.on{background:var(--accent);color:#000;border-color:var(--accent)}
 .view-all{color:var(--text-3);font-size:0.8rem;cursor:pointer;white-space:nowrap}
+.view-all-btn{background:none;border:none;color:var(--text-3);font-size:0.8rem;cursor:pointer;white-space:nowrap;padding:0;font-family:var(--font)}
+.view-all-btn:hover{color:var(--text-1)}
 
 /* ── TWO-COLUMN ── */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:var(--gap)}
