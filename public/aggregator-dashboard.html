@@ -1308,6 +1308,9 @@ function renderPL() {
 
   // COGS row
   html += plRowHTML('cogs', 'Cost of Goods Sold', cogs.amount, 'val-neg', cogs.mom);
+  if (plExpandedRows.has('cogs')) {
+    html += renderCogsBreakdown();
+  }
 
   // Gross Margin divider
   html += '<div class="pl-row divider">' +
@@ -1369,6 +1372,12 @@ function togglePLRow(key) {
 function renderRevenueBreakdown() {
   return '<div class="pl-sub">' +
     '<div class="pl-sub-total"><span>Tap for detailed sales breakdown (coming soon)</span><span></span></div>' +
+  '</div>';
+}
+
+function renderCogsBreakdown() {
+  return '<div class="pl-sub">' +
+    '<div class="pl-sub-total"><span>Tap for detailed cost breakdown (coming soon)</span><span></span></div>' +
   '</div>';
 }
 
