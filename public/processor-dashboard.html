@@ -112,7 +112,7 @@
     </div>
     <div class="stat">
       <div class="stat-label">Outstanding (Owed)</div>
-      <div class="stat-val" id="statPending">GH¢ 0 <small>unpaid</small></div>
+      <div class="stat-val" id="statPending">GH₵ 0 <small>unpaid</small></div>
     </div>
   </div>
 
@@ -173,11 +173,11 @@
           <input class="form-input" id="ps-weight" type="number" min="0" step="0.1" placeholder="0" oninput="calcProcSaleTotal(); onProcWeightChanged();">
         </div>
         <div class="form-group">
-          <label class="form-label">Price/kg (GH¢)</label>
+          <label class="form-label">Price/kg (GH₵)</label>
           <input class="form-input" id="ps-price" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcProcSaleTotal()">
         </div>
       </div>
-      <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:12px">Total: <span id="ps-total" style="color:var(--accent);font-weight:600">GH¢ 0</span></div>
+      <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:12px">Total: <span id="ps-total" style="color:var(--accent);font-weight:600">GH₵ 0</span></div>
       <div style="margin-bottom:12px">
         <textarea id="ps-notes" class="form-input" rows="2" placeholder="Notes (optional)" style="width:100%;resize:vertical"></textarea>
       </div>
@@ -419,6 +419,7 @@
 <div id="disc-toast-container" class="disc-toast-container"></div>
 
 <script src="/shared/roles.js"></script>
+<script src="/shared/format.js"></script>
 <script src="/shared/source-picker.js"></script>
 <script>
 // ── Production Error Logger ──
@@ -670,7 +671,7 @@ function loadTxns() {
                     '<td class="td-name">' + aggName + '</td>' +
                     '<td><span class="pill ' + matClass + '">' + t.material_type + '</span></td>' +
                     '<td>' + fmt(t.net_weight_kg) + ' kg</td>' +
-                    '<td class="td-green">' + (t.total_price ? 'GH¢ ' + fmt(t.total_price) : '—') + '</td>' +
+                    '<td class="td-green">' + (t.total_price ? CirculFormat.fmtGHS(t.total_price) : '—') + '</td>' +
                     '<td>' + paymentBadge(t.payment_status) + '</td>' +
                     '</tr>';
             }).join('');
@@ -725,7 +726,7 @@ function renderPriceCards(prices) {
     document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
         var hasPrice = p && p.price_per_kg_ghs;
-        var current = hasPrice ? 'GHS ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg' : 'Not posted';
+        var current = hasPrice ? CirculFormat.fmtGHS(p.price_per_kg_ghs) + '/kg' : 'Not posted';
         var priceLabel = hasPrice ? 'Buying at' : 'Current price';
         var priceClass = hasPrice ? ' class="pc-val"' : ' style="color:var(--text-3)"';
         var updated = hasPrice && p.posted_at ? '<div class="pc-row"><span>Last updated</span><span>' + fmtDate(p.posted_at) + '</span></div>' : '';
@@ -745,7 +746,7 @@ function renderPriceCards(prices) {
 
 function postPrice(mat) {
     var ghs = document.getElementById('price-ghs-' + mat).value;
-    if (!ghs || parseFloat(ghs) <= 0) { showProcToast('Enter a valid GH¢ price', true); return; }
+    if (!ghs || parseFloat(ghs) <= 0) { showProcToast('Enter a valid GH₵ price', true); return; }
     fetch('/api/processors/' + state.operator.id + '/prices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ material: mat, price_per_kg: parseFloat(ghs) })
@@ -894,8 +895,8 @@ function buildPendingCard(pt) {
         '<span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span>' +
         '<span class="del-title">' + aggName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="del-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
+        '<span class="del-meta">' + CirculFormat.fmtGHS(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">' + CirculFormat.fmtGHS(pt.total_price || 0) + '</span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -918,8 +919,8 @@ function buildApprovedCard(pt) {
         '<span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span>' +
         '<span class="del-title">' + aggName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="del-meta">GH¢ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH¢ ' + fmt(pt.total_price || 0) + '</span>' +
+        '<span class="del-meta">' + CirculFormat.fmtGHS(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">' + CirculFormat.fmtGHS(pt.total_price || 0) + '</span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-log-arrival" onclick="openArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
@@ -936,7 +937,7 @@ function buildCompletedRow(pt) {
         : pt.status === 'grade_c_flagged'
         ? '<span class="pill pill-pending">Flagged</span>'
         : '<span class="pill pill-rejected">Rejected</span>';
-    var total = pt.total_price ? 'GH¢ ' + fmt(pt.total_price) : '—';
+    var total = pt.total_price ? CirculFormat.fmtGHS(pt.total_price) : '—';
     var ps = pt.payment_status || 'unpaid';
     var payCell = ps === 'paid'
         ? '<span class="pill pill-paid">Paid</span>'
@@ -1184,9 +1185,9 @@ function calcProcSaleTotal() {
     var el = document.getElementById('ps-total');
     if (!el) return;
     if (!isNaN(w) && w > 0 && !isNaN(p) && p > 0) {
-        el.textContent = 'GH¢ ' + fmt(w * p);
+        el.textContent = CirculFormat.fmtGHS(w * p);
     } else {
-        el.textContent = 'GH¢ 0';
+        el.textContent = 'GH₵ 0';
     }
 }
 
@@ -1243,7 +1244,7 @@ function submitProcessorSale() {
             document.getElementById('ps-weight').value    = '';
             document.getElementById('ps-price').value     = '';
             var pn = document.getElementById('ps-notes'); if (pn) pn.value = '';
-            var ptb = document.getElementById('ps-total'); if (ptb) ptb.textContent = 'GH¢ 0';
+            var ptb = document.getElementById('ps-total'); if (ptb) ptb.textContent = 'GH₵ 0';
             if (msgEl) msgEl.textContent = '';
             if (window.__picker && window.__picker.update) window.__picker.update({ materialType: '', targetKg: 0 });
             showProcToast('Sale logged — awaiting converter dispatch approval');
@@ -1293,7 +1294,7 @@ function renderProcessorSales() {
         var convName = nameCell(buyerName || 'Unknown', buyerCode, buyerVisible);
         var matClass = 'pill-' + (s.material_type || '').toLowerCase();
         var statusBadge = buildProcSaleStatusBadge(s.status);
-        var total = s.total_price ? 'GH¢ ' + fmt(s.total_price) : '—';
+        var total = s.total_price ? CirculFormat.fmtGHS(s.total_price) : '—';
         var rejHtml = (s.status === 'dispatch_rejected' && s.rejection_reason)
             ? '<div class="ps-rejection">Rejected: ' + esc(s.rejection_reason) + '</div>'
             : '';
@@ -1301,7 +1302,7 @@ function renderProcessorSales() {
             '<span class="pill ' + matClass + '">' + esc(s.material_type) + '</span>' +
             '<span class="ps-sale-title">' + convName + '</span>' +
             '<span class="ps-sale-meta">' + fmt(s.gross_weight_kg) + ' kg</span>' +
-            '<span class="ps-sale-meta">GH¢ ' + fmt(s.price_per_kg || 0) + '/kg</span>' +
+            '<span class="ps-sale-meta">' + CirculFormat.fmtGHS(s.price_per_kg || 0) + '/kg</span>' +
             statusBadge +
             '<span class="ps-sale-price">' + total + '</span>' +
             '<span class="ps-sale-meta" style="width:100%;margin-top:2px">' + fmtDate(s.created_at) + '</span>' +
@@ -1641,7 +1642,7 @@ function loadTopSuppliers(period) {
           "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
           "<span class='td-name' style='flex:1'>" + nameCell(p.name||p.aggregator_name, p.partner_code, p.name_visible) + "</span>" +
           "<span>" + formatVol(p.volume||p.total_volume||0) + " kg</span>" +
-          "<span class='td-green'>GH¢ " + formatPrice(p.avg_price||p.avg_price_paid||0) + "/kg</span>" +
+          "<span class='td-green'>" + CirculFormat.fmtGHS(p.avg_price||p.avg_price_paid||0) + "/kg</span>" +
         "</div>";
       }).join("");
     })
@@ -1668,7 +1669,7 @@ function loadTopBuyers(period) {
           "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
           "<span class='td-name' style='flex:1'>" + nameCell(p.name||p.converter_name, p.partner_code, p.name_visible) + "</span>" +
           "<span>" + formatVol(p.volume||p.total_volume||0) + " kg</span>" +
-          "<span class='td-green'>GH¢ " + formatPrice(p.avg_price||p.avg_price_received||0) + "/kg</span>" +
+          "<span class='td-green'>" + CirculFormat.fmtGHS(p.avg_price||p.avg_price_received||0) + "/kg</span>" +
         "</div>";
       }).join("");
     })
@@ -1688,7 +1689,7 @@ function renderDemoTopSuppliers(period) {
       "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
       "<span class='td-name' style='flex:1'>" + p.name + "</span>" +
       "<span>" + formatVol(p.volume) + " kg</span>" +
-      "<span class='td-green'>GH¢ " + p.avg.toFixed(2) + "/kg</span>" +
+      "<span class='td-green'>" + CirculFormat.fmtGHS(p.avg) + "/kg</span>" +
     "</div>";
   }).join("");
 }
@@ -1704,7 +1705,7 @@ function renderDemoTopBuyers(period) {
       "<span style='color:var(--accent);font-weight:700;width:20px'>" + (i+1) + "</span>" +
       "<span class='td-name' style='flex:1'>" + p.name + "</span>" +
       "<span>" + formatVol(p.volume) + " kg</span>" +
-      "<span class='td-green'>GH¢ " + p.avg.toFixed(2) + "/kg</span>" +
+      "<span class='td-green'>" + CirculFormat.fmtGHS(p.avg) + "/kg</span>" +
     "</div>";
   }).join("");
 }
@@ -1712,10 +1713,6 @@ function renderDemoTopBuyers(period) {
 function formatVol(n) {
   if (n >= 1000) return (n/1000).toFixed(1) + "t";
   return Math.round(n) + "";
-}
-
-function formatPrice(n) {
-  return parseFloat(n||0).toFixed(2);
 }
 
 // ── RATING MODAL (ATTRIBUTE TAGS) ────────────────────────────────

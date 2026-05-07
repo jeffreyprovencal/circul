@@ -62,6 +62,7 @@
   .collect-user{display:none}
 }
 </style>
+<script src="/shared/format.js"></script>
 </head>
 <body>
 
@@ -317,7 +318,7 @@
       var status    = pt.status || 'pending';
       var kg        = parseFloat(pt.gross_weight_kg);
       var aggName   = esc(pt.aggregator_name || pt.aggregator_company || '—');
-      var priceAsk  = pt.price_per_kg ? 'GH₵ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg' : 'Price TBD';
+      var priceAsk  = pt.price_per_kg ? CirculFormat.fmtGHS(pt.price_per_kg) + '/kg' : 'Price TBD';
       var submitted = timeAgo(pt.created_at);
 
       // Status badge + label
@@ -336,7 +337,7 @@
         var finalPrice  = parseFloat(pt.final_price_per_kg || pt.price_per_kg || 0);
         var finalTotal  = parseFloat(pt.final_total_price  || (finalPrice * kg) || 0);
         var priceNote   = grade === 'A' ? '<div class="sale-final-note">(+10% premium applied)</div>' : '';
-        extraHtml = '<div class="sale-final-price">Final price: GH₵ ' + finalPrice.toFixed(2) + ' × ' + kg.toFixed(1) + ' kg = GH₵ ' + finalTotal.toFixed(2) + '</div>' + priceNote;
+        extraHtml = '<div class="sale-final-price">Final price: ' + CirculFormat.fmtGHS(finalPrice) + ' × ' + kg.toFixed(1) + ' kg = ' + CirculFormat.fmtGHS(finalTotal) + '</div>' + priceNote;
       } else if (status === 'rejected') {
         badgeHtml = '<span class="badge badge-rejected">Rejected</span>';
         if (pt.rejection_reason) {
@@ -351,11 +352,11 @@
       // Total line: use final if confirmed, else original or TBD
       var totalGhs = '';
       if (status === 'confirmed' && pt.final_total_price) {
-        totalGhs = 'GH₵ ' + parseFloat(pt.final_total_price).toFixed(2);
+        totalGhs = CirculFormat.fmtGHS(pt.final_total_price);
       } else if (pt.total_price) {
-        totalGhs = 'GH₵ ' + parseFloat(pt.total_price).toFixed(2);
+        totalGhs = CirculFormat.fmtGHS(pt.total_price);
       } else if (pt.price_per_kg) {
-        totalGhs = 'GH₵ ' + (parseFloat(pt.price_per_kg) * kg).toFixed(2);
+        totalGhs = CirculFormat.fmtGHS(parseFloat(pt.price_per_kg) * kg);
       }
 
       return '<div class="sale-card">' +

@@ -121,7 +121,7 @@
     </div>
     <div class="stat">
       <div class="stat-label">Total Spent</div>
-      <div class="stat-val">GH¢ <span id="statSpentGhs">—</span></div>
+      <div class="stat-val">GH₵ <span id="statSpentGhs">—</span></div>
       <div class="price-sub" style="margin-top:2px" id="statSpentUsd"></div>
     </div>
     <div class="stat">
@@ -223,12 +223,12 @@
     </div>
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="form-group">
-        <label class="form-label">Price per kg (GH¢)</label>
+        <label class="form-label">Price per kg (GH₵)</label>
         <input type="number" class="form-input" id="ord-price" placeholder="Select supplier to see price" min="0" step="0.01" oninput="calcOrderTotal()" />
       </div>
       <div class="form-group" style="justify-content:flex-end">
         <div class="order-total hidden" id="ord-total-box" style="margin:0;padding:8px 0">
-          Estimated total: <strong id="ord-total-ghs">—</strong> GHS
+          Estimated total: <strong id="ord-total-ghs">—</strong>
           <span id="ord-total-usd" style="color:var(--text-3);margin-left:8px"></span>
         </div>
       </div>
@@ -402,6 +402,7 @@
 </body>
 
 <script src="/shared/roles.js"></script>
+<script src="/shared/format.js"></script>
 <!-- qrcode@1.5.3 — exposes window.QRCode; used to render the Product Passport QR
      in the deliveries table. ~15 KB gzipped, jsdelivr CDN. -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -634,7 +635,7 @@ function calcOrderTotal() {
     var box = document.getElementById('ord-total-box');
     if (!isNaN(q) && q > 0 && !isNaN(p) && p > 0) {
         var total = q * p;
-        document.getElementById('ord-total-ghs').textContent = 'Est. GH₵ ' + fmt(total) + ' total value';
+        document.getElementById('ord-total-ghs').textContent = 'Est. ' + CirculFormat.fmtGHS(total) + ' total value';
         document.getElementById('ord-total-usd').textContent = '';
         box.classList.remove('hidden');
     } else {
@@ -767,9 +768,9 @@ function renderOrders() {
             '<div class="order-header">' +
             '<span class="badge badge-blue">' + esc(o.material_type) + '</span>' +
             '<span class="order-title">' + fmt(o.target_quantity_kg) + ' kg target</span>' +
-            '<span class="order-meta">GH₵ ' + fmt(o.price_per_kg) + '/kg</span>' +
+            '<span class="order-meta">' + CirculFormat.fmtGHS(o.price_per_kg) + '/kg</span>' +
             statusBadge +
-            '<span class="order-price">Est. GH₵ ' + fmt(estTotal) + ' <span class="price-sub">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
+            '<span class="order-price">Est. ' + CirculFormat.fmtGHS(estTotal) + ' <span class="price-sub">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
             '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
@@ -834,8 +835,8 @@ function buildConvPendingCard(pt) {
         tierHtml +
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-meta">' + CirculFormat.fmtGHS(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">' + CirculFormat.fmtGHS(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         photoHtml +
         '</div>' +
@@ -859,8 +860,8 @@ function buildConvApprovedCard(pt) {
         tierHtml +
         '<span class="del-title">' + procName + '</span>' +
         '<span class="del-meta">' + fmt(pt.gross_weight_kg) + ' kg</span>' +
-        '<span class="del-meta">GH₵ ' + fmt(pt.price_per_kg || 0) + '/kg</span>' +
-        '<span class="del-price">GH₵ ' + fmt(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
+        '<span class="del-meta">' + CirculFormat.fmtGHS(pt.price_per_kg || 0) + '/kg</span>' +
+        '<span class="del-price">' + CirculFormat.fmtGHS(pt.total_price || 0) + ' <span class="price-sub">≈ $' + (parseFloat(pt.total_price || 0) * 0.067).toFixed(0) + '</span></span>' +
         '<span class="del-meta">Submitted ' + timeAgo(pt.created_at) + '</span>' +
         '</div>' +
         '<div class="del-actions"><button class="btn-log-arrival" onclick="openConvArrivalForm(' + pt.id + ')">Log Arrival</button></div>' +
@@ -886,7 +887,7 @@ function buildConvCompletedRow(pt) {
         '<td>' + deliveryTierBadge(pt) + '</td>' +
         '<td><span class="badge badge-blue">' + esc(pt.material_type) + '</span></td>' +
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
-        '<td>GH₵ ' + fmt(total) + '</td>' +
+        '<td>' + CirculFormat.fmtGHS(total) + '</td>' +
         '<td>' + statusBadge + (rejNote ? '<br>' + rejNote : '') + '</td>' +
         '<td>' + payCell + '</td>' +
         '<td>' + fmtDate(pt.created_at) + '</td>' +
@@ -1035,7 +1036,7 @@ function loadTxns() {
                 var priceKg = t.price_per_kg ? fmt(t.price_per_kg) : '—';
                 var matLower = (t.material_type || '').toLowerCase();
                 var pillClass = 'pill pill-' + matLower;
-                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (priceKg !== '—' ? 'GH¢ ' + priceKg + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? 'GH¢ ' + fmt(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
+                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (t.price_per_kg ? CirculFormat.fmtGHS(t.price_per_kg) + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? CirculFormat.fmtGHS(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
             }).join('');
         })
         .catch(function(e) {
@@ -1064,14 +1065,14 @@ function loadProcessorPrices() {
                 '<th>Actual avg</th>' +
                 '</tr></thead><tbody>' +
                 all.map(function(p) {
-                    var ghsLine = p.price_per_kg_ghs ? 'GH₵ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + ' / kg' : '—';
+                    var ghsLine = p.price_per_kg_ghs ? CirculFormat.fmtGHS(p.price_per_kg_ghs) + ' / kg' : '—';
                     var usdLine = '';
                     return '<tr>' +
                         '<td class="td-name">' + p.material_type + '</td>' +
                         '<td class="td-green">' + ghsLine + usdLine + '</td>' +
                         '<td>' + esc(p.operator_name || '—') + '</td>' +
                         '<td>' + esc(p.city || '—') + '</td>' +
-                        '<td style="color:var(--text-3)">' + (p.actual_avg_price_30d ? 'GH₵ ' + parseFloat(p.actual_avg_price_30d).toFixed(2) : '—') + '</td>' +
+                        '<td style="color:var(--text-3)">' + (p.actual_avg_price_30d ? CirculFormat.fmtGHS(p.actual_avg_price_30d) : '—') + '</td>' +
                         '</tr>';
                 }).join('') + '</tbody></table></div>';
         })
@@ -1243,13 +1244,13 @@ function renderPriceCards(prices) {
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     document.getElementById('priceCards').innerHTML = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p && p.price_per_kg_ghs ? 'GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) : 'Not set';
+        var current = p && p.price_per_kg_ghs ? CirculFormat.fmtGHS(p.price_per_kg_ghs) : 'Not set';
         return '<div class="price-card">' +
             '<div class="pc-label">Material</div>' +
             '<div class="pc-name">' + mat + '</div>' +
             '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
             '<div class="pc-inline">' +
-            '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH¢/kg" step="0.01" min="0">' +
+            '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH₵/kg" step="0.01" min="0">' +
             '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
@@ -1493,7 +1494,7 @@ function loadTopSuppliers(period) {
             '<td style="color:var(--accent);font-weight:700">' + (i+1) + '</td>' +
             '<td class="td-name">' + nameCell(p.name || p.processor_name, p.partner_code, p.name_visible) + '</td>' +
             '<td>' + cvFmtVol(p.volume || p.total_volume || 0) + ' kg</td>' +
-            '<td class="td-green">GHS ' + cvFmtPrice(p.avg_price || p.avg_price_paid || 0) + '/kg</td>' +
+            '<td class="td-green">' + CirculFormat.fmtGHS(p.avg_price || p.avg_price_paid || 0) + '/kg</td>' +
             '<td>' + tierHtml + '</td>' +
             '</tr>';
         }).join('') + '</tbody></table></div>';
@@ -1515,7 +1516,7 @@ function cvRenderDemoSuppliers() {
         '<td style="color:var(--accent);font-weight:700">' + (i+1) + '</td>' +
         '<td class="td-name">' + p.name + '</td>' +
         '<td>' + cvFmtVol(p.volume) + ' kg</td>' +
-        '<td class="td-green">GHS ' + p.avg.toFixed(2) + '/kg</td>' +
+        '<td class="td-green">' + CirculFormat.fmtGHS(p.avg) + '/kg</td>' +
         '<td>' + tierBadge(p.tier) + '</td>' +
         '</tr>';
     }).join('') + '</tbody></table></div>';
@@ -1524,10 +1525,6 @@ function cvRenderDemoSuppliers() {
 function cvFmtVol(n) {
   if (n >= 1000) return (n/1000).toFixed(1) + "t";
   return Math.round(n) + "";
-}
-
-function cvFmtPrice(n) {
-  return parseFloat(n || 0).toFixed(2);
 }
 
 // ── ATTRIBUTE TAGS FOR PROCESSOR RATING ──────────────────────────
