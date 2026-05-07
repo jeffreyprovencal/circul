@@ -53,7 +53,7 @@ nav{display:flex;align-items:center;padding:12px 24px;background:var(--nav-bg);b
 .hero-name{font-size:1.5rem;font-weight:800;margin-bottom:4px}
 .hero-meta{color:var(--text-2);font-size:0.85rem;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .hero-meta .sep{color:var(--text-3)}
-.badge{display:inline-block;font-size:0.65rem;font-weight:700;letter-spacing:0.08em;padding:3px 10px;border-radius:20px;background:var(--accent-muted);color:var(--accent)}
+.badge{display:inline-block;font-size:0.7rem;font-weight:600;padding:3px 8px;border-radius:10px;white-space:nowrap;background:var(--accent-muted);color:var(--accent)}
 .stars{color:#ffd740}
 
 /* ── STAT CARDS ── */
