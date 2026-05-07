@@ -371,11 +371,6 @@ function apiFetch(path, opts={}) {
       return r.json();
     });
 }
-function fmt(n) {
-  const v = parseFloat(n);
-  if (isNaN(v)) return '—';
-  return 'GH¢ ' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 function fmtDate(s) {
   if (!s) return '—';
   return new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
@@ -608,8 +603,8 @@ async function loadCollections() {
         '<td>' + esc(name) + '</td>' +
         '<td><span class="pill pill-' + (c.material_type || 'pet').toLowerCase() + '">' + (c.material_type || '—') + '</span></td>' +
         '<td>' + parseFloat(c.net_weight_kg || c.weight_kg || 0).toFixed(2) + ' kg</td>' +
-        '<td>' + fmt(c.price_per_kg || 0) + '</td>' +
-        '<td>' + fmt(total) + '</td>' +
+        '<td>' + CirculFormat.fmtGHS(c.price_per_kg || 0) + '</td>' +
+        '<td>' + CirculFormat.fmtGHS(total) + '</td>' +
         '</tr>';
     }).join('');
   } catch (err) {
