@@ -667,7 +667,7 @@ function loadTxns() {
                 var aggName = nameCell(t.aggregator_company || t.aggregator_name || t.seller_name, t.aggregator_code, t.aggregator_name_visible);
                 var matClass = 'pill-' + (t.material_type || '').toLowerCase();
                 return '<tr>' +
-                    '<td>' + fmtDate(t.transaction_date) + '</td>' +
+                    '<td>' + CirculFormat.fmtDateLong(t.transaction_date) + '</td>' +
                     '<td class="td-name">' + aggName + '</td>' +
                     '<td><span class="pill ' + matClass + '">' + t.material_type + '</span></td>' +
                     '<td>' + fmt(t.net_weight_kg) + ' kg</td>' +
@@ -729,7 +729,7 @@ function renderPriceCards(prices) {
         var current = hasPrice ? CirculFormat.fmtGHS(p.price_per_kg_ghs) + '/kg' : 'Not posted';
         var priceLabel = hasPrice ? 'Buying at' : 'Current price';
         var priceClass = hasPrice ? ' class="pc-val"' : ' style="color:var(--text-3)"';
-        var updated = hasPrice && p.posted_at ? '<div class="pc-row"><span>Last updated</span><span>' + fmtDate(p.posted_at) + '</span></div>' : '';
+        var updated = hasPrice && p.posted_at ? '<div class="pc-row"><span>Last updated</span><span>' + CirculFormat.fmtDateLong(p.posted_at) + '</span></div>' : '';
         var btnText = hasPrice ? 'Update' : 'Post';
         var placeholder = hasPrice ? 'New price/kg' : 'Set price/kg';
         return '<div class="price-card">' +
@@ -762,7 +762,6 @@ function downloadCompliance(e) {
 }
 
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
-function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 function nameCell(name, code, visible) {
   if (visible === false) return '<span class="counterparty-name-hidden">' + esc(code || '—') + '</span>';
@@ -969,7 +968,7 @@ function buildCompletedRow(pt) {
         + '</select>';
 
     return '<tr>' +
-        '<td>' + fmtDate(pt.created_at) + '</td>' +
+        '<td>' + CirculFormat.fmtDateLong(pt.created_at) + '</td>' +
         '<td class="td-name">' + aggName + '</td>' +
         '<td><span class="pill ' + matClass + '">' + esc(pt.material_type) + '</span></td>' +
         '<td>' + fmt(pt.gross_weight_kg) + ' kg</td>' +
@@ -1305,7 +1304,7 @@ function renderProcessorSales() {
             '<span class="ps-sale-meta">' + CirculFormat.fmtGHS(s.price_per_kg || 0) + '/kg</span>' +
             statusBadge +
             '<span class="ps-sale-price">' + total + '</span>' +
-            '<span class="ps-sale-meta" style="width:100%;margin-top:2px">' + fmtDate(s.created_at) + '</span>' +
+            '<span class="ps-sale-meta" style="width:100%;margin-top:2px">' + CirculFormat.fmtDateLong(s.created_at) + '</span>' +
             (rejHtml ? '<div style="width:100%">' + rejHtml + '</div>' : '') +
             '</div>';
     }).join('');
@@ -1592,7 +1591,7 @@ function exportToCSV(containerId, filenameBase) {
       return '"' + String(cell).replace(/"/g, '""') + '"';
     }).join(',');
   }).join('\n');
-  var today = new Date().toISOString().slice(0, 10);
+  var today = CirculFormat.fmtDateISO();
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   var link = document.createElement('a');
   link.href = URL.createObjectURL(blob);

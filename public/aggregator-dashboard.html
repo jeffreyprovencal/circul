@@ -1147,7 +1147,7 @@ function loadPendingTxns() {
                     '<span class="bs-proc">' + esc(name) + '</span>' +
                     '<span class="bs-meta">' + fmt(t.net_weight_kg) + ' kg</span>' +
                     '<span class="bs-meta">' + CirculFormat.fmtGHS(t.total_price) + '</span>' +
-                    '<span class="bs-meta" style="margin-left:auto">' + fmtDate(t.transaction_date) + '</span>' +
+                    '<span class="bs-meta" style="margin-left:auto">' + CirculFormat.fmtDateLong(t.transaction_date) + '</span>' +
                     '</div>' +
                     '<div class="bs-status-row">' + paymentBadge(t.payment_status) + '<div style="margin-left:auto">' + action + '</div></div>' +
                     '</div>';
@@ -1252,7 +1252,7 @@ async function loadPL(range, manual) {
     try {
       var url = '/api/aggregators/' + id + '/expenses';
       if (range === 'ytd') {
-        var jan1 = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10);
+        var jan1 = CirculFormat.fmtDateISO(new Date(new Date().getFullYear(), 0, 1));
         url += '?from=' + jan1;
       }
       var expRes = await apiFetch(url);
@@ -1503,7 +1503,7 @@ function openLogExpense() {
   var btn = document.getElementById('plLogExpenseBtn');
 
   // Set date default to today
-  var today = new Date().toISOString().slice(0, 10);
+  var today = CirculFormat.fmtDateISO();
   document.getElementById('plDate').value = today;
   document.getElementById('plDate').max = today;
 
@@ -1987,7 +1987,7 @@ function loadAgentReports() {
         }
         el.innerHTML = data.ratings.map(function(r) {
             var stars = '\u2605'.repeat(r.rating) + '\u2606'.repeat(5 - r.rating);
-            var when = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+            var when = r.created_at ? CirculFormat.fmtDateLong(r.created_at) : '';
             var mat = r.material_type || '\u2014';
             var kg = r.gross_weight_kg ? (parseFloat(r.gross_weight_kg).toFixed(0) + ' kg ') : '';
             var note = r.notes ? '<div style="font-size:0.82rem;color:var(--text-2);margin-top:4px">' + esc(r.notes) + '</div>' : '';
@@ -2116,7 +2116,7 @@ function loadIncomingCollections() {
             list.innerHTML = rows.map(function(pt) {
                 var name = ((pt.collector_first_name || '') + ' ' + (pt.collector_last_name || '')).trim() || pt.collector_display_name || '—';
                 var kg   = parseFloat(pt.gross_weight_kg).toFixed(1);
-                var date = fmtDate(pt.created_at);
+                var date = CirculFormat.fmtDateLong(pt.created_at);
                 return '<div class="incoming-item" id="pt-item-' + pt.id + '">' +
                     '<div class="incoming-item-row">' +
                     '<span class="pill pill-' + (pt.material_type || '').toLowerCase() + '">' + esc(pt.material_type) + '</span>' +
@@ -2617,7 +2617,7 @@ function renderBatchSaleItem(pt) {
     var totalFmt = total >= 1000
         ? total.toLocaleString('en-US', { maximumFractionDigits: 0 })
         : total.toFixed(2);
-    var date  = fmtDate(pt.created_at);
+    var date  = CirculFormat.fmtDateLong(pt.created_at);
 
     var statusBadge = buildBatchSaleStatusBadge(pt.status);
 
@@ -2699,11 +2699,6 @@ function fmt(n) {
     if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 });
     if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 });
     return v.toFixed(2);
-}
-
-function fmtDate(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function esc(s) {
@@ -2801,7 +2796,7 @@ function loadProcessorPrices() {
             '<td class="td-name">' + nameCell(p.processor_name, p.processor_code, p.name_visible) + '</td>' +
             '<td>' + esc(p.material_type) + '</td>' +
             '<td class="td-green">' + CirculFormat.fmtGHS(p.price_per_kg_ghs) + '/kg</td>' +
-            '<td>' + fmtDate(p.updated_at) + '</td>' +
+            '<td>' + CirculFormat.fmtDateLong(p.updated_at) + '</td>' +
             '</tr>';
         }).join('') +
         '</tbody></table></div>';
@@ -3015,7 +3010,7 @@ function toggleOffers(listingId) {
       var buyerLabel = nameCell(o.buyer_name, o.buyer_code, o.buyer_name_visible) + ' ' + rolePill(o.buyer_role);
       var header = '<div class="offer-bubble-header">' +
         '<span>' + (isMine ? 'You' : buyerLabel) + ' · Round ' + o.round + '</span>' +
-        '<span>' + fmtDate(o.created_at) + '</span>' +
+        '<span>' + CirculFormat.fmtDateLong(o.created_at) + '</span>' +
       '</div>';
       var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';
       var body = '<div>' + CirculFormat.fmtGHS(o.price_per_kg) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg' + finalTag + '</div>';
@@ -3362,7 +3357,7 @@ function exportToCSV(containerId, filenameBase) {
       return '"' + escaped + '"';
     }).join(',');
   }).join('\n');
-  var today = new Date().toISOString().slice(0, 10);
+  var today = CirculFormat.fmtDateISO();
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   var link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -3540,7 +3535,7 @@ function loadAgents() {
       tbody.innerHTML = data.agents.map(function(a) {
         var name = esc(a.first_name + ' ' + a.last_name);
         var status = a.is_active ? '<span class="badge">ACTIVE</span>' : '<span class="badge" style="color:#ef5350;">INACTIVE</span>';
-        var since = a.created_at ? new Date(a.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        var since = CirculFormat.fmtDateLong(a.created_at);
         var kg7d = (a.kg_7d != null ? parseFloat(a.kg_7d) : 0).toFixed(1);
         return '<tr><td class="td-name">' + name + '</td><td>' + esc(a.phone) + '</td><td>' + esc(a.city || '—') + '</td><td class="td-green">' + kg7d + '</td><td>' + status + '</td><td>' + since + '</td></tr>';
       }).join('');
@@ -4042,7 +4037,7 @@ function reportDownloadCSV() {
             var headers = ['date','ref','collector_code','material','form','gross_kg','net_kg','price_per_kg_ghs','total_ghs','payment_status','paid_at'];
             var rows = response.rows.map(function (r) {
                 return [
-                    new Date(r.date).toISOString().slice(0, 10),
+                    CirculFormat.fmtDateISO(new Date(r.date)),
                     r.ref,
                     r.collector_code,
                     r.material_type,
@@ -4060,7 +4055,7 @@ function reportDownloadCSV() {
             var headersS = ['date','ref','buyer_kind','buyer_code','buyer_name','material','form','gross_kg','net_kg','price_per_kg_ghs','total_ghs','traced_pct','collector_codes','payment_status','paid_at'];
             var rowsS = response.rows.map(function (r) {
                 return [
-                    new Date(r.date).toISOString().slice(0, 10),
+                    CirculFormat.fmtDateISO(new Date(r.date)),
                     r.ref,
                     r.buyer_kind || '',
                     r.buyer_code || '',
