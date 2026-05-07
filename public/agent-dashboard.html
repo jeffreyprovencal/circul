@@ -151,10 +151,8 @@
       </div>
       <div>
         <label class="form-label">City</label>
-        <select id="collCity" class="form-input">
+        <select id="collCity" class="form-input" data-city-select>
           <option value="">Select city…</option>
-          <option>Accra</option><option>Tema</option><option>Kumasi</option><option>Takoradi</option><option>Tamale</option>
-          <option>Cape Coast</option><option>Koforidua</option><option>Sunyani</option><option>Ho</option><option>Bolgatanga</option>
         </select>
       </div>
       <div>
@@ -652,7 +650,31 @@ function signOut() {
   window.location.href = '/login';
 }
 
-document.addEventListener('DOMContentLoaded', checkAuth);
+// Populate any [data-city-select] dropdowns from the shared regional-capitals
+// list (single source of truth in shared/roles.js — same list the USSD city
+// picker iterates). Loaded after CirculRoles is on window via /shared/roles.js.
+function populateCityDropdowns() {
+  if (!window.CirculRoles || !window.CirculRoles.GHANA_REGIONAL_CAPITALS) return;
+  document.querySelectorAll('select[data-city-select]').forEach(function (sel) {
+    var current = sel.value;
+    // Wipe everything except the placeholder option (value="")
+    Array.from(sel.options).slice().forEach(function (opt) {
+      if (opt.value !== '') sel.removeChild(opt);
+    });
+    window.CirculRoles.GHANA_REGIONAL_CAPITALS.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c.city;
+      opt.textContent = c.city;
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  populateCityDropdowns();
+  checkAuth();
+});
 </script>
 </body>
 </html>
