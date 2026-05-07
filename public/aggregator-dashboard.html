@@ -165,7 +165,7 @@
       </div>
       <div class="stat">
         <div class="stat-label">Outstanding Payments</div>
-        <div class="stat-val" id="statPendingVal">GH¢ 0.00</div>
+        <div class="stat-val" id="statPendingVal">GH₵ 0.00</div>
       </div>
     </div>
 
@@ -233,7 +233,7 @@
             <input class="form-input" id="regWeight" type="number" min="0" step="0.1" placeholder="0" />
           </div>
           <div class="form-group">
-            <label class="form-label">Price (GH¢/kg)</label>
+            <label class="form-label">Price (GH₵/kg)</label>
             <input class="form-input" id="regPrice" type="number" min="0" step="0.01" placeholder="0.00" />
           </div>
         </div>
@@ -322,7 +322,7 @@
       <div class="section-head">
         <div>
           <div class="section-title">Marketplace — My Prices</div>
-          <div class="section-sub">Current prices posted · GH¢/kg</div>
+          <div class="section-sub">Current prices posted · GH₵/kg</div>
         </div>
       </div>
       <div class="price-grid" id="priceCards">
@@ -484,7 +484,7 @@
         <table>
           <thead><tr>
             <th>Date</th><th>Ref</th><th>Collector</th><th>Material</th>
-            <th style="text-align:right">Net kg</th><th style="text-align:right">GH¢/kg</th>
+            <th style="text-align:right">Net kg</th><th style="text-align:right">GH₵/kg</th>
             <th style="text-align:right">Total</th><th>Payment</th>
           </tr></thead>
           <tbody id="aggTxnBody"><tr><td colspan="8" class="placeholder-cell">Loading…</td></tr></tbody>
@@ -586,7 +586,7 @@
 
           <div class="pl-form-row">
             <div class="pl-form-field" style="max-width:130px">
-              <label for="plAmount">Amount (GH¢)</label>
+              <label for="plAmount">Amount (GH₵)</label>
               <input type="number" id="plAmount" placeholder="0.00" step="0.01" min="0">
             </div>
             <div class="pl-form-field">
@@ -1021,7 +1021,7 @@ function loadAll() {
             var el;
             el = document.getElementById('collectorCount'); if (el) el.innerHTML = '<strong>' + s.active_collectors + '</strong> active';
             el = document.getElementById('statPending'); if (el) el.textContent = s.pending_payments.count;
-            el = document.getElementById('statPendingVal'); if (el) el.textContent = 'GH¢ ' + fmt(s.pending_payments.value);
+            el = document.getElementById('statPendingVal'); if (el) el.textContent = CirculFormat.fmtGHS(s.pending_payments.value);
             el = document.getElementById('statMonthKg'); if (el) el.textContent = fmt(s.this_month.month_kg);
             el = document.getElementById('statTotalKg'); if (el) el.textContent = fmt(s.totals.total_kg);
             renderPriceCards(s.posted_prices);
@@ -1064,13 +1064,13 @@ function renderPriceCards(prices) {
     (prices || []).forEach(function(p) { priceMap[p.material_type] = p; });
     var html = MATERIALS.map(function(mat) {
         var p = priceMap[mat];
-        var current = p && p.price_per_kg_ghs ? 'GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg' : 'Not set';
+        var current = p && p.price_per_kg_ghs ? CirculFormat.fmtGHS(p.price_per_kg_ghs) + '/kg' : 'Not set';
         return '<div class="price-card">' +
             '<div class="pc-label">Material</div>' +
             '<div class="pc-name">' + mat + '</div>' +
             '<div class="pc-row"><span>Current</span><span class="pc-val">' + current + '</span></div>' +
             '<div class="pc-inline">' +
-            '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH¢/kg" step="0.01" min="0">' +
+            '<input type="number" class="pc-input" id="price-ghs-' + mat + '" placeholder="GH₵/kg" step="0.01" min="0">' +
             '<button class="pc-post" onclick="postPrice(\'' + mat + '\')">Post</button>' +
             '</div></div>';
     }).join('');
@@ -1079,7 +1079,7 @@ function renderPriceCards(prices) {
 
 function postPrice(mat) {
     var ghs = document.getElementById('price-ghs-' + mat).value;
-    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH¢ price'); return; }
+    if (!ghs || parseFloat(ghs) <= 0) { alert('Enter a valid GH₵ price'); return; }
     fetch('/api/prices', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ poster_type: 'aggregator', poster_id: state.operator.id, material_type: mat, price_per_kg_ghs: parseFloat(ghs), price_per_kg_usd: 0 })
@@ -1146,7 +1146,7 @@ function loadPendingTxns() {
                     '<span class="pill pill-' + t.material_type.toLowerCase() + '">' + t.material_type + '</span>' +
                     '<span class="bs-proc">' + esc(name) + '</span>' +
                     '<span class="bs-meta">' + fmt(t.net_weight_kg) + ' kg</span>' +
-                    '<span class="bs-meta">GH¢ ' + fmt(t.total_price) + '</span>' +
+                    '<span class="bs-meta">' + CirculFormat.fmtGHS(t.total_price) + '</span>' +
                     '<span class="bs-meta" style="margin-left:auto">' + fmtDate(t.transaction_date) + '</span>' +
                     '</div>' +
                     '<div class="bs-status-row">' + paymentBadge(t.payment_status) + '<div style="margin-left:auto">' + action + '</div></div>' +
@@ -1289,10 +1289,6 @@ async function loadPL(range, manual) {
   }
 }
 
-function fmtGHS(n) {
-  return 'GH\u00a2 ' + Math.abs(n).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function trendHTML(mom) {
   if (mom === 0) return '<span class="trend trend-flat">\u2014</span>';
   var cls = mom > 0 ? 'trend-up' : 'trend-down';
@@ -1332,7 +1328,7 @@ function renderPL() {
     '<span class="pl-row-right">' +
       '<span class="margin-pct">' + gross.pct + '%</span>' +
       trendHTML(gross.mom) +
-      '<span class="pl-row-val ' + (gross.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + fmtGHS(gross.amount) + '</span>' +
+      '<span class="pl-row-val ' + (gross.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + CirculFormat.fmtGHS(gross.amount) + '</span>' +
     '</span></div>';
 
   // OpEx row
@@ -1347,7 +1343,7 @@ function renderPL() {
     '<span class="pl-row-right">' +
       '<span class="margin-pct">' + net.pct + '%</span>' +
       trendHTML(net.mom) +
-      '<span class="pl-row-val ' + (net.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + fmtGHS(net.amount) + '</span>' +
+      '<span class="pl-row-val ' + (net.amount >= 0 ? 'val-pos' : 'val-neg') + '">' + CirculFormat.fmtGHS(net.amount) + '</span>' +
     '</span></div>';
 
   // Empty state
@@ -1373,7 +1369,7 @@ function plRowHTML(key, label, amount, valClass, mom) {
     '<span class="pl-row-label">' + chevron + ' ' + label + '</span>' +
     '<span class="pl-row-right">' +
       trendHTML(mom) +
-      '<span class="pl-row-val ' + valClass + '">' + fmtGHS(amount) + '</span>' +
+      '<span class="pl-row-val ' + valClass + '">' + CirculFormat.fmtGHS(amount) + '</span>' +
     '</span></div>';
 }
 
@@ -1409,7 +1405,7 @@ function renderOpExBreakdown() {
 
     html += '<div class="pl-sub-row" onclick="event.stopPropagation(); togglePLSub(\'' + subKey + '\')"' + (isOpen ? ' style="background:rgba(255,255,255,.02)"' : '') + '>' +
       '<span class="pl-sub-label">' + chevron + ' ' + esc(cat.category_name) + '</span>' +
-      '<span class="pl-sub-val val-neg">' + fmtGHS(cat.total) + '</span>' +
+      '<span class="pl-sub-val val-neg">' + CirculFormat.fmtGHS(cat.total) + '</span>' +
     '</div>';
 
     // Level 3: individual entries
@@ -1425,7 +1421,7 @@ function renderOpExBreakdown() {
 
         if (plDeleteConfirm === e.id) {
           html += '<div class="pl-del-confirm">' +
-            '<span class="pl-del-confirm-text">Delete "' + esc(e.note || 'this entry') + '" \u2014 ' + fmtGHS(e.amount) + '?</span>' +
+            '<span class="pl-del-confirm-text">Delete "' + esc(e.note || 'this entry') + '" \u2014 ' + CirculFormat.fmtGHS(e.amount) + '?</span>' +
             '<span><button class="pl-del-yes" onclick="event.stopPropagation(); confirmDeleteExpense(' + e.id + ')">Delete</button> ' +
             '<button class="pl-del-no" onclick="event.stopPropagation(); cancelDeleteExpense()">Keep</button></span>' +
           '</div>';
@@ -1433,7 +1429,7 @@ function renderOpExBreakdown() {
           html += '<div class="pl-txn">' +
             '<span class="pl-txn-info">' + dateStr + noteStr + receiptIcon + ' ' + queueBadge + '</span>' +
             '<span class="pl-txn-actions">' +
-              '<span class="pl-txn-amount val-neg">' + fmtGHS(e.amount) + '</span>' +
+              '<span class="pl-txn-amount val-neg">' + CirculFormat.fmtGHS(e.amount) + '</span>' +
               '<button class="pl-txn-del" onclick="event.stopPropagation(); promptDeleteExpense(' + e.id + ')" title="Delete">\u2715</button>' +
             '</span></div>';
         }
@@ -1442,7 +1438,7 @@ function renderOpExBreakdown() {
     }
   }
 
-  html += '<div class="pl-sub-total"><span>' + plExpenses.entry_count + ' entries across ' + plExpenses.categories.length + ' categories</span><span>' + fmtGHS(plExpenses.total) + '</span></div>';
+  html += '<div class="pl-sub-total"><span>' + plExpenses.entry_count + ' entries across ' + plExpenses.categories.length + ' categories</span><span>' + CirculFormat.fmtGHS(plExpenses.total) + '</span></div>';
   html += '</div>';
   return html;
 }
@@ -2127,7 +2123,7 @@ function loadIncomingCollections() {
                     '<span class="incoming-item-name">' + esc(name) + '</span>' +
                     '<span class="incoming-item-detail">' + kg + ' kg</span>' +
                     '<span class="incoming-item-detail">' + date + '</span>' +
-                    (pt.price_per_kg ? '<span class="incoming-item-detail">GH¢ ' + parseFloat(pt.price_per_kg).toFixed(2) + '/kg offered</span>' : '') +
+                    (pt.price_per_kg ? '<span class="incoming-item-detail">' + CirculFormat.fmtGHS(pt.price_per_kg) + '/kg offered</span>' : '') +
                     '<button class="btn-review" id="review-btn-' + pt.id + '" onclick="openReview(' + pt.id + ')">Review</button>' +
                     '</div>' +
                     '<div class="review-panel hidden" id="review-panel-' + pt.id + '"></div>' +
@@ -2180,8 +2176,8 @@ function buildReviewPanel(ptId, pt, basePrice) {
         '<div id="price-preview-' + ptId + '" class="price-preview" class="hidden"></div>' +
         '<div class="review-fields">' +
         '<div>' +
-        '<label class="review-field-label">Price (GH¢/kg)</label>' +
-        '<input type="number" class="review-input" id="rev-price-' + ptId + '" value="' + esc(String(basePrice)) + '" placeholder="GH¢/kg" step="0.01" min="0" oninput="updatePricePreview(' + ptId + ')">' +
+        '<label class="review-field-label">Price (GH₵/kg)</label>' +
+        '<input type="number" class="review-input" id="rev-price-' + ptId + '" value="' + esc(String(basePrice)) + '" placeholder="GH₵/kg" step="0.01" min="0" oninput="updatePricePreview(' + ptId + ')">' +
         '</div>' +
         '<div>' +
         '<label class="review-field-label">Grade notes <span class="label-hint">(optional)</span></label>' +
@@ -2223,7 +2219,7 @@ function updatePricePreview(ptId) {
     var mult       = grade === 'A' ? 1.10 : grade === 'C' ? 0.75 : 1.0;
     var final      = parseFloat((basePrice * mult).toFixed(2));
     var total      = parseFloat((final * parseFloat(pt.gross_weight_kg)).toFixed(2));
-    preview.textContent = 'Final price: GH¢ ' + final.toFixed(2) + '/kg — Total: GH¢ ' + total.toFixed(2) + ' (' + parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg)';
+    preview.textContent = 'Final price: ' + CirculFormat.fmtGHS(final) + '/kg — Total: ' + CirculFormat.fmtGHS(total) + ' (' + parseFloat(pt.gross_weight_kg).toFixed(1) + ' kg)';
     preview.classList.remove('hidden');
 }
 
@@ -2659,8 +2655,8 @@ function renderBatchSaleItem(pt) {
             '<span class="pill pill-' + (pt.material_type || '').toLowerCase() + '">' + esc(pt.material_type || '—') + '</span>' +
             '<span class="bs-proc">' + esc(fromLabel) + ' → ' + esc(proc) + '</span>' +
             '<span class="bs-meta">' + kg + ' kg</span>' +
-            '<span class="bs-meta">GH¢ ' + price + '/kg</span>' +
-            '<span class="bs-meta">GH¢ ' + totalFmt + ' total</span>' +
+            '<span class="bs-meta">' + CirculFormat.fmtGHS(parseFloat(pt.price_per_kg || 0)) + '/kg</span>' +
+            '<span class="bs-meta">' + CirculFormat.fmtGHS(total) + ' total</span>' +
             '<span class="bs-meta" style="margin-left:auto">' + date + '</span>' +
         '</div>' +
         '<div class="bs-status-row">' +
@@ -2804,7 +2800,7 @@ function loadProcessorPrices() {
           return '<tr>' +
             '<td class="td-name">' + nameCell(p.processor_name, p.processor_code, p.name_visible) + '</td>' +
             '<td>' + esc(p.material_type) + '</td>' +
-            '<td class="td-green">GH¢ ' + parseFloat(p.price_per_kg_ghs).toFixed(2) + '/kg</td>' +
+            '<td class="td-green">' + CirculFormat.fmtGHS(p.price_per_kg_ghs) + '/kg</td>' +
             '<td>' + fmtDate(p.updated_at) + '</td>' +
             '</tr>';
         }).join('') +
@@ -2872,7 +2868,7 @@ async function loadMyBuyRequests(){
         + '<td>'+fmtDate(o.created_at)+'</td>'
         + '<td>'+matPill(o.material_type)+'</td>'
         + '<td>'+parseFloat(o.target_quantity_kg).toLocaleString()+' kg</td>'
-        + '<td class="td-green">GH¢ '+parseFloat(o.price_per_kg).toFixed(2)+'</td>'
+        + '<td class="td-green">' + CirculFormat.fmtGHS(o.price_per_kg) + '</td>'
         + '<td style="color:var(--text-2);font-size:0.78rem;max-width:240px;white-space:normal">'+(o.notes ? escapeHtml(o.notes) : '<span style="color:var(--text-3)">—</span>')+'</td>'
         + '<td>'+statusPill(o.status)+'</td>'
         + '<td>'+(o.status==='open' ? '<button class="btn" onclick="cancelBuyRequest('+o.id+')">Cancel</button>' : '')+'</td>'
@@ -2935,7 +2931,7 @@ function loadMyListings() {
       var expiryClass = daysLeft <= 1 ? 'expiring-soon' : 'active';
       var expiryText = daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? 'Expires tomorrow' : 'Expires in ' + daysLeft + ' days';
       var priceHtml = l.price_per_kg
-        ? '<span class="listing-card-price">GH₵ ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
+        ? '<span class="listing-card-price">' + CirculFormat.fmtGHS(l.price_per_kg) + '/kg</span>'
         : '<span class="listing-card-price make-offer">Make an offer</span>';
       var offerCountHtml = (l.offer_count && parseInt(l.offer_count) > 0)
         ? ' <span class="offer-count">' + l.offer_count + '</span>'
@@ -3022,7 +3018,7 @@ function toggleOffers(listingId) {
         '<span>' + fmtDate(o.created_at) + '</span>' +
       '</div>';
       var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';
-      var body = '<div>GH₵ ' + parseFloat(o.price_per_kg).toFixed(2) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg' + finalTag + '</div>';
+      var body = '<div>' + CirculFormat.fmtGHS(o.price_per_kg) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg' + finalTag + '</div>';
       var actions = '';
       if (o.status === 'pending' && !isMine) {
         actions = '<div class="offer-actions">' +
@@ -3170,7 +3166,7 @@ function loadDiscoverListings() {
       var expiryClass = daysLeft <= 1 ? 'expiring-soon' : 'active';
       var expiryText = daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? 'Expires tomorrow' : 'Expires in ' + daysLeft + ' days';
       var priceHtml = l.price_per_kg
-        ? '<span class="listing-card-price">GH₵ ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
+        ? '<span class="listing-card-price">' + CirculFormat.fmtGHS(l.price_per_kg) + '/kg</span>'
         : '<span class="listing-card-price make-offer">Make an offer</span>';
       var sellerName = l.seller_name_visible === false ? esc(l.seller_code || 'Seller') : esc(l.seller_name || 'Seller');
       var rating = l.seller_rating ? parseFloat(l.seller_rating).toFixed(1) : null;
@@ -3278,7 +3274,7 @@ function loadSentOffers() {
           '<span>' + matPill(o.material_type || '') + ' ' + esc(o.listing_material || '') + '</span>' +
           '<span class="pill ' + statusCls + '">' + esc(o.status) + '</span>' +
         '</div>' +
-        '<div>GH₵ ' + parseFloat(o.price_per_kg).toFixed(2) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg · Round ' + o.round + finalTag + '</div>' +
+        '<div>' + CirculFormat.fmtGHS(o.price_per_kg) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg · Round ' + o.round + finalTag + '</div>' +
         actions +
       '</div>';
     }).join('');
@@ -3454,7 +3450,7 @@ function renderTopTable(tbody, rows, nameKey, cols) {
     var code = r.collector_code || r.processor_code || r.partner_code || '';
     var nm = nameCell(r[nameKey] || r.name, code, r.name_visible !== false);
     var vol = Math.round(r.ytd_kg || r.total_kg || 0) + " kg";
-    var avg = r.avg_price ? "GH¢ " + parseFloat(r.avg_price).toFixed(2) + "/kg" : "—";
+    var avg = r.avg_price ? CirculFormat.fmtGHS(r.avg_price) + "/kg" : "—";
     var txns = r.transaction_count || r.count || 0;
     return "<tr><td style=\"color:var(--accent);font-weight:700\">" + (i+1) + "</td>" +
            "<td class=\"td-name\">" + nm + "</td>" +
@@ -3851,9 +3847,6 @@ function reportEditFilters() {
 function fmtKg(n) {
     return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' kg';
 }
-function fmtGhs(n) {
-    return 'GH\u20b5 ' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-}
 function fmtPaymentStatus(s) {
     if (s === 'paid') return 'Paid';
     if (s === 'payment_sent') return 'Sent';
@@ -3890,7 +3883,7 @@ function renderReportPreview(filters, response) {
         var avgPerKg = s.total_sourced_kg > 0 ? (s.total_paid_out_ghs / s.total_sourced_kg) : 0;
         sumEl.innerHTML = [
             renderSummaryCard('Total Sourced', fmtKg(s.total_sourced_kg), s.transaction_count + ' transactions'),
-            renderSummaryCard('Total Paid Out', fmtGhs(s.total_paid_out_ghs), 'avg ' + fmtGhs(avgPerKg) + '/kg'),
+            renderSummaryCard('Total Paid Out', CirculFormat.fmtGHS(s.total_paid_out_ghs), 'avg ' + CirculFormat.fmtGHS(avgPerKg) + '/kg'),
             renderSummaryCard('Collectors', String(s.collector_count), 'all registered'),
             renderSummaryCard('Largest Supplier', s.largest_supplier_code || '\u2014', s.largest_supplier_pct + '% \u00b7 ' + fmtKg(s.largest_supplier_kg))
         ].join('');
@@ -3900,7 +3893,7 @@ function renderReportPreview(filters, response) {
         var avgPerKgS = s.total_volume_kg > 0 ? (s.total_value_ghs / s.total_volume_kg) : 0;
         sumEl.innerHTML = [
             renderSummaryCard('Total Volume', fmtKg(s.total_volume_kg), s.transaction_count + ' transactions'),
-            renderSummaryCard('Total Value', fmtGhs(s.total_value_ghs), 'avg ' + fmtGhs(avgPerKgS) + '/kg'),
+            renderSummaryCard('Total Value', CirculFormat.fmtGHS(s.total_value_ghs), 'avg ' + CirculFormat.fmtGHS(avgPerKgS) + '/kg'),
             renderSummaryCard('Buyers', String(s.buyer_count), ''),
             renderSummaryCard('Traced %', s.traced_pct_by_kg + '%', fmtKg(s.traced_kg) + ' traced of ' + fmtKg(s.total_volume_kg))
         ].join('');
