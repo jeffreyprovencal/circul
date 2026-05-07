@@ -213,7 +213,7 @@
     </div>
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="form-group">
-        <label class="form-label">Price per kg (GH¢)</label>
+        <label class="form-label">Price per kg (GH₵)</label>
         <input type="number" class="form-input" id="ord-price" placeholder="e.g. 3.50" min="0" step="0.01" oninput="calcOrderTotal()" />
       </div>
       <div class="form-group" style="justify-content:flex-end">
@@ -267,7 +267,7 @@
         <input class="form-input" type="number" id="rec-sale-qty" placeholder="e.g. 500" min="1" oninput="onRecWeightChanged()" />
       </div>
       <div class="form-group">
-        <label class="form-label">Price / kg (GHS)</label>
+        <label class="form-label">Price / kg (GH₵)</label>
         <input class="form-input" type="number" id="rec-sale-price" placeholder="e.g. 3.50" step="0.01" min="0" />
       </div>
     </div>
@@ -288,7 +288,7 @@
     <div class="section-head">
       <div>
         <div class="section-title">Marketplace — My Prices</div>
-        <div class="section-sub">Current prices posted &middot; GHS/kg</div>
+        <div class="section-sub">Current prices posted &middot; GH₵/kg</div>
       </div>
       <button class="btn btn-green" onclick="togglePriceForm()">+ Post Price</button>
     </div>
@@ -1394,7 +1394,7 @@ function loadTopSuppliers(period) {
           '  <span class="partner-vol">' + recFmtVol(p.volume || p.total_volume || 0) + ' kg</span>',
           '  <div class="partner-price-block">',
           '    <span class="partner-price-label">AVG PRICE PAID</span>',
-          '    <span class="partner-price-val">GHS ' + recFmtPrice(p.avg_price || p.avg_price_paid || 0) + '/kg</span>',
+          '    <span class="partner-price-val">' + CirculFormat.fmtGHS(p.avg_price || p.avg_price_paid || 0) + '/kg</span>',
           '    <span class="partner-price-note">avg over last 10</span>',
           '  </div>',
           '</div>'
@@ -1420,7 +1420,7 @@ function recRenderDemoSuppliers() {
       '  <span class="partner-vol">' + recFmtVol(p.volume) + ' kg</span>',
       '  <div class="partner-price-block">',
       '    <span class="partner-price-label">AVG PRICE PAID</span>',
-      '    <span class="partner-price-val">GHS ' + p.avg.toFixed(2) + '/kg</span>',
+      '    <span class="partner-price-val">' + CirculFormat.fmtGHS(p.avg) + '/kg</span>',
       '    <span class="partner-price-note">avg over last 10</span>',
       '  </div>',
       '</div>'
@@ -1458,7 +1458,7 @@ function loadTopBuyers(period) {
           '  <span class="partner-vol">' + recFmtVol(p.volume || p.total_volume || 0) + ' kg</span>',
           '  <div class="partner-price-block">',
           '    <span class="partner-price-label">AVG PRICE SOLD</span>',
-          '    <span class="partner-price-val">GHS ' + recFmtPrice(p.avg_price || p.avg_price_sold || 0) + '/kg</span>',
+          '    <span class="partner-price-val">' + CirculFormat.fmtGHS(p.avg_price || p.avg_price_sold || 0) + '/kg</span>',
           '    <span class="partner-price-note">avg over last 10</span>',
           '  </div>',
           '</div>'
@@ -1484,7 +1484,7 @@ function recRenderDemoBuyers() {
       '  <span class="partner-vol">' + recFmtVol(p.volume) + ' kg</span>',
       '  <div class="partner-price-block">',
       '    <span class="partner-price-label">AVG PRICE SOLD</span>',
-      '    <span class="partner-price-val">GHS ' + p.avg.toFixed(2) + '/kg</span>',
+      '    <span class="partner-price-val">' + CirculFormat.fmtGHS(p.avg) + '/kg</span>',
       '    <span class="partner-price-note">avg over last 10</span>',
       '  </div>',
       '</div>'
@@ -1495,10 +1495,6 @@ function recRenderDemoBuyers() {
 function recFmtVol(n) {
   if (n >= 1000) return (n/1000).toFixed(1) + "t";
   return Math.round(n) + "";
-}
-
-function recFmtPrice(n) {
-  return parseFloat(n || 0).toFixed(2);
 }
 
 // -- ATTRIBUTE TAGS FOR PROCESSOR RATING --
