@@ -202,7 +202,7 @@
     <div class="section-head">
       <div>
         <div class="section-title">Marketplace — Aggregator Prices</div>
-        <div class="section-sub">Aggregator posted prices · GH¢/kg · sorted by highest PET price</div>
+        <div class="section-sub">Aggregator posted prices · GH₵/kg · sorted by highest PET price</div>
       </div>
     </div>
     <div class="price-grid" id="pricesGrid">
@@ -549,11 +549,6 @@ function apiFetch(path, opts={}) {
       return r.json();
     });
 }
-function fmt(n) {
-  const v = parseFloat(n);
-  if (isNaN(v)) return '—';
-  return 'GH¢ ' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 function fmtDate(s) {
   if (!s) return '—';
   return new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
@@ -706,7 +701,7 @@ async function populateStats() {
     const sc = document.getElementById('statTotalKgCard');
     if (sc) sc.innerHTML = Math.round(totalKg) + ' <small>kg</small>';
     const se = document.getElementById('statEarned');
-    if (se) se.textContent = fmt(earned);
+    if (se) se.textContent = CirculFormat.fmtGHS(earned);
     const sco = document.getElementById('statCollectionsCard');
     if (sco) sco.textContent = collections;
     const sr = document.getElementById('statRating');
@@ -766,13 +761,13 @@ async function populatePL() {
       monthTotal += mv; ytdTotal += yv;
       var mel = document.getElementById('plMonth' + m);
       var yel = document.getElementById('plYTD' + m);
-      if (mel) mel.textContent = fmt(mv);
-      if (yel) yel.textContent = fmt(yv);
+      if (mel) mel.textContent = CirculFormat.fmtGHS(mv);
+      if (yel) yel.textContent = CirculFormat.fmtGHS(yv);
     });
     var mt = document.getElementById('plMonthTotal');
     var yt = document.getElementById('plYTDTotal');
-    if (mt) mt.textContent = fmt(monthTotal);
-    if (yt) yt.textContent = fmt(ytdTotal);
+    if (mt) mt.textContent = CirculFormat.fmtGHS(monthTotal);
+    if (yt) yt.textContent = CirculFormat.fmtGHS(ytdTotal);
   } catch(e) {
     console.warn('PL endpoint not available, calculating from txns');
   }
@@ -803,7 +798,7 @@ function renderTopBuyers(rows) {
       <td style="color:${i===0?'var(--accent)':'var(--text-3)'};font-weight:700">${i+1}</td>
       <td class="td-name">${nameCell(r.aggregator_name, r.aggregator_code, r.name_visible)}</td>
       <td>${Math.round(r.ytd_kg||0)} kg</td>
-      <td class="td-green">${r.avg_price ? fmt(r.avg_price) + '/kg' : '—'}</td>
+      <td class="td-green">${r.avg_price ? CirculFormat.fmtGHS(r.avg_price) + '/kg' : '—'}</td>
       <td>${r.transaction_count||0}</td>
     </tr>
   `).join('');
@@ -952,7 +947,7 @@ async function populatePrices() {
       const mats = ['PET','HDPE','LDPE','PP'];
       const priceLines = mats.map(m => {
         const v = ps[m] || p[m.toLowerCase() + '_price'];
-        return v ? `<div class="pc-row"><span>${m}</span><span class="pc-val">GH¢ ${parseFloat(v).toFixed(2)}/kg</span></div>` : '';
+        return v ? `<div class="pc-row"><span>${m}</span><span class="pc-val">${CirculFormat.fmtGHS(v)}/kg</span></div>` : '';
       }).join('');
       return `<div class="price-card">
         <div class="pc-label">Aggregator</div>
@@ -998,7 +993,7 @@ async function loadPendingFromAgg() {
         <div class="pend-item-head">
           <div>
             <div class="pend-item-title">${nameCell(p.aggregator_name, p.aggregator_code, p.aggregator_name_visible !== false)} — ${matPill(p.material_type)} ${p.weight_kg ? Math.round(p.weight_kg) + ' kg' : ''}</div>
-            <div class="pend-item-sub">${fmt(p.total_price||p.amount)} · ${fmtDate(p.created_at)}</div>
+            <div class="pend-item-sub">${CirculFormat.fmtGHS(p.total_price||p.amount)} · ${fmtDate(p.created_at)}</div>
           </div>
           <span class="pend-item-badge">Pending review</span>
         </div>
@@ -1182,7 +1177,7 @@ function loadMyListings() {
         var expiryClass = daysLeft <= 1 ? 'expiring-soon' : 'active';
         var expiryText = daysLeft === 0 ? 'Expires today' : daysLeft === 1 ? 'Expires tomorrow' : 'Expires in ' + daysLeft + ' days';
         var priceHtml = l.price_per_kg
-          ? '<span class="listing-card-price">GH₵ ' + parseFloat(l.price_per_kg).toFixed(2) + '/kg</span>'
+          ? '<span class="listing-card-price">' + CirculFormat.fmtGHS(l.price_per_kg) + '/kg</span>'
           : '<span class="listing-card-price make-offer">Make an offer</span>';
         var offerCountHtml = (l.offer_count && parseInt(l.offer_count) > 0)
           ? ' <span class="offer-count">' + l.offer_count + '</span>'
@@ -1254,7 +1249,7 @@ function toggleOffers(listingId) {
           '<span>' + fmtDate(o.created_at) + '</span>' +
         '</div>';
         var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';
-        var body = '<div>GH₵ ' + parseFloat(o.price_per_kg).toFixed(2) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg' + finalTag + '</div>';
+        var body = '<div>' + CirculFormat.fmtGHS(o.price_per_kg) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg' + finalTag + '</div>';
         var actions = '';
         if (o.status === 'pending' && !isMine) {
           actions = '<div class="offer-actions">' +
