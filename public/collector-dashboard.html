@@ -50,7 +50,7 @@
   <span class="nav-spacer"></span>
   <div class="nav-right">
     <span class="nav-pill nav-pill-collector">COLLECTOR</span>
-    <span class="nav-name" id="collectorName">—</span>
+    <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="collectorId"></span>
     <a class="nav-link" href="/">Home</a>
     <button class="nav-logout" onclick="signOut()">Log out</button>
@@ -641,7 +641,7 @@ function populateProfile(me) {
   const rating = me.avg_rating ? parseFloat(me.avg_rating).toFixed(1) : null;
   const id = me.collector_id || me.id || '';
 
-  const navName = document.getElementById('collectorName');
+  const navName = document.getElementById('navName');
   if (navName) navName.textContent = name;
   const navId = document.getElementById('collectorId');
   if (navId && id) navId.textContent = 'COL-' + String(id).padStart(4,'0');

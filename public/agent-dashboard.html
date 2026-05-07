@@ -48,7 +48,7 @@
   <span class="nav-spacer"></span>
   <div class="nav-right">
     <span class="nav-pill nav-pill-agent">AGENT</span>
-    <span class="nav-name" id="agentName">—</span>
+    <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="agentId"></span>
     <span style="font-size:0.75rem;color:var(--text-3);" id="agentAggLabel"></span>
     <a class="nav-link" href="/">Home</a>
@@ -403,7 +403,7 @@ async function loadAll() {
 /* ── populate header & stats ── */
 function populateHeader(agent) {
   var a = agent.agent || agent;
-  document.getElementById('agentName').textContent = a.first_name || a.name || '—';
+  document.getElementById('navName').textContent = a.first_name || a.name || '—';
   var agentId = a.id || '';
   document.getElementById('agentId').textContent = agentId ? CirculRoles.circulCode('agent', agentId) : '';
   if (a.aggregator_name) {
