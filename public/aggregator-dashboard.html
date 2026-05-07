@@ -732,10 +732,8 @@
           <div><label class="form-label">Phone</label><input class="form-input" id="agentPhone" type="tel" placeholder="0241 000 000"></div>
           <div>
             <label class="form-label">City</label>
-            <select class="form-input" id="agentCity">
+            <select class="form-input" id="agentCity" data-city-select>
               <option value="">Select city…</option>
-              <option>Accra</option><option>Tema</option><option>Kumasi</option><option>Takoradi</option><option>Tamale</option>
-              <option>Cape Coast</option><option>Koforidua</option><option>Sunyani</option><option>Ho</option><option>Bolgatanga</option>
             </select>
           </div>
           <div><label class="form-label">Ghana Card (optional)</label><input class="form-input" id="agentGhanaCard" placeholder="GHA-XXXXXXXXX-X" maxlength="15"></div>
@@ -1714,8 +1712,29 @@ window.addEventListener('offline', function() {
   updateOfflineUI();
 });
 
+// Populate any [data-city-select] dropdowns from the shared regional-capitals
+// list (single source of truth in shared/roles.js — same list the USSD city
+// picker iterates). Loaded after CirculRoles is on window via /shared/roles.js.
+function populateCityDropdowns() {
+  if (!window.CirculRoles || !window.CirculRoles.GHANA_REGIONAL_CAPITALS) return;
+  document.querySelectorAll('select[data-city-select]').forEach(function (sel) {
+    var current = sel.value;
+    Array.from(sel.options).slice().forEach(function (opt) {
+      if (opt.value !== '') sel.removeChild(opt);
+    });
+    window.CirculRoles.GHANA_REGIONAL_CAPITALS.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c.city;
+      opt.textContent = c.city;
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  });
+}
+
 // Sync any remaining queue on page load
 document.addEventListener('DOMContentLoaded', function() {
+  populateCityDropdowns();
   if (navigator.onLine) syncOfflineQueue();
   updateOfflineUI();
 });

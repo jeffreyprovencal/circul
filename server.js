@@ -2938,20 +2938,11 @@ function parsePaginatedSelection(menuParts) {
 }
 
 const USSD_MATERIALS = { '1': 'PET', '2': 'HDPE', '3': 'LDPE', '4': 'PP' };
-// Pilot regional capitals — 8 cities across 3 paginated USSD pages (3 + 3 + 2 layout)
-// matching the parsePaginatedSelection helper convention. Add post-pilot regional
-// capitals (Wa / Bolgatanga / Techiman / Sekondi / Dambai / Nalerigu / Damongo / Goaso)
-// when geographic footprint warrants it.
-const USSD_CITIES_LIST = [
-  { city: 'Accra',      region: 'Greater Accra' },
-  { city: 'Kumasi',     region: 'Ashanti' },
-  { city: 'Tamale',     region: 'Northern' },
-  { city: 'Takoradi',   region: 'Western' },
-  { city: 'Cape Coast', region: 'Central' },
-  { city: 'Koforidua',  region: 'Eastern' },
-  { city: 'Ho',         region: 'Volta' },
-  { city: 'Sunyani',    region: 'Bono' }
-];
+// Regional capitals (16, 1:1 with GHANA_REGIONS). Single source of truth lives
+// in shared/roles.js — GHANA_REGIONAL_CAPITALS — so dashboards iterate the
+// same list. Order matches GHANA_REGIONS. Pagination math: 16 / 3 = 6 pages
+// (3-3-3-3-3-1) via parsePaginatedSelection, all 4+0 compliant.
+const USSD_CITIES_LIST = CirculRoles.GHANA_REGIONAL_CAPITALS;
 
 // Backwards-compat object form keyed by 1-based string index for any code still
 // indexing by parts[N] directly (legacy non-paginated callers).
@@ -2971,7 +2962,7 @@ function renderCityPickerScreen(pickerParts) {
     return { screen: 'END Invalid city.\nDial again to retry.', offset: -1, more: false };
   }
   const more = (offset + 3) < USSD_CITIES_LIST.length;
-  let msg = 'CON Select your city:\n';
+  let msg = 'CON Select city:\n';
   for (let i = 0; i < page.length; i++) {
     msg += (i + 1) + '. ' + page[i].city + '\n';
   }
@@ -3974,20 +3965,36 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
   const lastName = m[1];
 
   if (prefilledPhone) {
-    // Inline path — skip phone entry, go straight to city
-    if (depth === 2) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
-    const cityData = USSD_CITIES[m[2]];
+    // Inline path — skip phone entry, go straight to city.
+    // City picker is paginated (16 capitals → 6 pages of 3-3-3-3-3-1).
+    // Picker consumes 1+ parts: 0+ '4' (advance) + final '1'-'3' (pick).
+    const pickerParts = m.slice(2);
+    if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+    if (pickerParts[0] === '0') return 'END Cancelled.';
+
+    const sel = parsePaginatedSelection(pickerParts);
+    if (sel.remaining.length === 0) {
+      // Still paging — show next page
+      return renderCityPickerScreen(pickerParts).screen;
+    }
+
+    const cityData = resolveCityFromPaginatedParts(pickerParts);
     if (!cityData) return 'END Invalid city.\nDial again to retry.';
 
-    if (depth === 3) {
+    // Downstream depth, accounting for variable-length picker consumption.
+    const cityPartsLen = sel.page + 1;
+    const afterCity = depth - 2 - cityPartsLen;
+
+    if (afterCity === 0) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
       return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
     }
 
-    if (depth === 4) {
-      if (m[3] === '0') return 'END Cancelled.';
-      if (m[3] === '1') {
+    if (afterCity === 1) {
+      const choice = m[depth - 1];
+      if (choice === '0') return 'END Cancelled.';
+      if (choice === '1') {
         try {
           const hashedPin = await hashPassword('0000');
           const normalized = normalizeGhanaPhone(prefilledPhone);
@@ -4031,19 +4038,34 @@ async function handleAggregatorRegister(m, aggregator, prefilledPhone) {
   if (depth === 2) return 'CON Enter collector\'s\nphone number:';
   const phone = m[2];
 
-  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
-  const cityData = USSD_CITIES[m[3]];
+  // City picker (paginated, 16 capitals). Picker consumes 1+ parts.
+  const pickerParts = m.slice(3);
+  if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+  if (pickerParts[0] === '0') return 'END Cancelled.';
+
+  const sel = parsePaginatedSelection(pickerParts);
+  if (sel.remaining.length === 0) {
+    // Still paging — show next page
+    return renderCityPickerScreen(pickerParts).screen;
+  }
+
+  const cityData = resolveCityFromPaginatedParts(pickerParts);
   if (!cityData) return 'END Invalid city.\nDial again to retry.';
 
-  if (depth === 4) {
+  // Downstream depth, accounting for variable-length picker consumption.
+  const cityPartsLen = sel.page + 1;
+  const afterCity = depth - 3 - cityPartsLen;
+
+  if (afterCity === 0) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
     return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
   }
 
-  if (depth === 5) {
-    if (m[4] === '0') return 'END Cancelled.';
-    if (m[4] === '1') {
+  if (afterCity === 1) {
+    const choice = m[depth - 1];
+    if (choice === '0') return 'END Cancelled.';
+    if (choice === '1') {
       try {
         const hashedPin = await hashPassword('0000');
         const normalized = normalizeGhanaPhone(phone);
@@ -4106,22 +4128,36 @@ async function handleAggregatorRegisterAgent(m, aggregator) {
   if (depth === 2) return 'CON Enter agent\'s\nphone number:';
   const phone = m[2];
 
-  // depth 3: city
-  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
-  const cityData = USSD_CITIES[m[3]];
+  // City picker (paginated, 16 capitals). Picker consumes 1+ parts.
+  const pickerParts = m.slice(3);
+  if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+  if (pickerParts[0] === '0') return 'END Cancelled.';
+
+  const sel = parsePaginatedSelection(pickerParts);
+  if (sel.remaining.length === 0) {
+    // Still paging — show next page
+    return renderCityPickerScreen(pickerParts).screen;
+  }
+
+  const cityData = resolveCityFromPaginatedParts(pickerParts);
   if (!cityData) return 'END Invalid city.\nDial again to retry.';
 
-  // depth 4: confirm
-  if (depth === 4) {
+  // Downstream depth, accounting for variable-length picker consumption.
+  const cityPartsLen = sel.page + 1;
+  const afterCity = depth - 3 - cityPartsLen;
+
+  // afterCity 0: confirm
+  if (afterCity === 0) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
     return `CON Register agent:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
   }
 
-  // depth 5: execute
-  if (depth === 5) {
-    if (m[4] === '0') return 'END Cancelled.';
-    if (m[4] === '1') {
+  // afterCity 1: execute
+  if (afterCity === 1) {
+    const choice = m[depth - 1];
+    if (choice === '0') return 'END Cancelled.';
+    if (choice === '1') {
       try {
         const hashedPin = await hashPassword('0000');
         const normalized = normalizeGhanaPhone(phone);
@@ -5327,24 +5363,37 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
   const lastName = m[1];
 
   if (prefilledPhone) {
-    // Skip phone — go straight to city
-    // depth 2: city
-    if (depth === 2) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+    // Skip phone — go straight to city.
+    // City picker (paginated, 16 capitals). Picker consumes 1+ parts.
+    const pickerParts = m.slice(2);
+    if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+    if (pickerParts[0] === '0') return 'END Cancelled.';
 
-    const cityData = USSD_CITIES[m[2]];
+    const sel = parsePaginatedSelection(pickerParts);
+    if (sel.remaining.length === 0) {
+      // Still paging — show next page
+      return renderCityPickerScreen(pickerParts).screen;
+    }
+
+    const cityData = resolveCityFromPaginatedParts(pickerParts);
     if (!cityData) return 'END Invalid city.\nDial again to retry.';
 
-    // depth 3: confirm
-    if (depth === 3) {
+    // Downstream depth, accounting for variable-length picker consumption.
+    const cityPartsLen = sel.page + 1;
+    const afterCity = depth - 2 - cityPartsLen;
+
+    // afterCity 0: confirm
+    if (afterCity === 0) {
       const phone = normalizeGhanaPhone(prefilledPhone);
       const displayPhone = phone && phone.startsWith('+233') ? '0' + phone.slice(4) : prefilledPhone;
       return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
     }
 
-    // depth 4: execute
-    if (depth === 4) {
-      if (m[3] === '0') return 'END Cancelled.';
-      if (m[3] === '1') {
+    // afterCity 1: execute
+    if (afterCity === 1) {
+      const choice = m[depth - 1];
+      if (choice === '0') return 'END Cancelled.';
+      if (choice === '1') {
         try {
           const hashedPin = await hashPassword('0000');
           const normalized = normalizeGhanaPhone(prefilledPhone);
@@ -5377,23 +5426,36 @@ async function handleAgentRegister(m, agent, prefilledPhone) {
 
   const phone = m[2];
 
-  // depth 3: city
-  if (depth === 3) return 'CON Select city:\n1. Accra\n2. Kumasi\n3. Tamale\n4. Takoradi';
+  // City picker (paginated, 16 capitals). Picker consumes 1+ parts.
+  const pickerParts = m.slice(3);
+  if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+  if (pickerParts[0] === '0') return 'END Cancelled.';
 
-  const cityData = USSD_CITIES[m[3]];
+  const sel = parsePaginatedSelection(pickerParts);
+  if (sel.remaining.length === 0) {
+    // Still paging — show next page
+    return renderCityPickerScreen(pickerParts).screen;
+  }
+
+  const cityData = resolveCityFromPaginatedParts(pickerParts);
   if (!cityData) return 'END Invalid city.\nDial again to retry.';
 
-  // depth 4: confirm
-  if (depth === 4) {
+  // Downstream depth, accounting for variable-length picker consumption.
+  const cityPartsLen = sel.page + 1;
+  const afterCity = depth - 3 - cityPartsLen;
+
+  // afterCity 0: confirm
+  if (afterCity === 0) {
     const normalized = normalizeGhanaPhone(phone);
     const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
     return `CON Register collector:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
   }
 
-  // depth 5: execute
-  if (depth === 5) {
-    if (m[4] === '0') return 'END Cancelled.';
-    if (m[4] === '1') {
+  // afterCity 1: execute
+  if (afterCity === 1) {
+    const choice = m[depth - 1];
+    if (choice === '0') return 'END Cancelled.';
+    if (choice === '1') {
       try {
         const hashedPin = await hashPassword('0000');
         const normalized = normalizeGhanaPhone(phone);
