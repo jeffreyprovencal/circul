@@ -105,11 +105,15 @@
     <div class="login-title">Sign in to Circul</div>
     <div class="login-sub">Aggregator access</div>
     <div class="login-error" id="loginError"></div>
-    <label class="form-label">Phone number</label>
-    <input class="form-input" id="loginPhone" type="tel" placeholder="0300 000 000" style="margin-bottom:16px" />
-    <label class="form-label">4-digit PIN</label>
-    <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" style="margin-bottom:16px" />
-    <button class="btn-primary" id="loginBtn" onclick="handleLogin(event)" style="width:100%">Sign in</button>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Phone number</label>
+      <input class="form-input" id="loginPhone" type="tel" placeholder="0300 000 000">
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">4-digit PIN</label>
+      <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••">
+    </div>
+    <button class="form-submit" id="loginBtn" onclick="handleLogin(event)">Sign in</button>
   </div>
 </div>
 
