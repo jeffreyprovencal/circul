@@ -147,6 +147,32 @@
     'Bono East', 'Ahafo', 'Oti', 'Savannah', 'North East', 'Western North'
   ];
 
+  // ── Ghana regional capitals (16, 1:1 with GHANA_REGIONS, same order) ──
+  // Single source of truth for the city/region pair selectors used by USSD
+  // registration flows (server.js USSD_CITIES_LIST) and web dashboards
+  // (agent / aggregator city dropdowns). 1:1 with GHANA_REGIONS — every
+  // region is represented by exactly one regional capital.
+  // Western: Sekondi-Takoradi is one twin city; we list Takoradi (commercial
+  // hub used in the pilot). Western North capital: Sefwi Wiawso.
+  var GHANA_REGIONAL_CAPITALS = [
+    { city: 'Accra',         region: 'Greater Accra' },
+    { city: 'Kumasi',        region: 'Ashanti' },
+    { city: 'Takoradi',      region: 'Western' },
+    { city: 'Cape Coast',    region: 'Central' },
+    { city: 'Koforidua',     region: 'Eastern' },
+    { city: 'Ho',            region: 'Volta' },
+    { city: 'Tamale',        region: 'Northern' },
+    { city: 'Bolgatanga',    region: 'Upper East' },
+    { city: 'Wa',            region: 'Upper West' },
+    { city: 'Sunyani',       region: 'Bono' },
+    { city: 'Techiman',      region: 'Bono East' },
+    { city: 'Goaso',         region: 'Ahafo' },
+    { city: 'Dambai',        region: 'Oti' },
+    { city: 'Damongo',       region: 'Savannah' },
+    { city: 'Nalerigu',      region: 'North East' },
+    { city: 'Sefwi Wiawso',  region: 'Western North' }
+  ];
+
   // ── Tier adjacency map (for name privacy) ──
   var ADJACENT_TIERS = {
     collector: ['aggregator', 'agent'],
@@ -221,6 +247,7 @@
     FREE_ROLES: FREE_ROLES,
     PRICE_POSTER_ROLES: PRICE_POSTER_ROLES,
     GHANA_REGIONS: GHANA_REGIONS,
+    GHANA_REGIONAL_CAPITALS: GHANA_REGIONAL_CAPITALS,
     ADJACENT_TIERS: ADJACENT_TIERS,
     ROLE_PREFIX: ROLE_PREFIX,
     DISCOVERY_TIERS: DISCOVERY_TIERS,
