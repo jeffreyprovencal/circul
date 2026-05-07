@@ -1164,7 +1164,7 @@ function loadRatings() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('ratingsReceived');
-            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
+            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet.</div>'; return; }
             el.innerHTML = '<div style="font-size:1.2rem;font-weight:700;color:var(--accent);margin:12px 0">★ ' + (data.summary.avg_rating || '—') + ' <span style="font-size:0.85rem;color:var(--text-3);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
         });
 }

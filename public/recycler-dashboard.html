@@ -1189,7 +1189,7 @@ function loadTxnCerts() {
         .then(function(data) {
             var el = document.getElementById('txnCerts');
             var txns = (data.pending_transactions || []).filter(function(t) { return t.status === 'arrived' || t.status === 'completed'; });
-            if (!txns.length) { el.innerHTML = '<div class="empty">No completed transactions yet</div>'; return; }
+            if (!txns.length) { el.innerHTML = '<div class="empty">No completed transactions yet.</div>'; return; }
             el.innerHTML = '<div class="table-wrap"><table><thead><tr>' +
                 '<th>Date</th><th>Material</th><th>kg</th><th>Grade</th>' +
                 '</tr></thead><tbody>' +
@@ -1219,7 +1219,7 @@ function loadRatings() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('ratingsReceived');
-            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
+            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet.</div>'; return; }
             el.innerHTML = '<div style="font-size:1.4rem;font-weight:700;color:var(--accent);margin-bottom:12px">\u2B50 ' + (data.summary.avg_rating || '\u2014') + ' <span style="font-size:0.85rem;color:var(--text-2);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
         });
 }

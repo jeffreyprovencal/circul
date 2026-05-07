@@ -376,7 +376,7 @@
           </div>
           <div>
             <label class="form-label">Location</label>
-            <input type="text" id="listing-location" class="form-input" placeholder="e.g. Accra, Kumasi">
+            <input type="text" id="listing-location" class="form-input" placeholder="e.g. Accra">
           </div>
           <div style="display:flex;gap:0.5rem;">
             <button class="btn btn-green" onclick="submitListing()">Create Listing</button>
@@ -694,7 +694,7 @@
       <div id="ratingsReceivedList"></div>
       <div id="agentReportsCard" style="margin-top:16px">
         <div class="section-title">Agent reports — ratings your agents submitted</div>
-        <div id="agentReportsList"><div class="empty">No agent ratings yet</div></div>
+        <div id="agentReportsList"><div class="empty">No agent ratings yet.</div></div>
       </div>
 
       <!-- Identity Verification -->
@@ -1982,7 +1982,7 @@ function loadAgentReports() {
         var el = document.getElementById('agentReportsList');
         if (!el) return;
         if (!data || !data.success || !data.ratings || !data.ratings.length) {
-            el.innerHTML = '<div class="empty">No agent ratings yet</div>';
+            el.innerHTML = '<div class="empty">No agent ratings yet.</div>';
             return;
         }
         el.innerHTML = data.ratings.map(function(r) {
@@ -2852,7 +2852,7 @@ async function loadMyBuyRequests(){
     var data = await r.json();
     var orders = (data && data.orders) || [];
     if (!orders.length) {
-      el.innerHTML = '<div class="empty"><p class="empty-action">No buy requests yet</p><p class="empty-hint">Post one above to let collectors know what you\'re buying</p></div>';
+      el.innerHTML = '<div class="empty"><p class="empty-action">No buy requests yet.</p><p class="empty-hint">Post one above to let collectors know what you\'re buying.</p></div>';
       return;
     }
     var matPill = function(m){ return '<span class="pill pill-'+(m||'').toLowerCase()+'">'+m+'</span>'; };
@@ -3534,7 +3534,7 @@ function loadAgents() {
       if (!data.success) return;
       var tbody = document.getElementById('agentsBody');
       if (!data.agents || !data.agents.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">No agents registered yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No agents registered yet.</td></tr>';
         return;
       }
       tbody.innerHTML = data.agents.map(function(a) {
