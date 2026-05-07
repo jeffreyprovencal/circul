@@ -48,7 +48,7 @@
   <span class="nav-spacer"></span>
   <div class="nav-right">
     <span class="nav-pill nav-pill-agent">AGENT</span>
-    <span class="nav-name" id="agentName">—</span>
+    <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="agentId"></span>
     <span style="font-size:0.75rem;color:var(--text-3);" id="agentAggLabel"></span>
     <a class="nav-link" href="/">Home</a>
@@ -371,10 +371,6 @@ function apiFetch(path, opts={}) {
       return r.json();
     });
 }
-function fmtDate(s) {
-  if (!s) return '—';
-  return new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-}
 function esc(s) {
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -407,7 +403,7 @@ async function loadAll() {
 /* ── populate header & stats ── */
 function populateHeader(agent) {
   var a = agent.agent || agent;
-  document.getElementById('agentName').textContent = a.first_name || a.name || '—';
+  document.getElementById('navName').textContent = a.first_name || a.name || '—';
   var agentId = a.id || '';
   document.getElementById('agentId').textContent = agentId ? CirculRoles.circulCode('agent', agentId) : '';
   if (a.aggregator_name) {
@@ -591,7 +587,7 @@ async function loadCollections() {
     var tbody = document.getElementById('collectionsBody');
 
     if (txns.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-3);">No collections logged yet</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-3);">No collections logged yet.</td></tr>';
       return;
     }
 
@@ -599,7 +595,7 @@ async function loadCollections() {
       var total = parseFloat(c.total_price) || ((parseFloat(c.weight_kg) || 0) * (parseFloat(c.price_per_kg) || 0));
       var name = c.collector_name || ((c.collector_first_name || '') + ' ' + (c.collector_last_name || '')).trim() || c.seller_name || '—';
       return '<tr>' +
-        '<td>' + fmtDate(c.transaction_date || c.created_at) + '</td>' +
+        '<td>' + CirculFormat.fmtDateLong(c.transaction_date || c.created_at) + '</td>' +
         '<td>' + esc(name) + '</td>' +
         '<td><span class="pill pill-' + (c.material_type || 'pet').toLowerCase() + '">' + (c.material_type || '—') + '</span></td>' +
         '<td>' + parseFloat(c.net_weight_kg || c.weight_kg || 0).toFixed(2) + ' kg</td>' +

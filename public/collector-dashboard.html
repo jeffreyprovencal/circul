@@ -50,7 +50,7 @@
   <span class="nav-spacer"></span>
   <div class="nav-right">
     <span class="nav-pill nav-pill-collector">COLLECTOR</span>
-    <span class="nav-name" id="collectorName">—</span>
+    <span class="nav-name" id="navName">—</span>
     <span class="nav-id" id="collectorId"></span>
     <a class="nav-link" href="/">Home</a>
     <button class="nav-logout" onclick="signOut()">Log out</button>
@@ -549,10 +549,6 @@ function apiFetch(path, opts={}) {
       return r.json();
     });
 }
-function fmtDate(s) {
-  if (!s) return '—';
-  return new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-}
 function fmtMonthYear(s) {
   if (!s) return '';
   return new Date(s).toLocaleDateString('en-GB',{month:'short',year:'numeric'});
@@ -645,7 +641,7 @@ function populateProfile(me) {
   const rating = me.avg_rating ? parseFloat(me.avg_rating).toFixed(1) : null;
   const id = me.collector_id || me.id || '';
 
-  const navName = document.getElementById('collectorName');
+  const navName = document.getElementById('navName');
   if (navName) navName.textContent = name;
   const navId = document.getElementById('collectorId');
   if (navId && id) navId.textContent = 'COL-' + String(id).padStart(4,'0');
@@ -902,7 +898,7 @@ async function populateTxns() {
       }
 
       return '<tr>' +
-        '<td>' + fmtDate(r.date) + '</td>' +
+        '<td>' + CirculFormat.fmtDateLong(r.date) + '</td>' +
         '<td class="td-name">' + nameCell(r.aggregator_name, r.aggregator_code, r.aggregator_name_visible) + '</td>' +
         '<td>' + matPill(r.material_type) + '</td>' +
         '<td>' + (r.weight ? Math.round(r.weight) + ' kg' : '\u2014') + '</td>' +
@@ -993,7 +989,7 @@ async function loadPendingFromAgg() {
         <div class="pend-item-head">
           <div>
             <div class="pend-item-title">${nameCell(p.aggregator_name, p.aggregator_code, p.aggregator_name_visible !== false)} — ${matPill(p.material_type)} ${p.weight_kg ? Math.round(p.weight_kg) + ' kg' : ''}</div>
-            <div class="pend-item-sub">${CirculFormat.fmtGHS(p.total_price||p.amount)} · ${fmtDate(p.created_at)}</div>
+            <div class="pend-item-sub">${CirculFormat.fmtGHS(p.total_price||p.amount)} · ${CirculFormat.fmtDateLong(p.created_at)}</div>
           </div>
           <span class="pend-item-badge">Pending review</span>
         </div>
@@ -1246,7 +1242,7 @@ function toggleOffers(listingId) {
         var bubbleCls = isMine ? 'offer-bubble mine' : 'offer-bubble';
         var header = '<div class="offer-bubble-header">' +
           '<span>' + (isMine ? 'You' : nameCell(o.buyer_name, o.buyer_code, o.buyer_name_visible)) + ' · Round ' + o.round + '</span>' +
-          '<span>' + fmtDate(o.created_at) + '</span>' +
+          '<span>' + CirculFormat.fmtDateLong(o.created_at) + '</span>' +
         '</div>';
         var finalTag = (o.round >= 2) ? ' <span class="final-offer-tag">FINAL OFFER</span>' : '';
         var body = '<div>' + CirculFormat.fmtGHS(o.price_per_kg) + '/kg · ' + parseFloat(o.quantity_kg).toFixed(1) + 'kg' + finalTag + '</div>';

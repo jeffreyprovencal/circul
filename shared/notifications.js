@@ -143,10 +143,10 @@ var TEMPLATES = {
   },
   // Account recovery — templates use { code, minutes, time, user_name, user_code, old_phone, new_phone, admin_email }
   pin_reset_otp: function (d) {
-    return 'Your Circul reset code: ' + d.code + '\n\nEnter this on *920*54# to set a new PIN. Expires in ' + d.minutes + ' min. Never share this code.';
+    return 'Circul: Your reset code is ' + d.code + '\n\nEnter this on *920*54# to set a new PIN. Expires in ' + d.minutes + ' min. Never share this code.';
   },
   pin_reset_completed: function (d) {
-    return 'Your Circul PIN was reset at ' + d.time + '.\n\nIf this wasn\'t you, call your aggregator immediately and request an account freeze.';
+    return 'Circul: Your PIN was reset at ' + d.time + '.\n\nIf this wasn\'t you, call your aggregator immediately and request an account freeze.';
   },
   pin_reset_upstream_collector: function (d) {
     return 'Collector PIN reset: ' + d.user_name + ' (' + d.user_code + ') reset their PIN at ' + d.time + '.\n\nWatch for unusual activity; contact Circul support if suspicious.';
@@ -158,13 +158,13 @@ var TEMPLATES = {
     return 'Agent PIN reset: ' + d.user_name + ' (' + d.user_code + ') reset their PIN at ' + d.time + '. Agent works under you.\n\nWatch for unusual activity.';
   },
   phone_change_otp: function (d) {
-    return 'Your Circul verification code: ' + d.code + '\n\nGive this to Circul support to confirm the phone change to this number. Expires in ' + d.minutes + ' min. Never share unless you requested a phone change.';
+    return 'Circul: Your verification code is ' + d.code + '\n\nGive this to Circul support to confirm the phone change to this number. Expires in ' + d.minutes + ' min. Never share unless you requested a phone change.';
   },
   phone_changed_new: function (d) {
-    return 'Your Circul phone was changed to this number. All your history is preserved.\n\nIf this wasn\'t you, call Circul support immediately.';
+    return 'Circul: Your phone was changed to this number. All your history is preserved.\n\nIf this wasn\'t you, call Circul support immediately.';
   },
   phone_changed_old: function (d) {
-    return 'Your Circul phone number was changed to ' + d.new_phone + ' by Circul support at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
+    return 'Circul: Your phone number was changed to ' + d.new_phone + ' by Circul support at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
   },
   phone_changed_upstream: function (d) {
     return 'Phone change: ' + d.user_code + ' (' + d.user_name + ') \u2014 phone updated by Circul support at ' + d.time + '. Was ' + d.old_phone + ', now ' + d.new_phone + '. Watch for unusual activity.';
@@ -173,17 +173,17 @@ var TEMPLATES = {
     return 'Circul support triggered a PIN reset for your account at ' + d.time + '. Dial *920*54# and follow the prompts to set a new PIN.\n\nIf you didn\'t request this, call Circul support immediately.';
   },
   admin_pin_changed: function (d) {
-    return 'Your Circul PIN was changed by Circul support at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
+    return 'Circul: Your PIN was changed by support at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
   },
   // Aggregator registration — templates use { name, company, city, phone, code, minutes, reason, agg_code, time }
   aggregator_request_received: function (d) {
     return 'New aggregator request: ' + d.name + (d.company ? ' (' + d.company + ')' : '') + ', ' + d.city + '. Phone ' + d.phone + '.\n\nReview at circul.polsia.app/admin.html';
   },
   aggregator_code_issued: function (d) {
-    return 'Your Circul aggregator code: ' + d.code + '\n\nDial *920*54# and enter this code to finish registration. Expires in ' + d.minutes + ' min. Never share this code.';
+    return 'Circul: Your aggregator code is ' + d.code + '\n\nDial *920*54# and enter this code to finish registration. Expires in ' + d.minutes + ' min. Never share this code.';
   },
   aggregator_request_rejected: function (d) {
-    return 'Your Circul aggregator registration wasn\'t approved.\n\nReason: ' + d.reason + '\n\nCall Circul support on 024 131 48 41 with questions.';
+    return 'Circul: Your aggregator registration wasn\'t approved.\n\nReason: ' + d.reason + '\n\nCall Circul support on 024 131 48 41 with questions.';
   },
   aggregator_registration_completed: function (d) {
     return 'Welcome to Circul, ' + d.name + '! You\'re now an aggregator' + (d.company ? ' at ' + d.company : '') + '.\n\nDial *920*54# and enter your PIN to start logging purchases.';

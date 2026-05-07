@@ -773,7 +773,7 @@ function renderOrders() {
             '<span class="order-price">Est. ' + CirculFormat.fmtGHS(estTotal) + ' <span class="price-sub">≈ $' + (estTotal * 0.067).toFixed(0) + '</span></span>' +
             '</div>' +
             specsHtml + notesHtml +
-            '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + fmtDate(o.created_at) + '</div>' +
+            '<div style="font-size:0.75rem;color:var(--text-3);margin-top:6px">' + CirculFormat.fmtDateLong(o.created_at) + '</div>' +
             '</div>';
     }).join('');
 }
@@ -890,7 +890,7 @@ function buildConvCompletedRow(pt) {
         '<td>' + CirculFormat.fmtGHS(total) + '</td>' +
         '<td>' + statusBadge + (rejNote ? '<br>' + rejNote : '') + '</td>' +
         '<td>' + payCell + '</td>' +
-        '<td>' + fmtDate(pt.created_at) + '</td>' +
+        '<td>' + CirculFormat.fmtDateLong(pt.created_at) + '</td>' +
         '</tr>';
 }
 
@@ -1036,7 +1036,7 @@ function loadTxns() {
                 var priceKg = t.price_per_kg ? fmt(t.price_per_kg) : '—';
                 var matLower = (t.material_type || '').toLowerCase();
                 var pillClass = 'pill pill-' + matLower;
-                return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (t.price_per_kg ? CirculFormat.fmtGHS(t.price_per_kg) + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? CirculFormat.fmtGHS(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
+                return '<tr><td>' + CirculFormat.fmtDateLong(t.transaction_date) + '</td><td class="td-name">' + supplier + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td class="td-green">' + (t.price_per_kg ? CirculFormat.fmtGHS(t.price_per_kg) + '/kg' : '—') + '</td><td class="td-green">' + (t.total_price ? CirculFormat.fmtGHS(t.total_price) : '—') + '</td><td>' + paymentBadge(t.payment_status) + '</td></tr>';
             }).join('');
         })
         .catch(function(e) {
@@ -1112,7 +1112,7 @@ function loadTxnCerts() {
                     } else {
                         passportCell = '';
                     }
-                    return '<tr><td>' + fmtDate(t.transaction_date) + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + passportCell + '</td></tr>';
+                    return '<tr><td>' + CirculFormat.fmtDateLong(t.transaction_date) + '</td><td><span class="' + pillClass + '">' + t.material_type + '</span></td><td>' + fmt(t.net_weight_kg) + ' kg</td><td>' + passportCell + '</td></tr>';
                 }).join('') + '</tbody></table></div>';
             // Render QR codes for every passport cell. Payload is the absolute
             // public URL so a phone scan resolves correctly. accent-on-transparent
@@ -1164,7 +1164,7 @@ function loadRatings() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('ratingsReceived');
-            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet</div>'; return; }
+            if (!data.success || !data.ratings.length) { el.innerHTML = '<div class="empty">No ratings received yet.</div>'; return; }
             el.innerHTML = '<div style="font-size:1.2rem;font-weight:700;color:var(--accent);margin:12px 0">★ ' + (data.summary.avg_rating || '—') + ' <span style="font-size:0.85rem;color:var(--text-3);font-weight:400">from ' + data.summary.count + ' ratings</span></div>';
         });
 }
@@ -1332,7 +1332,6 @@ function submitCvPayInitiate(id) {
     .catch(function() { alert('Connection error.'); });
 }
 function fmt(n) { var v = parseFloat(n); if (isNaN(v)) return '0'; if (v >= 10000) return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); if (v >= 100) return v.toLocaleString('en-US', { maximumFractionDigits: 1 }); return v.toFixed(2); }
-function fmtDate(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 function nameCell(name, code, visible) {
   if (visible === false) return '<span class="counterparty-name-hidden">' + esc(code || '—') + '</span>';
@@ -1390,7 +1389,7 @@ function exportToCSV(containerId, filenameBase) {
       return '"' + String(cell).replace(/"/g, '""') + '"';
     }).join(',');
   }).join('\n');
-  var today = new Date().toISOString().slice(0, 10);
+  var today = CirculFormat.fmtDateISO();
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   var link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
