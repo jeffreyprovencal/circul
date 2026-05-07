@@ -449,6 +449,74 @@ const TESTS = [
     ],
   },
 
+  // ─── city-picker pagination coverage (Sister PR B / v3 audit Finding #9) ────
+  // 16 regional capitals across 6 pages (3-3-3-3-3-1). Each page is 4+0
+  // compliant per renderCityPickerScreen / parsePaginatedSelection. These
+  // tests drive the aggregator-register-collector flow through pagination
+  // to confirm reachability of capitals beyond the original pilot 8.
+
+  // Wa (Upper West, index 8 = page 2 entry 3): advance ×2, pick '3'.
+  {
+    name: 'register-collector-pick-wa-upper-west',
+    phoneNumber: '0900001001',
+    steps: [
+      { input: '',           match: /CON Circul Aggregator/ },
+      { input: '2222',       match: /CON 1\. Register/ },
+      { input: '1',          match: /CON Register:/ },
+      { input: '1',          match: /CON Enter collector's\nfirst name/ },
+      { input: 'WaPick',     match: /CON Enter collector's\nlast name/ },
+      { input: 'Probe',      match: /CON Enter collector's\nphone number/ },
+      { input: '0900000070', match: /CON Select city/ },             // page 0
+      { input: '4',          match: /CON Select city/ },             // page 1
+      { input: '4',          match: /1\. Tamale[\s\S]*2\. Bolgatanga[\s\S]*3\. Wa/ }, // page 2 — verify Wa visible
+      { input: '3',          match: /CON Register collector:[\s\S]*Wa\n/ }, // confirm screen names Wa
+      { input: '1',          match: /END.*registered!\nPhone: 0900000070/ },
+    ],
+  },
+
+  // Goaso (Ahafo, index 11 = page 3 entry 3): advance ×3, pick '3'.
+  {
+    name: 'register-collector-pick-goaso-ahafo',
+    phoneNumber: '0900001001',
+    steps: [
+      { input: '',           match: /CON Circul Aggregator/ },
+      { input: '2222',       match: /CON 1\. Register/ },
+      { input: '1',          match: /CON Register:/ },
+      { input: '1',          match: /CON Enter collector's\nfirst name/ },
+      { input: 'GoasoPick',  match: /CON Enter collector's\nlast name/ },
+      { input: 'Probe',      match: /CON Enter collector's\nphone number/ },
+      { input: '0900000071', match: /CON Select city/ },
+      { input: '4',          match: /CON Select city/ },
+      { input: '4',          match: /CON Select city/ },
+      { input: '4',          match: /1\. Sunyani[\s\S]*2\. Techiman[\s\S]*3\. Goaso/ }, // page 3
+      { input: '3',          match: /CON Register collector:[\s\S]*Goaso\n/ },
+      { input: '1',          match: /END.*registered!\nPhone: 0900000071/ },
+    ],
+  },
+
+  // Sefwi Wiawso (Western North, index 15 = page 5 entry 1): advance ×5, pick '1'.
+  // Last page has 1 entry, no "More →" — verifies trailing-page rendering.
+  {
+    name: 'register-collector-pick-sefwi-wiawso-western-north',
+    phoneNumber: '0900001001',
+    steps: [
+      { input: '',           match: /CON Circul Aggregator/ },
+      { input: '2222',       match: /CON 1\. Register/ },
+      { input: '1',          match: /CON Register:/ },
+      { input: '1',          match: /CON Enter collector's\nfirst name/ },
+      { input: 'SefwiPick',  match: /CON Enter collector's\nlast name/ },
+      { input: 'Probe',      match: /CON Enter collector's\nphone number/ },
+      { input: '0900000072', match: /CON Select city/ },
+      { input: '4',          match: /CON Select city/ },             // → page 1
+      { input: '4',          match: /CON Select city/ },             // → page 2
+      { input: '4',          match: /CON Select city/ },             // → page 3
+      { input: '4',          match: /CON Select city/ },             // → page 4
+      { input: '4',          match: /1\. Sefwi Wiawso[\s\S]*0\. Cancel/ }, // page 5: only entry, no "More →"
+      { input: '1',          match: /CON Register collector:[\s\S]*Sefwi Wiawso\n/ },
+      { input: '1',          match: /END.*registered!\nPhone: 0900000072/ },
+    ],
+  },
+
   // ─── force-change-pin gate (PR #67, refactored to UPDATE+END) ───────────────
   // After both PINs match, gate UPDATEs immediately and returns END forcing
   // redial. This eliminates the same-session slot-replay bug where stale gate
