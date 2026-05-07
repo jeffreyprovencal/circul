@@ -2938,20 +2938,11 @@ function parsePaginatedSelection(menuParts) {
 }
 
 const USSD_MATERIALS = { '1': 'PET', '2': 'HDPE', '3': 'LDPE', '4': 'PP' };
-// Pilot regional capitals — 8 cities across 3 paginated USSD pages (3 + 3 + 2 layout)
-// matching the parsePaginatedSelection helper convention. Add post-pilot regional
-// capitals (Wa / Bolgatanga / Techiman / Sekondi / Dambai / Nalerigu / Damongo / Goaso)
-// when geographic footprint warrants it.
-const USSD_CITIES_LIST = [
-  { city: 'Accra',      region: 'Greater Accra' },
-  { city: 'Kumasi',     region: 'Ashanti' },
-  { city: 'Tamale',     region: 'Northern' },
-  { city: 'Takoradi',   region: 'Western' },
-  { city: 'Cape Coast', region: 'Central' },
-  { city: 'Koforidua',  region: 'Eastern' },
-  { city: 'Ho',         region: 'Volta' },
-  { city: 'Sunyani',    region: 'Bono' }
-];
+// Regional capitals (16, 1:1 with GHANA_REGIONS). Single source of truth lives
+// in shared/roles.js — GHANA_REGIONAL_CAPITALS — so dashboards iterate the
+// same list. Order matches GHANA_REGIONS. Pagination math: 16 / 3 = 6 pages
+// (3-3-3-3-3-1) via parsePaginatedSelection, all 4+0 compliant.
+const USSD_CITIES_LIST = CirculRoles.GHANA_REGIONAL_CAPITALS;
 
 // Backwards-compat object form keyed by 1-based string index for any code still
 // indexing by parts[N] directly (legacy non-paginated callers).
