@@ -118,6 +118,19 @@
       posterTypes: ['aggregator'],
       canPostPrices: false,
       description: 'Aggregator field ops'
+    },
+    driver: {
+      label: 'Driver',
+      tier: 4,
+      dashboard: '/driver-dashboard',
+      table: 'drivers',
+      pillColor: '#ffb74d',
+      pillBg: '#2e2010',
+      authType: 'phone',
+      isFree: true,
+      posterTypes: [],
+      canPostPrices: false,
+      description: 'Logistics — moves material aggregator → buyer'
     }
   };
 
@@ -174,13 +187,18 @@
   ];
 
   // ── Tier adjacency map (for name privacy) ──
+  // Drivers are adjacent to aggregator (their employer) and the destination
+  // tiers (processor / recycler / converter) they physically deliver to.
+  // Drivers are NOT adjacent to collectors — they never see collectors directly
+  // (per project_circul_drivers_dont_aggregate.md).
   var ADJACENT_TIERS = {
     collector: ['aggregator', 'agent'],
-    aggregator: ['collector', 'processor', 'agent'],
+    aggregator: ['collector', 'processor', 'agent', 'driver'],
     agent: ['aggregator', 'collector'],
-    processor: ['aggregator', 'recycler', 'converter'],
-    recycler: ['processor', 'converter'],
-    converter: ['recycler', 'processor']
+    driver: ['aggregator', 'processor', 'recycler', 'converter'],
+    processor: ['aggregator', 'recycler', 'converter', 'driver'],
+    recycler: ['processor', 'converter', 'driver'],
+    converter: ['recycler', 'processor', 'driver']
   };
 
   // ── Role → ID code prefix ──
@@ -190,7 +208,8 @@
     agent: 'AGT',
     processor: 'PRC',
     recycler: 'RCY',
-    converter: 'CNV'
+    converter: 'CNV',
+    driver: 'DRV'
   };
 
   // Generate Circul ID code from role + numeric id
