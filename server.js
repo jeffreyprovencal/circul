@@ -3208,15 +3208,23 @@ async function handleAggregatorRegistrationCode(parts, requestRow) {
 async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
 
-  // Welcome — role split (collector vs aggregator vs exit)
-  // ussd-lint-allow: known existing violation, post-pilot sweep
-  if (level === 0) return 'CON Welcome to Circul\nThe operating system for\nGhana\'s waste workers.\n\nSell. Track. Get paid.\n\nRegister as:\n1. Collector\n2. Aggregator\n0. Exit';
+  // Welcome — role-picker (driver actor MVP v0). 6 lines: 2 header + 4 items + 0 back.
+  // Items count (4 + 0) fits the Yam cap; line count exceeds the lint default cap by
+  // design — the header context "What's your role?" makes the menu legible. Sweep
+  // candidate post-pilot if mobile rendering shows truncation issues.
+  // ussd-lint-allow: intentional 6-line role-picker welcome
+  if (level === 0) return 'CON Welcome to Circul!\nWhat\'s your role?\n1. Collector\n2. Aggregator\n3. Driver\n0. Other';
 
-  if (parts[0] === '0') return 'END Thank you for using Circul.';
+  if (parts[0] === '0') return 'END Visit\ncircul.polsia.app\nto learn more or\nsign up online.';
 
   // Aggregator path — hand off to request handler (Phase 4)
   if (parts[0] === '2') {
     return await handleAggregatorRegistrationRequest(parts.slice(1), phone);
+  }
+
+  // Driver path — driver actor MVP v0
+  if (parts[0] === '3') {
+    return await handleDriverSelfRegister(parts.slice(1), phone);
   }
 
   // Collector path
@@ -3265,6 +3273,92 @@ async function handleUnregisteredUssd(parts, phone) {
       }
     }
     return 'END Invalid option.\nDial again to retry.';
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Driver self-register (Phase 2 of driver actor MVP v0) ──
+// Mirrors collector self-register at handleUnregisteredUssd parts[0]==='1' branch.
+// Uses the canonical paginated city picker (PR-#86) — never the deprecated
+// 4-city map pattern.
+async function handleDriverSelfRegister(parts, phone) {
+  const level = parts.length;
+
+  if (level === 0) return 'CON Register as driver.\nEnter your first name:';
+  if (level === 1) return 'CON Enter your last name:';
+
+  const firstName = parts[0].trim();
+  const lastName = parts[1].trim();
+  if (!lastName) return 'END Last name required.\nDial again to retry.';
+
+  // parts.slice(2) is the city-picker input — variable length due to pagination.
+  // Mirrors collector self-register at handleUnregisteredUssd:3232.
+  const pickerParts = parts.slice(2);
+  if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+  if (pickerParts[0] === '0') return 'END Cancelled.';
+
+  const sel = parsePaginatedSelection(pickerParts);
+  if (sel.remaining.length === 0) {
+    // All parts so far are page-advance markers — show the next page
+    return renderCityPickerScreen(pickerParts).screen;
+  }
+
+  const cityData = resolveCityFromPaginatedParts(pickerParts);
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  // After city pick: PIN, PIN-confirm, confirm-screen, commit.
+  // City consumed (sel.page + 1) parts.
+  const cityPartsLen = sel.page + 1;
+  const afterCityDepth = level - 2 - cityPartsLen;
+
+  if (afterCityDepth === 0) return 'CON Set 4-digit PIN\nfor next time:';
+
+  const pinRaw = parts[2 + cityPartsLen];
+  if (!/^\d{4}$/.test(pinRaw)) return 'END PIN must be 4 digits.\nDial again to retry.';
+
+  if (afterCityDepth === 1) return 'CON Confirm 4-digit PIN:';
+
+  if (parts[2 + cityPartsLen + 1] !== pinRaw) return 'END PINs do not match.\nDial again to retry.';
+
+  if (afterCityDepth === 2) {
+    const normalized = normalizeGhanaPhone(phone);
+    const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    return `CON Register driver:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
+  }
+
+  if (afterCityDepth === 3) {
+    const choice = parts[level - 1];
+    if (choice === '0') return 'END Cancelled.';
+    if (choice !== '1') return 'END Invalid option.\nDial again to retry.';
+
+    try {
+      const hashedPin = await hashPassword(pinRaw);
+      const normalized = normalizeGhanaPhone(phone);
+      const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+      const result = await pool.query(
+        `INSERT INTO drivers (first_name, last_name, phone, pin, city, region)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [firstName, lastName, phoneToStore, hashedPin, cityData.city, cityData.region]
+      );
+      const driverId = result.rows[0].id;
+      const driverCode = 'DRV-' + String(driverId).padStart(4, '0');
+      await pool.query(
+        `INSERT INTO driver_activity (driver_id, action_type, description) VALUES ($1, 'self_registered', 'Driver self-registered via USSD')`,
+        [driverId]
+      );
+      try {
+        await notify(EVENTS.DRIVER_WELCOME, phoneToStore, {
+          first_name: firstName,
+          nnn: String(driverId).padStart(4, '0'),
+          city: cityData.city
+        });
+      } catch (e) { console.warn('[NOTIFY] driver_welcome failed:', e.message); }
+      return `END Welcome, ${firstName}!\nCode: ${driverCode}\n\nAggregators in your\nregion can now find you.\nDial *920*54# to see\navailable work.`;
+    } catch (err) {
+      if (err.code === '23505') return 'END This phone number is\nalready registered.\nDial again with PIN.';
+      throw err;
+    }
   }
 
   return 'END Invalid option.\nDial again to retry.';

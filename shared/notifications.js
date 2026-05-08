@@ -66,7 +66,17 @@ var EVENTS = {
   AGGREGATOR_CODE_ISSUED:                  'aggregator_code_issued',
   AGGREGATOR_REQUEST_REJECTED:             'aggregator_request_rejected',
   AGGREGATOR_REGISTRATION_COMPLETED:       'aggregator_registration_completed',
-  AGGREGATOR_REGISTRATION_COMPLETED_ADMIN: 'aggregator_registration_completed_admin'
+  AGGREGATOR_REGISTRATION_COMPLETED_ADMIN: 'aggregator_registration_completed_admin',
+  // Driver actor MVP v0
+  DRIVER_WELCOME:              'driver_welcome',
+  DRIVER_ROSTER_INVITE:        'driver_roster_invite',
+  DRIVER_DIRECT_INVITE:        'driver_direct_invite',
+  DRIVER_MARKETPLACE_LISTING:  'driver_marketplace_listing',
+  DRIVER_DISPATCH_LOCKED:      'driver_dispatch_locked',
+  DRIVER_OFFER_ACCEPTED:       'driver_offer_accepted_to_aggregator',
+  DRIVER_OFFER_DECLINED:       'driver_offer_declined_to_aggregator',
+  DRIVER_AT_CAPACITY:          'driver_at_capacity_to_aggregator',
+  DRIVER_PAYMENT_RECORDED:     'driver_payment_recorded'
 };
 
 // Security events bypass the daily SMS cap — an account-recovery alert that
@@ -98,7 +108,7 @@ var TEMPLATES = {
     return 'Circul: ' + data.seller_name + ' declined your offer on ' + data.material + '. Browse other listings on Circul.';
   },
   counter_offer: function (data) {
-    return 'Circul: ' + data.counterparty + ' countered your offer \u2014 GHS ' + data.price + '/kg for ' + data.qty + 'kg ' + data.material + '. Log in to respond.';
+    return 'Circul: ' + data.counterparty + ' countered your offer - GHS ' + data.price + '/kg for ' + data.qty + 'kg ' + data.material + '. Log in to respond.';
   },
   delivery_pending: function (data) {
     return 'Circul: ' + data.sender_name + ' dispatched ' + data.qty + 'kg ' + data.material + ' to you. Log in to approve delivery.';
@@ -110,7 +120,7 @@ var TEMPLATES = {
     return 'Circul: You received GHS ' + data.amount + ' for ' + data.qty + 'kg ' + data.material + '. Check your dashboard for details.';
   },
   rating_received: function (data) {
-    return 'Circul: ' + data.rater_name + ' rated you ' + data.stars + '\u2605. View your ratings on your dashboard.';
+    return 'Circul: ' + data.rater_name + ' rated you ' + data.stars + ' star' + (data.stars === 1 ? '' : 's') + '. View your ratings on your dashboard.';
   },
   listing_expiring: function (data) {
     return 'Circul: Your ' + data.material + ' listing (' + data.qty + 'kg) expires tomorrow. Log in to renew it.';
@@ -167,7 +177,7 @@ var TEMPLATES = {
     return 'Circul: Your phone number was changed to ' + d.new_phone + ' by Circul support at ' + d.time + '.\n\nIf this wasn\'t you, call Circul support immediately.';
   },
   phone_changed_upstream: function (d) {
-    return 'Phone change: ' + d.user_code + ' (' + d.user_name + ') \u2014 phone updated by Circul support at ' + d.time + '. Was ' + d.old_phone + ', now ' + d.new_phone + '. Watch for unusual activity.';
+    return 'Phone change: ' + d.user_code + ' (' + d.user_name + ') - phone updated by Circul support at ' + d.time + '. Was ' + d.old_phone + ', now ' + d.new_phone + '. Watch for unusual activity.';
   },
   admin_pin_reset_triggered: function (d) {
     return 'Circul support triggered a PIN reset for your account at ' + d.time + '. Dial *920*54# and follow the prompts to set a new PIN.\n\nIf you didn\'t request this, call Circul support immediately.';
@@ -190,6 +200,36 @@ var TEMPLATES = {
   },
   aggregator_registration_completed_admin: function (d) {
     return 'Aggregator registration completed: ' + d.name + (d.company ? ' (' + d.company + ', ' + d.city + ')' : ' (' + d.city + ')') + ' is now ' + d.agg_code + ' on Circul.';
+  },
+
+  // Driver actor MVP v0 — templates ASCII-only (GSM-7 single-segment safe).
+  // Verbatim from mockups/mockup-driver-feature-v2.html Section J.
+  driver_welcome: function (d) {
+    return 'Welcome to Circul, ' + d.first_name + '! Your driver code is DRV-' + d.nnn + '. Aggregators in ' + d.city + ' can now find you. Dial *920*54# to see available work.';
+  },
+  driver_roster_invite: function (d) {
+    return d.aggregator_name + ' wants you in their driver roster. Dial *920*54# to accept or decline. - Circul';
+  },
+  driver_direct_invite: function (d) {
+    return d.aggregator_name + ' offers you ' + d.weight + 'kg ' + d.material + ' to ' + d.destination + ', trip fee GHS ' + d.fee + '. Dial *920*54# to accept, counter, or decline. Expires 4h. - Circul';
+  },
+  driver_marketplace_listing: function (d) {
+    return 'New job: ' + d.weight + 'kg ' + d.material + ', ' + d.origin + ' to ' + d.destination + ', trip fee GHS ' + d.fee + '. Posted by ' + d.aggregator_name + ', expires 24h. Dial *920*54# to accept or counter.';
+  },
+  driver_dispatch_locked: function (d) {
+    return d.first_name + ': dispatch locked. ' + d.weight + 'kg ' + d.material + ' to ' + d.destination + ', trip fee GHS ' + d.fee + '. Pickup at ' + d.aggregator_name + ' yard. Dial *920*54# to confirm pickup.';
+  },
+  driver_offer_accepted_to_aggregator: function (d) {
+    return d.driver_first_name + ' accepted: ' + d.weight + 'kg ' + d.material + ', trip fee GHS ' + d.fee + ', ' + d.origin + ' to ' + d.destination + '. They will pick up shortly. - Circul';
+  },
+  driver_offer_declined_to_aggregator: function (d) {
+    return d.driver_first_name + ' declined the ' + d.weight + 'kg ' + d.material + ' dispatch. Pick another driver or post to marketplace. Dial *920*54#. - Circul';
+  },
+  driver_at_capacity_to_aggregator: function (d) {
+    return d.driver_first_name + ' at capacity (3 active jobs). Pick another driver or post to marketplace. Dial *920*54#. - Circul';
+  },
+  driver_payment_recorded: function (d) {
+    return d.aggregator_name + ' marked GHS ' + d.amount + ' paid for delivery ' + d.ref + '. Total earned: GHS ' + d.lifetime + '. - Circul';
   }
 };
 
