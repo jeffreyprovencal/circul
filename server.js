@@ -5327,13 +5327,9 @@ async function countPendingDeliveries(driverId) {
   return parseInt(r.rows[0].n, 10);
 }
 
-// Phase 4 stubs for menu branches — bodies land in Phase 5 (available work,
-// counter-offer, cap enforcement) and Phase 6 (confirm delivery, earnings,
-// more submenu). Until those phases land, the stubs return a friendly END so
-// drivers don't get a crash if they tap into a not-yet-built menu item.
-async function handleDriverAvailableWork(m, driver) {
-  return 'END Coming soon.\nDial again later.';
-}
+// Phase 6 stubs — bodies land in Phase 6 (confirm delivery, earnings, more).
+// Until those phases land, stubs return a friendly END so drivers don't get a
+// crash if they tap into a not-yet-built menu item.
 async function handleDriverConfirmDelivery(m, driver) {
   return 'END Coming soon.\nDial again later.';
 }
@@ -5342,6 +5338,312 @@ async function handleDriverEarnings(m, driver) {
 }
 async function handleDriverMore(m, driver) {
   return 'END Coming soon.\nDial again later.';
+}
+
+// ── Driver dispatch flows (Phase 5 of driver actor MVP v0) ──
+//
+// State machine for handleDriverAvailableWork(m, driver):
+//   m=[]                       → list available work (4+0 cap)
+//   m=['N']                    → show listing N detail (accept/counter/skip)
+//   m=['N','1']                → accept proposed → cap check
+//                                  count >= 3: hard block END
+//                                  count == 2: soft warning CON
+//                                  count <  2: commit → success END
+//   m=['N','1','1']            → "accept anyway" past soft warning → commit
+//   m=['N','1','0']            → skip after warning → END
+//   m=['N','2']                → counter-offer prompt
+//   m=['N','2','<num>']        → counter confirm screen
+//   m=['N','2','<num>','1']    → send counter → END
+//   m=['N','2','<num>','0']    → cancel counter → END
+//   m=['N','0']                → skip listing → END
+//
+// Soft cap = 2, hard cap = 3 (per project_circul_drivers_actor_mvp.md).
+//
+// First-accept-wins: between the listing query (depth 0) and the commit, the
+// listing might be awarded to a different driver. We check listing.status='open'
+// inside the transaction at commit time and return "Already taken" if not.
+
+async function getDriverActiveCount(driverId) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM pending_transactions
+     WHERE driver_id=$1 AND status IN ('pending', 'confirmed') AND driver_confirmed_at IS NULL`,
+    [driverId]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+// Load up to 4 listings for the driver: direct invites first, then marketplace
+// listings in driver's region (oldest first). Returns rows in display order.
+async function loadDriverAvailableWork(driver) {
+  const r = await pool.query(
+    `SELECT dl.id, dl.aggregator_id, dl.material_type, dl.gross_weight_kg,
+            dl.proposed_fee_ghs, dl.pickup_location, dl.region,
+            dl.destination_buyer_kind, dl.destination_buyer_id,
+            dl.awarded_to_driver_id,
+            agg.name AS aggregator_name
+     FROM dispatch_listings dl
+     JOIN aggregators agg ON agg.id = dl.aggregator_id
+     WHERE dl.status = 'open'
+       AND dl.expires_at > NOW()
+       AND ((dl.region = $1)
+         OR (dl.region = '_DIRECT_' AND dl.awarded_to_driver_id = $2))
+     ORDER BY (dl.region = '_DIRECT_') DESC, dl.created_at ASC
+     LIMIT 4`,
+    [driver.region, driver.id]
+  );
+  return r.rows;
+}
+
+async function handleDriverAvailableWork(m, driver) {
+  const depth = m.length;
+
+  // depth 0: render the list (or empty state)
+  if (depth === 0) {
+    const listings = await loadDriverAvailableWork(driver);
+    if (listings.length === 0) {
+      return 'END No work available.\nDial again later.';
+    }
+    let menu = 'CON Available:';
+    listings.forEach(function (l, i) {
+      const isDirect = l.region === '_DIRECT_';
+      const tag = isDirect ? '* ' : '';
+      const kg = Math.round(parseFloat(l.gross_weight_kg));
+      const fee = Math.round(parseFloat(l.proposed_fee_ghs));
+      menu += '\n' + (i + 1) + '. ' + tag + kg + 'kg ' + l.material_type + ' GHS ' + fee;
+    });
+    menu += '\n0. Back';
+    return menu;
+  }
+
+  // depth 1+: m[0] = picked index OR '0' for back
+  if (m[0] === '0') return 'END Cancelled.';
+
+  const listings = await loadDriverAvailableWork(driver);
+  const idx = parseInt(m[0], 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= listings.length) {
+    return 'END Invalid choice.\nDial again to retry.';
+  }
+  const listing = listings[idx];
+
+  // depth 1: show listing detail
+  if (depth === 1) {
+    const kg = Math.round(parseFloat(listing.gross_weight_kg));
+    const fee = Math.round(parseFloat(listing.proposed_fee_ghs));
+    const dest = listing.destination_buyer_kind ? listing.destination_buyer_kind : 'buyer';
+    return 'CON ' + kg + 'kg ' + listing.material_type + '\n'
+         + listing.pickup_location + ' to ' + dest + '\n'
+         + 'Trip fee: GHS ' + fee + '\n'
+         + '1. Accept GHS ' + fee + '\n'
+         + '2. Counter\n'
+         + '0. Skip';
+  }
+
+  // depth 2+: branch on m[1]
+  if (m[1] === '0') return 'END Cancelled.';
+
+  // ── Accept-as-is path ──
+  if (m[1] === '1') {
+    return await driverAcceptListing(m.slice(2), driver, listing);
+  }
+
+  // ── Counter-offer path ──
+  if (m[1] === '2') {
+    return await driverCounterListing(m.slice(2), driver, listing);
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// driverAcceptListing — handles cap check (soft + hard) and commit.
+//   restParts = []           → run cap check
+//                                count >= 3: hard block END
+//                                count == 2: soft warning CON
+//                                count <  2: commit
+//   restParts = ['1']        → "accept anyway" past soft warning → commit
+//   restParts = ['0']        → skip after soft warning → END
+async function driverAcceptListing(restParts, driver, listing) {
+  const active = await getDriverActiveCount(driver.id);
+
+  // Hard cap — also notify aggregator if this was a direct invite.
+  if (active >= 3) {
+    if (listing.region === '_DIRECT_') {
+      try {
+        const agg = await pool.query(`SELECT phone FROM aggregators WHERE id=$1 LIMIT 1`, [listing.aggregator_id]);
+        if (agg.rows.length) {
+          await notify(EVENTS.DRIVER_AT_CAPACITY, agg.rows[0].phone, {
+            driver_first_name: driver.first_name
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] driver_at_capacity failed:', e.message); }
+    }
+    return 'END Maximum 3 active jobs reached.\n\nComplete a delivery\nbefore accepting more.';
+  }
+
+  // Soft cap — show warning unless user has already confirmed "accept anyway".
+  if (active >= 2 && restParts.length === 0) {
+    return 'CON You have 2 active\njobs already.\n1. Accept anyway\n0. Skip';
+  }
+  if (active >= 2 && restParts[0] === '0') return 'END Cancelled.';
+  // active >= 2 && restParts[0] === '1' falls through to commit
+
+  // ── Commit ──
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // First-accept-wins: re-check listing.status under lock.
+    const cur = await client.query(
+      `SELECT status FROM dispatch_listings WHERE id=$1 FOR UPDATE`,
+      [listing.id]
+    );
+    if (!cur.rows.length || cur.rows[0].status !== 'open') {
+      await client.query('ROLLBACK');
+      return 'END Already taken.\nDial again to see\nother work.';
+    }
+
+    // Insert driver_offers row (status='accepted').
+    await client.query(
+      `INSERT INTO driver_offers (listing_id, driver_id, offer_type, status)
+       VALUES ($1, $2, 'accept_proposed', 'accepted')
+       ON CONFLICT (listing_id, driver_id) DO UPDATE SET offer_type='accept_proposed', status='accepted'`,
+      [listing.id, driver.id]
+    );
+
+    // Mark listing awarded.
+    await client.query(
+      `UPDATE dispatch_listings SET status='awarded', awarded_to_driver_id=$2 WHERE id=$1`,
+      [listing.id, driver.id]
+    );
+
+    // Reject all OTHER pending offers on this listing.
+    await client.query(
+      `UPDATE driver_offers SET status='rejected'
+       WHERE listing_id=$1 AND driver_id != $2 AND status='pending'`,
+      [listing.id, driver.id]
+    );
+
+    // Create pending_transactions row from the listing.
+    const ptIns = await client.query(
+      `INSERT INTO pending_transactions (
+         transaction_type, status, aggregator_id, driver_id,
+         material_type, gross_weight_kg, price_per_kg, total_price,
+         driver_fee_ghs, rejected_disposition, created_at
+       ) VALUES (
+         'aggregator_sale', 'pending', $1, $2,
+         $3, $4, NULL, NULL,
+         $5, COALESCE($6, 'leave_at_buyer'), NOW()
+       ) RETURNING id`,
+      [
+        listing.aggregator_id, driver.id,
+        listing.material_type, listing.gross_weight_kg,
+        listing.proposed_fee_ghs, null
+      ]
+    );
+    const ptId = ptIns.rows[0].id;
+
+    // Link listing to the pt row for trace.
+    await client.query(
+      `UPDATE dispatch_listings SET pending_transaction_id=$2 WHERE id=$1`,
+      [listing.id, ptId]
+    );
+
+    // Activity log.
+    await client.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'dispatch_accepted',
+               'Driver accepted dispatch GHS ' || $3 || ' for ' || $4 || 'kg ' || $5,
+               $6, 'pending_transaction')`,
+      [driver.id, listing.aggregator_id, listing.proposed_fee_ghs, Math.round(parseFloat(listing.gross_weight_kg)), listing.material_type, ptId]
+    );
+
+    await client.query('COMMIT');
+
+    // Notifications — best-effort, don't fail commit on SMS error.
+    try {
+      const agg = await pool.query(`SELECT phone, name FROM aggregators WHERE id=$1 LIMIT 1`, [listing.aggregator_id]);
+      if (agg.rows.length) {
+        const aggName = agg.rows[0].name || 'aggregator';
+        const dest = listing.destination_buyer_kind || 'buyer';
+        const kg = Math.round(parseFloat(listing.gross_weight_kg));
+        const fee = Math.round(parseFloat(listing.proposed_fee_ghs));
+        // Driver gets the dispatch-locked confirmation.
+        await notify(EVENTS.DRIVER_DISPATCH_LOCKED, driver.phone, {
+          first_name: driver.first_name,
+          weight: kg,
+          material: listing.material_type,
+          destination: dest,
+          fee: fee,
+          aggregator_name: aggName
+        });
+        // Aggregator gets the offer-accepted notification.
+        await notify(EVENTS.DRIVER_OFFER_ACCEPTED, agg.rows[0].phone, {
+          driver_first_name: driver.first_name,
+          weight: kg,
+          material: listing.material_type,
+          fee: fee,
+          origin: listing.pickup_location,
+          destination: dest
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] dispatch-locked / offer-accepted failed:', e.message); }
+
+    const feeRound = Math.round(parseFloat(listing.proposed_fee_ghs));
+    return 'END Dispatch locked.\nTrip fee: GHS ' + feeRound + '.\nWe SMSed details.';
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[DRIVER ACCEPT] commit failed:', err);
+    return 'END System error.\nTry again later.';
+  } finally {
+    client.release();
+  }
+}
+
+// driverCounterListing — counter-offer flow.
+//   restParts = []           → prompt for numeric counter
+//   restParts = ['<num>']    → confirm screen
+//   restParts = ['<num>','1']→ send counter → END
+//   restParts = ['<num>','0']→ cancel → END
+async function driverCounterListing(restParts, driver, listing) {
+  if (restParts.length === 0) {
+    return 'CON Your counter (GHS):';
+  }
+
+  const counterRaw = restParts[0];
+  const counter = parseFloat(counterRaw);
+  if (!isFinite(counter) || counter <= 0) {
+    return 'END Invalid amount.\nDial again to retry.';
+  }
+
+  if (restParts.length === 1) {
+    const kg = Math.round(parseFloat(listing.gross_weight_kg));
+    return 'CON Counter GHS ' + Math.round(counter) + '\nfor ' + kg + 'kg ' + listing.material_type + '\n1. Send\n0. Cancel';
+  }
+
+  if (restParts[1] === '0') return 'END Cancelled.';
+  if (restParts[1] !== '1') return 'END Invalid option.\nDial again to retry.';
+
+  // Send counter — insert driver_offers row (status='pending', offer_type='counter')
+  try {
+    await pool.query(
+      `INSERT INTO driver_offers (listing_id, driver_id, offer_type, counter_fee_ghs, status)
+       VALUES ($1, $2, 'counter', $3, 'pending')
+       ON CONFLICT (listing_id, driver_id) DO UPDATE
+         SET offer_type='counter', counter_fee_ghs=$3, status='pending'`,
+      [listing.id, driver.id, counter]
+    );
+    await pool.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'counter_offered',
+               'Driver countered with GHS ' || $3 || ' for ' || $4 || 'kg ' || $5,
+               $6, 'dispatch_listing')`,
+      [driver.id, listing.aggregator_id, counter, Math.round(parseFloat(listing.gross_weight_kg)), listing.material_type, listing.id]
+    );
+  } catch (err) {
+    console.error('[DRIVER COUNTER] insert failed:', err);
+    return 'END System error.\nTry again later.';
+  }
+
+  return 'END Counter sent.\nWe will notify you\nwhen they decide.';
 }
 
 async function handleAgentCollection(m, agent) {
