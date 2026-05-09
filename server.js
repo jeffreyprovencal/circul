@@ -2274,6 +2274,372 @@ app.get('/api/aggregator/reports/buyers-list', requireAuth, async (req, res) => 
 });
 
 // ============================================
+// DRIVER MARKETPLACE — Phase 7 of driver actor MVP v0
+// ============================================
+//
+// Aggregator-side endpoints for marketplace listings + race-safe award of
+// driver counter-offers. Driver-side acceptance lives in Phase 5
+// (driverAcceptListing, server.js:~5740).
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+// Lazy listing expiry — flips open listings past their TTL to status='expired'
+// in a single atomic UPDATE. Idempotent. Safe under concurrent reads (per-row
+// UPDATE is atomic). For each newly-expired listing, fires a fire-and-forget
+// SMS to the aggregator. Called opportunistically by aggregator GET endpoints
+// and driver-side queries — no background cron needed for v0.
+async function expireStaleListings(client) {
+  const conn = client || pool;
+  let res;
+  try {
+    res = await conn.query(
+      `UPDATE dispatch_listings
+         SET status='expired'
+       WHERE status='open' AND expires_at < NOW()
+       RETURNING id, aggregator_id`
+    );
+  } catch (e) {
+    console.warn('[expireStaleListings] update failed:', e.message);
+    return 0;
+  }
+  if (!res.rows.length) return 0;
+  const aggIds = [...new Set(res.rows.map(function (r) { return r.aggregator_id; }))];
+  let aggMap = {};
+  try {
+    const aggLookup = await conn.query(
+      `SELECT id, phone FROM aggregators WHERE id = ANY($1)`,
+      [aggIds]
+    );
+    aggLookup.rows.forEach(function (a) { aggMap[a.id] = a.phone; });
+  } catch (e) {
+    console.warn('[expireStaleListings] aggregator lookup failed:', e.message);
+    return res.rows.length;
+  }
+  res.rows.forEach(function (row) {
+    const phone = aggMap[row.aggregator_id];
+    if (!phone) return;
+    notify(EVENTS.DRIVER_LISTING_EXPIRED, phone, { listing_id: row.id })
+      .catch(function (e) { console.warn('[expireStaleListings] notify failed for listing ' + row.id + ':', e.message); });
+  });
+  return res.rows.length;
+}
+
+// Marketplace broadcast — fan-out a new listing's SMS to relevant drivers.
+// Recipients = drivers in this aggregator's active roster UNION drivers in the
+// same region (deduplicated). Capped at 100 per broadcast (Ghana driver pool
+// is small in v0; future scale needs queueing — flagged in audit followups).
+// Promise.allSettled so one failed phone doesn't kill the batch. The notify()
+// helper already enforces SMS_DAILY_CAP per phone (silenced rejects in here).
+async function broadcastListingToDrivers(listingId, aggregatorId, region, listing, aggregatorName, destinationLabel) {
+  let recipientsRes;
+  try {
+    recipientsRes = await pool.query(
+      `SELECT DISTINCT d.id, d.phone, d.first_name
+         FROM drivers d
+    LEFT JOIN driver_aggregator_relationships dar
+           ON dar.driver_id = d.id
+          AND dar.aggregator_id = $1
+          AND dar.status = 'active'
+        WHERE d.is_active = true
+          AND (dar.id IS NOT NULL OR d.region = $2)
+        LIMIT 100`,
+      [aggregatorId, region]
+    );
+  } catch (e) {
+    console.warn('[broadcastListingToDrivers] recipients query failed:', e.message);
+    return;
+  }
+  if (!recipientsRes.rows.length) {
+    console.log('[broadcast] listing ' + listingId + ': 0 recipients');
+    return;
+  }
+  const aggShort = (aggregatorName || 'Aggregator').slice(0, 14);
+  const originShort = (listing.pickup_location || '').slice(0, 14);
+  const destShort = (destinationLabel || listing.destination_buyer_kind || 'buyer').slice(0, 14);
+  const results = await Promise.allSettled(
+    recipientsRes.rows.map(function (driver) {
+      return notify(EVENTS.DRIVER_MARKETPLACE_LISTING, driver.phone, {
+        weight: Math.round(parseFloat(listing.gross_weight_kg)),
+        material: listing.material_type,
+        origin: originShort,
+        destination: destShort,
+        fee: Math.round(parseFloat(listing.proposed_fee_ghs)),
+        aggregator_name: aggShort
+      });
+    })
+  );
+  const sent = results.filter(function (r) { return r.status === 'fulfilled'; }).length;
+  const failed = results.length - sent;
+  console.log('[broadcast] listing ' + listingId + ': ' + sent + '/' + results.length + ' sent, ' + failed + ' failed');
+}
+
+// Validate destination buyer exists in the right table. Returns the buyer's
+// display name or null if not found. Cross-tier lookup pattern matches
+// existing buyers-list endpoint at ~line 2225.
+async function lookupBuyerName(buyerKind, buyerId) {
+  const tableMap = { processor: 'processors', recycler: 'recyclers', converter: 'converters' };
+  const table = tableMap[buyerKind];
+  if (!table) return null;
+  try {
+    const r = await pool.query(
+      'SELECT COALESCE(company, name) AS name FROM ' + table + ' WHERE id=$1 AND is_active=true LIMIT 1',
+      [buyerId]
+    );
+    return r.rows.length ? r.rows[0].name : null;
+  } catch (e) {
+    console.warn('[lookupBuyerName] failed:', e.message);
+    return null;
+  }
+}
+
+// ── Step 7.1: POST /api/aggregator/dispatch-listings ─────────────────
+// Creates an open marketplace listing, returns 200 immediately, then fires
+// the marketplace-broadcast SMS fan-out asynchronously (does not block).
+app.post('/api/aggregator/dispatch-listings', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const {
+      material_type, weight_kg, pickup_location,
+      destination_buyer_kind, destination_buyer_id,
+      proposed_fee_ghs, region, rejected_disposition
+    } = req.body || {};
+
+    // ── Body validation — fail loud on any malformed field ──
+    if (!material_type || !VALID_MATERIALS.includes(material_type)) {
+      return res.status(400).json({ success: false, error: 'invalid_material', message: 'material_type must be one of: ' + VALID_MATERIALS.join(', ') });
+    }
+    const wkg = parseFloat(weight_kg);
+    if (!isFinite(wkg) || wkg < 1 || wkg > 5000) {
+      return res.status(400).json({ success: false, error: 'invalid_weight', message: 'weight_kg must be 1-5000' });
+    }
+    if (!pickup_location || typeof pickup_location !== 'string' || pickup_location.trim().length < 1 || pickup_location.length > 80) {
+      return res.status(400).json({ success: false, error: 'invalid_pickup_location', message: 'pickup_location must be 1-80 chars' });
+    }
+    if (!['processor', 'recycler', 'converter'].includes(destination_buyer_kind)) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_kind' });
+    }
+    const dbid = parseInt(destination_buyer_id, 10);
+    if (!Number.isInteger(dbid) || dbid < 1) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_id' });
+    }
+    const buyerName = await lookupBuyerName(destination_buyer_kind, dbid);
+    if (!buyerName) {
+      return res.status(400).json({ success: false, error: 'unknown_destination_buyer' });
+    }
+    const fee = parseFloat(proposed_fee_ghs);
+    if (!isFinite(fee) || fee < 1 || fee > 10000) {
+      return res.status(400).json({ success: false, error: 'invalid_fee', message: 'proposed_fee_ghs must be 1-10000' });
+    }
+    if (!region || !CirculRoles.GHANA_REGIONS.includes(region)) {
+      return res.status(400).json({ success: false, error: 'invalid_region' });
+    }
+    const disposition = rejected_disposition || 'leave_at_buyer';
+    if (!['leave_at_buyer', 'bring_back', 'sell_as_scrap'].includes(disposition)) {
+      return res.status(400).json({ success: false, error: 'invalid_disposition' });
+    }
+
+    // ── INSERT and respond immediately ──
+    const insRes = await pool.query(
+      `INSERT INTO dispatch_listings (
+         aggregator_id, pickup_location, destination_buyer_kind, destination_buyer_id,
+         material_type, gross_weight_kg, proposed_fee_ghs, region,
+         rejected_disposition, status, expires_at, created_at
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $8,
+         $9, 'open', NOW() + INTERVAL '24 hours', NOW()
+       ) RETURNING id, expires_at`,
+      [aggId, pickup_location.trim(), destination_buyer_kind, dbid,
+       material_type, wkg, fee, region,
+       disposition]
+    );
+    const listingId = insRes.rows[0].id;
+    const expiresAt = insRes.rows[0].expires_at;
+
+    res.json({ success: true, listing_id: listingId, expires_at: expiresAt });
+
+    // ── Async broadcast fire-and-forget ──
+    const aggLookup = await pool.query(`SELECT name FROM aggregators WHERE id=$1`, [aggId]);
+    const aggName = aggLookup.rows.length ? aggLookup.rows[0].name : 'Aggregator';
+    broadcastListingToDrivers(
+      listingId, aggId, region,
+      { pickup_location: pickup_location.trim(), destination_buyer_kind, gross_weight_kg: wkg, material_type, proposed_fee_ghs: fee },
+      aggName, buyerName
+    ).catch(function (e) {
+      console.error('[broadcast] listing ' + listingId + ' failed:', e.message);
+    });
+  } catch (err) {
+    console.error('POST /api/aggregator/dispatch-listings error:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/aggregator/dispatch-listings ────────────────────────────
+// Returns this aggregator's listings. Calls expireStaleListings() first
+// to flip past-TTL listings to 'expired' (lazy expiry — no cron in v0).
+app.get('/api/aggregator/dispatch-listings', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    await expireStaleListings(pool);
+    const r = await pool.query(
+      `SELECT dl.id, dl.material_type, dl.gross_weight_kg, dl.proposed_fee_ghs,
+              dl.pickup_location, dl.destination_buyer_kind, dl.destination_buyer_id,
+              dl.region, dl.rejected_disposition, dl.status,
+              dl.awarded_to_driver_id, dl.expires_at, dl.created_at, dl.pending_transaction_id,
+              (SELECT COUNT(*) FROM driver_offers WHERE listing_id = dl.id AND status='pending')::int AS pending_offer_count
+         FROM dispatch_listings dl
+        WHERE dl.aggregator_id = $1
+        ORDER BY dl.created_at DESC
+        LIMIT 100`,
+      [aggId]
+    );
+    res.json({ success: true, listings: r.rows });
+  } catch (err) {
+    console.error('GET /api/aggregator/dispatch-listings error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── Step 7.2: POST /api/aggregator/dispatch-listings/:id/award/:offerId ──
+// Aggregator awards a specific driver_offer (counter or accept-as-is).
+// Race-safe: SELECT...FOR UPDATE on both listing AND offer inside a txn.
+// Notifications fire only AFTER COMMIT (rollback would otherwise misinform
+// drivers). Mirrors Phase 5's driverAcceptListing pattern.
+app.post('/api/aggregator/dispatch-listings/:id/award/:offerId', requireAuth, async (req, res) => {
+  if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+  const aggId = req.user.id;
+  const listingId = parseInt(req.params.id, 10);
+  const offerId = parseInt(req.params.offerId, 10);
+  if (!Number.isInteger(listingId) || !Number.isInteger(offerId)) {
+    return res.status(400).json({ success: false, error: 'invalid_ids' });
+  }
+
+  const client = await pool.connect();
+  let lockedFee, ptId, awardedDriverId, listing;
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock listing
+    const listingRes = await client.query(
+      `SELECT id, aggregator_id, material_type, gross_weight_kg, proposed_fee_ghs,
+              pickup_location, destination_buyer_kind, destination_buyer_id,
+              rejected_disposition, status, region
+         FROM dispatch_listings WHERE id=$1 FOR UPDATE`,
+      [listingId]
+    );
+    if (!listingRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'listing_not_found' });
+    }
+    listing = listingRes.rows[0];
+    if (listing.aggregator_id !== aggId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, error: 'not_your_listing' });
+    }
+    if (listing.status !== 'open') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: 'listing_not_open', current_status: listing.status });
+    }
+
+    // 2. Lock offer
+    const offerRes = await client.query(
+      `SELECT id, driver_id, offer_type, counter_fee_ghs, status
+         FROM driver_offers WHERE id=$1 AND listing_id=$2 FOR UPDATE`,
+      [offerId, listingId]
+    );
+    if (!offerRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'offer_not_found' });
+    }
+    const offer = offerRes.rows[0];
+    if (offer.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: 'offer_not_pending', current_status: offer.status });
+    }
+    awardedDriverId = offer.driver_id;
+    lockedFee = offer.offer_type === 'counter'
+      ? parseFloat(offer.counter_fee_ghs)
+      : parseFloat(listing.proposed_fee_ghs);
+
+    // 3. Mark offers (this one accepted, others rejected)
+    await client.query(`UPDATE driver_offers SET status='accepted' WHERE id=$1`, [offerId]);
+    await client.query(
+      `UPDATE driver_offers SET status='rejected'
+        WHERE listing_id=$1 AND id != $2 AND status='pending'`,
+      [listingId, offerId]
+    );
+
+    // 4. Mark listing awarded
+    await client.query(
+      `UPDATE dispatch_listings SET status='awarded', awarded_to_driver_id=$2 WHERE id=$1`,
+      [listingId, awardedDriverId]
+    );
+
+    // 5. Create pending_transactions row — mirror Phase 5's INSERT shape
+    const ptIns = await client.query(
+      `INSERT INTO pending_transactions (
+         transaction_type, status, aggregator_id, driver_id,
+         material_type, gross_weight_kg, price_per_kg, total_price,
+         driver_fee_ghs, rejected_disposition, created_at
+       ) VALUES (
+         'aggregator_sale', 'pending', $1, $2,
+         $3, $4, NULL, NULL,
+         $5, COALESCE($6, 'leave_at_buyer'), NOW()
+       ) RETURNING id`,
+      [listing.aggregator_id, awardedDriverId,
+       listing.material_type, listing.gross_weight_kg,
+       lockedFee, listing.rejected_disposition]
+    );
+    ptId = ptIns.rows[0].id;
+
+    // 6. Link listing to pt row (Phase 5's pattern)
+    await client.query(
+      `UPDATE dispatch_listings SET pending_transaction_id=$2 WHERE id=$1`,
+      [listingId, ptId]
+    );
+
+    // 7. Activity log
+    await client.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'awarded_by_aggregator',
+               'Aggregator awarded counter-offer GHS ' || $3 || ' for ' || $4 || 'kg ' || $5,
+               $6, 'pending_transaction')`,
+      [awardedDriverId, aggId, lockedFee, Math.round(parseFloat(listing.gross_weight_kg)), listing.material_type, ptId]
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('POST /api/aggregator/dispatch-listings/:id/award/:offerId error:', err);
+    client.release();
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+  client.release();
+
+  // 8. Fire notifications AFTER commit — best effort, don't fail the response.
+  try {
+    const driverRow = await pool.query(`SELECT phone, first_name FROM drivers WHERE id=$1 LIMIT 1`, [awardedDriverId]);
+    const aggRow = await pool.query(`SELECT name FROM aggregators WHERE id=$1 LIMIT 1`, [aggId]);
+    if (driverRow.rows.length) {
+      const buyerName = await lookupBuyerName(listing.destination_buyer_kind, listing.destination_buyer_id);
+      const aggShort = (aggRow.rows.length ? aggRow.rows[0].name : 'Aggregator').slice(0, 14);
+      const destShort = (buyerName || listing.destination_buyer_kind || 'buyer').slice(0, 14);
+      await notify(EVENTS.DRIVER_DISPATCH_LOCKED, driverRow.rows[0].phone, {
+        first_name: driverRow.rows[0].first_name,
+        weight: Math.round(parseFloat(listing.gross_weight_kg)),
+        material: listing.material_type,
+        destination: destShort,
+        fee: Math.round(lockedFee),
+        aggregator_name: aggShort
+      });
+    }
+  } catch (e) { console.warn('[notify] DRIVER_DISPATCH_LOCKED (post-award) failed:', e.message); }
+
+  return res.json({ success: true, pending_transaction_id: ptId, locked_fee_ghs: lockedFee, awarded_driver_id: awardedDriverId });
+});
+
+// ============================================
 // PROCESSORS
 // ============================================
 
@@ -5633,7 +5999,10 @@ async function getDriverActiveCount(driverId) {
 
 // Load up to 4 listings for the driver: direct invites first, then marketplace
 // listings in driver's region (oldest first). Returns rows in display order.
+// Calls expireStaleListings opportunistically (Phase 7.3 lazy expiry — no
+// background cron in v0; reads keep stale listings out of result sets).
 async function loadDriverAvailableWork(driver) {
+  await expireStaleListings(pool);
   const r = await pool.query(
     `SELECT dl.id, dl.aggregator_id, dl.material_type, dl.gross_weight_kg,
             dl.proposed_fee_ghs, dl.pickup_location, dl.region,

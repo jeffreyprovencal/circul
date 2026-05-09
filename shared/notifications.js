@@ -77,7 +77,8 @@ var EVENTS = {
   DRIVER_OFFER_DECLINED:       'driver_offer_declined_to_aggregator',
   DRIVER_AT_CAPACITY:          'driver_at_capacity_to_aggregator',
   DRIVER_PAYMENT_RECORDED:     'driver_payment_recorded',
-  DRIVER_REGISTER_PROMPT:      'driver_register_prompt'
+  DRIVER_REGISTER_PROMPT:      'driver_register_prompt',
+  DRIVER_LISTING_EXPIRED:      'driver_listing_expired'
 };
 
 // Security events bypass the daily SMS cap — an account-recovery alert that
@@ -237,6 +238,11 @@ var TEMPLATES = {
   // referenced a function that doesn't exist in the codebase.
   driver_register_prompt: function (d) {
     return 'Circul: ' + d.aggregator_name + ' wants to add you to their driver roster. Dial *920*54# to register, then accept their invite.';
+  },
+  // Phase 7 Step 7.0 — fired by lazy expireStaleListings() when an open
+  // marketplace listing passes its 24h TTL without a driver match.
+  driver_listing_expired: function (d) {
+    return 'Circul: Your dispatch listing expired without a driver match. Post again or pick a driver from your roster directly.';
   }
 };
 
