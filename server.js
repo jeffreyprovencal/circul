@@ -5327,17 +5327,276 @@ async function countPendingDeliveries(driverId) {
   return parseInt(r.rows[0].n, 10);
 }
 
-// Phase 6 stubs — bodies land in Phase 6 (confirm delivery, earnings, more).
-// Until those phases land, stubs return a friendly END so drivers don't get a
-// crash if they tap into a not-yet-built menu item.
+// ── Driver confirm-delivery flow (Phase 6) ──
+//
+// State machine for handleDriverConfirmDelivery(m, driver):
+//   m=[]                                 → list pending deliveries (max 3 + 0 back)
+//   m=['N']                              → prompt for accepted weight (kg)
+//   m=['N','<kg>']                       → confirm screen OR anomaly check
+//   m=['N','<kg>','1']                   → commit (normal) OR anomaly "yes"
+//   m=['N','<kg>','0']                   → cancel (normal) OR anomaly "re-enter"
+//   m=['N','<kg>','1','1']               → commit (after anomaly accept)
+//   m=['N','<kg>','1','0']               → cancel (after anomaly accept)
+//
+// Anomaly check fires when accepted < 30% of pickup OR accepted > pickup —
+// catches typos like "35" instead of "305" before they're committed. State is
+// re-derived from m on every call (no persistence between turns).
+//
+// Status semantics: pt.status flips to 'arrived' on commit (matches the
+// existing arrival-recorded status used by converter-arrival at line 7699,
+// which is in dashboard filter sets for processor/converter delivery views).
+// Driver-side commit only updates pt; transactions row may not exist yet
+// (created downstream when aggregator marks the buyer-side confirmed).
 async function handleDriverConfirmDelivery(m, driver) {
-  return 'END Coming soon.\nDial again later.';
+  const list = await pool.query(
+    `SELECT pt.id, pt.gross_weight_kg, pt.material_type, pt.driver_fee_ghs,
+            pt.aggregator_id,
+            agg.name AS aggregator_name
+     FROM pending_transactions pt
+     JOIN aggregators agg ON agg.id = pt.aggregator_id
+     WHERE pt.driver_id=$1 AND pt.driver_confirmed_at IS NULL
+       AND pt.status IN ('pending', 'confirmed')
+     ORDER BY pt.created_at ASC LIMIT 3`,
+    [driver.id]
+  );
+  const depth = m.length;
+
+  if (depth === 0) {
+    if (!list.rows.length) return 'END No pending deliveries.\nDial again later.';
+    let msg = 'CON Confirm delivery:';
+    list.rows.forEach(function (r, i) {
+      const kg = Math.round(parseFloat(r.gross_weight_kg));
+      msg += '\n' + (i + 1) + '. ' + kg + 'kg ' + r.material_type;
+    });
+    msg += '\n0. Back';
+    return msg;
+  }
+
+  if (m[0] === '0') return 'END Cancelled.';
+  const idx = parseInt(m[0], 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= list.rows.length) {
+    return 'END Invalid choice.\nDial again to retry.';
+  }
+  const txn = list.rows[idx];
+  const pickup = Math.round(parseFloat(txn.gross_weight_kg));
+
+  if (depth === 1) {
+    return 'CON Pickup: ' + pickup + 'kg ' + txn.material_type
+         + '\nAccepted weight\n(kg) at buyer scale:';
+  }
+
+  const accepted = parseFloat(m[1]);
+  if (!isFinite(accepted) || accepted <= 0) {
+    return 'END Invalid amount.\nDial again to retry.';
+  }
+  const isAnomalous = (accepted < 0.3 * pickup) || (accepted > pickup);
+  const acc = Math.round(accepted);
+  const rejected = Math.max(0, pickup - acc);
+
+  // Render the normal confirm screen — same shape used after anomaly accept.
+  const confirmScreen = 'CON Pickup: ' + pickup + 'kg'
+                      + '\nAccepted: ' + acc + 'kg'
+                      + '\nRejected: ' + rejected + 'kg'
+                      + '\n1. Confirm\n0. Cancel';
+
+  if (depth === 2) {
+    if (isAnomalous) {
+      return 'CON Unusual entry.'
+           + '\nYou entered: ' + acc + 'kg'
+           + '\nPickup was: ' + pickup + 'kg'
+           + '\n1. Yes, correct\n0. Re-enter';
+    }
+    return confirmScreen;
+  }
+
+  // depth >= 3 — branch on anomaly path vs normal path
+  if (isAnomalous) {
+    if (m[2] === '0') return 'END Re-enter.\nDial again to retry.';
+    if (m[2] !== '1') return 'END Invalid option.\nDial again to retry.';
+    if (depth === 3) return confirmScreen;
+    if (m[3] === '0') return 'END Cancelled.';
+    if (m[3] !== '1') return 'END Invalid option.\nDial again to retry.';
+    return await driverCommitDelivery(driver, txn, acc, pickup);
+  }
+
+  // Normal path
+  if (m[2] === '0') return 'END Cancelled.';
+  if (m[2] !== '1') return 'END Invalid option.\nDial again to retry.';
+  return await driverCommitDelivery(driver, txn, acc, pickup);
 }
+
+// driverCommitDelivery — write the accepted weight + driver_confirmed_at.
+// Writes to pending_transactions always; writes to transactions if
+// pt.transaction_id is set (txn row may not exist yet for driver-only flows).
+// Returns the success END for the driver USSD screen.
+async function driverCommitDelivery(driver, txn, accepted, pickup) {
+  const fee = txn.driver_fee_ghs ? Math.round(parseFloat(txn.driver_fee_ghs)) : 0;
+  const aggShort = (txn.aggregator_name || 'Aggregator').slice(0, 14);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const upd = await client.query(
+      `UPDATE pending_transactions
+         SET status = 'arrived',
+             accepted_weight_kg = $1,
+             driver_confirmed_at = NOW(),
+             updated_at = NOW()
+       WHERE id = $2 AND driver_id = $3 AND driver_confirmed_at IS NULL
+       RETURNING transaction_id`,
+      [accepted, txn.id, driver.id]
+    );
+    if (!upd.rows.length) {
+      await client.query('ROLLBACK');
+      return 'END Already confirmed.\nDial again to see\npending deliveries.';
+    }
+    const txId = upd.rows[0].transaction_id;
+    if (txId) {
+      // Mirror the accepted-weight + driver-confirmed flag onto the
+      // immutable transactions row so downstream payment / reconciliation
+      // queries see the same numbers.
+      await client.query(
+        `UPDATE transactions
+           SET accepted_weight_kg = $1,
+               driver_confirmed_at = NOW()
+         WHERE id = $2`,
+        [accepted, txId]
+      );
+    }
+    await client.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'delivery_confirmed',
+               'Driver confirmed ' || $3 || 'kg accepted (pickup ' || $4 || 'kg)',
+               $5, 'pending_transaction')`,
+      [driver.id, txn.aggregator_id, accepted, pickup, txn.id]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[DRIVER CONFIRM] commit failed:', err);
+    return 'END System error.\nTry again later.';
+  } finally {
+    client.release();
+  }
+  return 'END Confirmed!\n' + accepted + 'kg accepted'
+       + '\nTrip fee: GHS ' + fee
+       + '\n' + aggShort + ' notified.';
+}
+
+// ── Driver earnings (Phase 6) ──
+//
+// Weekly view: deliveries / total kg / GHS earned / paid+owed split.
+// Empty state when no deliveries logged in the 7-day window. Currency uses
+// integer GHS (no decimals) to keep the screen tight.
 async function handleDriverEarnings(m, driver) {
-  return 'END Coming soon.\nDial again later.';
+  const stats = await pool.query(
+    `SELECT COUNT(*)::int AS deliveries,
+            COALESCE(SUM(gross_weight_kg), 0)::numeric AS total_kg,
+            COALESCE(SUM(driver_fee_ghs), 0)::numeric AS earned,
+            COALESCE(SUM(CASE WHEN driver_fee_paid_at IS NOT NULL
+                              THEN driver_fee_ghs ELSE 0 END), 0)::numeric AS paid
+     FROM pending_transactions
+     WHERE driver_id=$1
+       AND driver_confirmed_at >= NOW() - INTERVAL '7 days'`,
+    [driver.id]
+  );
+  const s = stats.rows[0];
+  const deliveries = parseInt(s.deliveries, 10);
+  if (deliveries === 0) {
+    return 'END This week:\n0 deliveries logged.\nPickups will show here.';
+  }
+  const totalKg = Math.round(parseFloat(s.total_kg));
+  const earned = Math.round(parseFloat(s.earned));
+  const paid = Math.round(parseFloat(s.paid));
+  const owed = Math.max(0, earned - paid);
+  return 'END This week:'
+       + '\n' + deliveries + ' deliveries, ' + totalKg + 'kg'
+       + '\nEarned: GHS ' + earned
+       + '\nPaid ' + paid + ' / Owed ' + owed;
 }
+
+// ── Driver "More" submenu (Phase 6) ──
 async function handleDriverMore(m, driver) {
-  return 'END Coming soon.\nDial again later.';
+  if (m.length === 0) {
+    return 'CON More options'
+         + '\n1. Recent deliveries'
+         + '\n2. My ratings'
+         + '\n3. My aggregators'
+         + '\n0. Back';
+  }
+  if (m[0] === '0') return 'END Cancelled.';
+  if (m[0] === '1') return await handleDriverRecentDeliveries(m.slice(1), driver);
+  if (m[0] === '2') return await handleDriverRatings(m.slice(1), driver);
+  if (m[0] === '3') return await handleDriverAggregators(m.slice(1), driver);
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// Last 3 confirmed deliveries — short DD/MM date, kg, fee on one row each.
+async function handleDriverRecentDeliveries(m, driver) {
+  const r = await pool.query(
+    `SELECT driver_confirmed_at, accepted_weight_kg, gross_weight_kg, driver_fee_ghs
+     FROM pending_transactions
+     WHERE driver_id = $1 AND driver_confirmed_at IS NOT NULL
+     ORDER BY driver_confirmed_at DESC LIMIT 3`,
+    [driver.id]
+  );
+  if (!r.rows.length) {
+    return 'END No confirmed\ndeliveries yet.\nDial again later.';
+  }
+  let msg = 'END Last ' + r.rows.length + ' deliveries:';
+  r.rows.forEach(function (row) {
+    const d = new Date(row.driver_confirmed_at);
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const kg = Math.round(parseFloat(row.accepted_weight_kg || row.gross_weight_kg));
+    const fee = row.driver_fee_ghs ? Math.round(parseFloat(row.driver_fee_ghs)) : 0;
+    msg += '\n' + dd + '/' + mm + ': ' + kg + 'kg, GHS' + fee;
+  });
+  return msg;
+}
+
+// Driver's own rating: avg + count summary across all peer-types.
+async function handleDriverRatings(m, driver) {
+  const r = await pool.query(
+    `SELECT COUNT(*)::int AS n,
+            COALESCE(AVG(rating)::NUMERIC(3,1), 0) AS avg
+     FROM ratings
+     WHERE rated_type='driver' AND rated_id=$1`,
+    [driver.id]
+  );
+  const n = parseInt(r.rows[0].n, 10);
+  if (n === 0) {
+    return 'END No ratings yet.\nRatings appear after\nyour first delivery.';
+  }
+  const avg = parseFloat(r.rows[0].avg).toFixed(1);
+  return 'END Your rating:'
+       + '\n' + avg + ' stars from ' + n
+       + '\nratings.'
+       + '\nKeep up the good work!';
+}
+
+// Active aggregator relationships — name only, max 3 + overflow line.
+async function handleDriverAggregators(m, driver) {
+  const r = await pool.query(
+    `SELECT agg.name
+     FROM driver_aggregator_relationships dar
+     JOIN aggregators agg ON agg.id = dar.aggregator_id
+     WHERE dar.driver_id = $1 AND dar.status = 'active'
+     ORDER BY dar.claimed_at DESC NULLS LAST, dar.created_at DESC`,
+    [driver.id]
+  );
+  if (!r.rows.length) {
+    return 'END No aggregators yet.\nWait for an invite or\naccept marketplace work.';
+  }
+  const top = r.rows.slice(0, 3);
+  let msg = 'END Your aggregators:';
+  top.forEach(function (row, i) {
+    const name = (row.name || 'Aggregator').slice(0, 20);
+    msg += '\n' + (i + 1) + '. ' + name;
+  });
+  if (r.rows.length > 3) {
+    msg += '\n+' + (r.rows.length - 3) + ' more';
+  }
+  return msg;
 }
 
 // ── Driver dispatch flows (Phase 5 of driver actor MVP v0) ──
