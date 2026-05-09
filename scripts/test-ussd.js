@@ -377,7 +377,8 @@ const TESTS = [
     steps: [
       { input: '',     match: /CON Circul Aggregator/ },
       { input: '2222', match: /CON 1\. Register/ },
-      { input: '1',    match: /CON Register:\n1\. Collector\n2\. Agent\n0\. Back/ },
+      // Driver MVP v0 (PR feat/drivers-mvp-v0): submenu now includes 3. Driver
+      { input: '1',    match: /CON Register:\n1\. Collector\n2\. Agent\n3\. Driver\n0\. Back/ },
     ],
   },
   {

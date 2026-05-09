@@ -3955,10 +3955,11 @@ async function handleAggregatorUssd(parts, aggregator) {
   // ── Register sub-menu (Collector / Agent) ──
   if (m[0] === '1') {
     const sub = m.slice(1);
-    if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n0. Back';
+    if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n3. Driver\n0. Back';
     if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
     if (sub[0] === '1') return await handleAggregatorRegister(sub.slice(1), aggregator, null);
     if (sub[0] === '2') return await handleAggregatorRegisterAgent(sub.slice(1), aggregator);
+    if (sub[0] === '3') return await handleAggregatorInviteDriver(sub.slice(1), aggregator);
     return 'END Invalid option.\nDial again to retry.';
   }
 
@@ -4272,6 +4273,63 @@ async function handleAggregatorRegisterAgent(m, aggregator) {
         throw err;
       }
     }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Aggregator invites a driver to their roster (Phase 3 of driver actor MVP v0) ──
+//
+// Mirrors handleAggregatorRegisterAgent shape but the action is creating an
+// invite_pending row in driver_aggregator_relationships, NOT creating an account.
+// Driver claims the invite via Phase 4 main-menu intercept.
+//
+// If the phone has no registered driver, send a register-prompt SMS instead via
+// the driver_register_prompt template. Every outbound SMS in this codebase goes
+// through notify(EVENTS.X, phone, data) — there is no other SMS pathway.
+async function handleAggregatorInviteDriver(m, aggregator) {
+  const depth = m.length;
+
+  if (depth === 0) return 'CON Enter driver\'s\nphone number:';
+  const phone = m[0];
+
+  if (depth === 1) {
+    const phoneVariants = getPhoneVariants(normalizeGhanaPhone(phone));
+    const driver = await pool.query(
+      `SELECT id, first_name, last_name FROM drivers WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+
+    // Driver exists: create invite_pending relationship and send roster-invite SMS
+    if (driver.rows.length) {
+      const d = driver.rows[0];
+      const existing = await pool.query(
+        `SELECT id, status FROM driver_aggregator_relationships WHERE driver_id=$1 AND aggregator_id=$2`,
+        [d.id, aggregator.id]
+      );
+      if (existing.rows.length && existing.rows[0].status === 'active') {
+        return `END ${d.first_name} ${d.last_name} is\nalready in your roster.`;
+      }
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status, invite_initiated_by, invite_expires_at)
+         VALUES ($1, $2, 'invite_pending', 'aggregator', NOW() + INTERVAL '7 days')
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='invite_pending', invite_expires_at=NOW() + INTERVAL '7 days'`,
+        [d.id, aggregator.id]
+      );
+      try {
+        const phoneNorm = normalizeGhanaPhone(phone);
+        await notify(EVENTS.DRIVER_ROSTER_INVITE, phoneNorm, { aggregator_name: aggregator.name });
+      } catch (e) { console.warn('[NOTIFY] driver_roster_invite failed:', e.message); }
+      return `END Invitation sent\nto ${phone}.\n\nYou will be notified\nwhen they accept.`;
+    }
+
+    // Driver doesn't exist: send register-first prompt SMS via the canonical
+    // notify pathway. The platform has no other SMS dispatch function.
+    try {
+      const phoneNorm = normalizeGhanaPhone(phone);
+      await notify(EVENTS.DRIVER_REGISTER_PROMPT, phoneNorm, { aggregator_name: aggregator.name });
+    } catch (e) { console.warn('[NOTIFY] driver_register_prompt failed:', e.message); }
+    return `END No registered driver\nat ${phone}.\nWe sent them an SMS\nwith instructions.`;
   }
 
   return 'END Invalid option.\nDial again to retry.';

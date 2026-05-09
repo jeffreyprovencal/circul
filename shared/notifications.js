@@ -76,7 +76,8 @@ var EVENTS = {
   DRIVER_OFFER_ACCEPTED:       'driver_offer_accepted_to_aggregator',
   DRIVER_OFFER_DECLINED:       'driver_offer_declined_to_aggregator',
   DRIVER_AT_CAPACITY:          'driver_at_capacity_to_aggregator',
-  DRIVER_PAYMENT_RECORDED:     'driver_payment_recorded'
+  DRIVER_PAYMENT_RECORDED:     'driver_payment_recorded',
+  DRIVER_REGISTER_PROMPT:      'driver_register_prompt'
 };
 
 // Security events bypass the daily SMS cap — an account-recovery alert that
@@ -230,6 +231,12 @@ var TEMPLATES = {
   },
   driver_payment_recorded: function (d) {
     return d.aggregator_name + ' marked GHS ' + d.amount + ' paid for delivery ' + d.ref + '. Total earned: GHS ' + d.lifetime + '. - Circul';
+  },
+  // Aggregator invited an unregistered driver — prompt them to register.
+  // Phase 3 Step 3.2.1: replaces the spec's stale `sms.send(...)` call which
+  // referenced a function that doesn't exist in the codebase.
+  driver_register_prompt: function (d) {
+    return 'Circul: ' + d.aggregator_name + ' wants to add you to their driver roster. Dial *920*54# to register, then accept their invite.';
   }
 };
 
