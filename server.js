@@ -5177,6 +5177,173 @@ async function handleAgentUssd(parts, agent) {
   return 'END Invalid option.\nDial again to retry.';
 }
 
+// ── Driver USSD entry point (Phase 4 of driver actor MVP v0) ──
+//
+// Mirrors handleAgentUssd shape: PIN auth + 3-attempt lockout + force-change-PIN
+// gate + main menu. Adds a roster-invite intercept (similar to the existing
+// aggregator-registration intercept) — when there's any pending invite, the
+// claim screen takes precedence over the welcome / PIN screen.
+//
+// Phase 5 (next) implements the menu branches; for now they call handlers that
+// will be added when their phase lands.
+async function handleDriverUssd(parts, driver) {
+  // ── Pre-PIN: roster-invite intercept ──
+  // If the driver has a pending roster invite, surface that BEFORE asking for
+  // PIN. Lets the driver accept/decline the relationship without authenticating.
+  // Pattern mirrors the aggregator-registration-code intercept (activeAggReg).
+  if (parts.length === 0) {
+    const pendingInvite = await pool.query(
+      `SELECT dar.id, agg.name AS aggregator_name
+       FROM driver_aggregator_relationships dar
+       JOIN aggregators agg ON agg.id = dar.aggregator_id
+       WHERE dar.driver_id = $1 AND dar.status = 'invite_pending'
+         AND (dar.invite_expires_at IS NULL OR dar.invite_expires_at > NOW())
+       ORDER BY dar.created_at ASC LIMIT 1`,
+      [driver.id]
+    );
+    if (pendingInvite.rows.length) {
+      return `CON Pending invite:\n${pendingInvite.rows[0].aggregator_name} wants\nyou in their roster.\n1. Accept\n2. Decline`;
+    }
+    return `CON Circul Driver\nWelcome back, ${driver.first_name}!\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+  }
+
+  // ── Forgot PIN entry point ──
+  if (parts[0] === '0') {
+    return await requestPinReset(parts.slice(1), { user_type: 'driver', user_id: driver.id, phone: driver.phone, name: driver.first_name });
+  }
+
+  // ── Roster-invite claim path (intercepts main menu while invite_pending) ──
+  const pendingInvite = await pool.query(
+    `SELECT dar.id, dar.aggregator_id, agg.name AS aggregator_name
+     FROM driver_aggregator_relationships dar
+     JOIN aggregators agg ON agg.id = dar.aggregator_id
+     WHERE dar.driver_id = $1 AND dar.status = 'invite_pending'
+       AND (dar.invite_expires_at IS NULL OR dar.invite_expires_at > NOW())
+     ORDER BY dar.created_at ASC LIMIT 1`,
+    [driver.id]
+  );
+  if (pendingInvite.rows.length) {
+    if (parts[0] === '1') {
+      // Accept invite
+      await pool.query(
+        `UPDATE driver_aggregator_relationships SET status='active', claimed_at=NOW() WHERE id=$1`,
+        [pendingInvite.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description)
+         VALUES ($1, $2, 'roster_joined', 'Driver accepted roster invite')`,
+        [driver.id, pendingInvite.rows[0].aggregator_id]
+      );
+      return `END Joined ${pendingInvite.rows[0].aggregator_name}!\nYou will see their\ndispatch listings and\nget notified of new\nwork.`;
+    }
+    if (parts[0] === '2') {
+      // Decline invite
+      await pool.query(
+        `UPDATE driver_aggregator_relationships SET status='ended', ended_at=NOW() WHERE id=$1`,
+        [pendingInvite.rows[0].id]
+      );
+      return 'END Declined.';
+    }
+    return `CON Pending invite:\n${pendingInvite.rows[0].aggregator_name} wants\nyou in their roster.\n1. Accept\n2. Decline`;
+  }
+
+  // ── PIN validation with retry (max 3 attempts) — mirrors handleAgentUssd ──
+  let pinIndex = -1;
+  for (let i = 0; i < Math.min(parts.length, 3); i++) {
+    if (await verifyPassword(parts[i], driver.pin)) {
+      pinIndex = i;
+      break;
+    }
+  }
+  if (pinIndex === -1) {
+    const attempts = parts.length;
+    if (attempts >= 3) {
+      await pool.query(
+        `INSERT INTO user_lockouts (user_type, user_id, phone, locked_until, reason)
+         VALUES ($1, $2, $3, NOW() + INTERVAL '30 minutes', 'wrong_pin_x3')`,
+        ['driver', driver.id, driver.phone]
+      );
+      return 'END Too many wrong PINs.\n\nAccount locked for 30 min.\nAfter lockout, dial\n*920*54# and select\n"0. Forgot PIN" to reset.';
+    }
+    const remaining = 3 - attempts;
+    return `CON Wrong PIN. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+  }
+
+  // ── Force-change-PIN gate (universal) ──
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, driver, 'drivers');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
+  const depth = m.length;
+
+  // ── Main menu ──
+  if (depth === 0) {
+    const availableCount = await countAvailableWork(driver);
+    const pendingCount = await countPendingDeliveries(driver.id);
+    return `CON Hi ${driver.first_name}!\n1. Available work (${availableCount})\n2. Pending deliveries (${pendingCount})\n3. My earnings\n4. More\n0. Exit`;
+  }
+  if (m[0] === '0') return `END Thank you, ${driver.first_name}!`;
+  if (m[0] === '1') return await handleDriverAvailableWork(m.slice(1), driver);
+  if (m[0] === '2') return await handleDriverConfirmDelivery(m.slice(1), driver);
+  if (m[0] === '3') return await handleDriverEarnings(m.slice(1), driver);
+  if (m[0] === '4') return await handleDriverMore(m.slice(1), driver);
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Driver helpers (Phase 4 of driver actor MVP v0) ──
+// countActiveAggregators — used by older mockup welcome line; kept for Phase 11
+//   web view "My aggregators" count and any future SMS templates.
+// countAvailableWork — drives the "(N)" suffix on the main-menu "Available work"
+//   item. Counts open marketplace listings in driver's region + open direct
+//   invites awarded to this driver.
+// countPendingDeliveries — drives the "(N)" suffix on "Pending deliveries".
+//   Counts pending_transactions where driver_id matches and the driver hasn't
+//   yet confirmed delivery (driver_confirmed_at IS NULL).
+async function countActiveAggregators(driverId) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM driver_aggregator_relationships WHERE driver_id=$1 AND status='active'`,
+    [driverId]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+async function countAvailableWork(driver) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM dispatch_listings
+     WHERE status='open' AND (region=$1 OR (region='_DIRECT_' AND awarded_to_driver_id=$2))
+       AND expires_at > NOW()`,
+    [driver.region, driver.id]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+async function countPendingDeliveries(driverId) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM pending_transactions
+     WHERE driver_id=$1 AND driver_confirmed_at IS NULL AND status IN ('pending', 'confirmed')`,
+    [driverId]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+// Phase 4 stubs for menu branches — bodies land in Phase 5 (available work,
+// counter-offer, cap enforcement) and Phase 6 (confirm delivery, earnings,
+// more submenu). Until those phases land, the stubs return a friendly END so
+// drivers don't get a crash if they tap into a not-yet-built menu item.
+async function handleDriverAvailableWork(m, driver) {
+  return 'END Coming soon.\nDial again later.';
+}
+async function handleDriverConfirmDelivery(m, driver) {
+  return 'END Coming soon.\nDial again later.';
+}
+async function handleDriverEarnings(m, driver) {
+  return 'END Coming soon.\nDial again later.';
+}
+async function handleDriverMore(m, driver) {
+  return 'END Coming soon.\nDial again later.';
+}
+
 async function handleAgentCollection(m, agent) {
   const depth = m.length;
 
@@ -6353,7 +6520,7 @@ app.post('/api/ussd', async (req, res) => {
   const { sessionId, serviceCode, phoneNumber, text } = req.body;
   const phone = normalizeGhanaPhone(phoneNumber);
   const parts = text ? text.split('*') : [];
-  let response = '', collectorId = null, aggregatorId = null, agentId = null;
+  let response = '', collectorId = null, aggregatorId = null, agentId = null, driverId = null;
   try {
     const phoneVariants = getPhoneVariants(phone);
 
@@ -6424,8 +6591,19 @@ app.post('/api/ussd', async (req, res) => {
               agentId = agentResult.rows[0].id;
               response = await handleAgentUssd(parts, agentResult.rows[0]);
             } else {
-              // 4. Unregistered — collector self-registration or aggregator request
-              response = await handleUnregisteredUssd(parts, phone);
+              // 4. Check drivers (phone+PIN auth, multi-aggregator via roster)
+              const driverResult = await pool.query(
+                `SELECT id, first_name, last_name, phone, pin, city, region, must_change_pin
+                 FROM drivers WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+                [phoneVariants]
+              );
+              if (driverResult.rows.length) {
+                driverId = driverResult.rows[0].id;
+                response = await handleDriverUssd(parts, driverResult.rows[0]);
+              } else {
+                // 5. Unregistered — collector / aggregator / driver self-register
+                response = await handleUnregisteredUssd(parts, phone);
+              }
             }
           }
         }
@@ -6437,15 +6615,16 @@ app.post('/api/ussd', async (req, res) => {
   // Log session with role-specific ID
   try {
     await pool.query(
-      `INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, aggregator_id, agent_id, text_input, response)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, aggregator_id, agent_id, driver_id, text_input, response)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (session_id) DO UPDATE SET
          text_input = EXCLUDED.text_input,
          response = EXCLUDED.response,
          collector_id  = COALESCE(ussd_sessions.collector_id,  EXCLUDED.collector_id),
          aggregator_id = COALESCE(ussd_sessions.aggregator_id, EXCLUDED.aggregator_id),
-         agent_id      = COALESCE(ussd_sessions.agent_id,      EXCLUDED.agent_id)`,
-      [sessionId, phone, serviceCode, collectorId, aggregatorId, agentId, text||'', response]
+         agent_id      = COALESCE(ussd_sessions.agent_id,      EXCLUDED.agent_id),
+         driver_id     = COALESCE(ussd_sessions.driver_id,     EXCLUDED.driver_id)`,
+      [sessionId, phone, serviceCode, collectorId, aggregatorId, agentId, driverId, text||'', response]
     );
   } catch (logErr) { console.error('[USSD] Log error:', logErr); }
 
