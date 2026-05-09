@@ -2353,9 +2353,9 @@ async function broadcastListingToDrivers(listingId, aggregatorId, region, listin
     console.log('[broadcast] listing ' + listingId + ': 0 recipients');
     return;
   }
-  const aggShort = (aggregatorName || 'Aggregator').slice(0, 14);
-  const originShort = (listing.pickup_location || '').slice(0, 14);
-  const destShort = (destinationLabel || listing.destination_buyer_kind || 'buyer').slice(0, 14);
+  const aggShort = (aggregatorName || 'Aggregator').slice(0, 14).trim();
+  const originShort = (listing.pickup_location || '').slice(0, 14).trim();
+  const destShort = (destinationLabel || listing.destination_buyer_kind || 'buyer').slice(0, 14).trim();
   const results = await Promise.allSettled(
     recipientsRes.rows.map(function (driver) {
       return notify(EVENTS.DRIVER_MARKETPLACE_LISTING, driver.phone, {
@@ -2623,8 +2623,8 @@ app.post('/api/aggregator/dispatch-listings/:id/award/:offerId', requireAuth, as
     const aggRow = await pool.query(`SELECT name FROM aggregators WHERE id=$1 LIMIT 1`, [aggId]);
     if (driverRow.rows.length) {
       const buyerName = await lookupBuyerName(listing.destination_buyer_kind, listing.destination_buyer_id);
-      const aggShort = (aggRow.rows.length ? aggRow.rows[0].name : 'Aggregator').slice(0, 14);
-      const destShort = (buyerName || listing.destination_buyer_kind || 'buyer').slice(0, 14);
+      const aggShort = (aggRow.rows.length ? aggRow.rows[0].name : 'Aggregator').slice(0, 14).trim();
+      const destShort = (buyerName || listing.destination_buyer_kind || 'buyer').slice(0, 14).trim();
       await notify(EVENTS.DRIVER_DISPATCH_LOCKED, driverRow.rows[0].phone, {
         first_name: driverRow.rows[0].first_name,
         weight: Math.round(parseFloat(listing.gross_weight_kg)),
@@ -2637,6 +2637,137 @@ app.post('/api/aggregator/dispatch-listings/:id/award/:offerId', requireAuth, as
   } catch (e) { console.warn('[notify] DRIVER_DISPATCH_LOCKED (post-award) failed:', e.message); }
 
   return res.json({ success: true, pending_transaction_id: ptId, locked_fee_ghs: lockedFee, awarded_driver_id: awardedDriverId });
+});
+
+// ── Step 8.1 helper: sendDirectInviteSms ──────────────────────────────
+// Fires ONE direct-invite SMS to the targeted driver (vs the marketplace
+// fan-out broadcastListingToDrivers). Resolves destination via the same
+// lookupBuyerName helper Phase 7 uses, applies .slice(0, 14).trim() for
+// width safety on aggregator and destination names.
+async function sendDirectInviteSms(listingId, aggregatorId, driverId, listing, aggregatorName, destinationLabel) {
+  let driverRow;
+  try {
+    const r = await pool.query(`SELECT phone, first_name FROM drivers WHERE id=$1 LIMIT 1`, [driverId]);
+    if (!r.rows.length) {
+      console.warn('[direct-invite] driver ' + driverId + ' not found for listing ' + listingId);
+      return;
+    }
+    driverRow = r.rows[0];
+  } catch (e) {
+    console.warn('[sendDirectInviteSms] driver lookup failed:', e.message);
+    return;
+  }
+  const aggShort = (aggregatorName || 'Aggregator').slice(0, 14).trim();
+  const destShort = (destinationLabel || listing.destination_buyer_kind || 'buyer').slice(0, 14).trim();
+  try {
+    await notify(EVENTS.DRIVER_DIRECT_INVITE, driverRow.phone, {
+      aggregator_name: aggShort,
+      weight: Math.round(parseFloat(listing.gross_weight_kg)),
+      material: listing.material_type,
+      destination: destShort,
+      fee: Math.round(parseFloat(listing.proposed_fee_ghs))
+    });
+    console.log('[direct-invite] listing ' + listingId + ' SMS sent to driver ' + driverId);
+  } catch (e) {
+    console.warn('[direct-invite] notify failed for listing ' + listingId + ':', e.message);
+  }
+}
+
+// ── Step 8.1: POST /api/aggregator/drivers/:driverId/dispatch ─────────
+// Direct invite — aggregator targets a specific driver from their roster.
+// Uses _DIRECT_ region sentinel and 4h TTL (vs marketplace 24h). Roster
+// verification is mandatory: aggregator can only direct-invite drivers
+// they have an active relationship with. Mirrors Phase 7.1 validation
+// minus region (which is fixed to _DIRECT_).
+app.post('/api/aggregator/drivers/:driverId/dispatch', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const driverId = parseInt(req.params.driverId, 10);
+    if (!Number.isInteger(driverId) || driverId < 1) {
+      return res.status(400).json({ success: false, error: 'invalid_driver_id' });
+    }
+
+    // ── Roster verification — aggregator must have active relationship ──
+    const rel = await pool.query(
+      `SELECT id FROM driver_aggregator_relationships
+        WHERE aggregator_id=$1 AND driver_id=$2 AND status='active' LIMIT 1`,
+      [aggId, driverId]
+    );
+    if (!rel.rows.length) {
+      return res.status(403).json({ success: false, error: 'driver_not_in_your_roster' });
+    }
+
+    const {
+      material_type, weight_kg, pickup_location,
+      destination_buyer_kind, destination_buyer_id,
+      proposed_fee_ghs, rejected_disposition
+    } = req.body || {};
+
+    // ── Body validation — same shape as Phase 7.1 minus region ──
+    if (!material_type || !VALID_MATERIALS.includes(material_type)) {
+      return res.status(400).json({ success: false, error: 'invalid_material', message: 'material_type must be one of: ' + VALID_MATERIALS.join(', ') });
+    }
+    const wkg = parseFloat(weight_kg);
+    if (!isFinite(wkg) || wkg < 1 || wkg > 5000) {
+      return res.status(400).json({ success: false, error: 'invalid_weight', message: 'weight_kg must be 1-5000' });
+    }
+    if (!pickup_location || typeof pickup_location !== 'string' || pickup_location.trim().length < 1 || pickup_location.length > 80) {
+      return res.status(400).json({ success: false, error: 'invalid_pickup_location', message: 'pickup_location must be 1-80 chars' });
+    }
+    if (!['processor', 'recycler', 'converter'].includes(destination_buyer_kind)) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_kind' });
+    }
+    const dbid = parseInt(destination_buyer_id, 10);
+    if (!Number.isInteger(dbid) || dbid < 1) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_id' });
+    }
+    const buyerName = await lookupBuyerName(destination_buyer_kind, dbid);
+    if (!buyerName) {
+      return res.status(400).json({ success: false, error: 'unknown_destination_buyer' });
+    }
+    const fee = parseFloat(proposed_fee_ghs);
+    if (!isFinite(fee) || fee < 1 || fee > 10000) {
+      return res.status(400).json({ success: false, error: 'invalid_fee', message: 'proposed_fee_ghs must be 1-10000' });
+    }
+    const disposition = rejected_disposition || 'leave_at_buyer';
+    if (!['leave_at_buyer', 'bring_back', 'sell_as_scrap'].includes(disposition)) {
+      return res.status(400).json({ success: false, error: 'invalid_disposition' });
+    }
+
+    // ── INSERT — region='_DIRECT_', awarded_to_driver_id pre-set, 4h TTL ──
+    const insRes = await pool.query(
+      `INSERT INTO dispatch_listings (
+         aggregator_id, pickup_location, destination_buyer_kind, destination_buyer_id,
+         material_type, gross_weight_kg, proposed_fee_ghs, region,
+         rejected_disposition, status, awarded_to_driver_id, expires_at, created_at
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, '_DIRECT_',
+         $8, 'open', $9, NOW() + INTERVAL '4 hours', NOW()
+       ) RETURNING id, expires_at`,
+      [aggId, pickup_location.trim(), destination_buyer_kind, dbid,
+       material_type, wkg, fee,
+       disposition, driverId]
+    );
+    const listingId = insRes.rows[0].id;
+    const expiresAt = insRes.rows[0].expires_at;
+
+    res.json({ success: true, listing_id: listingId, expires_at: expiresAt });
+
+    // ── Async direct-invite SMS — single recipient, fire-and-forget ──
+    const aggLookup = await pool.query(`SELECT name FROM aggregators WHERE id=$1`, [aggId]);
+    const aggName = aggLookup.rows.length ? aggLookup.rows[0].name : 'Aggregator';
+    sendDirectInviteSms(
+      listingId, aggId, driverId,
+      { pickup_location: pickup_location.trim(), destination_buyer_kind, gross_weight_kg: wkg, material_type, proposed_fee_ghs: fee },
+      aggName, buyerName
+    ).catch(function (e) {
+      console.error('[direct-invite] listing ' + listingId + ' SMS failed:', e.message);
+    });
+  } catch (err) {
+    console.error('POST /api/aggregator/drivers/:driverId/dispatch error:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 // ============================================
@@ -6058,16 +6189,36 @@ async function handleDriverAvailableWork(m, driver) {
     const kg = Math.round(parseFloat(listing.gross_weight_kg));
     const fee = Math.round(parseFloat(listing.proposed_fee_ghs));
     const dest = listing.destination_buyer_kind ? listing.destination_buyer_kind : 'buyer';
+    // Direct invites render "0. Decline" (aggregator targeted this driver, gets SMS).
+    // Marketplace listings render "0. Skip" (silent per v0 design — driver is one of many).
+    const skipLabel = listing.region === '_DIRECT_' ? '0. Decline' : '0. Skip';
     return 'CON ' + kg + 'kg ' + listing.material_type + '\n'
          + listing.pickup_location + ' to ' + dest + '\n'
          + 'Trip fee: GHS ' + fee + '\n'
          + '1. Accept GHS ' + fee + '\n'
          + '2. Counter\n'
-         + '0. Skip';
+         + skipLabel;
   }
 
   // depth 2+: branch on m[1]
-  if (m[1] === '0') return 'END Cancelled.';
+  // m[1]==='0' is Decline for direct invites (fires DRIVER_OFFER_DECLINED) or
+  // Skip for marketplace listings (silent per v0 design).
+  if (m[1] === '0') {
+    if (listing.region === '_DIRECT_') {
+      try {
+        const agg = await pool.query(`SELECT phone FROM aggregators WHERE id=$1 LIMIT 1`, [listing.aggregator_id]);
+        if (agg.rows.length) {
+          await notify(EVENTS.DRIVER_OFFER_DECLINED, agg.rows[0].phone, {
+            driver_first_name: driver.first_name,
+            weight: Math.round(parseFloat(listing.gross_weight_kg)),
+            material: listing.material_type
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] driver_offer_declined failed:', e.message); }
+      return 'END Declined.';
+    }
+    return 'END Skipped.';
+  }
 
   // ── Accept-as-is path ──
   if (m[1] === '1') {
