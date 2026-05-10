@@ -16,6 +16,32 @@ const ROLE_MAP = {
 async function getPendingRatings(pool, role, userId, limit = 5) {
   if (!userId) return [];
 
+  // Driver branch: drivers rate aggregators after confirming delivery.
+  // Window from driver_confirmed_at (not created_at) since drivers can't
+  // rate before they've delivered. Peer is always the dispatching aggregator.
+  if (role === 'driver') {
+    const rows = await pool.query(
+      `SELECT pt.id AS txn_id, pt.material_type, pt.gross_weight_kg, pt.driver_confirmed_at AS created_at,
+              pt.aggregator_id AS peer_id,
+              agg.name AS peer_name
+       FROM pending_transactions pt
+       JOIN aggregators agg ON agg.id = pt.aggregator_id
+       WHERE pt.driver_id = $1
+         AND pt.driver_confirmed_at IS NOT NULL
+         AND pt.driver_confirmed_at > NOW() - ($2 || ' days')::INTERVAL
+         AND NOT EXISTS (
+           SELECT 1 FROM ratings r
+           WHERE r.transaction_id = pt.id
+             AND r.rater_type = 'driver'
+             AND r.rater_id = $1
+         )
+       ORDER BY pt.driver_confirmed_at DESC
+       LIMIT $3`,
+      [userId, String(RATING_WINDOW_DAYS), limit]
+    );
+    return rows.rows;
+  }
+
   // Agent branch: agents see only the transactions they personally collected,
   // joined via agent_activity. The peer is always a collector.
   if (role === 'agent') {

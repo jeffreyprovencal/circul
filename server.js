@@ -4156,22 +4156,25 @@ async function handleUssdRating(menuParts, role, userId) {
       return 'END Invalid choice.\nDial again to retry.';
     }
     const txn = pending[idx];
-    const peer = (txn.peer_name || 'Unknown').slice(0, 20);
-    return 'CON Rate ' + parseFloat(txn.gross_weight_kg).toFixed(0) + 'kg '
-      + txn.material_type + '\nfrom ' + peer + ':\n'
-      + '1. \u2605\n2. \u2605\u2605\n3. \u2605\u2605\u2605\n4. \u2605\u2605\u2605\u2605\n5. \u2605\u2605\u2605\u2605\u2605\n0. Cancel';
+    const peer = (txn.peer_name || 'Unknown').slice(0, 18).trim();
+    // ASCII-only labels \u2014 no Unicode star (forces UCS-2 encoding on Yam phones).
+    // 1-star is dropped from USSD entry (rare in practice; web UI keeps 1-5).
+    // Choice 1-4 maps to stars 2-5 in depth-2 handler.
+    return 'CON Rate ' + peer + ':\n'
+      + '1. 2 stars\n2. 3 stars\n3. 4 stars\n4. 5 stars\n0. Skip';
   }
 
   if (depth === 2) {
-    if (menuParts[1] === '0') return 'END Cancelled.';
+    if (menuParts[1] === '0') return 'END Skipped.';
     const idx = parseInt(menuParts[0]) - 1;
-    const stars = parseInt(menuParts[1]);
+    const choice = parseInt(menuParts[1]);
     if (isNaN(idx) || idx < 0 || idx >= pending.length) {
       return 'END Invalid choice.\nDial again to retry.';
     }
-    if (isNaN(stars) || stars < 1 || stars > 5) {
+    if (isNaN(choice) || choice < 1 || choice > 4) {
       return 'END Invalid rating.\nDial again to retry.';
     }
+    const stars = choice + 1;  // 1->2, 2->3, 3->4, 4->5
     const txn = pending[idx];
     try {
       const dup = await pool.query(
@@ -4195,7 +4198,7 @@ async function handleUssdRating(menuParts, role, userId) {
       console.error('[USSD rating] save failed:', e.message);
       return 'END Could not save rating.\nPlease try again later.';
     }
-    return 'END Thank you!\nYour ' + stars + '\u2605 rating\nhas been recorded.';
+    return 'END Thank you!\nYour ' + stars + ' star rating\nhas been recorded.';
   }
 
   return 'END Invalid option.\nDial again to retry.';
@@ -4271,7 +4274,7 @@ async function handleRegisteredUssd(parts, collector) {
       ]);
       const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
       // ussd-lint-allow: post-pilot sweep
-      return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GHS ${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
+      return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GHS ${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
     }
     if (m[1] === '0') return `END Goodbye, ${collector.first_name}!`;
     if (m[1] === '1') return await handleUssdRating(m.slice(2), 'collector', collector.id);
@@ -4310,7 +4313,7 @@ async function handleRegisteredUssd(parts, collector) {
       if (!aggs.rows.length) return `END No aggregators buying\n${material} near ${city}.\n\nDial again to retry.`;
       let msg = 'CON Select aggregator:\n';
       aggs.rows.forEach(function(a, i) {
-        var ratingStr = parseFloat(a.rating) > 0 ? ' ★' + parseFloat(a.rating).toFixed(1) : '';
+        var ratingStr = parseFloat(a.rating) > 0 ? ' ' + parseFloat(a.rating).toFixed(1) + '/5' : '';
         msg += (i + 1) + '. ' + a.name + '\n   ' + a.city + ratingStr + ' GHS ' + parseFloat(a.price_per_kg_ghs).toFixed(2) + '/kg\n';
       });
       msg += '0. Cancel';
@@ -4521,7 +4524,7 @@ async function handleAggregatorUssd(parts, aggregator) {
         ]);
         const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
         // ussd-lint-allow: post-pilot sweep
-        return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GHS ${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GHS ${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
+        return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GHS ${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GHS ${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
       }
       if (m[2] === '0') return `END Thank you, ${aggregator.name}!`;
       if (m[2] === '1') return await handleUssdRating(m.slice(3), 'aggregator', aggregator.id);
@@ -5772,6 +5775,21 @@ async function handleDriverUssd(parts, driver) {
   if (gate.needsGate) return gate.response;
   const m = gate.menuParts;
   const depth = m.length;
+
+  // ── Pending-rating intercept (after PIN, before main menu) ──
+  // If the driver has unrated recent deliveries, surface the rating prompt
+  // before the main menu. While pending, all sub-flows route through this
+  // intercept until the driver rates or skips. Mirrors the roster-invite
+  // intercept pattern above (acknowledge before reaching menu).
+  const pendingRatings = await getPendingRatings(pool, 'driver', driver.id, 1);
+  if (pendingRatings.length) {
+    if (depth === 0) {
+      return 'CON Rate your last\ndelivery?\n1. Rate now\n0. Skip';
+    }
+    if (m[0] === '0') return 'END Maybe next time.\nDial back to access\nyour menu.';
+    if (m[0] === '1') return await handleUssdRating(m.slice(1), 'driver', driver.id);
+    return 'END Invalid option.\nDial again to retry.';
+  }
 
   // ── Main menu ──
   if (depth === 0) {
