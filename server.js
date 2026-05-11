@@ -93,6 +93,26 @@ const receiptUpload = multer({
   }
 });
 
+// Driver delivery photo uploads → public/uploads/delivery-photos/<txn-id>/
+const photoUpload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const dir = path.join(__dirname, 'public', 'uploads', 'delivery-photos', String(req.params.id || 'temp'));
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+      const ext = (path.extname(file.originalname || '.jpg') || '.jpg').toLowerCase();
+      cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
+    }
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB max per photo
+  fileFilter: function (req, file, cb) {
+    const ok = /^image\/(jpe?g|png|webp|heic)$/i.test(file.mimetype);
+    cb(ok ? null : new Error('Only JPG, PNG, WEBP, or HEIC images allowed'), ok);
+  }
+});
+
 if (!process.env.DATABASE_URL) {
   console.error('ERROR: DATABASE_URL environment variable is required');
   process.exit(1);
@@ -8930,6 +8950,28 @@ app.post('/api/auth/login', async (req, res) => {
         }
       }
 
+      // 4. Drivers (standalone actors — phone+PIN, mirrors collector pattern)
+      const driverResult = await pool.query(
+        `SELECT id, first_name, last_name, phone, pin, city, region, must_change_pin
+         FROM drivers WHERE phone=ANY($1) AND is_active=true LIMIT 1`, [phoneVariants]
+      );
+      if (driverResult.rows.length && await verifyPassword(pin.trim(), driverResult.rows[0].pin)) {
+        clearLoginAttempts(phone.trim());
+        const d = driverResult.rows[0];
+        const name = ((d.first_name||'') + (d.last_name ? ' '+d.last_name : '')).trim();
+        const token = generateToken({ type: 'driver', id: d.id, phone: d.phone, role: 'driver' }, AUTH_SECRET);
+        return res.json({
+          success: true, role: 'driver', roles: null, token,
+          user: {
+            id: d.id, name, first_name: d.first_name, last_name: d.last_name,
+            phone: d.phone, role: 'driver',
+            code: CirculRoles.circulCode('driver', d.id),
+            city: d.city, region: d.region,
+            must_change_pin: !!d.must_change_pin
+          }
+        });
+      }
+
       recordFailedLogin(phone.trim());
       return res.status(401).json({ success: false, message: 'Invalid phone number or PIN' });
     }
@@ -10648,6 +10690,272 @@ app.post('/api/agent/register-collector', requireAuth, async (req, res) => {
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ success: false, message: 'Phone number already registered' });
     console.error(err); res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// DRIVER WEB ENDPOINTS (Phase 10)
+// ============================================
+// Auth model: requireAuth + req.user.role === 'driver' check inside each
+// handler — no driver-specific middleware. Mirrors the rest of the platform.
+
+// Driver dashboard — single endpoint returns tiles + recent deliveries +
+// my aggregators in one round-trip. No separate ratings endpoint in v0
+// (aggregator-rates-driver deferred to v1).
+app.get('/api/driver/dashboard', requireAuth, async (req, res) => {
+  if (req.user.role !== 'driver') return res.status(403).json({ success: false, message: 'Access denied' });
+  const driverId = req.user.id;
+  try {
+    const now = new Date();
+    // ISO week start (Monday 00:00 local) — simple weekly window
+    const dayIdx = (now.getDay() + 6) % 7; // 0=Mon..6=Sun
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayIdx).toISOString();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const [driverRow, weekAgg, monthAgg, owedAgg, activeJobs, recentRows, aggRows] = await Promise.all([
+      // Driver profile
+      pool.query(
+        `SELECT id, first_name, last_name, phone, city, region
+         FROM drivers WHERE id=$1`, [driverId]
+      ),
+      // Tile 1: earned this week (driver_fee_ghs on confirmed deliveries this week)
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs),0) AS ghs, COUNT(*) AS deliveries
+         FROM pending_transactions
+         WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           AND driver_confirmed_at >= $2`, [driverId, weekStart]
+      ),
+      // Tile 2: earned this month
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs),0) AS ghs, COUNT(*) AS deliveries
+         FROM pending_transactions
+         WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           AND driver_confirmed_at >= $2`, [driverId, monthStart]
+      ),
+      // Tile 3: awaiting payment (confirmed deliveries with no driver_fee_paid_at)
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs),0) AS ghs, COUNT(*) AS deliveries
+         FROM pending_transactions
+         WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           AND driver_fee_paid_at IS NULL`, [driverId]
+      ),
+      // Tile 4: active jobs — dispatch_listings awarded to me, not yet confirmed
+      pool.query(
+        `SELECT COUNT(*) AS count
+         FROM dispatch_listings dl
+         LEFT JOIN pending_transactions pt ON pt.id = dl.pending_transaction_id
+         WHERE dl.awarded_to_driver_id=$1
+           AND dl.status='awarded'
+           AND (pt.driver_confirmed_at IS NULL OR dl.pending_transaction_id IS NULL)`,
+        [driverId]
+      ),
+      // Recent deliveries: last 10 confirmed, descending date.
+      // LEFT JOIN dispatch_listings for pickup_location (nullable — older
+      // pending_transactions may not have a dispatch_listings row).
+      pool.query(
+        `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.accepted_weight_kg,
+                pt.driver_fee_ghs, pt.driver_fee_paid_at, pt.driver_confirmed_at,
+                pt.aggregator_id, a.name AS aggregator_name,
+                pt.processor_id, p.company AS processor_company, p.name AS processor_name,
+                pt.converter_id, c.company AS converter_company, c.name AS converter_name,
+                pt.recycler_id, r.company AS recycler_company, r.name AS recycler_name,
+                dl.pickup_location
+         FROM pending_transactions pt
+         LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+         LEFT JOIN processors p  ON p.id = pt.processor_id
+         LEFT JOIN converters c  ON c.id = pt.converter_id
+         LEFT JOIN recyclers  r  ON r.id = pt.recycler_id
+         LEFT JOIN dispatch_listings dl ON dl.pending_transaction_id = pt.id
+         WHERE pt.driver_id=$1 AND pt.driver_confirmed_at IS NOT NULL
+         ORDER BY pt.driver_confirmed_at DESC
+         LIMIT 10`, [driverId]
+      ),
+      // My aggregators: active relationships + denormalised stats
+      pool.query(
+        `SELECT
+           dar.aggregator_id,
+           dar.claimed_at,
+           dar.created_at AS rel_created_at,
+           a.name AS aggregator_name,
+           COALESCE(stats.deliveries_count, 0) AS deliveries_count,
+           COALESCE(stats.total_kg, 0)        AS total_kg,
+           COALESCE(stats.avg_fee_ghs, 0)     AS avg_fee_ghs
+         FROM driver_aggregator_relationships dar
+         JOIN aggregators a ON a.id = dar.aggregator_id
+         LEFT JOIN (
+           SELECT aggregator_id,
+                  COUNT(*)                   AS deliveries_count,
+                  SUM(COALESCE(accepted_weight_kg, gross_weight_kg)) AS total_kg,
+                  AVG(driver_fee_ghs)        AS avg_fee_ghs
+           FROM pending_transactions
+           WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           GROUP BY aggregator_id
+         ) stats ON stats.aggregator_id = dar.aggregator_id
+         WHERE dar.driver_id=$1 AND dar.status='active'
+         ORDER BY dar.claimed_at DESC NULLS LAST, dar.created_at DESC`,
+        [driverId]
+      )
+    ]);
+
+    if (!driverRow.rows.length) return res.status(404).json({ success: false, message: 'Driver not found' });
+    const drv = driverRow.rows[0];
+
+    const recent = recentRows.rows.map(function (r) {
+      const destName =
+        r.processor_id ? (r.processor_company || r.processor_name)
+        : r.converter_id ? (r.converter_company || r.converter_name)
+        : r.recycler_id ? (r.recycler_company  || r.recycler_name)
+        : null;
+      return {
+        id: r.id,
+        material_type: r.material_type,
+        gross_weight_kg: r.gross_weight_kg != null ? parseFloat(r.gross_weight_kg) : null,
+        accepted_weight_kg: r.accepted_weight_kg != null ? parseFloat(r.accepted_weight_kg) : null,
+        driver_fee_ghs: r.driver_fee_ghs != null ? parseFloat(r.driver_fee_ghs) : 0,
+        payment_status: r.driver_fee_paid_at ? 'paid' : 'pending',
+        confirmed_at: r.driver_confirmed_at,
+        pickup_location: r.pickup_location || null,
+        aggregator_id: r.aggregator_id,
+        aggregator_name: r.aggregator_name || null,
+        destination_name: destName
+      };
+    });
+
+    res.json({
+      success: true,
+      driver: {
+        id: drv.id,
+        code: CirculRoles.circulCode('driver', drv.id),
+        first_name: drv.first_name,
+        last_name: drv.last_name,
+        phone: drv.phone,
+        city: drv.city || null,
+        region: drv.region || null
+      },
+      tiles: {
+        earned_this_week:  { ghs: parseFloat(weekAgg.rows[0].ghs)  || 0, deliveries: parseInt(weekAgg.rows[0].deliveries, 10)  || 0 },
+        earned_this_month: { ghs: parseFloat(monthAgg.rows[0].ghs) || 0, deliveries: parseInt(monthAgg.rows[0].deliveries, 10) || 0 },
+        awaiting_payment:  { ghs: parseFloat(owedAgg.rows[0].ghs)  || 0, deliveries: parseInt(owedAgg.rows[0].deliveries, 10)  || 0 },
+        active_jobs:       { count: parseInt(activeJobs.rows[0].count, 10) || 0 }
+      },
+      recent_deliveries: recent,
+      my_aggregators: aggRows.rows.map(function (r) {
+        return {
+          aggregator_id: r.aggregator_id,
+          aggregator_name: r.aggregator_name,
+          joined_at: r.claimed_at || r.rel_created_at,
+          deliveries_count: parseInt(r.deliveries_count, 10) || 0,
+          total_kg: parseFloat(r.total_kg) || 0,
+          avg_fee_ghs: parseFloat(r.avg_fee_ghs) || 0
+        };
+      })
+    });
+  } catch (err) {
+    console.error('Driver dashboard error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Driver delivery detail — single delivery + photo URLs.
+// Verifies the txn belongs to this driver before returning.
+app.get('/api/driver/deliveries/:id', requireAuth, async (req, res) => {
+  if (req.user.role !== 'driver') return res.status(403).json({ success: false, message: 'Access denied' });
+  const txnId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(txnId)) return res.status(400).json({ success: false, message: 'Invalid id' });
+  try {
+    const result = await pool.query(
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.accepted_weight_kg,
+              pt.driver_id, pt.driver_fee_ghs, pt.driver_fee_paid_at, pt.driver_fee_paid_method,
+              pt.driver_confirmed_at, pt.rejected_disposition, pt.photo_urls,
+              pt.aggregator_id, a.name AS aggregator_name,
+              pt.processor_id, p.company AS processor_company, p.name AS processor_name,
+              pt.converter_id, c.company AS converter_company, c.name AS converter_name,
+              pt.recycler_id,  r.company AS recycler_company,  r.name AS recycler_name,
+              dl.pickup_location
+       FROM pending_transactions pt
+       LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+       LEFT JOIN processors  p ON p.id = pt.processor_id
+       LEFT JOIN converters  c ON c.id = pt.converter_id
+       LEFT JOIN recyclers   r ON r.id = pt.recycler_id
+       LEFT JOIN dispatch_listings dl ON dl.pending_transaction_id = pt.id
+       WHERE pt.id=$1`, [txnId]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Delivery not found' });
+    const row = result.rows[0];
+    if (row.driver_id !== req.user.id) return res.status(403).json({ success: false, message: 'Not your delivery' });
+
+    const destName =
+      row.processor_id ? (row.processor_company || row.processor_name)
+      : row.converter_id ? (row.converter_company || row.converter_name)
+      : row.recycler_id ? (row.recycler_company  || row.recycler_name)
+      : null;
+
+    res.json({
+      success: true,
+      delivery: {
+        id: row.id,
+        material_type: row.material_type,
+        gross_weight_kg: row.gross_weight_kg != null ? parseFloat(row.gross_weight_kg) : null,
+        accepted_weight_kg: row.accepted_weight_kg != null ? parseFloat(row.accepted_weight_kg) : null,
+        driver_fee_ghs: row.driver_fee_ghs != null ? parseFloat(row.driver_fee_ghs) : 0,
+        payment_status: row.driver_fee_paid_at ? 'paid' : 'pending',
+        paid_method: row.driver_fee_paid_method || null,
+        confirmed_at: row.driver_confirmed_at,
+        rejected_disposition: row.rejected_disposition || null,
+        photo_urls: Array.isArray(row.photo_urls) ? row.photo_urls : [],
+        pickup_location: row.pickup_location || null,
+        aggregator_id: row.aggregator_id,
+        aggregator_name: row.aggregator_name || null,
+        destination_name: destName
+      }
+    });
+  } catch (err) {
+    console.error('Driver delivery detail error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Driver photo upload — file upload, append URL to photo_urls JSONB.
+// Driver must own the delivery. multer 8MB cap + image-only mime gate (Step 10.1).
+app.post('/api/driver/deliveries/:id/photos', requireAuth, photoUpload.single('photo'), async (req, res) => {
+  if (req.user.role !== 'driver') return res.status(403).json({ success: false, message: 'Access denied' });
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+  const txnId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(txnId)) return res.status(400).json({ success: false, message: 'Invalid id' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Race-safe append: SELECT FOR UPDATE so concurrent uploads serialise.
+    const own = await client.query(
+      `SELECT driver_id, photo_urls FROM pending_transactions WHERE id=$1 FOR UPDATE`,
+      [txnId]
+    );
+    if (!own.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Delivery not found' });
+    }
+    if (own.rows[0].driver_id !== req.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Not your delivery' });
+    }
+
+    const publicUrl = '/uploads/delivery-photos/' + txnId + '/' + req.file.filename;
+    const existing = Array.isArray(own.rows[0].photo_urls) ? own.rows[0].photo_urls : [];
+    const nextUrls = existing.concat([publicUrl]);
+
+    await client.query(
+      `UPDATE pending_transactions SET photo_urls=$1::text[], updated_at=NOW() WHERE id=$2`,
+      [nextUrls, txnId]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, url: publicUrl, photo_urls: nextUrls });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Driver photo upload error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 
