@@ -766,6 +766,63 @@
       </div>
     </div>
 
+    <!-- MY DRIVERS (Phase 11 — mockup Section I) -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">My Drivers</div>
+          <div class="section-sub">Drivers in your active roster · per-driver stats over your relationship</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Name</th>
+            <th>Code</th>
+            <th>Phone</th>
+            <th>City</th>
+            <th class="num">Deliveries</th>
+            <th class="num">Total kg</th>
+            <th>Rating</th>
+            <th class="num">Avg delta</th>
+            <th class="num">Owed</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody id="aggDriversBody"><tr><td colspan="10" class="placeholder-cell">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="form-help-text" style="margin-top:12px;font-size:0.74rem;color:var(--text-2)">
+        Avg delta = pickup vs accepted weight, averaged across this driver's deliveries to you.
+        Aggregator ratings of drivers (Rating column) coming in v1.
+      </div>
+    </div>
+
+    <!-- TRUST ANALYTICS (Phase 11 — mockup Section E) -->
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Trust signal — processor weight delta (last 30 days)</div>
+          <div class="section-sub">How your destinations compare on pickup vs accepted weight</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Processor</th>
+            <th class="num">Deliveries</th>
+            <th class="num">Avg total delta</th>
+            <th class="num">Weighbridge slips</th>
+            <th>Trust signal</th>
+          </tr></thead>
+          <tbody id="aggTrustSignalsBody"><tr><td colspan="5" class="placeholder-cell">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="form-help-text" style="margin-top:12px;font-size:0.74rem;color:var(--text-2)">
+        Total delta = pickup vs accepted. Weighbridge slips = optional photo evidence drivers attached on web.
+        High delta + few slips = ask questions; aggregator can dig into individual deliveries with slips to separate transit loss from rejection.
+      </div>
+    </div>
+
     <!-- PROCESSOR REQUIREMENTS -->
     <div class="section">
       <div class="section-head">
@@ -1055,6 +1112,8 @@ function loadAll() {
     loadAgents();
     loadAgentActivity();
     loadAggRequirements();
+    loadAggDrivers();
+    loadAggTrustSignals();
 }
 
 function renderPriceCards(prices) {
@@ -3643,6 +3702,105 @@ function loadAggRequirements() {
     .catch(function(e) {
       console.error('Requirements load failed:', e);
       document.getElementById('aggRequirementsGrid').innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">Could not load requirements.</div>';
+    });
+}
+
+// ── Phase 11: My Drivers + Trust analytics ─────────────────────────────
+function deltaClass(pct, deliveriesCount) {
+  if (deliveriesCount != null && deliveriesCount < 5) return null; // insufficient data
+  if (pct == null) return null;
+  if (pct < 3)  return 'delta-good';
+  if (pct <= 7) return 'delta-warn';
+  return 'delta-bad';
+}
+
+function loadAggDrivers() {
+  apiFetch('/api/aggregator/drivers')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var body = document.getElementById('aggDriversBody');
+      if (!body) return;
+      if (!data || !data.success || !data.drivers || !data.drivers.length) {
+        body.innerHTML = '<tr><td colspan="10"><div class="empty">No active drivers yet. Invite one from a dispatch or marketplace flow.</div></td></tr>';
+        return;
+      }
+      body.innerHTML = data.drivers.map(function(d) {
+        var name = esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim() || '—');
+        var totalKg = d.total_kg != null
+          ? Math.round(parseFloat(d.total_kg)).toLocaleString('en-GH')
+          : '—';
+        // Avg delta colour: needs >=5 deliveries to be reliable.
+        var deliveriesCount = parseInt(d.deliveries_count, 10) || 0;
+        var cls = deltaClass(d.avg_total_delta_pct, deliveriesCount);
+        var deltaCell;
+        if (deliveriesCount < 5 || d.avg_total_delta_pct == null) {
+          deltaCell = '<td class="num">—</td>';
+        } else {
+          deltaCell = '<td class="num ' + cls + '">' + parseFloat(d.avg_total_delta_pct).toFixed(1) + '%</td>';
+        }
+        // v0: Rating column always — (aggregator-rates-driver deferred to v1)
+        // Status column uses canonical pill-paid for the 'active' label (shared.css has no pill variant for activity status; #49)
+        return '<tr>'
+          + '<td>' + name + '</td>'
+          + '<td>' + esc(d.code || '—') + '</td>'
+          + '<td>' + esc(d.phone || '—') + '</td>'
+          + '<td>' + esc(d.city || '—') + '</td>'
+          + '<td class="num">' + deliveriesCount + '</td>'
+          + '<td class="num">' + totalKg + '</td>'
+          + '<td>—</td>'
+          + deltaCell
+          + '<td class="num">' + esc(CirculFormat.fmtGHS(d.owed_ghs)) + '</td>'
+          + '<td><span class="pill pill-paid">active</span></td>'
+          + '</tr>';
+      }).join('');
+    })
+    .catch(function(e) {
+      console.error('Drivers load failed:', e);
+      var body = document.getElementById('aggDriversBody');
+      if (body) body.innerHTML = '<tr><td colspan="10" class="placeholder-cell">Could not load drivers.</td></tr>';
+    });
+}
+
+function trustPill(trust) {
+  if (trust === 'consistent') return '<span class="pill pill-paid">consistent</span>';
+  if (trust === 'monitor')    return '<span class="pill pill-pending">monitor</span>';
+  if (trust === 'flag')       return '<span class="pill pill-rejected">flag</span>';
+  return '<span class="pill" style="background:rgba(158,158,158,0.15);color:#9e9e9e">insufficient data</span>';
+}
+
+function loadAggTrustSignals() {
+  apiFetch('/api/aggregator/trust-signals')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var body = document.getElementById('aggTrustSignalsBody');
+      if (!body) return;
+      if (!data || !data.success || !data.rows || !data.rows.length) {
+        body.innerHTML = '<tr><td colspan="5"><div class="empty">No confirmed deliveries in the last 30 days. Trust signals will populate once drivers deliver to your destinations.</div></td></tr>';
+        return;
+      }
+      body.innerHTML = data.rows.map(function(r) {
+        var deliveries = parseInt(r.deliveries, 10) || 0;
+        var cls = deltaClass(r.avg_total_delta_pct, deliveries);
+        var deltaCell;
+        if (deliveries < 5 || r.avg_total_delta_pct == null) {
+          deltaCell = '<td class="num">—</td>';
+        } else {
+          deltaCell = '<td class="num ' + cls + '">' + parseFloat(r.avg_total_delta_pct).toFixed(1) + '%</td>';
+        }
+        var name = r.buyer_name ? esc(String(r.buyer_name).slice(0, 28)) : 'Unknown';
+        return '<tr>'
+          + '<td>' + name + '</td>'
+          + '<td class="num">' + deliveries + '</td>'
+          + deltaCell
+          + '<td class="num">' + (parseInt(r.weighbridge_slips, 10) || 0) + '</td>'
+          + '<td>' + trustPill(r.trust) + '</td>'
+          + '</tr>';
+      }).join('');
+    })
+    .catch(function(e) {
+      console.error('Trust signals load failed:', e);
+      var body = document.getElementById('aggTrustSignalsBody');
+      if (body) body.innerHTML = '<tr><td colspan="5" class="placeholder-cell">Could not load trust signals.</td></tr>';
     });
 }
 

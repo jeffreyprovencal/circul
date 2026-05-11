@@ -2791,6 +2791,261 @@ app.post('/api/aggregator/drivers/:driverId/dispatch', requireAuth, async (req, 
 });
 
 // ============================================
+// AGGREGATOR — MY DRIVERS + TRUST ANALYTICS + PAYMENTS (Phase 11)
+// ============================================
+
+// GET /api/aggregator/drivers — active roster with per-driver stats.
+// One LATERAL JOIN query (faster than N+1). avg_rating returns null in v0
+// (aggregator-rates-driver deferred to v1 per Phase 9).
+app.get('/api/aggregator/drivers', requireAuth, async (req, res) => {
+  if (req.user.role !== 'aggregator') {
+    return res.status(403).json({ success: false, message: 'Aggregators only' });
+  }
+  const aggId = req.user.id;
+  try {
+    const result = await pool.query(
+      `SELECT
+         d.id,
+         d.first_name,
+         d.last_name,
+         d.phone,
+         d.city,
+         dar.created_at AS joined_at,
+         dar.status AS relationship_status,
+         COALESCE(stats.deliveries_count, 0) AS deliveries_count,
+         COALESCE(stats.total_kg, 0) AS total_kg,
+         COALESCE(stats.owed_ghs, 0) AS owed_ghs,
+         COALESCE(stats.paid_ghs, 0) AS paid_ghs,
+         stats.avg_delta_pct AS avg_total_delta_pct
+       FROM driver_aggregator_relationships dar
+       JOIN drivers d ON d.id = dar.driver_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(*) FILTER (WHERE pt.driver_confirmed_at IS NOT NULL) AS deliveries_count,
+           COALESCE(SUM(pt.accepted_weight_kg) FILTER (WHERE pt.driver_confirmed_at IS NOT NULL), 0) AS total_kg,
+           COALESCE(SUM(pt.driver_fee_ghs) FILTER (WHERE pt.driver_fee_paid_at IS NULL AND pt.driver_confirmed_at IS NOT NULL), 0) AS owed_ghs,
+           COALESCE(SUM(pt.driver_fee_ghs) FILTER (WHERE pt.driver_fee_paid_at IS NOT NULL), 0) AS paid_ghs,
+           AVG(((pt.gross_weight_kg - pt.accepted_weight_kg) / NULLIF(pt.gross_weight_kg, 0)) * 100)
+             FILTER (WHERE pt.accepted_weight_kg IS NOT NULL) AS avg_delta_pct
+         FROM pending_transactions pt
+         WHERE pt.driver_id = d.id AND pt.aggregator_id = $1
+       ) stats ON true
+       WHERE dar.aggregator_id = $1 AND dar.status = 'active'
+       ORDER BY stats.deliveries_count DESC NULLS LAST, d.first_name ASC`,
+      [aggId]
+    );
+
+    const drivers = result.rows.map(function (r) {
+      return Object.assign({}, r, {
+        code: CirculRoles.circulCode('driver', r.id),
+        // v0: aggregator-rates-driver deferred to v1, render '—' on web side.
+        avg_rating: null,
+        // Normalise types — pg returns NUMERIC as string; cast for client convenience.
+        deliveries_count: parseInt(r.deliveries_count, 10) || 0,
+        total_kg: parseFloat(r.total_kg) || 0,
+        owed_ghs: parseFloat(r.owed_ghs) || 0,
+        paid_ghs: parseFloat(r.paid_ghs) || 0,
+        avg_total_delta_pct: r.avg_total_delta_pct != null ? parseFloat(r.avg_total_delta_pct) : null
+      });
+    });
+
+    res.json({ success: true, drivers: drivers });
+  } catch (err) {
+    console.error('GET /api/aggregator/drivers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/aggregator/trust-signals — rolling 30-day delta + weighbridge-slip
+// counts per destination buyer. GROUP BY the (kind, id) PAIR — NOT id alone —
+// or processor_id=42 and recycler_id=42 collide. Trust label derived in JS.
+app.get('/api/aggregator/trust-signals', requireAuth, async (req, res) => {
+  if (req.user.role !== 'aggregator') {
+    return res.status(403).json({ success: false, message: 'Aggregators only' });
+  }
+  const aggId = req.user.id;
+  try {
+    // pending_transactions doesn't have destination_buyer_kind/_id columns
+    // directly — derive from processor_id/converter_id/recycler_id FKs.
+    // Subquery wraps the derivation so GROUP BY can reference the aliases.
+    // photo_urls is TEXT[] (per migration 1774500000000); detect non-empty via
+    // array_length to avoid JSONB-only operators.
+    const result = await pool.query(
+      `SELECT destination_buyer_kind, destination_buyer_id,
+              COUNT(*) AS deliveries,
+              AVG(((gross_weight_kg - accepted_weight_kg) / NULLIF(gross_weight_kg, 0)) * 100) AS avg_total_delta_pct,
+              COUNT(*) FILTER (WHERE COALESCE(array_length(photo_urls, 1), 0) > 0) AS weighbridge_slips
+       FROM (
+         SELECT
+           CASE
+             WHEN processor_id IS NOT NULL THEN 'processor'
+             WHEN converter_id IS NOT NULL THEN 'converter'
+             WHEN recycler_id  IS NOT NULL THEN 'recycler'
+           END AS destination_buyer_kind,
+           COALESCE(processor_id, converter_id, recycler_id) AS destination_buyer_id,
+           gross_weight_kg, accepted_weight_kg, photo_urls
+         FROM pending_transactions
+         WHERE aggregator_id = $1
+           AND driver_confirmed_at >= NOW() - INTERVAL '30 days'
+           AND accepted_weight_kg IS NOT NULL
+           AND COALESCE(processor_id, converter_id, recycler_id) IS NOT NULL
+       ) pt
+       GROUP BY destination_buyer_kind, destination_buyer_id
+       ORDER BY deliveries DESC`,
+      [aggId]
+    );
+
+    // Resolve buyer names + compute trust label.
+    // lookupBuyerName returns null on miss — fall back to 'Unknown'.
+    const rows = await Promise.all(result.rows.map(async function (r) {
+      const buyer_name = (await lookupBuyerName(r.destination_buyer_kind, r.destination_buyer_id)) || 'Unknown';
+      const deliveries = parseInt(r.deliveries, 10) || 0;
+      const delta = r.avg_total_delta_pct != null ? parseFloat(r.avg_total_delta_pct) : null;
+      let trust;
+      if (deliveries < 5)        trust = 'insufficient';
+      else if (delta == null)    trust = 'insufficient';
+      else if (delta < 3)        trust = 'consistent';
+      else if (delta <= 7)       trust = 'monitor';
+      else                       trust = 'flag';
+      return {
+        destination_buyer_kind: r.destination_buyer_kind,
+        destination_buyer_id:   r.destination_buyer_id,
+        buyer_name:             buyer_name,
+        deliveries:             deliveries,
+        avg_total_delta_pct:    delta,
+        weighbridge_slips:      parseInt(r.weighbridge_slips, 10) || 0,
+        trust:                  trust
+      };
+    }));
+
+    res.json({ success: true, rows: rows });
+  } catch (err) {
+    console.error('GET /api/aggregator/trust-signals error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/aggregator/drivers/:driverId/payments — aggregator marks a driver
+// fee as paid for a specific delivery. Race-safe + idempotent:
+//   * SELECT FOR UPDATE locks the pending_transactions row
+//   * Reject if already paid (idempotency)
+//   * Dual-row write: UPDATE pending_transactions AND UPDATE transactions
+//     (mirrors collector receipt-confirm pattern at server.js:686-744)
+//   * DRIVER_PAYMENT_RECORDED SMS fires AFTER COMMIT so rollback won't
+//     mislead the driver.
+app.post('/api/aggregator/drivers/:driverId/payments', requireAuth, async (req, res) => {
+  if (req.user.role !== 'aggregator') {
+    return res.status(403).json({ success: false, message: 'Aggregators only' });
+  }
+  const aggId = req.user.id;
+  const driverId = parseInt(req.params.driverId, 10);
+  if (!Number.isFinite(driverId)) {
+    return res.status(400).json({ success: false, message: 'invalid_driver_id' });
+  }
+  const { pending_transaction_id, paid_method } = req.body || {};
+  if (!pending_transaction_id || !paid_method) {
+    return res.status(400).json({ success: false, message: 'pending_transaction_id and paid_method required' });
+  }
+  if (!['cash', 'momo', 'bank'].includes(paid_method)) {
+    return res.status(400).json({ success: false, message: 'paid_method must be one of: cash, momo, bank' });
+  }
+
+  const client = await pool.connect();
+  let lockedPt = null;
+  let didCommit = false;
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock + verify ownership + idempotency
+    const ptRes = await client.query(
+      `SELECT id, transaction_id, aggregator_id, driver_id, driver_fee_ghs,
+              driver_fee_paid_at, material_type
+       FROM pending_transactions
+       WHERE id = $1 FOR UPDATE`,
+      [pending_transaction_id]
+    );
+    if (!ptRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'transaction_not_found' });
+    }
+    const pt = ptRes.rows[0];
+    if (pt.aggregator_id !== aggId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'not_your_transaction' });
+    }
+    if (pt.driver_id !== driverId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'driver_mismatch' });
+    }
+    if (pt.driver_fee_paid_at) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'already_paid', paid_at: pt.driver_fee_paid_at });
+    }
+
+    // 2. Dual-row write — keep pending_transactions and transactions in sync.
+    //    transactions.id is the FINALISED row; pt.transaction_id is the back
+    //    reference. Some deliveries may have no transactions row yet (the
+    //    aggregator-sale hasn't completed) — skip that UPDATE if so.
+    await client.query(
+      `UPDATE pending_transactions
+       SET driver_fee_paid_at = NOW(), driver_fee_paid_method = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [paid_method, pending_transaction_id]
+    );
+    if (pt.transaction_id) {
+      await client.query(
+        `UPDATE transactions
+         SET driver_fee_paid_at = NOW(), driver_fee_paid_method = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [paid_method, pt.transaction_id]
+      );
+    }
+
+    await client.query('COMMIT');
+    didCommit = true;
+    lockedPt = pt;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('POST /api/aggregator/drivers/:driverId/payments error:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
+  }
+
+  if (!didCommit) return; // safety net
+
+  // 3. Post-commit: DRIVER_PAYMENT_RECORDED SMS to driver. Lifetime is computed
+  //    AFTER the update so it includes this payment — matches the template intent.
+  try {
+    const [driverRes, aggNameRes, lifetimeRes] = await Promise.all([
+      pool.query('SELECT phone, first_name FROM drivers WHERE id = $1', [driverId]),
+      pool.query('SELECT name FROM aggregators WHERE id = $1', [aggId]),
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs), 0) AS lifetime
+         FROM pending_transactions
+         WHERE driver_id = $1 AND driver_fee_paid_at IS NOT NULL`,
+        [driverId]
+      )
+    ]);
+    if (driverRes.rows.length) {
+      // .slice(0, 14).trim() — Phase 8 codification: SMS template name caps
+      // keep aggregator_name within GSM-7 character budget for 160-char limit.
+      const aggName = ((aggNameRes.rows[0] && aggNameRes.rows[0].name) || '').slice(0, 14).trim();
+      notify(EVENTS.DRIVER_PAYMENT_RECORDED, driverRes.rows[0].phone, {
+        aggregator_name: aggName,
+        amount: parseFloat(lockedPt.driver_fee_ghs || 0).toFixed(0),
+        ref: pending_transaction_id,
+        lifetime: parseFloat(lifetimeRes.rows[0].lifetime || 0).toFixed(0)
+      }).catch(function (e) { console.warn('[notify] DRIVER_PAYMENT_RECORDED failed:', e.message); });
+    }
+  } catch (e) {
+    console.warn('[payment-recorded] post-commit notification lookup failed:', e.message);
+  }
+
+  res.json({ success: true, paid_at: new Date().toISOString() });
+});
+
+// ============================================
 // PROCESSORS
 // ============================================
 

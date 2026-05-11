@@ -218,6 +218,14 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 .pill-rejected{background:rgba(239,83,80,0.15);color:#ef5350}
 .pill-approved{background:rgba(66,165,245,0.15);color:#42a5f5}
 
+/* ── DELTA COLOR CLASSES (Phase 11 — used by aggregator dashboard My Drivers
+   + Trust analytics tables; reusable for driver-side earnings/recent rows in
+   later polish. --amber and --red aren't defined in :root yet, so we use
+   the canonical hex values from the existing pill palette.) ── */
+.delta-good{color:var(--accent);font-weight:600}
+.delta-warn{color:#ffb74d;font-weight:600}
+.delta-bad{color:#ef5350;font-weight:600}
+
 /* ── RATING MODAL ── */
 .rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;justify-content:center;align-items:center;z-index:200}
 .rating-overlay.show{display:flex}
