@@ -52,7 +52,7 @@
   <div class="login-box">
     <div class="login-title">Sign in to Circul</div>
     <div class="login-sub">Driver access</div>
-    <div class="login-error hidden" id="loginError"></div>
+    <div class="login-error" id="loginError"></div>
     <div class="form-group" style="margin-bottom:16px">
       <label class="form-label">Phone number</label>
       <input class="form-input" id="loginPhone" type="tel" placeholder="0244 000 000" autocomplete="tel">
@@ -211,7 +211,7 @@ function handleDriverLogin() {
   var btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';
   var errEl = document.getElementById('loginError');
-  errEl.classList.add('hidden');
+  errEl.classList.remove('visible');
   fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, pin: pin }) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -227,12 +227,12 @@ function handleDriverLogin() {
         showDashboard();
       } else {
         errEl.textContent = data.message || 'Invalid phone or PIN';
-        errEl.classList.remove('hidden');
+        errEl.classList.add('visible');
       }
     })
     .catch(function() {
       errEl.textContent = 'Connection error. Please try again.';
-      errEl.classList.remove('hidden');
+      errEl.classList.add('visible');
     })
     .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
 }
