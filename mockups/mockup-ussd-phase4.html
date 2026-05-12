@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD Phase 4 — Marketplace Flows</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a1a0f; color: #e0e0e0; padding: 24px; }
+  h1 { color: #00e676; font-size: 1.6rem; margin-bottom: 4px; }
+  .subtitle { color: #999; margin-bottom: 32px; font-size: 0.95rem; }
+  .role-banner { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 24px; }
+  .role-banner.collector { background: #00e67622; color: #00e676; }
+  .role-banner.aggregator { background: #42a5f522; color: #42a5f5; }
+  .section { margin-bottom: 48px; }
+  .section-title { color: #00e676; font-size: 1.15rem; margin-bottom: 6px; border-bottom: 1px solid #1a3a1f; padding-bottom: 6px; }
+  .section-desc { color: #aaa; font-size: 0.88rem; margin-bottom: 18px; }
+  .flow { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .phone { width: 220px; background: #111; border: 2px solid #333; border-radius: 24px; padding: 18px 14px; flex-shrink: 0; }
+  .phone-header { font-size: 0.65rem; color: #666; text-align: center; margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .phone-screen { background: #1a1a2e; border-radius: 8px; padding: 14px 12px; min-height: 160px; font-family: 'Courier New', monospace; font-size: 0.78rem; line-height: 1.5; color: #e0e0e0; white-space: pre-wrap; word-break: break-word; }
+  .phone-screen .highlight { color: #00e676; font-weight: bold; }
+  .phone-screen .input { color: #ffd740; }
+  .phone-screen .warn { color: #ff5252; }
+  .phone-screen .dim { color: #777; }
+  .phone-screen .blue { color: #42a5f5; }
+  .arrow { font-size: 1.4rem; color: #00e676; align-self: center; flex-shrink: 0; }
+  .note { background: #1a2a1f; border-left: 3px solid #00e676; padding: 10px 14px; border-radius: 4px; margin-top: 14px; font-size: 0.82rem; color: #bbb; max-width: 700px; }
+  .note strong { color: #00e676; }
+  .badge { display: inline-block; background: #ffd740; color: #0a1a0f; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+  hr { border: none; border-top: 1px solid #1a3a1f; margin: 48px 0; }
+  .depth-diagram { background: #111; border: 1px solid #333; border-radius: 8px; padding: 16px 20px; font-family: 'Courier New', monospace; font-size: 0.78rem; line-height: 1.7; color: #ccc; max-width: 700px; margin-top: 12px; }
+  .depth-diagram .g { color: #00e676; }
+  .depth-diagram .y { color: #ffd740; }
+  .depth-diagram .b { color: #42a5f5; }
+</style>
+</head>
+<body>
+
+<h1>USSD Phase 4 — Marketplace</h1>
+<p class="subtitle">Collector sell listings + discovery · Aggregator browse/buy + sell upstream · Both roles</p>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--            COLLECTOR SECTION                     -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="role-banner collector">Collector</div>
+
+<!-- COLLECTOR MAIN MENU -->
+<div class="section">
+  <div class="section-title">Updated Collector Main Menu</div>
+  <div class="section-desc">Items 2 and 3 are new sub-menus. "My Stats" moves from 2 → 4. "Prices Near Me" moves into Discovery.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Main Menu (updated)</div>
+      <div class="phone-screen"><span class="highlight">CON</span> 1. Log Drop-off
+2. Sell My Material <span class="input">NEW</span>
+3. Discovery <span class="input">NEW</span>
+4. My Stats
+0. Exit</div>
+    </div>
+  </div>
+</div>
+
+<!-- COLLECTOR: SELL MY MATERIAL SUB-MENU -->
+<div class="section">
+  <div class="section-title">Sell My Material — Sub-menu</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Sell Sub-menu</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Sell My Material:
+1. Post New Listing
+2. My Listings
+3. My Offers
+0. Back</div>
+    </div>
+  </div>
+</div>
+
+<!-- COLLECTOR: POST LISTING -->
+<div class="section">
+  <div class="section-title">Sell → Post New Listing</div>
+  <div class="section-desc">5 screens: material → quantity → price → confirm → success. Min 30 kg.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Select Material</div>
+      <div class="phone-screen"><span class="highlight">CON</span> What material?
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Quantity</div>
+      <div class="phone-screen"><span class="highlight">CON</span> How many kg of PET
+do you have to sell?
+
+<span class="dim">(minimum 30 kg)</span>
+
+Enter weight in kg:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Price</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Your asking price
+per kg? (GH₵)
+
+<span class="dim">(Enter 0 if open
+to offers)</span></div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Confirm</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Confirm listing:
+Material: PET
+Quantity: 80 kg
+Price: GH₵ 2.00/kg
+Location: Accra
+Expires: 7 days
+
+1. Confirm
+2. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Success ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> LISTING POSTED!
+
+80 kg PET at GH₵ 2.00/kg
+Location: Accra
+Expires in 7 days.
+
+Aggregators can now see
+your listing. You'll be
+notified when offers
+come in.</div>
+    </div>
+  </div>
+  <div class="note"><strong>Validation:</strong> Quantity &lt; 30 kg → END "Minimum 30 kg for collector listings." Price = 0 stored as NULL (open to offers). Location = collector.city.</div>
+</div>
+
+<!-- COLLECTOR: BELOW MINIMUM -->
+<div class="section">
+  <div class="section-title">Sell → Post Listing — Below Minimum</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Too Low</div>
+      <div class="phone-screen"><span class="warn">END</span> Minimum listing is
+30 kg for collectors.
+
+Collect more material
+and try again.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGINATION PATTERN -->
+<div class="section">
+  <div class="section-title">Pagination Pattern <span class="badge">ALL LISTS</span></div>
+  <div class="section-desc">Applied to every list screen: listings, offers, buyers, sellers. Shows 3 items per page with "More" option when more exist.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Page 1 (more exist)</div>
+      <div class="phone-screen"><span class="highlight">CON</span> PET sellers (Accra):
+1. COL-0001
+   80kg @GH₵2.00/kg
+2. COL-0045
+   120kg (open price)
+3. COL-0012
+   200kg @GH₵1.80/kg
+4. More results →
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Page 2 (last page)</div>
+      <div class="phone-screen"><span class="highlight">CON</span> PET sellers (Accra):
+1. COL-0078
+   60kg @GH₵2.10/kg
+2. COL-0091
+   45kg (open price)
+0. Back</div>
+    </div>
+  </div>
+  <div class="note"><strong>Implementation:</strong> Each list query uses LIMIT 4 (fetch one extra to detect "has more"). Display 3, show "More" if 4th exists. Page number tracked via depth — "4" = next page, queries with OFFSET page*3. On last page (fewer than 4 results), "More" disappears. Same pattern for all list screens below.</div>
+</div>
+
+<!-- COLLECTOR: MY LISTINGS -->
+<div class="section">
+  <div class="section-title">Sell → My Listings</div>
+  <div class="section-desc">View active listings. Renew (7 more days) or close.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Active Listings</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Your listings:
+1. 80kg PET GH₵2.00/kg
+   <span class="dim">Expires in 5 days</span>
+2. 50kg HDPE (open)
+   <span class="dim">Expires in 2 days</span>
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Listing Detail</div>
+      <div class="phone-screen"><span class="highlight">CON</span> 80kg PET GH₵2.00/kg
+Location: Accra
+Expires in 5 days
+1 pending offer
+
+1. Renew (+7 days)
+2. Close listing
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Renewed ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> Listing renewed!
+
+80kg PET GH₵2.00/kg
+Now expires in 12 days.</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Empty State</div>
+      <div class="phone-screen"><span class="highlight">END</span> No active listings.
+
+Use "Post New Listing"
+to advertise your
+material to buyers.</div>
+    </div>
+  </div>
+</div>
+
+<!-- COLLECTOR: MY OFFERS -->
+<div class="section">
+  <div class="section-title">Sell → My Offers (received)</div>
+  <div class="section-desc">View pending offers on your listings. Accept → contact details + pending_transaction.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Pending Offers</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Offers received:
+1. Kofi Aggregates
+   80kg PET @GH₵2.20/kg
+   <span class="input">★ NEW</span>
+2. Nana Traders
+   50kg PET @GH₵1.80/kg
+   <span class="input">★ NEW</span>
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Offer Detail</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Offer from:
+Kofi Aggregates (AGG-0002)
+Material: PET
+Qty: 80 kg
+Offer: GH₵ 2.20/kg
+<span class="input">Total: GH₵ 176.00</span>
+
+1. Accept offer
+2. Decline
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Accepted ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> OFFER ACCEPTED!
+
+80kg PET @ GH₵ 2.20/kg
+Total: GH₵ 176.00
+
+<span class="blue">Contact buyer:</span>
+Kofi Aggregates
+Phone: 030-000-0002
+Location: Madina, Accra
+
+Call to arrange drop-off.
+Transaction logged.</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Declined</div>
+      <div class="phone-screen"><span class="highlight">END</span> Offer declined.
+
+Your listing remains
+active for other buyers.</div>
+    </div>
+    <div class="phone">
+      <div class="phone-header">Empty State</div>
+      <div class="phone-screen"><span class="highlight">END</span> No pending offers.
+
+Post a listing to start
+receiving offers from
+aggregators.</div>
+    </div>
+  </div>
+  <div class="note"><strong>Accept logic:</strong> UPDATE offers SET status='accepted'. UPDATE listings quantity (partial fill) or close (full fill). INSERT INTO pending_transactions with source='discovery'. Same logic as POST /api/offers/:id/accept but inline.</div>
+</div>
+
+<hr>
+
+<!-- COLLECTOR: DISCOVERY SUB-MENU -->
+<div class="section">
+  <div class="section-title">Discovery — Sub-menu</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Discovery Sub-menu</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Discovery:
+1. Browse Buyers
+2. Prices Near Me
+0. Back</div>
+    </div>
+  </div>
+</div>
+
+<!-- COLLECTOR: BROWSE BUYERS -->
+<div class="section">
+  <div class="section-title">Discovery → Browse Buyers</div>
+  <div class="section-desc">See aggregator buy requests (orders table) near collector's city. Filter by material.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Filter Material</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Browse buyers for:
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Buyer List</div>
+      <div class="phone-screen"><span class="highlight">CON</span> PET buyers (Accra):
+1. Kofi Aggregates
+   Wants 200kg @GH₵2.50
+2. Nana Traders
+   Wants 500kg @GH₵2.30
+3. GreenLoop Ltd
+   Wants 100kg (open)
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Buyer Detail</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Kofi Aggregates
+Wants: 200kg PET
+Price: GH₵ 2.50/kg
+Location: Madina, Accra
+
+1. I have this material
+<span class="dim">   (shares your phone)</span>
+2. Not interested
+0. Back</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Interest Sent ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> Interest sent!
+
+Your details shared with
+Kofi Aggregates.
+
+<span class="blue">Buyer contact:</span>
+Phone: 030-000-0002
+Location: Madina, Accra
+
+They may call you to
+arrange a pickup.</div>
+    </div>
+    <div class="phone">
+      <div class="phone-header">Empty State</div>
+      <div class="phone-screen"><span class="highlight">END</span> No PET buyers near
+Accra right now.
+
+Try another material or
+check back later.</div>
+    </div>
+  </div>
+  <div class="note"><strong>Data source:</strong> Queries <code>orders</code> table WHERE status='open', filtered by material + aggregator city. "I have this material" shows buyer contact on END screen. Phase 5 adds SMS notification to the buyer.</div>
+</div>
+
+<!-- COLLECTOR: PRICES NEAR ME (MOVED) -->
+<div class="section">
+  <div class="section-title">Discovery → Prices Near Me</div>
+  <div class="section-desc">Same existing code, just moved from main menu item 3 into Discovery sub-menu item 2. No logic change.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Same as before</div>
+      <div class="phone-screen"><span class="highlight">END</span> Prices Near Me (Accra)
+
+PET   GH₵2.10/kg Kofi A.
+HDPE  GH₵2.30/kg Kofi A.
+LDPE  GH₵1.50/kg Nana T.
+PP    GH₵2.30/kg Kofi A.
+
+Dial again to log
+a drop-off.</div>
+    </div>
+  </div>
+</div>
+
+<hr>
+<hr>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--            AGGREGATOR SECTION                    -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="role-banner aggregator">Aggregator</div>
+
+<!-- AGGREGATOR MAIN MENU -->
+<div class="section">
+  <div class="section-title">Updated Aggregator Main Menu</div>
+  <div class="section-desc">Item 3 is new. "My Stats" moves from 3 → 4.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Main Menu (updated)</div>
+      <div class="phone-screen"><span class="highlight">CON</span> 1. Log Purchase
+2. Pending Drop-offs
+3. Marketplace <span class="input">NEW</span>
+4. My Stats
+0. Exit</div>
+    </div>
+  </div>
+</div>
+
+<!-- AGGREGATOR: MARKETPLACE SUB-MENU -->
+<div class="section">
+  <div class="section-title">Marketplace — Sub-menu</div>
+  <div class="section-desc">4 items — combines buying (from collectors) and selling (to processors) in one place</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Marketplace Sub-menu</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Marketplace:
+1. Browse Sellers
+2. Post Buy Request
+3. Sell to Processors
+4. My Offers
+0. Back</div>
+    </div>
+  </div>
+</div>
+
+<!-- AGGREGATOR: BROWSE SELLERS -->
+<div class="section">
+  <div class="section-title">Marketplace → Browse Sellers</div>
+  <div class="section-desc">See collector sell listings near aggregator's city. Filter by material → view → make offer.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Filter Material</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Browse sellers for:
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Seller Listings</div>
+      <div class="phone-screen"><span class="highlight">CON</span> PET sellers (Accra):
+1. COL-0001
+   80kg @GH₵2.00/kg
+   <span class="dim">6 days left</span>
+2. COL-0045
+   120kg (open price)
+   <span class="dim">3 days left</span>
+3. COL-0012
+   200kg @GH₵1.80/kg
+   <span class="dim">5 days left</span>
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Offer Price</div>
+      <div class="phone-screen"><span class="highlight">CON</span> COL-0001 listing:
+80kg PET @ GH₵ 2.00/kg
+Location: Accra
+
+Your offer price/kg?
+<span class="dim">(Enter 0 to match
+their asking price)</span>
+
+GH₵ per kg:</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Confirm Offer</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Confirm offer:
+To: COL-0001
+Material: PET, 80 kg
+Your offer: GH₵ 2.20/kg
+<span class="input">Total: GH₵ 176.00</span>
+
+1. Send offer
+2. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Offer Sent ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> OFFER SENT!
+
+GH₵ 2.20/kg for 80kg PET
+to COL-0001.
+
+The collector will be
+notified. You'll receive
+their contact details
+when they accept.
+
+Check "My Offers" for
+status updates.</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Empty State</div>
+      <div class="phone-screen"><span class="highlight">END</span> No PET listings near
+Accra right now.
+
+Try another material or
+check back later.</div>
+    </div>
+  </div>
+  <div class="note"><strong>Offer INSERT:</strong> listings.id, buyer_id=aggregator.id, buyer_role='aggregator', price_per_kg, quantity_kg=listing.quantity_kg, round=1, offered_by='buyer', status='pending'. Quantity uses full listing qty (no partial on USSD — keep it simple).</div>
+</div>
+
+<!-- AGGREGATOR: POST BUY REQUEST -->
+<div class="section">
+  <div class="section-title">Marketplace → Post Buy Request</div>
+  <div class="section-desc">Aggregator advertises what material they want → collectors see via "Browse Buyers". One input per screen.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Select Material</div>
+      <div class="phone-screen"><span class="highlight">CON</span> What material do
+you need?
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Quantity</div>
+      <div class="phone-screen"><span class="highlight">CON</span> How many kg of PET
+do you need?
+
+Enter quantity in kg:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Price</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Your buying price
+per kg? (GH₵)
+
+<span class="dim">(Enter 0 if open
+to negotiation)</span></div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Confirm</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Confirm buy request:
+Material: PET
+Quantity: 200 kg
+Price: GH₵ 2.50/kg
+Location: Accra
+
+1. Confirm
+2. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Success ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> BUY REQUEST POSTED!
+
+200 kg PET at GH₵ 2.50/kg
+Location: Accra
+
+Collectors can now see
+your request and respond.
+You'll be notified when
+someone has material.</div>
+    </div>
+  </div>
+  <div class="note"><strong>Database:</strong> INSERT INTO orders (buyer_id, buyer_role='aggregator', material_type, target_quantity_kg, price_per_kg, status='open'). Collectors browse these via "Discovery → Browse Buyers".</div>
+</div>
+
+<!-- AGGREGATOR: SELL TO PROCESSORS -->
+<div class="section">
+  <div class="section-title">Marketplace → Sell to Processors</div>
+  <div class="section-desc">Post sell listing visible to processors/recyclers/converters. Same as collector listing but min 500 kg, seller_role='aggregator'.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Select Material</div>
+      <div class="phone-screen"><span class="highlight">CON</span> What material are
+you selling?
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Quantity</div>
+      <div class="phone-screen"><span class="highlight">CON</span> How many kg of PET
+do you have to sell?
+
+<span class="dim">(minimum 500 kg)</span>
+
+Enter weight in kg:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Price</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Your asking price
+per kg? (GH₵)
+
+<span class="dim">(Enter 0 if open
+to offers)</span></div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Confirm</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Confirm listing:
+Material: PET
+Quantity: 800 kg
+Price: GH₵ 4.50/kg
+Location: Accra
+Expires: 7 days
+
+1. Confirm
+2. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Success ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> LISTING POSTED!
+
+800 kg PET at GH₵ 4.50/kg
+Location: Accra
+Expires in 7 days.
+
+Processors and recyclers
+can now see your listing
+and make offers.</div>
+    </div>
+  </div>
+  <div class="note"><strong>BanQu lesson:</strong> This flow exists because aggregators without smartphones were blocked from selling upstream in the BanQu trial. USSD closes that gap.</div>
+</div>
+
+<!-- AGGREGATOR: MY OFFERS -->
+<div class="section">
+  <div class="section-title">Marketplace → My Offers</div>
+  <div class="section-desc">Combined view: offers you sent (on collector listings) + offers received (on your listings from processors). Accept received offers.</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Offers List</div>
+      <div class="phone-screen"><span class="highlight">CON</span> My offers:
+1. <span class="dim">SENT</span> COL-0001 80kg PET
+   GH₵2.20/kg <span class="input">pending</span>
+2. <span class="dim">RECV</span> Miniplast
+   800kg PET @GH₵5.00/kg
+   <span class="input">★ NEW</span>
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Received Offer Detail</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Offer from:
+Miniplast Ghana
+Material: PET, 800 kg
+Offer: GH₵ 5.00/kg
+<span class="input">Total: GH₵ 4,000.00</span>
+
+1. Accept offer
+2. Decline
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Accepted ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> OFFER ACCEPTED!
+
+800kg PET @ GH₵ 5.00/kg
+Total: GH₵ 4,000.00
+
+<span class="blue">Contact buyer:</span>
+Miniplast Ghana
+Phone: 030-222-3333
+Location: Tema, Accra
+
+Transaction logged.</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Sent Offer Detail</div>
+      <div class="phone-screen"><span class="highlight">END</span> Your offer to COL-0001:
+80kg PET @ GH₵ 2.20/kg
+Status: <span class="input">Pending</span>
+
+You'll be notified when
+the collector responds.</div>
+    </div>
+    <div class="phone">
+      <div class="phone-header">Empty State</div>
+      <div class="phone-screen"><span class="highlight">END</span> No offers yet.
+
+Browse seller listings
+to find material and
+make offers.</div>
+    </div>
+  </div>
+  <div class="note"><strong>Two types:</strong> "SENT" offers are read-only (status check). "RECV" offers can be accepted/declined, which triggers the same pending_transaction creation as collector accept.</div>
+</div>
+
+<hr>
+<hr>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--            DEPTH DIAGRAMS                        -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">State Machine — Collector (updated)</div>
+  <div class="depth-diagram">
+<span class="g">d0</span> → PIN prompt
+<span class="g">d1</span> → PIN check (retry up to 3)
+<span class="g">d2</span> → Main menu: <span class="y">1</span>=Drop-off  <span class="y">2</span>=Sell  <span class="y">3</span>=Discovery  <span class="y">4</span>=Stats  <span class="y">0</span>=Exit
+
+<span class="y">── Sell My Material (menu 2) ──</span>
+  d3: Sub-menu (Post / My Listings / My Offers)
+  <span class="g">Post Listing (2→1):</span>
+    d4: material → d5: qty → d6: price → d7: confirm → d8: END
+  <span class="g">My Listings (2→2):</span>
+    d4: listing list → d5: detail (renew/close) → d6: END
+  <span class="g">My Offers (2→3):</span>
+    d4: offer list → d5: detail (accept/decline) → d6: END
+
+<span class="y">── Discovery (menu 3) ──</span>
+  d3: Sub-menu (Browse Buyers / Prices Near Me)
+  <span class="g">Browse Buyers (3→1):</span>
+    d4: material → d5: buyer list → d6: detail → d7: END
+  <span class="g">Prices Near Me (3→2):</span>
+    d4: END (display)
+
+<span class="y">── Unchanged ──</span>
+  <span class="y">1</span> = Log Drop-off (existing, no changes)
+  <span class="y">4</span> = My Stats (moved from 2, same code)
+  <span class="y">0</span> = Exit
+
+Max depth: 8 (Post Listing confirm → END)
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">State Machine — Aggregator (updated)</div>
+  <div class="depth-diagram">
+<span class="g">d0</span> → PIN prompt
+<span class="g">d1</span> → PIN check (retry up to 3)
+<span class="g">d2</span> → Main menu: <span class="b">1</span>=Purchase  <span class="b">2</span>=Pending  <span class="b">3</span>=Marketplace  <span class="b">4</span>=Stats  <span class="b">0</span>=Exit
+
+<span class="b">── Marketplace (menu 3) ──</span>
+  d3: Sub-menu (Browse / Buy Req / Sell / My Offers)
+  <span class="g">Browse Sellers (3→1):</span>
+    d4: material → d5: listings → d6: offer price → d7: confirm → d8: END
+  <span class="g">Post Buy Request (3→2):</span>
+    d4: material → d5: qty → d6: price → d7: confirm → d8: END
+  <span class="g">Sell to Processors (3→3):</span>
+    d4: material → d5: qty → d6: price → d7: confirm → d8: END
+  <span class="g">My Offers (3→4):</span>
+    d4: offer list → d5: detail → d6: END (accept or status)
+
+<span class="b">── Unchanged ──</span>
+  <span class="b">1</span> = Log Purchase (existing, no changes)
+  <span class="b">2</span> = Pending Drop-offs (existing, no changes)
+  <span class="b">4</span> = My Stats (moved from 3, same code)
+  <span class="b">0</span> = Exit
+
+Max depth: 8 (Browse Sellers → confirm offer → END)
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--            CODE CHANGES SUMMARY                  -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Code Changes Summary</div>
+  <div class="note" style="max-width: 900px;">
+    <strong>Single file: server.js · No migration needed</strong><br>
+    All tables (listings, offers, orders, posted_prices) already exist.<br><br>
+
+    <strong>Shared pattern — pagination:</strong><br>
+    All list screens use LIMIT 4 (fetch 3+1). Display up to 3 items. If 4th row exists, show "4. More results →". Selecting "4" re-queries with OFFSET+=3. Page state tracked via depth in the USSD text field. Applied to: seller listings, buyer requests, my listings, my offers, aggregator offers.<br><br>
+
+    <strong>Collector handler changes (handleRegisteredUssd):</strong><br>
+    • Menu reorder: 2=Sell, 3=Discovery, 4=My Stats (was 2)<br>
+    • Prices Near Me code moves from m[0]==='3' to Discovery sub-handler<br>
+    • New: handleCollectorSell(m, collector) — sub-menu router<br>
+    • New: handleCollectorPostListing(m, collector) — INSERT into listings<br>
+    • New: handleCollectorMyListings(m, collector) — SELECT + renew/close<br>
+    • New: handleCollectorMyOffers(m, collector) — SELECT + accept/decline + pending_transaction<br>
+    • New: handleCollectorDiscovery(m, collector) — sub-menu router<br>
+    • New: handleCollectorBrowseBuyers(m, collector) — SELECT from orders<br><br>
+
+    <strong>Aggregator handler changes (handleAggregatorUssd):</strong><br>
+    • Menu reorder: 3=Marketplace, 4=My Stats (was 3)<br>
+    • New: handleAggregatorMarketplace(m, aggregator) — sub-menu router<br>
+    • New: handleAggregatorBrowseSellers(m, aggregator) — SELECT listings + INSERT offer<br>
+    • New: handleAggregatorPostBuyRequest(m, aggregator) — INSERT into orders<br>
+    • New: handleAggregatorSellToProcessors(m, aggregator) — INSERT into listings<br>
+    • New: handleAggregatorMyOffers(m, aggregator) — sent + received, accept<br><br>
+
+    <strong>Total: ~12 new functions, 2 modified handlers</strong>
+  </div>
+</div>
+
+</body>
+</html>

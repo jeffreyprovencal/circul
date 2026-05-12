@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driver actor MVP — feature mockup</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.6rem;color:var(--accent);margin-bottom:4px}
+h2{font-size:1.05rem;color:var(--accent);margin:0 0 8px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1100px;line-height:1.65}
+.section{margin-bottom:56px;max-width:1400px;scroll-margin-top:20px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1100px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:200px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .hint{color:var(--text-3);font-size:0.72rem}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:120px;flex-shrink:0}
+.sms{width:300px;background:#1a3a24;border-radius:14px;padding:14px 16px;font-family:var(--font);font-size:0.8rem;line-height:1.5;color:var(--text-1);position:relative;flex-shrink:0}
+.sms-meta{display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em}
+.sms-len{padding:6px 14px;font-family:var(--font);font-size:0.66rem;color:var(--text-3);text-align:right}
+.web{width:780px;background:var(--surface);border:2px solid var(--border);border-radius:10px;overflow:hidden;flex-shrink:0;font-family:var(--font)}
+.web-header{background:#000;padding:10px 16px;font-size:0.74rem;color:var(--text-2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.web-body{padding:18px}
+.web-section-head{font-size:0.88rem;font-weight:700;color:var(--text-1);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.web-section-head .count{background:var(--border);color:var(--text-2);font-size:0.66rem;padding:2px 8px;border-radius:10px;font-weight:600}
+.web-table{width:100%;border-collapse:collapse;font-size:0.78rem}
+.web-table th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text-3);font-weight:600;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.04em}
+.web-table td{padding:10px;border-bottom:1px solid var(--border);color:var(--text-1)}
+.web-table tr:last-child td{border-bottom:0}
+.web-table .code{font-family:'Courier New',monospace;color:var(--text-2);font-size:0.74rem}
+.web-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.web-table .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.66rem;font-weight:600;letter-spacing:0.03em}
+.pill-active{background:rgba(0,230,118,0.15);color:var(--accent)}
+.pill-inactive{background:rgba(239,83,80,0.15);color:var(--red)}
+.empty-state{padding:30px 16px;text-align:center;color:var(--text-3);font-size:0.85rem;font-style:italic}
+.new{border:2px solid var(--accent);position:relative}
+.new::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.legend{display:flex;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-2)}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.plain{border-color:var(--border)}
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1100px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.8;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1100px}
+.box h3{margin-top:0;color:var(--text-1)}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box.strategic{border-left:3px solid var(--accent);background:#0a150e}
+.box.gap{border-left:3px solid var(--amber)}
+</style>
+</head>
+<body>
+
+<h1>Driver actor MVP — feature mockup</h1>
+<div class="subtitle">
+Visual review of every new screen and message in the driver feature, before any code ships. Surfaced by WORK 2026-05-06 — drivers are the field actors who collect aggregator delivery receipts. Phone-only auth (no PIN), USSD-accessible, sub-account of an aggregator. Target ship 2026-05-13.
+</div>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-swatch green"></span>NEW screen / message</div>
+  <div class="legend-item"><span class="legend-swatch plain"></span>Existing screen for context</div>
+</div>
+
+<div class="toc">
+  <h3>Sections</h3>
+  <ol>
+    <li><a href="#a">Aggregator registers a driver — USSD flow (5 screens)</a></li>
+    <li><a href="#b">Welcome SMS to driver</a></li>
+    <li><a href="#c">Driver dials *920*54# — main menu + 3 sub-flows</a></li>
+    <li><a href="#d">Dispatch SMS — driver gets notified of assignment</a></li>
+    <li><a href="#e">Aggregator dispatch flow — new "Assign driver" step</a></li>
+    <li><a href="#f">Aggregator web dashboard — "My Drivers" section</a></li>
+  </ol>
+</div>
+
+<div class="box strategic">
+<h3>Design constraints honored</h3>
+Every USSD screen below respects: (a) Yam-phone visible-line cap of ~4-5 lines, (b) 4 menu items + 0-for-back maximum per <code>feedback_ussd_design_rules.md</code>, (c) no non-GSM-7 characters (no <code>→</code>, no cedi <code>₵</code>) per <code>feedback_ussd_at_session_timeout.md</code> + AT docs warning, (d) total response body under 182 chars even with longest interpolated values. SMS templates are checked under 160 chars (single segment).
+</div>
+
+<!-- ─────────────────────────────────────────── A: Register driver ───────── -->
+<div class="section" id="a">
+<div class="section-title">A. Aggregator registers a driver — USSD flow</div>
+<div class="section-desc">
+The aggregator dials <code>*920*54#</code>, enters PIN, navigates to <strong>1. Register</strong>. The submenu currently has <em>Collector</em> and <em>Agent</em>; we add <em>Driver</em> as option 3. Five-step flow mirrors the existing register-agent shape (first name → last name → phone → city → confirm), differs only in the success screen which shows the driver's <code>DRV-NNNN</code> code instead of a PIN reminder (drivers have no PIN — phone-only auth).
+</div>
+
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>14:32</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Register:
+1. Collector
+2. Agent
+3. Driver
+0. Back</div>
+    <div class="phone-label">Register submenu (now 4 + 0)</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>14:32</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter driver's
+first name:</div>
+    <div class="phone-label">Step 1 — first name</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>14:33</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Register driver:
+Kojo Asante
+0241555004
+Accra
+1. Confirm
+0. Cancel</div>
+    <div class="phone-label">Step 4 — confirm (city + phone shown)</div>
+    <div class="phone-note">Steps 2–3 (last name, phone, city) match register-agent shape exactly. Skipped here for brevity.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>14:33</span></div>
+    <div class="phone-screen"><span class="end">END</span> Kojo Asante registered!
+Code: DRV-0042
+Phone: 0241555004
+
+They can now dial
+*920*54# to confirm
+pickups.</div>
+    <div class="phone-label">Step 5 — success</div>
+    <div class="phone-note">No PIN reminder — drivers are phone-only. Welcome SMS fires from this step.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ─────────────────────────────────────────── B: Welcome SMS ───────── -->
+<div class="section" id="b">
+<div class="section-title">B. Welcome SMS to driver</div>
+<div class="section-desc">
+Sent automatically when the aggregator completes registration in section A. Driver code is included so they can identify themselves later if support is needed. SMS arrives within seconds of the aggregator pressing "Confirm".
+</div>
+
+<div class="flow">
+  <div>
+    <div class="sms" style="border:2px solid var(--accent);position:relative">
+      <span style="position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)">NEW</span>
+      <div class="sms-meta"><span>From: Circul</span><span>Mon 2:33 PM</span></div>
+      Welcome to Circul, Kojo! You're registered as driver for Addo Recovery. Your code: DRV-0042. Dial *920*54# to confirm pickups.
+    </div>
+    <div class="sms-len">~140 chars · 1 SMS segment · GHS 0.02 to send</div>
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────────── C: Driver USSD ───────── -->
+<div class="section" id="c">
+<div class="section-title">C. Driver dials *920*54#</div>
+<div class="section-desc">
+Drivers authenticate by phone alone — no PIN screen, no lockout flow. Main menu has 3 substantive options + Exit (compliant with the 4 + 0 rule). Three sub-flows: confirm pickup, recent confirmations, this week's stats.
+</div>
+
+<h3>Main menu (no PIN gate)</h3>
+<div class="flow">
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>09:14</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Circul Driver
+Welcome, Kojo!
+For: Addo Recovery
+1. Confirm pickup
+2. Recent confirmations
+3. This week
+0. Exit</div>
+    <div class="phone-label">Driver main menu</div>
+    <div class="phone-note">No PIN — phone match alone authenticates. Aggregator name shown so driver knows whose account this is.</div>
+  </div>
+</div>
+
+<h3>Confirm pickup flow</h3>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>09:14</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Pending pickups:
+1. 320kg PET
+   to Tema Processing
+2. 180kg HDPE
+   to Tema Processing
+3. 95kg LDPE
+   to GreenLine Recycling
+0. Back</div>
+    <div class="phone-label">List of dispatches assigned</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>09:15</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm pickup:
+320kg PET
+1. Confirm
+0. Cancel</div>
+    <div class="phone-label">Confirm prompt</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>09:15</span></div>
+    <div class="phone-screen"><span class="end">END</span> PICKUP CONFIRMED
+320kg PET
+Time logged.</div>
+    <div class="phone-label">Success</div>
+    <div class="phone-note">Aggregator dashboard updates in real time. <code>pending_transactions.driver_confirmed_at</code> stamped.</div>
+  </div>
+
+</div>
+
+<h3>Recent confirmations + this week</h3>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>09:16</span></div>
+    <div class="phone-screen"><span class="end">END</span> Recent confirmations:
+05-13 320kg PET
+05-12 180kg HDPE
+05-12 95kg LDPE
+05-10 220kg PET
+05-09 140kg HDPE</div>
+    <div class="phone-label">Last 5 — option 2</div>
+  </div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>09:16</span></div>
+    <div class="phone-screen"><span class="end">END</span> This week:
+8 pickups
+1240kg total
+
+For: Addo Recovery</div>
+    <div class="phone-label">Weekly stats — option 3</div>
+  </div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>09:16</span></div>
+    <div class="phone-screen"><span class="end">END</span> No pickups assigned
+to you right now.
+
+Dial again later.</div>
+    <div class="phone-label">Empty state — confirm pickup with no dispatches</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ─────────────────────────────────────────── D: Dispatch SMS ───────── -->
+<div class="section" id="d">
+<div class="section-title">D. Dispatch SMS — driver assignment notification</div>
+<div class="section-desc">
+Fires when an aggregator assigns a driver to a sale (section E below). The driver gets enough info to identify the load on the ground without dialing in.
+</div>
+
+<div class="flow">
+  <div>
+    <div class="sms" style="border:2px solid var(--accent);position:relative">
+      <span style="position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)">NEW</span>
+      <div class="sms-meta"><span>From: Circul</span><span>Tue 11:42 AM</span></div>
+      Kojo: dispatch assigned. 320kg PET to Tema Processing. Ref TXN-20260513-0042. Dial *920*54# to confirm pickup.
+    </div>
+    <div class="sms-len">~120 chars · 1 SMS segment · GHS 0.02 to send</div>
+  </div>
+</div>
+</div>
+
+<!-- ─────────────────────────────────────────── E: Aggregator assigns driver ─── -->
+<div class="section" id="e">
+<div class="section-title">E. Aggregator dispatch flow — new "Assign driver" step</div>
+<div class="section-desc">
+Today the aggregator's USSD sale flow ends with a confirm prompt. We add a driver-picker step <em>between</em> buyer selection and confirm. The step is <strong>optional</strong>: if the aggregator has no drivers registered, the picker is skipped entirely and the flow runs unchanged. If they have drivers, they pick one (or "skip" to record a dispatch with no driver assigned).
+</div>
+
+<div class="flow">
+
+  <div class="phone">
+    <div class="phone-header"><span>MTN</span><span>11:40</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Sell to:
+1. Tema Processing
+2. GreenLine Recycling
+3. Kpone Container
+0. Cancel</div>
+    <div class="phone-label">Existing — buyer selection</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>MTN</span><span>11:41</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Assign driver:
+1. Kojo Asante
+2. Yaw Tetteh
+3. Kwame Anane
+4. No driver / skip
+0. Cancel</div>
+    <div class="phone-label">NEW — driver picker (4 items + 0)</div>
+    <div class="phone-note">Skipped entirely if aggregator has no drivers registered. Existing flow unchanged in that case.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone">
+    <div class="phone-header"><span>MTN</span><span>11:41</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm sale:
+320kg PET
+to Tema Processing
+GHS 1280
+1. Confirm
+0. Cancel</div>
+    <div class="phone-label">Existing — confirm sale</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone">
+    <div class="phone-header"><span>MTN</span><span>11:42</span></div>
+    <div class="phone-screen"><span class="end">END</span> SALE LOGGED
+Ref: TXN-20260513-0042
+320kg PET to Tema
+Driver: Kojo Asante
+SMS sent.</div>
+    <div class="phone-label">UPDATED — success now mentions driver + SMS</div>
+    <div class="phone-note">Existing string slightly extended. Removes the <code>→</code> glyph that was in current SALE LOGGED screen — uses "to" instead per AT special-character warning.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ─────────────────────────────────────────── F: Web My Drivers ───────── -->
+<div class="section" id="f">
+<div class="section-title">F. Aggregator dashboard — "My Drivers" section</div>
+<div class="section-desc">
+New section on the aggregator dashboard. Read-only list of drivers belonging to this aggregator with stats per driver. Drivers are added via USSD only (no web add-driver form in MVP scope). Each driver row links to their activity log.
+</div>
+
+<div class="flow">
+
+  <div class="web new">
+    <div class="web-header">
+      <span>circul.polsia.app/aggregator-dashboard</span>
+      <span style="color:var(--text-3)">Addo Recovery · ag@circul.demo</span>
+    </div>
+    <div class="web-body">
+      <div class="web-section-head">My Drivers <span class="count">3 active</span></div>
+      <table class="web-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Code</th>
+            <th>Phone</th>
+            <th>City</th>
+            <th class="num">Pickups</th>
+            <th class="num">Total kg</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Kojo Asante</td>
+            <td class="code">DRV-0042</td>
+            <td class="code">0241555004</td>
+            <td>Accra</td>
+            <td class="num">8</td>
+            <td class="num">1,240</td>
+            <td><span class="pill pill-active">active</span></td>
+          </tr>
+          <tr>
+            <td>Yaw Tetteh</td>
+            <td class="code">DRV-0043</td>
+            <td class="code">0244111890</td>
+            <td>Accra</td>
+            <td class="num">5</td>
+            <td class="num">730</td>
+            <td><span class="pill pill-active">active</span></td>
+          </tr>
+          <tr>
+            <td>Kwame Anane</td>
+            <td class="code">DRV-0044</td>
+            <td class="code">0207223556</td>
+            <td>Tema</td>
+            <td class="num">2</td>
+            <td class="num">280</td>
+            <td><span class="pill pill-active">active</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<h3>Empty state</h3>
+<div class="flow">
+  <div class="web new">
+    <div class="web-header">
+      <span>circul.polsia.app/aggregator-dashboard</span>
+      <span style="color:var(--text-3)">Addo Recovery · ag@circul.demo</span>
+    </div>
+    <div class="web-body">
+      <div class="web-section-head">My Drivers</div>
+      <div class="empty-state">
+        No drivers yet. Register one via *920*54# → 1. Register → 3. Driver.
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- ─────────────────────────────────────────── Out of scope ───────── -->
+<div class="section">
+<div class="section-title">Explicitly out of MVP scope (deferred to post-rebuild)</div>
+<div class="box gap">
+  <ul style="margin-left:18px">
+    <li>Driver-facing web dashboard (drivers don't log into the web at all in MVP)</li>
+    <li>Driver ratings or performance scores beyond simple pickup count</li>
+    <li>Route assignment / dispatch optimization</li>
+    <li>In-app messaging between aggregator and driver</li>
+    <li>Earnings calculation visible to driver</li>
+    <li>Driver self-service: change phone, deactivate, etc. — all through aggregator</li>
+  </ul>
+</div>
+</div>
+
+</body>
+</html>

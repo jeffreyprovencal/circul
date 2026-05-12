@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform PIN policy alignment + USSD Aggregator-registers-Agent</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h2{font-size:1.05rem;color:var(--accent);margin:0 0 8px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1100px;line-height:1.65}
+.section{margin-bottom:56px;max-width:1400px;scroll-margin-top:20px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1100px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:240px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .warn{color:var(--amber);font-weight:700}
+.phone-screen .hint{color:var(--text-3);font-size:0.72rem}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:120px;flex-shrink:0}
+
+.web{width:380px;background:var(--surface);border:2px solid var(--border);border-radius:10px;overflow:hidden;flex-shrink:0;font-family:var(--font)}
+.web-header{background:#000;padding:10px 16px;font-size:0.74rem;color:var(--text-2);border-bottom:1px solid var(--border)}
+.web-body{padding:16px;font-size:0.78rem;color:var(--text-1)}
+.web-body .field{margin-bottom:12px}
+.web-body label{display:block;font-size:0.7rem;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em}
+.web-body input{width:100%;padding:7px 10px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:4px;font-size:0.85rem}
+.web-body .btn{padding:7px 14px;background:var(--accent);color:#000;border:0;border-radius:4px;font-weight:700;font-size:0.78rem;margin-top:6px}
+.web-body .removed{text-decoration:line-through;color:var(--text-3);opacity:0.6}
+.web-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+
+.new{border:2px solid var(--accent);position:relative}
+.new::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.fix{border:2px solid var(--amber);position:relative}
+.fix::after{content:'FIX';position:absolute;top:-10px;right:12px;background:var(--amber);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+
+.legend{display:flex;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-2)}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.yellow{border-color:var(--amber)}
+.legend-swatch.plain{border-color:var(--border)}
+
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1100px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.8;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1100px}
+.box h3{margin-top:0;color:var(--text-1)}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:6px 0 0 20px}
+.box li{margin-bottom:6px}
+.box.verified{border-left:3px solid var(--accent)}
+.box.assumed{border-left:3px solid var(--amber)}
+.box.strategic{border-left:3px solid var(--accent);background:#0a150e}
+.box.gap{border-left:3px solid var(--red);background:#1f0d0d}
+.box blockquote{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:8px 0;color:var(--text-1);font-size:0.88rem;line-height:1.65}
+
+.menu-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.menu-block{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.menu-block.before{border-color:var(--text-3)}
+.menu-block.after{border-color:var(--accent)}
+.menu-block .menu-head{padding:8px 14px;font-size:0.74rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase}
+.menu-block.before .menu-head{background:#1a1a1a;color:var(--text-3)}
+.menu-block.after .menu-head{background:rgba(0,230,118,0.12);color:var(--accent)}
+.menu-block ol{list-style:none;padding:12px 14px;font-family:'Courier New',monospace;font-size:0.82rem;line-height:1.9}
+.menu-block ol li{padding:0;color:var(--text-1)}
+.menu-block ol li.changed{color:var(--accent);font-weight:700}
+.menu-block ol li.deeper{color:var(--amber);padding-left:16px}
+</style>
+</head>
+<body>
+
+<h1>Platform PIN Policy Alignment + USSD Aggregator-registers-Agent</h1>
+<p class="subtitle">Two coupled changes shipping in one PR. <strong>(1)</strong> Closes a shipped-today gap: <code>must_change_pin</code> is set on USSD-registered users (PR #65 collectors, future agents) but NOT enforced on USSD login. The flag is descriptive, not enforced. Anyone registered today can dial in with default PIN <code>0000</code> indefinitely. <strong>(2)</strong> Adds the long-missing USSD aggregator-registers-agent path with proper PIN policy from day one — agent sets their own PIN at first login. Aligns web POST /api/agents to the same pattern. Per Jojo 2026-04-25: "CTO and soul-standard all the way."</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch yellow"></div> FIX — modified existing screen / endpoint</div>
+  <div class="legend-item"><div class="legend-swatch green"></div> NEW — net-new screen / endpoint</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div> Unchanged</div>
+</div>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#why">Strategic context — why these two changes ship together</a></li>
+    <li><a href="#findings">Verified findings — current state of <code>must_change_pin</code></a></li>
+    <li><a href="#schema">Schema — add <code>must_change_pin</code> to <code>agents</code></a></li>
+    <li><a href="#gate">USSD force-change-PIN gate (shared, all 3 roles)</a></li>
+    <li><a href="#menu">USSD aggregator menu refactor — Register sub-menu</a></li>
+    <li><a href="#flow">USSD register-agent flow (no PIN entry)</a></li>
+    <li><a href="#web">Web changes — POST /api/agents + form + client login</a></li>
+    <li><a href="#edges">Edge cases</a></li>
+    <li><a href="#backend">Backend touch points</a></li>
+    <li><a href="#decisions">Locked decisions</a></li>
+    <li><a href="#verified-vs-assumed">Verified vs Assumed</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §1 STRATEGIC CONTEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="why">
+<div class="section-title">1. Strategic context</div>
+
+<div class="box strategic">
+<blockquote>"I think we should have agents set their own PINs. How do we do that?" + "CTO and soul-standard all the way!" — Jojo, 2026-04-25</blockquote>
+<p style="margin-top:10px">The original PR scope was USSD parity for agent registration. Verifying the <code>must_change_pin</code> flow surfaced a deeper gap: the column is set, the web client probably enforces it, but the USSD login flows do NOT. That means every collector registered via PR #65 today can dial in with PIN <code>0000</code> forever. Latent shipped-today security gap.</p>
+<p style="margin-top:10px">Soul-standard read: ship the policy fix and the new feature together. Building the USSD force-change-PIN gate just for agents and not for collectors/aggregators would mean the gap stays open for every user already in the system. One shared helper, three call sites, closes the gap universally.</p>
+</div>
+
+<div class="box">
+<h3>Coupling rationale</h3>
+<ul>
+  <li><strong>USSD force-change-PIN gate</strong> is a shared helper. Once built, calling it from the agent login is one line. Calling it from collector + aggregator login is one line each. Trivial reuse, large security improvement.</li>
+  <li><strong>Web POST /api/agents</strong> needs the same policy: drop PIN from input, set defaults, agent picks at first login. Otherwise web-registered agents have aggregator-known PINs forever and USSD-registered agents don't — bad data model.</li>
+  <li><strong>USSD register-agent flow</strong> (the originally-scoped change) is the new feature. Without #1 and #2 it'd ship with the same latent issue we're fixing for collectors.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §2 VERIFIED FINDINGS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="findings">
+<div class="section-title">2. Verified findings — current state of <code>must_change_pin</code></div>
+
+<div class="box verified">
+<h3>What works</h3>
+<ul>
+  <li>Column exists on <code>collectors</code> and <code>aggregators</code>. Migrations: <code>1776300000000_add_must_change_pin.sql</code> + <code>1777500000000_add_aggregators_must_change_pin.sql</code>.</li>
+  <li>USSD register-collector (PR #65) sets <code>must_change_pin = true</code> at INSERT (server.js:4663, 4712).</li>
+  <li>USSD aggregator-registration-completion (PR #63) likely sets it for new aggregators (verify during implementation).</li>
+  <li>Cleared correctly in three places: change-PIN endpoint (server.js:363), Forgot PIN reset (server.js:3221), admin-initiated reset (server.js:7134).</li>
+  <li>Web login response includes the flag: <code>must_change_pin: !!c.must_change_pin</code> (server.js:6626). Client side (web aggregator-dashboard / collector-dashboard / etc.) presumably enforces a change-PIN modal.</li>
+</ul>
+</div>
+
+<div class="box gap">
+<h3 style="color:#ef5350">Gap: USSD does NOT enforce <code>must_change_pin</code></h3>
+<p>Read at server.js:3376 (<code>handleRegisteredUssd</code> for collectors), server.js:3206 (<code>handleAggregatorUssd</code>), and the agent login handler. Pattern in all three:</p>
+<ol>
+  <li>Welcome + PIN prompt</li>
+  <li>Validate PIN against scrypt hash</li>
+  <li>Lockout after 3 wrong PINs</li>
+  <li>Drop straight into the role's main menu</li>
+</ol>
+<p style="margin-top:10px"><strong>No <code>must_change_pin</code> check.</strong> The flag is set in the database but never gated on USSD login. Every USSD-registered user today (collectors via PR #65, future agents) gets to use the platform with their default <code>0000</code> PIN indefinitely.</p>
+</div>
+
+<div class="box">
+<h3>Existing infrastructure we reuse</h3>
+<ul>
+  <li>The change-PIN UPDATE pattern at server.js:3221 (<code>UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2</code>) — exactly what the new gate calls after a successful change.</li>
+  <li><code>hashPassword()</code> for new PIN hashing.</li>
+  <li><code>verifyPassword()</code> for PIN entry validation (already used in login flows).</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §3 SCHEMA -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="schema">
+<div class="section-title">3. Schema — add <code>must_change_pin</code> to <code>agents</code></div>
+
+<div class="box">
+<p>Tiny migration. Same shape as the existing collector + aggregator migrations.</p>
+<pre style="background:#0a150e;padding:12px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.55">-- migrations/1777800000000_add_agents_must_change_pin.sql
+ALTER TABLE agents
+  ADD COLUMN IF NOT EXISTS must_change_pin BOOLEAN DEFAULT false;</pre>
+<p style="margin-top:10px">Default false so existing agent rows are untouched (their aggregator-set PINs continue to work). New rows from the changed web endpoint and new USSD register-agent flow will set <code>must_change_pin = true</code> explicitly.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §4 USSD FORCE-CHANGE-PIN GATE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="gate">
+<div class="section-title">4. USSD force-change-PIN gate (shared, all 3 roles)</div>
+<div class="section-desc">A new shared helper called from <code>handleRegisteredUssd</code> (collectors), <code>handleAggregatorUssd</code>, and the agent equivalent. Intercepts after PIN verification when <code>must_change_pin = true</code>. User picks a new PIN, confirms, and is bridged to their role's main menu. Same screens regardless of role.</p>
+
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Akua · agent</span></div>
+    <div class="phone-screen"><span class="con">CON</span> You must set a new PIN.
+
+Enter new 4-digit PIN:
+4–6 digits, numbers only.
+Avoid 0000, 1234, or your
+birth year.</div>
+    <div class="phone-label">G1 · prompt new PIN</div>
+    <div class="phone-note">Triggered when fetched user has <code>must_change_pin = true</code>. Body wording (`Enter new 4-digit PIN: / 4–6 digits, numbers only. / Avoid 0000, 1234, or your birth year.`) reused verbatim from the existing Forgot-PIN reset flow at server.js:3195. The leading line `You must set a new PIN.` is gate-specific because the entry context differs (gate intercepts unexpectedly; Forgot-PIN reset is user-initiated).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Set new PIN</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm new PIN:</div>
+    <div class="phone-label">G2 · confirm new PIN</div>
+    <div class="phone-note">Verbatim from server.js:3204 (existing Forgot-PIN reset confirm screen). Same wording across all roles AND across both flows (gate + Forgot-PIN reset).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>PIN saved</span></div>
+    <div class="phone-screen"><span class="con">CON</span> PIN saved!
+
+Use this PIN next time
+you log in.
+
+1. Continue
+0. Exit</div>
+    <div class="phone-label">G3 · success bridge</div>
+    <div class="phone-note">Atomic UPDATE: <code>UPDATE ${userTable} SET pin = $1, must_change_pin = false WHERE id = $2</code>. Body line `Use this PIN next time you log in.` aligns with the Forgot-PIN reset success screen (server.js:3240), which is updated in this PR to use the same body line. Headers stay context-specific (`PIN saved!` for gate's first-time set, `PIN reset successfully.` for Forgot-PIN's recovery action — they describe different events accurately).</div>
+  </div>
+
+</div>
+
+<div class="box">
+<h3>Platform vocabulary alignment (callout)</h3>
+<p>The gate's three screens reuse existing platform vocabulary deliberately:</p>
+<ul>
+  <li><strong>G1 body</strong> = verbatim from server.js:3195 (Forgot-PIN reset entry).</li>
+  <li><strong>G2</strong> = verbatim from server.js:3204 (Forgot-PIN reset confirm).</li>
+  <li><strong>G3 body line "Use this PIN next time you log in"</strong> = NEW, but applied to BOTH the gate AND the existing Forgot-PIN reset success screen (server.js:3240) so the platform speaks one voice for "you just changed/set your PIN" moments.</li>
+</ul>
+<p style="margin-top:8px">All three screens render identically regardless of role (collector / aggregator / agent). The shared helper passes the same return strings; only the post-bridge route to the role's main menu differs.</p>
+</div>
+
+<div class="box">
+<h3>Helper signature</h3>
+<pre style="background:#0a150e;padding:10px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.74rem;line-height:1.55">async function gateForceChangePin(m, user, userTable) {
+  // m = parts.slice(pinIndex + 1) — what's after the valid PIN
+  // user = fetched row with must_change_pin field
+  // userTable = 'collectors' | 'aggregators' | 'agents'
+  //
+  // Returns: { needsGate, response, menuParts }
+  //   needsGate: true if caller should return `response` directly
+  //   response: USSD response while in the change-PIN flow (or after)
+  //   menuParts: defined when needsGate=false; the offset slice for main-menu use
+}</pre>
+<p style="margin-top:10px">Each role's login handler calls this immediately after PIN validation, before its existing <code>const m = parts.slice(pinIndex + 1)</code> menu logic. If <code>needsGate</code> is true, return the response. Otherwise use <code>menuParts</code> instead of <code>m</code> as the input to the existing menu logic.</p>
+</div>
+
+<div class="box">
+<h3>Depth math (the tricky part)</h3>
+<p>USSD callbacks replay the full input history. Within the gate's lifetime, <code>m</code> contains:</p>
+<ul>
+  <li><code>m[0]</code> = new PIN</li>
+  <li><code>m[1]</code> = confirmation PIN</li>
+  <li><code>m[2]</code> = bridge response (<code>1</code> continue / <code>0</code> exit)</li>
+  <li><code>m[3+]</code> = main menu navigation (after bridge=1)</li>
+</ul>
+<p style="margin-top:10px">After successful change, <code>must_change_pin</code> is FALSE in the DB. Subsequent callbacks within the same session re-fetch user → <code>must_change_pin = false</code> → gate returns immediately with <code>menuParts = m.slice(3)</code>. The role's existing main-menu logic sees <code>menuParts</code> as if it had been the depth-0 input.</p>
+<p style="margin-top:6px"><strong>Important:</strong> the gate must return <code>menuParts = m.slice(3)</code> ONLY when both (a) the change has been committed AND (b) the bridge response was <code>1</code>. The simplest implementation: gate inspects <code>m</code>, finds the change sequence at <code>[0,1,2]</code>, and slices accordingly. If the user has not yet completed all three steps, gate is still active and returns its own response.</p>
+</div>
+
+<div class="box">
+<h3>Validation + edge cases</h3>
+<ul>
+  <li><strong>Invalid new PIN format</strong> (not 4-6 digits): <code>END PIN must be 4-6 digits.\nDial *920*54# to retry.</code></li>
+  <li><strong>Mismatch on confirm</strong>: <code>END PINs don't match.\nDial *920*54# to retry.</code></li>
+  <li><strong>User picks <code>0</code> at the bridge</strong>: <code>END Done. Dial *920*54# again to use the platform.</code></li>
+  <li><strong>User typed default <code>0000</code> as new PIN</strong>: validation passes (0000 is 4 digits). Allowed but should we discourage? My read: don't discourage; it's their PIN to pick. Adding an "easy PIN" warning is post-pilot scope.</li>
+  <li><strong>Mid-flow drop</strong>: USSD session ends, no commit happened, next dial starts gate from depth 0. Safe.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §5 USSD MENU REFACTOR -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="menu">
+<div class="section-title">5. USSD aggregator menu refactor — Register sub-menu</div>
+<div class="section-desc">Per Jojo's call: top-level <code>1</code> becomes a "Register" sub-menu containing both Collector and Agent. Replaces PR #65's "Register Collector" top-level slot. Semantic grouping that scales for future registration types.</p>
+
+<div class="menu-compare">
+  <div class="menu-block before">
+    <div class="menu-head">Before — current (post PR #65)</div>
+    <ol>
+      <li>1. Register Collector</li>
+      <li>2. Log Transaction</li>
+      <li>3. Pending Drop-offs</li>
+      <li>4. More</li>
+      <li class="deeper">→ 1. Marketplace</li>
+      <li class="deeper">→ 2. My Stats</li>
+      <li class="deeper">→ 0. Back</li>
+      <li>0. Exit</li>
+    </ol>
+  </div>
+  <div class="menu-block after">
+    <div class="menu-head">After — Register sub-menu</div>
+    <ol>
+      <li class="changed">1. Register</li>
+      <li class="deeper changed">→ 1. Collector</li>
+      <li class="deeper changed">→ 2. Agent ← NEW</li>
+      <li class="deeper">→ 0. Back</li>
+      <li>2. Log Transaction</li>
+      <li>3. Pending Drop-offs</li>
+      <li>4. More</li>
+      <li class="deeper">→ 1. Marketplace</li>
+      <li class="deeper">→ 2. My Stats</li>
+      <li class="deeper">→ 0. Back</li>
+      <li>0. Exit</li>
+    </ol>
+  </div>
+</div>
+
+<div class="box">
+<h3>Inline-at-purchase still works</h3>
+<p>PR #65 added an inline path: when an aggregator enters a phone in Buy-from-collector that doesn't match a registered collector, prompt to register inline. That branch routes into <code>handleAggregatorRegister(parts, aggregator, prefilledPhone)</code>. After the menu refactor, the inline branch still routes to the same function (just renamed if needed) — no UX change for aggregators using the inline flow.</p>
+<p style="margin-top:6px">No inline path for agents — agents aren't transaction counterparties. Top-level Register → Agent is the only entry point.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §6 USSD REGISTER-AGENT FLOW -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="flow">
+<div class="section-title">6. USSD register-agent flow (6 screens, no PIN entry)</div>
+<div class="section-desc">Aggregator picks <code>1. Register → 2. Agent</code>. Six-screen flow — no PIN-entry step now that agents pick their own PIN at first login. Mirrors register-collector closely; the field collection is identical.</p>
+
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · choose</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Register:
+1. Collector
+2. Agent
+0. Back</div>
+    <div class="phone-label">A1 · Register sub-menu</div>
+    <div class="phone-note">Aggregator picks <strong>2</strong>.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register Agent · step 1</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter agent's
+first name:</div>
+    <div class="phone-label">A2 · enter first name</div>
+    <div class="phone-note">User types first name (e.g. <code>Akua</code>).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register Agent · step 2</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter agent's
+last name:</div>
+    <div class="phone-label">A3 · enter last name</div>
+    <div class="phone-note">User types last name (e.g. <code>Mensah</code>).</div>
+  </div>
+
+</div>
+
+<div class="flow" style="margin-top:24px">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register Agent · step 3</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter agent's
+phone number:
+<span class="hint">(e.g. 0207973412)</span></div>
+    <div class="phone-label">A4 · enter phone</div>
+    <div class="phone-note">Phone normalization via <code>normalizeGhanaPhone()</code>.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register Agent · step 4</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Select city:
+1. Accra
+2. Kumasi
+3. Tamale
+9. More
+0. Cancel</div>
+    <div class="phone-label">A5a · paginated city picker</div>
+    <div class="phone-note">Reuses <code>USSD_CITIES_LIST</code>. Same paginated picker as PR #65.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register Agent · step 5</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Register agent:
+Name: Akua Mensah
+Phone: 0207973412
+City: Accra
+
+1. Confirm
+2. Cancel</div>
+    <div class="phone-label">A6 · confirm</div>
+    <div class="phone-note">No PIN field shown. Agent will set their own PIN on first dial.</div>
+  </div>
+
+</div>
+
+<div class="flow" style="margin-top:24px">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register Agent · success</span></div>
+    <div class="phone-screen"><span class="end">END</span> Agent registered!
+
+Akua Mensah
+Phone: 0207973412
+
+Tell them to dial
+*920*54# and use PIN
+0000 — they'll be
+asked to set their
+own PIN.</div>
+    <div class="phone-label">A7 · success</div>
+    <div class="phone-note">Aggregator now knows the bootstrap PIN <code>0000</code> only — they tell agent verbally. On agent's first dial, the gate forces a change. Aggregator never sees the agent's actual PIN.</div>
+  </div>
+
+</div>
+
+<div class="box">
+<h3>INSERT shape</h3>
+<pre style="background:#0a150e;padding:10px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.74rem;line-height:1.55">INSERT INTO agents
+  (aggregator_id, first_name, last_name, phone, pin, city, region, must_change_pin)
+VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+RETURNING id;</pre>
+<p style="margin-top:10px">Where <code>$5</code> = <code>await hashPassword('0000')</code>. Note <code>must_change_pin = true</code> baked in. <code>ghana_card</code> column omitted (left NULL — agents can add via web later).</p>
+<h3>Audit trail</h3>
+<p>Insert into <code>agent_activity</code> with <code>action_type = 'registered'</code>, <code>description = 'Agent registered by aggregator (USSD)'</code>. Mirrors web pattern; "(USSD)" suffix distinguishes from web-registered for future analytics.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §7 WEB CHANGES -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="web">
+<div class="section-title">7. Web changes — POST /api/agents + form + client login enforcement</div>
+<div class="section-desc">Three coordinated changes to bring web to parity with the USSD flow's PIN policy. Otherwise web-registered agents would keep aggregator-set PINs while USSD-registered ones force-change — bad data model.</p>
+
+<h3 style="color:var(--accent)">7.1 POST /api/agents endpoint (server.js:8131)</h3>
+
+<div class="box">
+<h3>Before</h3>
+<pre style="background:#0a150e;padding:10px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.74rem;line-height:1.55">const { first_name, last_name, phone, pin, city, region, ghana_card } = req.body;
+if (!first_name || !last_name || !phone || !pin) {
+  return res.status(400).json({ success: false, message: 'first_name, last_name, phone, pin required' });
+}
+if (pin.length &lt; 4 || pin.length &gt; 6 || !/^\d+$/.test(pin)) return res.status(400).json({ ... });
+const hashedPin = await hashPassword(pin.trim());
+INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8)</pre>
+
+<h3>After</h3>
+<pre style="background:#0a150e;padding:10px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.74rem;line-height:1.55">const { first_name, last_name, phone, city, region, ghana_card } = req.body;  // pin removed
+if (!first_name || !last_name || !phone) {
+  return res.status(400).json({ success: false, message: 'first_name, last_name, phone required' });
+}
+const hashedPin = await hashPassword('0000');  // bootstrap default
+INSERT INTO agents (aggregator_id, first_name, last_name, phone, pin, city, region, ghana_card, must_change_pin)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8, true)</pre>
+<p style="margin-top:10px">PIN dropped from required input. Server hashes <code>0000</code> bootstrap. <code>must_change_pin = true</code> baked in. Same behavior as USSD register-agent flow.</p>
+</div>
+
+<h3 style="color:var(--accent);margin-top:24px">7.2 Aggregator dashboard register-agent form (aggregator-dashboard.html:714)</h3>
+
+<div class="flow">
+
+  <div class="web fix">
+    <div class="web-header">aggregator-dashboard.html — Register Agent form</div>
+    <div class="web-body">
+      <div class="field">
+        <label>First name</label>
+        <input value="Akua">
+      </div>
+      <div class="field">
+        <label>Last name</label>
+        <input value="Mensah">
+      </div>
+      <div class="field">
+        <label>Phone</label>
+        <input value="0207973412">
+      </div>
+      <div class="field removed">
+        <label>PIN (4-6 digits)</label>
+        <input value="" disabled>
+        <div style="font-size:0.7rem;color:var(--text-3);margin-top:4px">— REMOVED — agent will set their own PIN at first login</div>
+      </div>
+      <div class="field">
+        <label>City (optional)</label>
+        <input value="Accra">
+      </div>
+      <button class="btn">Register Agent</button>
+    </div>
+    <div class="web-label">Register Agent — PIN field removed</div>
+  </div>
+
+</div>
+
+<div class="box">
+<p>Form drops the PIN input field. Submit handler no longer sends <code>pin</code> to the endpoint. Success message tells the aggregator to communicate bootstrap PIN <code>0000</code> verbally.</p>
+</div>
+
+<h3 style="color:var(--accent);margin-top:24px">7.3 Web client-side <code>must_change_pin</code> enforcement for agents</h3>
+
+<div class="box">
+<p>Web login at server.js:6620 returns <code>must_change_pin: !!c.must_change_pin</code> in the user payload. Whether the web client (aggregator-dashboard / agent-dashboard / collector-dashboard / etc.) enforces a change-PIN modal when this is true is a frontend concern.</p>
+<p style="margin-top:10px"><strong>Verify during implementation:</strong> grep the dashboard JS for handling of <code>must_change_pin</code> in the login flow. If collectors and aggregators have a force-change modal but agents don't, build it for agents using the same pattern. If nobody has it (frontend gap), build it for all three with one shared modal component.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §8 EDGE CASES -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="edges">
+<div class="section-title">8. Edge cases</div>
+
+<div class="box">
+<h3>Existing agents (must_change_pin = false)</h3>
+<p>Existing agent rows have <code>must_change_pin = false</code> by default (column added via migration with that default). Their aggregator-set PINs continue to work. No forced change. They opt in via the existing change-PIN flow if they want.</p>
+<p style="margin-top:6px"><strong>Should we backfill existing agents to <code>must_change_pin = true</code>?</strong> No. Backfilling would force every existing agent to change PIN on next login — disruptive for users mid-pilot. The new policy applies to agents going forward; legacy agents stay on their existing setup until they Forgot-PIN-reset or change voluntarily.</p>
+</div>
+
+<div class="box">
+<h3>Existing collectors registered via PR #65 today</h3>
+<p>These rows have <code>must_change_pin = true</code> ALREADY. Once the gate ships, their next USSD dial intercepts and forces a change. That's the intended behavior — they were always supposed to change, the platform just wasn't enforcing it. <strong>This fixes a shipped-today gap retroactively.</strong></p>
+</div>
+
+<div class="box">
+<h3>User picks "0. Exit" at the bridge (G3)</h3>
+<p><code>END Done. Dial *920*54# again to use the platform.</code> Their PIN change is committed (between G2 confirm and G3 bridge), so they can now log in fresh with their new PIN.</p>
+</div>
+
+<div class="box">
+<h3>Race: user changes PIN via two devices simultaneously</h3>
+<p>Highly unlikely in pilot. If it happens, both UPDATEs commit; the second one wins. <code>must_change_pin</code> is false in either case. No data integrity issue.</p>
+</div>
+
+<div class="box">
+<h3>User locked out before reaching the gate</h3>
+<p>Gate runs AFTER PIN validation. If user fails 3 PIN attempts, lockout fires before the gate. Gate is never reached. After lockout, Forgot-PIN reset routes through the existing reset flow, which sets a new PIN and clears <code>must_change_pin</code>. Gate doesn't fire on the next login. Correct.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §9 BACKEND TOUCH POINTS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="backend">
+<div class="section-title">9. Backend touch points</div>
+
+<div class="box">
+<h3>New code</h3>
+<ul>
+  <li><strong>Migration</strong> (1 file): <code>migrations/1777800000000_add_agents_must_change_pin.sql</code>.</li>
+  <li><strong>Shared helper</strong>: <code>gateForceChangePin(m, user, userTable)</code> — somewhere near the existing PIN-related helpers in server.js.</li>
+  <li><strong>New USSD handler</strong>: <code>handleAggregatorRegisterAgent(parts, aggregator)</code>. Mirrors PR #65's <code>handleAggregatorRegister</code> structure with no PIN entry step and the <code>agent_activity</code> audit instead of <code>admin_audit_log</code>.</li>
+</ul>
+</div>
+
+<div class="box">
+<h3>Modified code</h3>
+<ul>
+  <li><code>handleRegisteredUssd</code> (server.js:3376) — call <code>gateForceChangePin</code> after PIN validation, use returned <code>menuParts</code> instead of <code>m</code>.</li>
+  <li><code>handleAggregatorUssd</code> (server.js:3206) — same change. Plus the menu refactor (sub-menu for Register).</li>
+  <li>Agent USSD login handler (find via grep — likely near server.js:4244 based on earlier audit) — same gate insertion.</li>
+  <li><code>POST /api/agents</code> (server.js:8131) — drop PIN from body, set defaults.</li>
+  <li><code>public/aggregator-dashboard.html</code> — Register Agent form, drop PIN field.</li>
+  <li>Web client login flow — verify and/or build <code>must_change_pin</code> enforcement for agents.</li>
+  <li><strong>Forgot-PIN reset success copy (server.js:3240)</strong> — change body line from <code>"Dial *920*54# and log in with your new PIN."</code> to <code>"Use this PIN next time you log in."</code> for platform vocabulary alignment with the new gate.</li>
+  <li><strong>Collector-registration success copy</strong> at server.js:4674 (aggregator-registers-collector) AND server.js:4723 (agent-registers-collector) — change <code>"Ask them to change their PIN on first use."</code> to <code>"They'll be asked to set their own PIN at first use."</code> for accuracy after force-change gate ships. Same one-line edit, two locations.</li>
+</ul>
+</div>
+
+<div class="box">
+<h3>Tests / smoke</h3>
+<p>Ship the smoke test plan in the implementation prompt:</p>
+<ul>
+  <li>Register a collector via USSD (existing PR #65 path) → log out → log in with PIN <code>0000</code> → <strong>verify gate fires</strong>, change PIN, land in collector main menu. Re-dial → log in with new PIN, no gate. Pre-existing-shipped collectors get the gate retroactively.</li>
+  <li>Register an agent via the new USSD path → log out → log in as agent with PIN <code>0000</code> → gate fires → change → main menu.</li>
+  <li>Register an agent via web (POST /api/agents, no PIN supplied) → log in as agent → gate fires (USSD) and modal fires (web).</li>
+  <li>Existing agent (must_change_pin=false) → log in → no gate. Confirm pre-existing data isn't disrupted.</li>
+  <li>Forgot PIN flow on any role → reset → must_change_pin clears → no gate on next login.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §10 LOCKED DECISIONS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="decisions">
+<div class="section-title">10. Locked decisions</div>
+
+<div class="box">
+<ul>
+  <li><strong>Force-change-PIN gate is universal</strong> — fires on any USSD login where <code>must_change_pin = true</code>, for all three roles (collector / aggregator / agent). Closes the latent gap shipped with PR #65 retroactively.</li>
+  <li><strong>Web parity</strong> — agent registration via web also drops the PIN field. Bootstrap PIN <code>0000</code>, force-change at first login. Consistent across web and USSD.</li>
+  <li><strong>Bootstrap PIN is <code>0000</code></strong>. Aggregator tells agent verbally; agent forced to change immediately. No SMS to the agent.</li>
+  <li><strong>Aggregator menu refactor</strong> — top-level <code>1</code> becomes "Register" sub-menu (Collector / Agent). Replaces PR #65's "Register Collector" top-level slot.</li>
+  <li><strong>USSD register-agent flow is 6 screens</strong> (not 7) — no PIN-entry step.</li>
+  <li><strong>Audit trail</strong> — <code>agent_activity</code> with <code>action_type='registered'</code>, description distinguishes USSD vs web via suffix.</li>
+  <li><strong>No backfill</strong> for existing agents — <code>must_change_pin</code> stays false on legacy rows.</li>
+  <li><strong>Bridge after successful change</strong> — <code>1. Continue / 0. Exit</code> rather than END-and-redial. Lower friction.</li>
+  <li><strong>Edge: 0000 as new PIN.</strong> Allowed (it's their PIN). No "easy PIN" warning pre-pilot.</li>
+  <li><strong>Gate copy is role-agnostic.</strong> G1 / G2 / G3 render identically for collectors, aggregators, and agents. Shared helper, single source of truth.</li>
+  <li><strong>Platform vocabulary alignment.</strong> G1 body = verbatim from Forgot-PIN reset entry (server.js:3195). G2 = verbatim from Forgot-PIN reset confirm (server.js:3204). G3 body line `"Use this PIN next time you log in."` is new, applied to BOTH the gate AND the Forgot-PIN reset success screen (server.js:3240 updated as part of this PR).</li>
+  <li><strong>Collector-registration success screen</strong> updated for accuracy: `"They'll be asked to set their own PIN at first use."` (replaces `"Ask them to change their PIN on first use."` which implied voluntary). Applies to both aggregator-registers-collector (server.js:4674) and agent-registers-collector (server.js:4723).</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §11 VERIFIED VS ASSUMED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified-vs-assumed">
+<div class="section-title">11. Verified vs Assumed</div>
+
+<div class="box verified">
+<h3>Verified against current main (prod tip <code>5878096</code>)</h3>
+<ul>
+  <li><code>must_change_pin</code> column on collectors + aggregators (verified via migrations).</li>
+  <li>Set to true on USSD register-collector at server.js:4663 / 4712 (PR #65).</li>
+  <li>Cleared in three places: server.js:363, 3221, 7134.</li>
+  <li>Web login returns the flag at server.js:6626.</li>
+  <li>USSD login flows do NOT check the flag — verified by reading <code>handleRegisteredUssd</code> (server.js:3376) and <code>handleAggregatorUssd</code> (server.js:3206) end to end.</li>
+  <li>Existing change-PIN UPDATE at server.js:3221 has the right shape to reuse.</li>
+  <li><code>POST /api/agents</code> at server.js:8131 — full body verified.</li>
+  <li><code>agents</code> table created in <code>migrations/1776600000000_batch8b_and_batch9.js</code> — no <code>must_change_pin</code> column today.</li>
+  <li>Aggregator USSD "More" sub-menu added in PR #65 — main menu shape verified.</li>
+</ul>
+</div>
+
+<div class="box assumed">
+<h3>Assumed (verify during implementation prompt drafting)</h3>
+<ul>
+  <li><strong>Web client-side <code>must_change_pin</code> enforcement.</strong> Returned by login but client behavior not yet read. Implementation prompt grep step: locate login response handling in dashboard JS files, verify modal/redirect for <code>must_change_pin = true</code>, build for agents if missing.</li>
+  <li><strong>Aggregator USSD register-completion flow (PR #63)</strong> sets <code>must_change_pin = true</code> on new aggregators. Almost certainly does given the migration exists, but verify the INSERT site.</li>
+  <li><strong>Agent USSD login handler location</strong> — search for the function that handles dial-in by an agent's phone. Likely near the other handle*Ussd functions.</li>
+  <li><strong>Forgot-PIN reset flow</strong> on USSD already clears <code>must_change_pin</code> via the existing helper at server.js:3221. Verify the reset doesn't accidentally re-set it true.</li>
+</ul>
+</div>
+
+<div class="box">
+<h3>Could be wrong if</h3>
+<ul>
+  <li>The web client already has <code>must_change_pin</code> enforcement for agents and the implementation re-builds it. Mitigation: pre-flight grep confirms before writing new code.</li>
+  <li>The depth-math in the gate has a subtle bug under USSD's stateless replay. Mitigation: smoke test plan in §9 covers the round-trip explicitly.</li>
+  <li>The bootstrap PIN <code>0000</code> being a constant string in the code creates an attack vector if leaked. Mitigation: same risk as the existing collector pattern shipped via PR #65; not new with this change.</li>
+</ul>
+</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD Phase 1 — Collector Flow Mockup</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.4rem;color:var(--accent);margin-bottom:4px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:32px}
+.section{margin-bottom:48px}
+.section-title{font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:800px}
+
+/* Phone mockup */
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:280px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .prompt{color:var(--accent);font-weight:700}
+.phone-screen .input{color:#ffd54f;font-style:italic}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+
+/* Arrow between phones */
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:100px;flex-shrink:0}
+
+/* Change markers */
+.change{border:2px solid var(--accent);position:relative}
+.change::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.fix{border:2px solid #ffd54f;position:relative}
+.fix::after{content:'FIX';position:absolute;top:-10px;right:12px;background:#ffd54f;color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+
+/* Comparison table */
+.compare{width:100%;border-collapse:collapse;margin:16px 0;font-size:0.8rem}
+.compare th{text-align:left;padding:8px 12px;background:var(--border);color:var(--accent);font-weight:600;font-size:0.72rem;letter-spacing:0.04em}
+.compare td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+.compare .old{color:var(--red);text-decoration:line-through;opacity:0.7}
+.compare .new{color:var(--accent)}
+.compare .unchanged{color:var(--text-2)}
+
+/* Legend */
+.legend{display:flex;gap:20px;margin-bottom:24px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.yellow{border-color:#ffd54f}
+.legend-swatch.plain{border-color:var(--border)}
+
+/* Text depth diagram */
+.depth{font-family:'Courier New',monospace;font-size:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin:12px 0;overflow-x:auto;white-space:pre;line-height:1.7;color:var(--text-2)}
+.depth .hl{color:var(--accent);font-weight:700}
+</style>
+</head>
+<body>
+
+<h1>USSD Phase 1 — Collector Flow Mockup</h1>
+<p class="subtitle">Green border = new screen · Yellow border = fix to existing screen · No border = unchanged</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch green"></div> New screen / feature</div>
+  <div class="legend-item"><div class="legend-swatch yellow"></div> Fix to existing screen</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div> Unchanged from MVP</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 1: REGISTRATION FLOW -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">1. Registration Flow (Unregistered Phone)</div>
+<div class="section-desc">User dials *920*123# from a phone not in the collectors table. One fix: PIN is now hashed with scrypt before storing, matching the web dashboard format.</div>
+
+<div class="flow">
+  <div class="phone">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 1 · text = ""</div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+
+1. Register
+2. Exit</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 2 · text = "1"</div>
+    <div class="phone-screen"><span class="con">CON</span> Enter your first name:</div>
+    <div class="phone-note">User types: <b>Kwame</b></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 3 · text = "1*Kwame"</div>
+    <div class="phone-screen"><span class="con">CON</span> Enter last name
+(0 to skip):</div>
+    <div class="phone-note">User types: <b>Asante</b></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 4 · text = "1*Kwame*Asante"</div>
+    <div class="phone-screen"><span class="con">CON</span> Select your city:
+1. Accra
+2. Kumasi
+3. Tamale
+4. Takoradi</div>
+    <div class="phone-note">User presses: <b>1</b> (Accra)</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 5 · text = "1*Kwame*Asante*1"</div>
+    <div class="phone-screen"><span class="con">CON</span> Create a 4-digit PIN:</div>
+    <div class="phone-note">User types: <b>1234</b></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 6 · text = "1*Kwame*Asante*1*1234"</div>
+    <div class="phone-screen"><span class="end">END</span> Registered! Welcome Kwame.
+City: Accra
+Dial again to start.</div>
+    <div class="phone-note">PIN hashed with scrypt before INSERT (was plaintext)</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 2: LOG DROP-OFF FLOW -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">2. Log Drop-off Flow (Registered Collector)</div>
+<div class="section-desc">The biggest changes: aggregator selection screen, price pulled from aggregator's posted price, writes to pending_transactions (not transactions), and shows a reference number + aggregator contact.</div>
+
+<div class="flow">
+  <div class="phone">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 1 · text = ""</div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome Kwame!
+Enter your PIN:</div>
+    <div class="phone-note">User types: <b>1234</b></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 2 · text = "1234"</div>
+    <div class="phone-screen"><span class="con">CON</span> 1. Log Drop-off
+2. My Stats
+3. Prices Near Me
+0. Exit</div>
+    <div class="phone-note">Menu renamed + expanded (was: Log Collection, Check Balance, Exit)</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 3 · text = "1234*1"</div>
+    <div class="phone-screen"><span class="con">CON</span> Select material:
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    <div class="phone-note">User presses: <b>1</b> (PET)</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 4 · text = "1234*1*1"</div>
+    <div class="phone-screen"><span class="con">CON</span> Enter weight in kg:</div>
+    <div class="phone-note">User types: <b>45</b></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 5 · text = "1234*1*1*45"</div>
+    <div class="phone-screen"><span class="con">CON</span> Select aggregator:
+1. Kwesi Amankwah
+   Accra ★4.4 GH₵2.50/kg
+2. Abena Osei
+   Kumasi ★4.1 GH₵2.30/kg
+0. Cancel</div>
+    <div class="phone-note">NEW — fetches nearby aggregators with prices for PET</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 6 · text = "1234*1*1*45*1"</div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm drop-off:
+45kg PET
+To: Kwesi Amankwah
+Price: GH₵2.50/kg
+Total: GH₵112.50
+
+1. Confirm
+2. Cancel</div>
+    <div class="phone-note">NEW — shows price + total (was: just "Log 45kg PET?")</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Screen 7 · text = "1234*1*1*45*1*1"</div>
+    <div class="phone-screen"><span class="end">END</span> DROP-OFF LOGGED
+Ref: TXN-20260406-0045
+45kg PET → Kwesi Amankwah
+Status: Pending confirmation
+Contact: 0300000002, Accra</div>
+    <div class="phone-note">NEW — writes to pending_transactions, shows ref + contact<br>(was: "Logged! 45kg PET\nToday: 45kg total")</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 3: MY STATS -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">3. My Stats (New — replaces "Check Balance")</div>
+<div class="section-desc">Richer stats screen with monthly and year-to-date breakdowns. Queries both transactions (confirmed) and pending_transactions tables.</div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">text = "1234*2"</div>
+    <div class="phone-screen"><span class="end">END</span> My Stats — Kwame Asante
+
+This month:  45.0 kg
+Year to date: 1,071.0 kg
+Total earned: GH₵2,677.50
+Avg price/kg: GH₵2.50
+Rating: ★4.2 (8 ratings)
+
+Transactions: 23 confirmed
+              2 pending</div>
+    <div class="phone-note">NEW — was just "Balance: Total/Earned/Transactions"</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 4: PRICES NEAR ME -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">4. Prices Near Me (New)</div>
+<div class="section-desc">Shows best posted prices per material from aggregators in the collector's city/region. Queries the marketplace_listings table.</div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">text = "1234*3"</div>
+    <div class="phone-screen"><span class="end">END</span> Prices Near Me (Accra)
+
+PET   GH₵2.50/kg  Kwesi A.
+HDPE  GH₵3.10/kg  Abena O.
+LDPE  GH₵1.80/kg  Kwesi A.
+PP    GH₵2.20/kg  Kofi N.
+
+Dial again → Log Drop-off
+to sell at these prices.</div>
+    <div class="phone-note">NEW — entirely new menu option</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 5: PIN SECURITY -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">5. PIN Security Improvements</div>
+<div class="section-desc">Three-attempt lockout. After 3 wrong PINs in a session, the session ends. No cross-session lockout for now (that's Phase 3).</div>
+
+<div class="flow">
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Wrong PIN — attempt 1</div>
+    <div class="phone-screen"><span class="con">CON</span> Wrong PIN.
+2 attempts remaining.
+Enter your PIN:</div>
+    <div class="phone-note">FIX — was: "END Invalid PIN. Dial again to retry."<br>Now stays in session for retries.</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Wrong PIN — attempt 2</div>
+    <div class="phone-screen"><span class="con">CON</span> Wrong PIN.
+1 attempt remaining.
+Enter your PIN:</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*123#</span><span>MTN</span></div>
+    <div class="phone-label">Wrong PIN — attempt 3 (lockout)</div>
+    <div class="phone-screen"><span class="end">END</span> Too many wrong PINs.
+Dial again to retry.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 6: CHANGE SUMMARY -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">6. Change Summary — Current → Phase 1</div>
+
+<table class="compare">
+<tr><th>Area</th><th>Current MVP</th><th>Phase 1</th></tr>
+<tr>
+  <td>Registration PIN</td>
+  <td class="old">Stored as plaintext in DB</td>
+  <td class="new">Hashed with scrypt (matches web dashboard)</td>
+</tr>
+<tr>
+  <td>Registration city</td>
+  <td class="old">Hardcoded region='Ghana'</td>
+  <td class="new">City selection screen (Accra/Kumasi/Tamale/Takoradi) → maps to region</td>
+</tr>
+<tr>
+  <td>Log Drop-off: aggregator</td>
+  <td class="old">No aggregator selection — orphaned transaction</td>
+  <td class="new">Select from nearby aggregators with ratings + posted prices</td>
+</tr>
+<tr>
+  <td>Log Drop-off: price</td>
+  <td class="old">Hardcoded price_per_kg=0, total_price=0</td>
+  <td class="new">Pulled from aggregator's posted price for material</td>
+</tr>
+<tr>
+  <td>Log Drop-off: table</td>
+  <td class="old">INSERT INTO transactions (finalized, no confirmation)</td>
+  <td class="new">INSERT INTO pending_transactions (status='pending', awaits aggregator confirm)</td>
+</tr>
+<tr>
+  <td>Log Drop-off: confirmation</td>
+  <td class="old">"Log 45kg PET? 1.Confirm 2.Cancel"</td>
+  <td class="new">Shows material, weight, aggregator name, price/kg, total</td>
+</tr>
+<tr>
+  <td>Log Drop-off: success</td>
+  <td class="old">"Logged! 45kg PET\nToday: 45kg total"</td>
+  <td class="new">Reference number + status + aggregator contact info</td>
+</tr>
+<tr>
+  <td>Main menu</td>
+  <td class="old">1. Log Collection  2. Check Balance  3. Exit</td>
+  <td class="new">1. Log Drop-off  2. My Stats  3. Prices Near Me  0. Exit</td>
+</tr>
+<tr>
+  <td>Check Balance → My Stats</td>
+  <td class="old">Lifetime total_kg, earned, txn count only</td>
+  <td class="new">Monthly + YTD + earnings + avg price + rating + pending count</td>
+</tr>
+<tr>
+  <td>Prices Near Me</td>
+  <td class="old">Does not exist</td>
+  <td class="new">Best price per material from aggregators in collector's city</td>
+</tr>
+<tr>
+  <td>PIN validation</td>
+  <td class="old">1 attempt → END session on failure</td>
+  <td class="new">3 attempts within session before lockout</td>
+</tr>
+<tr>
+  <td>Session logging</td>
+  <td class="unchanged">No change — ussd_sessions table remains as-is</td>
+  <td class="unchanged">No change</td>
+</tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 7: TEXT INPUT CHAIN -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">7. State Machine — text Input Chain</div>
+<div class="section-desc">Every screen maps to a depth in the text field. No server-side session state needed.</div>
+
+<div class="depth"><span class="hl">Registration flow:</span>
+text = ""                              → Screen 1: Welcome (Register/Exit)
+text = "1"                             → Screen 2: Enter first name
+text = "1*Kwame"                       → Screen 3: Enter last name
+text = "1*Kwame*Asante"                → Screen 4: Select city <span class="hl">(NEW)</span>
+text = "1*Kwame*Asante*1"              → Screen 5: Create PIN
+text = "1*Kwame*Asante*1*1234"         → Screen 6: END — Registered! (PIN hashed)
+
+<span class="hl">Log Drop-off flow:</span>
+text = ""                              → Screen 1: Welcome, enter PIN
+text = "1234"                          → Screen 2: Main menu
+text = "1234*1"                        → Screen 3: Select material
+text = "1234*1*1"                      → Screen 4: Enter weight
+text = "1234*1*1*45"                   → Screen 5: Select aggregator <span class="hl">(NEW)</span>
+text = "1234*1*1*45*1"                 → Screen 6: Confirm with price <span class="hl">(NEW)</span>
+text = "1234*1*1*45*1*1"              → Screen 7: END — Logged to pending_transactions <span class="hl">(FIX)</span>
+
+<span class="hl">My Stats:</span>
+text = "1234*2"                        → END — Monthly/YTD/Earnings/Rating <span class="hl">(NEW)</span>
+
+<span class="hl">Prices Near Me:</span>
+text = "1234*3"                        → END — Best prices per material <span class="hl">(NEW)</span>
+
+<span class="hl">PIN retry (within session):</span>
+text = "wrong"                         → CON: Wrong PIN, 2 remaining <span class="hl">(FIX)</span>
+text = "wrong*wrong2"                  → CON: Wrong PIN, 1 remaining
+text = "wrong*wrong2*wrong3"           → END: Too many attempts</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 8: DB WRITES -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">8. Database Writes — What Changes</div>
+
+<table class="compare">
+<tr><th>Action</th><th>Table</th><th>Key Columns</th></tr>
+<tr>
+  <td>Register collector</td>
+  <td>collectors</td>
+  <td class="new">first_name, last_name, phone, pin (scrypt hash), city, region</td>
+</tr>
+<tr>
+  <td>Log drop-off</td>
+  <td class="new">pending_transactions (was: transactions)</td>
+  <td class="new">collector_id, aggregator_id, material_type, gross_weight_kg, price_per_kg, total_price, status='pending', source='ussd', transaction_type='collector_sale'</td>
+</tr>
+<tr>
+  <td>Log session</td>
+  <td>ussd_sessions</td>
+  <td class="unchanged">session_id, phone, service_code, collector_id, text_input, response (unchanged)</td>
+</tr>
+</table>
+</div>
+
+<div class="section">
+<div class="section-title">9. API Queries Reused (Read-Only)</div>
+<div class="section-desc">These are existing API queries we'll extract into shared functions or inline in the USSD handler.</div>
+
+<table class="compare">
+<tr><th>Screen</th><th>Data Needed</th><th>Existing Source</th></tr>
+<tr>
+  <td>Select aggregator</td>
+  <td>Nearby aggregators + posted prices for material</td>
+  <td>/api/collector/prices (SQL exists, needs extraction)</td>
+</tr>
+<tr>
+  <td>My Stats</td>
+  <td>Monthly/YTD weight, earnings, avg price, rating, pending count</td>
+  <td>/api/collector/stats + /api/collector/me (SQL exists)</td>
+</tr>
+<tr>
+  <td>Prices Near Me</td>
+  <td>Best price per material in collector's city</td>
+  <td>/api/collector/prices (SQL exists)</td>
+</tr>
+<tr>
+  <td>Confirm screen — aggregator contact</td>
+  <td>Aggregator phone + city</td>
+  <td>SELECT phone, city FROM aggregators WHERE id=$1</td>
+</tr>
+</table>
+</div>
+
+<p style="text-align:center;color:var(--text-3);font-size:0.75rem;margin-top:40px;padding-bottom:24px">
+  Phase 1 Mockup · Circul USSD · April 2026
+</p>
+
+</body>
+</html>

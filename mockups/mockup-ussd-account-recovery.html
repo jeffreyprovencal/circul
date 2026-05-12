@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD — Account Recovery (Forgot PIN + Phone Change)</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h2{font-size:1.05rem;color:var(--accent);margin:0 0 8px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1000px}
+.section{margin-bottom:56px;max-width:1400px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1000px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+/* Phone mockup */
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:260px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .warn{color:var(--amber);font-weight:700}
+.phone-screen .hint{color:var(--text-3);font-size:0.72rem}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:100px;flex-shrink:0}
+
+/* Admin UI mockup */
+.admin{width:320px;background:var(--surface);border:2px solid var(--border);border-radius:10px;overflow:hidden;flex-shrink:0}
+.admin-header{background:#000;padding:10px 16px;font-size:0.72rem;color:var(--text-2);border-bottom:1px solid var(--border)}
+.admin-body{padding:16px;font-size:0.78rem;color:var(--text-1);line-height:1.6}
+.admin-body .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)}
+.admin-body .row:last-child{border-bottom:none}
+.admin-body .label{color:var(--text-3);font-size:0.72rem}
+.admin-body .val{color:var(--text-1);font-family:'Courier New',monospace}
+.admin-body .btn{display:inline-block;margin-top:12px;padding:6px 12px;background:var(--accent);color:#000;border-radius:4px;font-weight:700;font-size:0.72rem}
+.admin-body .btn.danger{background:var(--red);color:#fff}
+.admin-body .btn.secondary{background:var(--border);color:var(--text-1)}
+.admin-body input{width:100%;padding:6px 8px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:4px;font-size:0.78rem;font-family:'Courier New',monospace}
+.admin-body .input-row{margin:8px 0}
+.admin-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+
+/* SMS bubble */
+.sms{width:280px;background:var(--surface);border:2px solid var(--blue);border-radius:14px;padding:0;overflow:hidden;flex-shrink:0;position:relative}
+.sms::after{content:'SMS';position:absolute;top:-10px;right:12px;background:var(--blue);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.sms-header{background:#000;padding:8px 14px;font-size:0.68rem;color:var(--text-2);display:flex;justify-content:space-between}
+.sms-header .from{color:var(--accent);font-weight:700}
+.sms-body{padding:14px;font-size:0.8rem;line-height:1.55;color:var(--text-1)}
+.sms-footer{padding:6px 14px;font-size:0.65rem;color:var(--text-3);border-top:1px solid var(--border)}
+
+/* Markers */
+.new{border:2px solid var(--accent);position:relative}
+.new::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.fix{border:2px solid var(--amber);position:relative}
+.fix::after{content:'FIX';position:absolute;top:-10px;right:12px;background:var(--amber);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.defer{border:2px dashed var(--purple);position:relative;opacity:0.82}
+.defer::after{content:'DEFERRED';position:absolute;top:-10px;right:12px;background:var(--purple);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+
+/* Legend */
+.legend{display:flex;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-2)}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.yellow{border-color:var(--amber)}
+.legend-swatch.blue{border-color:var(--blue)}
+.legend-swatch.purple{border-color:var(--purple);border-style:dashed}
+.legend-swatch.plain{border-color:var(--border)}
+
+/* TOC */
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1000px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.8;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+
+/* Boxes */
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1000px}
+.box h3{margin-top:0}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:6px 0 0 20px}
+.box li{margin-bottom:6px}
+.box.verified{border-left:3px solid var(--accent)}
+.box.assumed{border-left:3px solid var(--amber)}
+.box.deferred{border-left:3px solid var(--purple)}
+.box blockquote{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:8px 0;color:var(--text-1);font-size:0.88rem;line-height:1.65}
+
+/* Compare table */
+.compare{margin-top:14px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.compare-row{display:grid;grid-template-columns:180px 1fr 1fr;font-size:0.78rem;border-bottom:1px solid var(--border)}
+.compare-row:last-child{border-bottom:none}
+.compare-row > div{padding:8px 12px}
+.compare-row.head{background:var(--border);color:var(--accent);font-weight:700;font-size:0.72rem;letter-spacing:0.04em}
+.compare-row > div:first-child{background:#0a150e;color:var(--text-2);font-weight:600}
+
+/* Subflow label */
+.subflow{display:inline-block;font-size:0.7rem;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin:16px 0 8px;padding:3px 8px;background:var(--border);border-radius:4px}
+
+/* Migration list */
+.mig-list{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.mig-row{display:grid;grid-template-columns:120px 280px 1fr;padding:10px 14px;border-bottom:1px solid var(--border);font-size:0.78rem;align-items:center}
+.mig-row:last-child{border-bottom:none}
+.mig-row.head{background:var(--border);color:var(--accent);font-weight:700;font-size:0.72rem;letter-spacing:0.04em}
+.mig-row code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.72rem}
+
+/* Anchor offset for TOC jump */
+.section{scroll-margin-top:20px}
+</style>
+</head>
+<body>
+
+<h1>USSD — Account Recovery</h1>
+<p class="subtitle">Unified design for Forgot-PIN and Phone-Change flows across collectors, aggregators, and agents. Scope: new <code>handleForgotPinUssd</code>, new admin phone-change UI wrapping existing PUT endpoints, new audit log, new security-event SMS cap bypass, and per-role notification chains. Supersedes the draft <code>mockup-ussd-welcome-forgot-pin.html</code> (which covered collectors only and had a schema bug flagged in §14).</p>
+
+<!-- ─────────── LEGEND ─────────── -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch yellow"></div> FIX — updated screen</div>
+  <div class="legend-item"><div class="legend-swatch green"></div> NEW — net-new screen</div>
+  <div class="legend-item"><div class="legend-swatch blue"></div> SMS — parallel notification</div>
+  <div class="legend-item"><div class="legend-swatch purple"></div> DEFERRED — post-pilot</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div> Unchanged from today</div>
+</div>
+
+<!-- ─────────── TOC ─────────── -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#verified">Verified context — what was checked before drafting</a></li>
+    <li><a href="#security">Security model</a></li>
+    <li><a href="#collector-pin">Forgot PIN — Collector (full flow)</a></li>
+    <li><a href="#aggregator-pin">Forgot PIN — Aggregator (deltas)</a></li>
+    <li><a href="#agent-pin">Forgot PIN — Agent (deltas)</a></li>
+    <li><a href="#phone-admin">Phone change — Admin-initiated</a></li>
+    <li><a href="#phone-aggregator">Phone change — Aggregator-initiated (deferred)</a></li>
+    <li><a href="#sms-alerts">Parallel SMS alerts</a></li>
+    <li><a href="#admin-ui">Admin UI integration</a></li>
+    <li><a href="#backend">Backend + data model</a></li>
+    <li><a href="#migrations">Migration plan (ordered)</a></li>
+    <li><a href="#cap-bypass">Security-event SMS cap bypass</a></li>
+    <li><a href="#trust-model">Trust-model disclosure</a></li>
+    <li><a href="#verified-vs-assumed">Verified vs Assumed (pre-delivery pass)</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 1: VERIFIED CONTEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified">
+<div class="section-title">1. Verified context — what was checked before drafting</div>
+<div class="section-desc">Per Soul + CTO standard, every claim the mockup rests on was verified against the live codebase before drafting. Anything not verified is labelled in §14.</div>
+
+<div class="box verified">
+<h3>Schema — <code>migrations/1774500000000_restructure_tiers.js</code> + follow-ups</h3>
+<ul>
+  <li><code>collectors</code> has: <code>id</code>, <code>first_name</code>, <code>last_name</code>, <code>phone</code>, <code>pin VARCHAR(10)</code>, <code>city</code>, <code>region</code>, <code>must_change_pin</code> (added by <code>1776300000000_add_must_change_pin.sql</code>), <code>is_active</code>.</li>
+  <li><code>aggregators</code> has: <code>id</code>, <code>name</code>, <code>phone</code>, <code>pin VARCHAR(10)</code>, <code>city</code>, <code>region</code>, <code>is_active</code>. <strong>Missing <code>must_change_pin</code></strong> — confirmed via grep; new migration required.</li>
+  <li><code>agents</code> (from <code>1776600000000_batch8b_and_batch9.js</code>) has: <code>id</code>, <code>aggregator_id</code>, <code>first_name</code>, <code>last_name</code>, <code>phone</code>, <code>pin TEXT</code>, <code>must_change_pin BOOLEAN DEFAULT false</code>, <code>city</code>, <code>region</code>, <code>is_active</code>.</li>
+  <li><strong><code>collectors.aggregator_id</code> does NOT exist.</strong> The prior draft mockup's "SELECT a.phone FROM aggregators a JOIN collectors c ON c.aggregator_id = a.id" query would have failed at runtime. Correct lookup: most recent aggregator from <code>transactions</code> by <code>transaction_date</code>.</li>
+  <li><code>aggregators.pin</code> is <code>VARCHAR(10)</code> — too small for scrypt <code>salt:hex</code> (~70+ chars). Must widen to <code>VARCHAR(255)</code> before any hashed PIN is written into it.</li>
+</ul>
+</div>
+
+<div class="box verified">
+<h3>USSD dispatch — <code>server.js:4255</code> (POST <code>/api/ussd</code>)</h3>
+<ul>
+  <li>Phone-number lookup cascades: <code>collectors</code> → <code>aggregators</code> → <code>agents</code> → <code>handleUnregisteredUssd</code>. Matches are exclusive (first hit wins).</li>
+  <li>Each handler receives <code>(parts, userRow)</code>. <code>parts = text.split('*')</code>, per AT USSD contract. Session state is implicit in the parts array; there is no separate state table (<code>ussd_sessions</code> is log-only).</li>
+  <li>Each of <code>handleRegisteredUssd</code> (<code>server.js:2505</code>), <code>handleAggregatorUssd</code> (<code>server.js:2693</code>), <code>handleAgentUssd</code> (<code>server.js:3083</code>) uses the same PIN-retry pattern: loop up to 3 parts, try each as a PIN via <code>verifyPassword</code>, fail after 3 with <code>END Too many wrong PINs</code>.</li>
+</ul>
+</div>
+
+<div class="box verified">
+<h3>SMS helper — <code>shared/notifications.js</code></h3>
+<ul>
+  <li>Public API: <code>notify(event, recipientPhone, data)</code>. Not <code>sendSms(phone, message)</code>. Event-driven with registered TEMPLATES.</li>
+  <li>Africa's Talking provider via <code>AT_API_KEY</code> / <code>AT_USERNAME</code> / <code>AT_SENDER</code> (defaults to <code>'Circul'</code>, matching registered sender ID).</li>
+  <li>Per-phone daily cap: <code>SMS_DAILY_CAP=20</code>, enforced in-memory. <strong>Relevant for reset flow:</strong> if a user hit 20 notifications today on other events, a reset OTP would be cap-blocked. Mitigated by security-event bypass (§12).</li>
+  <li>Already imported + used at 14+ call sites in <code>server.js</code> — adding new events is a well-established pattern.</li>
+</ul>
+</div>
+
+<div class="box verified">
+<h3>Admin UPDATE endpoints — <code>server.js:5554</code> + <code>server.js:5575</code></h3>
+<ul>
+  <li><code>PUT /api/admin/aggregators/:id</code> and <code>PUT /api/admin/collectors/:id</code> both accept <code>phone</code> as an updatable field. Gated by <code>requireAdmin</code>. Build dynamic SQL — phone-only update is valid.</li>
+  <li><strong>No admin UI wires to these.</strong> <code>admin.html</code> is 437 lines with zero PUT calls or references to these endpoints. The endpoints are backend-only today.</li>
+  <li>No conflict check: unique index on <code>collectors.phone</code> / <code>aggregators.phone</code> / <code>agents.phone</code> means a collision returns a generic 500 with no user-friendly message. Implementation must add a pre-UPDATE <code>SELECT</code> across all three tables.</li>
+  <li>No <code>admin_audit_log</code> table exists anywhere. Must be created.</li>
+</ul>
+</div>
+
+<div class="box verified">
+<h3>PIN policy — inconsistent</h3>
+<ul>
+  <li>USSD registration (<code>server.js:2414</code>): <strong>4–6 digits, numeric</strong>.</li>
+  <li>Web registration (<code>server.js:290</code>): 4–6 digits.</li>
+  <li><code>PATCH /api/collectors/:id/change-pin</code> (<code>server.js:336</code>): <strong>exactly 4 digits</strong>.</li>
+  <li>Another path (<code>server.js:6394</code>): at least 4 digits.</li>
+  <li>Reset flow should settle on <strong>4–6 digits numeric</strong> (matches USSD registration, most permissive while still constrained). Flagged as a parallel cleanup item — not blocking.</li>
+</ul>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 2: SECURITY MODEL -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="security">
+<div class="section-title">2. Security model</div>
+<div class="section-desc">Feature-phone identity: the phone number IS the account. Same constraint as MTN MoMo, Vodafone Cash, Airtel Money. Defense-in-depth compensates where prevention can't prevent. Phone-change flow extends the model for the lost-phone case we couldn't close with OTP alone.</div>
+
+<div class="box">
+<h3>The four layers</h3>
+<ul>
+  <li><strong>1. SMS OTP to phone</strong> — blocks remote-only attacks. 6-digit random, 10-min TTL, single-use, SHA-256 at rest, timing-safe comparison.</li>
+  <li><strong>2. Instant alert SMS to account holder</strong> — if someone else resets, you get an SMS as it happens. Visibility defense.</li>
+  <li><strong>3. Upstream-tier notification</strong> — collector reset alerts their most recent aggregator; aggregator reset alerts all processors they've transacted with; agent reset alerts their owning aggregator. Social + financial friction.</li>
+  <li><strong>4. Admin phone-change with OTP-to-new-number</strong> — for lost-phone (new number) cases. Admin initiates; OTP goes to the NEW number so we prove the user physically holds it before swapping. Parallel SMS to old number (if reachable) + upstream tier.</li>
+</ul>
+<p style="margin-top:12px;font-size:0.78rem;color:var(--text-3)">No post-reset transaction cooldown: Circul doesn't hold money on-account, so a "pause on logging drop-offs/purchases" would block legitimate users (who'd be unable to log their day's work after a legitimate reset) to prevent an attack that doesn't cash out in our model. If Circul ever adds on-account money, reintroduce the cooldown at that time.</p>
+
+<h3>How this compares to real-world Ghanaian mobile money</h3>
+<div class="compare">
+  <div class="compare-row head"><div></div><div>MTN MoMo</div><div>Circul (this design)</div></div>
+  <div class="compare-row"><div>Forgot-PIN trigger</div><div>USSD or in-person agent</div><div>USSD self-serve via OTP</div></div>
+  <div class="compare-row"><div>Identity check on reset</div><div>DOB + last txn amount + national ID</div><div>OTP + SIM possession (no KYC collected yet)</div></div>
+  <div class="compare-row"><div>Post-reset alert</div><div>SMS to account holder</div><div>SMS to user + SMS to upstream tier (aggregator/processor)</div></div>
+  <div class="compare-row"><div>Post-reset limit</div><div>Reduced daily limit for 24h (money-holding account)</div><div>None (no money on-account; logging a drop-off isn't a settlement)</div></div>
+  <div class="compare-row"><div>PIN-failure lockout</div><div>3 wrong → 24h lockout</div><div>3 wrong → 30-min lockout + suggest Forgot PIN</div></div>
+  <div class="compare-row"><div>Rate limit</div><div>Undisclosed</div><div>Max 3 reset requests per phone per 24h</div></div>
+  <div class="compare-row"><div>Lost-phone/new-number</div><div>In-person at MoMo agent with ID</div><div>Admin-initiated with OTP to new number + audit log</div></div>
+</div>
+<p style="margin-top:14px;font-size:0.8rem;color:var(--text-3)">Gap vs MoMo: no DOB/ID challenge and no post-reset transaction limit. Closing the identity gap is a future option (collect KYC, add challenge screen). The transaction-limit gap is deliberate — Circul doesn't hold money on-account, so there's nothing to cash out in 24h. For MVP pilot scale (&lt;500 users), OTP + alerts + admin-audited phone change is the pragmatic best.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 3: COLLECTOR FORGOT PIN -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="collector-pin">
+<div class="section-title">3. Forgot PIN — Collector (full flow)</div>
+<div class="section-desc">Collector dials <code>*920*54#</code>, selects "0. Forgot PIN" at the welcome screen (or is offered it after wrong-PIN attempts), receives a 6-digit OTP via SMS, re-dials, enters OTP, sets new PIN. Parallel SMS alerts fire to collector + their most-recent aggregator.</div>
+
+<div class="subflow">Happy path — login</div>
+<div class="flow">
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Circul Collector
+Welcome back, Kojo!
+
+Enter 4-digit PIN:
+0. Forgot PIN</div>
+    <div class="phone-label">Screen C1 · text = ""</div>
+    <div class="phone-note">Was: "CON Welcome Kojo!\nEnter your PIN:" (server.js:2506)</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone">
+    <div class="phone-header"><span>*920*54*0000#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> 1. Log Drop-off
+2. Sell My Material
+3. Discovery
+4. My Stats
+0. Exit</div>
+    <div class="phone-label">Screen C2 · text = "0000"</div>
+    <div class="phone-note">Unchanged main menu on correct PIN</div>
+  </div>
+
+</div>
+
+<div class="subflow">Wrong-PIN path (new lockout + forgot-PIN escape on every retry)</div>
+<div class="flow">
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54*9999#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> <span class="warn">Wrong PIN. 2 attempts left.</span>
+
+Enter 4-digit PIN:
+0. Forgot PIN</div>
+    <div class="phone-label">Screen C3 · 1st wrong</div>
+    <div class="phone-note">Forgot-PIN option repeats on every retry screen</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54*9999*8888#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> <span class="warn">Wrong PIN. 1 attempt left.</span>
+
+Enter 4-digit PIN:
+0. Forgot PIN</div>
+    <div class="phone-label">Screen C4 · 2nd wrong</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*8888*7777#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Too many wrong PINs.</span>
+
+Account locked for 30 min.
+After lockout, dial
+*920*54# and select
+"0. Forgot PIN" to reset.</div>
+    <div class="phone-label">Screen C5 · 3rd wrong → lockout</div>
+    <div class="phone-note">Persists in <code>user_lockouts</code>; survives session hang-up</div>
+  </div>
+
+</div>
+
+<div class="subflow">Reset — request an OTP</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*0#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Reset PIN?
+
+We'll SMS a 6-digit code to
+0207973412.
+
+1. Send code
+0. Cancel</div>
+    <div class="phone-label">Screen C6 · text = "0"</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*0*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> Reset code sent.
+
+Check your SMS, then
+dial *920*54# again
+and enter the code.
+
+Code expires in 10 min.</div>
+    <div class="phone-label">Screen C7 · text = "0*1"</div>
+    <div class="phone-note">OTP SMS fires now — see §8</div>
+  </div>
+
+</div>
+
+<div class="subflow">Reset — redial, enter OTP, set new PIN</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Reset PIN
+Enter the 6-digit code
+from your SMS:
+
+<span class="hint">(Expires in 9 min 42s)</span></div>
+    <div class="phone-label">Screen C8 · text = "" (handler sees active reset row for this phone)</div>
+    <div class="phone-note">Welcome screen bypassed — dispatch logic checks <code>pin_reset_codes</code> first</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*342817#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter new 4-digit PIN:
+
+<span class="hint">4–6 digits, numbers only.
+Avoid 0000, 1234, or your
+birth year.</span></div>
+    <div class="phone-label">Screen C9 · text = "342817"</div>
+    <div class="phone-note">Copy matches existing registration policy (4–6 digits numeric)</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*5739#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm new PIN:</div>
+    <div class="phone-label">Screen C10 · text = "342817*5739"</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*5739*5739#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> PIN reset successfully.
+
+Dial *920*54# and log in
+with your new PIN.</div>
+    <div class="phone-label">Screen C11 · text = "342817*5739*5739"</div>
+    <div class="phone-note">Completion SMS + upstream alert fire now — §8</div>
+  </div>
+
+</div>
+
+<div class="subflow">Error paths</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*123456#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> <span class="warn">Wrong code. 2 attempts left.</span>
+
+Enter the 6-digit code
+from your SMS:</div>
+    <div class="phone-label">Screen C12 · 1st wrong code</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*123456*000000#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Too many wrong codes.</span>
+
+Your reset code is now
+invalid. Dial *920*54#
+and request a new code.</div>
+    <div class="phone-label">Screen C13 · 3rd wrong code</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*0*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Too many resets today.</span>
+
+Wait 24 hours before
+requesting another
+reset code.
+
+Contact your aggregator
+for urgent help.</div>
+    <div class="phone-label">Screen C14 · 4th reset in 24h</div>
+    <div class="phone-note">Rate limit: 3 reset requests per phone per 24h</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 4: AGGREGATOR FORGOT PIN -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="aggregator-pin">
+<div class="section-title">4. Forgot PIN — Aggregator (deltas from collector)</div>
+<div class="section-desc">Same flow shape as collector. Different welcome copy. Different alert chain: aggregator reset notifies the processors they've transacted with, because processor is the natural upstream commercial partner. Same lockout and rate limits.</div>
+
+<div class="subflow">Welcome + forgot-PIN entry (only screens that differ)</div>
+<div class="flow">
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Circul Aggregator
+Welcome back, Kwesi!
+
+Enter 4-digit PIN:
+0. Forgot PIN</div>
+    <div class="phone-label">Screen A1 · text = ""</div>
+    <div class="phone-note">Was: "CON Welcome Kwesi!\n(Aggregator)\nEnter your PIN:" (server.js:2694)</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*0#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Reset PIN?
+
+We'll SMS a 6-digit code to
+0300000002.
+
+1. Send code
+0. Cancel</div>
+    <div class="phone-label">Screen A2 · text = "0"</div>
+    <div class="phone-note">Screens A3–A9 identical to C8–C11 (OTP entry, new PIN, confirm)</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*5739*5739#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> PIN reset successfully.
+
+Dial *920*54# and log in
+with your new PIN.</div>
+    <div class="phone-label">Screen A10 · success</div>
+    <div class="phone-note">Same success shape as collector</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 5: AGENT FORGOT PIN -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="agent-pin">
+<div class="section-title">5. Forgot PIN — Agent (deltas from collector)</div>
+<div class="section-desc">Same flow shape. Agents work for a specific aggregator (<code>agents.aggregator_id</code> FK — verified). Reset alert goes to the owning aggregator automatically.</div>
+
+<div class="flow">
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Circul Agent
+Welcome back, Ama!
+Working for: Kwesi A.
+
+Enter 4-digit PIN:
+0. Forgot PIN</div>
+    <div class="phone-label">Screen G1 · text = ""</div>
+    <div class="phone-note">Was: "CON Welcome Ama!\n(Agent)\nEnter your PIN:" (server.js:3084)</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*5739*5739#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> PIN reset successfully.
+
+Dial *920*54# and log in
+with your new PIN.
+
+Your aggregator has been
+notified.</div>
+    <div class="phone-label">Screen G2 · success (intermediate screens identical to C8–C10)</div>
+    <div class="phone-note">Owning aggregator SMS'd automatically via <code>agents.aggregator_id</code></div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 6: PHONE CHANGE — ADMIN-INITIATED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="phone-admin">
+<div class="section-title">6. Phone change — Admin-initiated (lost-phone, new number)</div>
+<div class="section-desc">User lost their phone and couldn't recover the old number (new SIM, new number). They contact Circul support. Admin verifies identity out-of-band, then runs this flow from admin dashboard. OTP goes to the NEW number — we prove the user physically holds it before the swap commits. Works for collectors, aggregators, and agents using the same underlying flow.</div>
+
+<div class="subflow">Admin UI flow</div>
+<div class="flow">
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Collectors · COL-0026</div>
+    <div class="admin-body">
+      <div class="row"><span class="label">Name</span><span class="val">Ama Mensah</span></div>
+      <div class="row"><span class="label">Phone</span><span class="val">0207973412</span></div>
+      <div class="row"><span class="label">City</span><span class="val">Accra</span></div>
+      <div class="row"><span class="label">Active since</span><span class="val">2026-03-04</span></div>
+      <div class="row"><span class="label">Transactions</span><span class="val">47</span></div>
+      <div class="btn">Change phone</div>
+      <div class="btn secondary">Edit</div>
+      <div class="btn secondary">Reset PIN</div>
+    </div>
+    <div class="admin-label">Screen AD1 · new collector detail view</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Change phone · COL-0026</div>
+    <div class="admin-body">
+      <div class="row"><span class="label">Current</span><span class="val">0207973412</span></div>
+      <div class="input-row"><span class="label">New phone (Ghana)</span><input type="tel" value="0244998877"></div>
+      <div class="row"><span class="label" style="font-size:0.68rem;color:var(--amber)">A 6-digit code will be SMS'd to the new number. Enter it below after the user receives it.</span><span></span></div>
+      <div class="btn">Send verification code</div>
+      <div class="btn secondary">Cancel</div>
+    </div>
+    <div class="admin-label">Screen AD2 · new-phone entry</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Change phone · COL-0026</div>
+    <div class="admin-body">
+      <div class="row"><span class="label">Current</span><span class="val">0207973412</span></div>
+      <div class="row"><span class="label">New</span><span class="val">0244998877</span></div>
+      <div class="row"><span class="label" style="color:var(--accent)">Code sent. Ask user to read it to you.</span><span></span></div>
+      <div class="input-row"><span class="label">6-digit code</span><input type="text" value="748213"></div>
+      <div class="btn">Confirm change</div>
+      <div class="btn secondary">Cancel</div>
+    </div>
+    <div class="admin-label">Screen AD3 · OTP entry</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Change phone · COL-0026</div>
+    <div class="admin-body">
+      <div class="row" style="color:var(--accent)"><span class="label">✓ Phone changed</span><span></span></div>
+      <div class="row"><span class="label">Was</span><span class="val">0207973412</span></div>
+      <div class="row"><span class="label">Now</span><span class="val">0244998877</span></div>
+      <div class="row"><span class="label">Audit ID</span><span class="val">audit_91827</span></div>
+      <div class="row" style="font-size:0.7rem;color:var(--text-3)"><span>SMS sent to new + old + upstream aggregator</span><span></span></div>
+      <div class="btn secondary">Back to list</div>
+    </div>
+    <div class="admin-label">Screen AD4 · success</div>
+  </div>
+
+</div>
+
+<div class="subflow">Error paths</div>
+<div class="flow">
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Change phone · COL-0026</div>
+    <div class="admin-body">
+      <div class="row" style="color:var(--red)"><span class="label">⚠ Phone already in use</span><span></span></div>
+      <div class="row"><span class="label">0244998877</span><span class="val">is registered to AGG-0013</span></div>
+      <div class="row" style="font-size:0.7rem;color:var(--text-3)"><span>Resolve with both users before retrying.</span><span></span></div>
+      <div class="btn secondary">Back</div>
+    </div>
+    <div class="admin-label">Screen AD5 · collision</div>
+    <div class="admin-body" style="font-size:0.68rem;color:var(--text-3);padding:8px 16px;border-top:1px solid var(--border)">409 from backend after cross-table check</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Change phone · COL-0026</div>
+    <div class="admin-body">
+      <div class="row" style="color:var(--amber)"><span class="label">⚠ Wrong code (2 attempts left)</span><span></span></div>
+      <div class="input-row"><span class="label">6-digit code</span><input type="text" value=""></div>
+      <div class="btn">Confirm change</div>
+      <div class="btn secondary">Resend code</div>
+    </div>
+    <div class="admin-label">Screen AD6 · wrong OTP</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Change phone · COL-0026</div>
+    <div class="admin-body">
+      <div class="row" style="color:var(--red)"><span class="label">✗ Code expired</span><span></span></div>
+      <div class="row" style="font-size:0.7rem;color:var(--text-3)"><span>OTP TTL is 10 minutes. Resend a new code.</span><span></span></div>
+      <div class="btn">Resend code</div>
+      <div class="btn secondary">Cancel</div>
+    </div>
+    <div class="admin-label">Screen AD7 · expired OTP</div>
+  </div>
+
+</div>
+
+<div class="box">
+<h3>SMS chain on successful phone change</h3>
+<ul>
+  <li><strong>To NEW number:</strong> "Your Circul phone was changed. All your history (transactions, ratings) is preserved. If this wasn't you, call Circul support immediately."</li>
+  <li><strong>To OLD number</strong> (best-effort — often unreachable in lost-phone case): "Your Circul phone number was changed to 0244XXX. If this wasn't you, call Circul support immediately." Fire anyway; cheap insurance.</li>
+  <li><strong>To upstream tier</strong> (collector → last aggregator; aggregator → all recent processors; agent → owning aggregator): "Phone change: COL-0026 (Ama Mensah) — phone updated by Circul admin at 15:42. Watch for unusual activity."</li>
+</ul>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 7: AGGREGATOR-INITIATED PHONE CHANGE (DEFERRED) -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="phone-aggregator">
+<div class="section-title">7. Phone change — Aggregator-initiated (deferred post-pilot)</div>
+<div class="section-desc">For aggregator-onboarded collectors (and agents under an aggregator), let the aggregator initiate a phone change from their own dashboard without going through Circul admin. Out of scope for the first ship — admin-only works at pilot scale. Sketch included for continuity.</div>
+
+<div class="flow">
+
+  <div class="admin defer">
+    <div class="admin-header">Aggregator · My Collectors · COL-0026</div>
+    <div class="admin-body">
+      <div class="row"><span class="label">Name</span><span class="val">Ama Mensah</span></div>
+      <div class="row"><span class="label">Phone</span><span class="val">0207973412</span></div>
+      <div class="row"><span class="label">Txns w/ me</span><span class="val">34</span></div>
+      <div class="btn">Change phone</div>
+      <div class="btn secondary">View</div>
+    </div>
+    <div class="admin-label">Screen AG1 · aggregator dashboard (deferred)</div>
+    <div class="admin-body" style="font-size:0.68rem;color:var(--text-3);padding:8px 16px;border-top:1px solid var(--border)">Same OTP-to-new-number confirmation pattern. Audit log records aggregator as actor, not admin.</div>
+  </div>
+
+  <div class="phone defer">
+    <div class="phone-header"><span>*920*54*5*2*…#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Change collector phone
+COL-0026 Ama Mensah
+Old: 0207973412
+
+Enter new number:</div>
+    <div class="phone-label">Screen AG2 · USSD equivalent (deferred)</div>
+    <div class="phone-note">If aggregators on USSD-only need this flow post-pilot. New menu item under their main menu.</div>
+  </div>
+
+</div>
+
+<div class="box deferred">
+<h3>Deferral rationale</h3>
+<ul>
+  <li>Pilot scale (&lt;500 users): admin-only phone-change is not a bottleneck.</li>
+  <li>Saves one mockup iteration + two endpoints + a USSD branch + extra audit-actor logic in the first ship.</li>
+  <li>Aggregator-initiated path adds a trust decision (aggregator could redirect a collector's payouts). Worth waiting until we see actual abuse patterns before choosing parameters.</li>
+  <li><strong>Trigger to un-defer:</strong> admin phone-change volume &gt; 10/week OR a Miniplast / brand-tier partner asks for it.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 8: PARALLEL SMS ALERTS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="sms-alerts">
+<div class="section-title">8. Parallel SMS alerts</div>
+<div class="section-desc">Every notify event below goes through <code>shared/notifications.js</code> with a new template. Security events bypass the 20/day cap (§12).</div>
+
+<h3>Fires on reset-requested (OTP delivery)</h3>
+<div class="flow">
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul reset code: <strong>342817</strong>
+
+Enter this on *920*54# to set a new PIN. Expires in 10 min. Never share this code.</div>
+    <div class="sms-footer">To: registered phone · event <code>PIN_RESET_OTP</code></div>
+  </div>
+</div>
+
+<h3>Fires on reset-complete (3 SMSes in parallel)</h3>
+<div class="flow">
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul PIN was reset at 14:38.
+
+If this wasn't you, call your aggregator immediately and request an account freeze.</div>
+    <div class="sms-footer">To: user's own phone · <code>PIN_RESET_COMPLETED</code></div>
+  </div>
+
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body"><strong>Collector PIN reset:</strong> Kojo Amoah (COL-0026) reset their PIN at 14:38.
+
+Watch for unusual activity; contact Circul support if suspicious.</div>
+    <div class="sms-footer">To: collector's most-recent aggregator (via last transaction) · <code>PIN_RESET_UPSTREAM_ALERT</code></div>
+  </div>
+
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body"><strong>Aggregator PIN reset:</strong> Kwesi Amankwah (AGG-0009) reset their PIN at 14:38.
+
+Watch for unusual dispatch approvals or drop-off confirmations. Contact Circul support if suspicious.</div>
+    <div class="sms-footer">Aggregator variant → fans out to all processors they've transacted with in last 90d</div>
+  </div>
+</div>
+
+<h3>Fires on admin-initiated phone change (3 SMSes)</h3>
+<div class="flow">
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul phone was changed to 0244998877. All your history is preserved.
+
+If this wasn't you, call Circul support immediately.</div>
+    <div class="sms-footer">To: NEW phone · <code>PHONE_CHANGED_NEW</code></div>
+  </div>
+
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul phone number has been updated by Circul admin at 15:42.
+
+New number: 0244998877.
+
+If this wasn't you, call Circul support immediately.</div>
+    <div class="sms-footer">To: OLD phone (best-effort) · <code>PHONE_CHANGED_OLD</code></div>
+  </div>
+
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body"><strong>Phone change:</strong> COL-0026 (Ama Mensah) — phone updated by Circul admin at 15:42. Was 0207973412, now 0244998877. Watch for unusual activity.</div>
+    <div class="sms-footer">To: upstream tier · <code>PHONE_CHANGED_UPSTREAM_ALERT</code></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 9: ADMIN UI INTEGRATION -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="admin-ui">
+<div class="section-title">9. Admin UI integration</div>
+<div class="section-desc">Admin.html today (437 lines) is dashboard-stats only — no edit affordances exist for collectors/aggregators/agents. This mockup introduces the first editable user screens.</div>
+
+<div class="box">
+<h3>New admin pages / components</h3>
+<ul>
+  <li><strong>Collectors list</strong> — extend the existing stats tile to a full list view. Row click → detail panel (Screen AD1).</li>
+  <li><strong>Aggregators list</strong> — same pattern. Row click → detail panel (same shape as Screen AD1, different fields).</li>
+  <li><strong>Agents list</strong> — same pattern, scoped per aggregator.</li>
+  <li><strong>Detail panel</strong> — shared component across the three list types. Key actions: Edit, Change phone, Reset PIN, Flag / Unflag.</li>
+  <li><strong>Change-phone modal</strong> — dedicated flow (Screens AD2–AD7). Wraps a new endpoint (§10) that handles OTP issuance, verification, and the phone update in a single transaction.</li>
+  <li><strong>Reset-PIN modal</strong> — triggers <code>must_change_pin = true</code> + sends an alert SMS to the user telling them admin triggered a reset + writes audit row. User dials USSD → forced PIN reset on first login. Does NOT issue a PIN directly from admin (cleaner auditability).</li>
+  <li><strong>Audit log viewer</strong> — new page showing <code>admin_audit_log</code> entries, filterable by actor, target, action, date. Essential for the phone-change flow to be trustable.</li>
+</ul>
+<p style="margin-top:12px;color:var(--text-3);font-size:0.78rem">Visual style follows <code>mockups/mockup-admin.html</code>. Modal interaction pattern follows existing dashboards' <code>.hidden</code> overlay convention (per <code>shared.css</code>).</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 10: BACKEND + DATA MODEL -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="backend">
+<div class="section-title">10. Backend + data model</div>
+<div class="section-desc">Complete inventory of new artifacts. Sign off on this before implementation so the migration sequencing in §11 holds.</div>
+
+<div class="box">
+<h3>New tables</h3>
+<ul>
+  <li><code>pin_reset_codes</code> — <code>id SERIAL</code>, <code>phone VARCHAR(50) NOT NULL</code>, <code>user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('collector','aggregator','agent'))</code>, <code>user_id INTEGER NOT NULL</code>, <code>code_hash VARCHAR(64) NOT NULL</code> (SHA-256 hex), <code>expires_at TIMESTAMPTZ NOT NULL</code>, <code>used_at TIMESTAMPTZ</code>, <code>attempts_remaining SMALLINT NOT NULL DEFAULT 3</code>, <code>created_at TIMESTAMPTZ DEFAULT NOW()</code>. Partial unique index: <code>CREATE UNIQUE INDEX pin_reset_codes_active ON pin_reset_codes (phone) WHERE used_at IS NULL AND expires_at &gt; NOW()</code> — one active code per phone at a time.</li>
+  <li><code>phone_change_codes</code> — same shape as above, but <code>new_phone VARCHAR(50) NOT NULL</code> column added. OTP goes to the new number. On success, admin flow commits: update <code>{user_type}.phone = new_phone</code>, mark <code>used_at = NOW()</code>, write <code>admin_audit_log</code> row.</li>
+  <li><code>user_lockouts</code> — <code>id SERIAL</code>, <code>user_type VARCHAR(20) NOT NULL</code>, <code>user_id INTEGER NOT NULL</code>, <code>phone VARCHAR(50) NOT NULL</code>, <code>locked_until TIMESTAMPTZ NOT NULL</code>, <code>reason VARCHAR(50) NOT NULL</code> ('wrong_pin_x3' | 'wrong_otp_x3'), <code>created_at TIMESTAMPTZ DEFAULT NOW()</code>. Index on <code>(phone, locked_until)</code>. Checked by USSD dispatch before handler routing; if locked, return END with unlock time.</li>
+  <li><code>admin_audit_log</code> — <code>id SERIAL</code>, <code>actor_type VARCHAR(20)</code> ('admin' | 'aggregator' | 'processor'), <code>actor_id INTEGER</code>, <code>actor_email VARCHAR(255)</code>, <code>action VARCHAR(50)</code> (e.g. 'phone_changed', 'pin_reset_triggered', 'user_flagged'), <code>target_type VARCHAR(20)</code>, <code>target_id INTEGER</code>, <code>details JSONB</code>, <code>created_at TIMESTAMPTZ DEFAULT NOW()</code>. Indexes on <code>(actor_id, created_at)</code> and <code>(target_type, target_id, created_at)</code>.</li>
+</ul>
+
+<h3>Column additions</h3>
+<ul>
+  <li><code>aggregators.must_change_pin BOOLEAN DEFAULT false</code> — parity with <code>collectors</code> and <code>agents</code>. Used by admin-initiated PIN reset.</li>
+  <li><code>aggregators.pin</code> widened: <code>ALTER TABLE aggregators ALTER COLUMN pin TYPE VARCHAR(255)</code>. Required for scrypt hash storage.</li>
+</ul>
+
+<h3>Notifications — new events in <code>shared/notifications.js</code></h3>
+<ul>
+  <li><code>PIN_RESET_OTP</code> — to user's own phone; body includes 6-digit code + 10-min TTL.</li>
+  <li><code>PIN_RESET_COMPLETED</code> — to user's own phone; confirms reset with "if this wasn't you, call" escalation.</li>
+  <li><code>PIN_RESET_UPSTREAM_ALERT</code> — to upstream tier; per-role body (aggregator gets "collector PIN reset", processor gets "aggregator PIN reset", aggregator gets "agent PIN reset").</li>
+  <li><code>PHONE_CHANGED_NEW</code> — to new phone.</li>
+  <li><code>PHONE_CHANGED_OLD</code> — to old phone (best-effort).</li>
+  <li><code>PHONE_CHANGED_UPSTREAM_ALERT</code> — to upstream tier.</li>
+  <li><code>ADMIN_PIN_RESET_TRIGGERED</code> — to user's own phone when admin sets <code>must_change_pin=true</code>.</li>
+</ul>
+
+<h3>USSD handler changes — <code>server.js</code></h3>
+<ul>
+  <li><strong>Dispatch addition</strong> (<code>/api/ussd</code> around line 4260): before the role-cascade lookup, check <code>user_lockouts</code> by phone. If locked, return <code>END Account locked until HH:MM</code>. Then check <code>pin_reset_codes</code> by phone for an active reset — if found, route to <code>handleForgotPinUssd(parts, row)</code> regardless of role.</li>
+  <li><strong>New handler</strong>: <code>handleForgotPinUssd(parts, resetRow)</code> — covers Screens C8–C13 (OTP entry, wrong OTP, new PIN, confirm, success). On success: hash new PIN with scrypt, <code>UPDATE {user_type} SET pin=$1, must_change_pin=false WHERE id=$2</code>, mark <code>used_at=NOW()</code>, fire <code>PIN_RESET_COMPLETED</code> + <code>PIN_RESET_UPSTREAM_ALERT</code>.</li>
+  <li><strong>Welcome-screen updates</strong>: <code>handleRegisteredUssd:2506</code>, <code>handleAggregatorUssd:2694</code>, <code>handleAgentUssd:3084</code> — add "0. Forgot PIN" to welcome + wrong-PIN retry screens. If <code>parts[0] === '0'</code> at depth 0, route to the reset-request flow (Screens C6–C7 etc.).</li>
+  <li><strong>Lockout write</strong>: in each handler's 3rd-wrong-PIN branch, insert into <code>user_lockouts</code> with <code>locked_until = NOW() + INTERVAL '30 minutes'</code> before returning END.</li>
+</ul>
+
+<h3>New endpoints — <code>server.js</code></h3>
+<ul>
+  <li><code>POST /api/admin/users/:type/:id/change-phone-start</code> — body: <code>{ new_phone }</code>. Validates format, checks cross-table uniqueness (SELECT from collectors, aggregators, agents — return 409 on collision). Creates <code>phone_change_codes</code> row, calls <code>notify(PHONE_CHANGE_OTP, new_phone, { code })</code>. Returns <code>{ success: true, code_id }</code>.</li>
+  <li><code>POST /api/admin/users/:type/:id/change-phone-confirm</code> — body: <code>{ code_id, code }</code>. Timing-safe compare against <code>code_hash</code>. On success: UPDATE phone in the correct table, mark code used, fire 3 SMSes, write <code>admin_audit_log</code>.</li>
+  <li><code>POST /api/admin/users/:type/:id/reset-pin</code> — sets <code>must_change_pin = true</code>, fires <code>ADMIN_PIN_RESET_TRIGGERED</code> SMS, writes audit row. User must complete reset via USSD self-serve.</li>
+  <li><code>GET /api/admin/audit-log</code> — paginated listing, filterable by actor / target / action / date.</li>
+  <li>(Deferred) <code>POST /api/aggregators/:id/collectors/:colId/change-phone-*</code> — aggregator-initiated variant. Out of scope for this ship.</li>
+</ul>
+
+<h3>Security properties</h3>
+<ul>
+  <li>OTPs: 6-digit random via <code>crypto.randomInt(100000, 999999)</code>. SHA-256 hashed at rest. Plaintext only in SMS body. 10-min TTL. 3 attempts, then row invalidated. Timing-safe string comparison on entry (<code>crypto.timingSafeEqual</code>).</li>
+  <li>Rate limit: max 3 reset codes per phone per 24h (<code>pin_reset_codes</code>) and 3 phone-change codes per target user per 24h (<code>phone_change_codes</code>).</li>
+  <li>Single-use: <code>UPDATE ... SET used_at = NOW()</code> in same transaction as the PIN/phone write. Retry would see <code>used_at IS NOT NULL</code> and fail.</li>
+  <li>Scrypt for new PIN via the existing <code>hashPassword</code> helper (same path as USSD registration at <code>server.js:2416</code>).</li>
+  <li>All admin mutations write to <code>admin_audit_log</code>. No silent writes.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 11: MIGRATION PLAN -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="migrations">
+<div class="section-title">11. Migration plan (ordered)</div>
+<div class="section-desc">Run in this order, one PR per phase or one combined PR — your call. Each migration is idempotent (<code>IF NOT EXISTS</code> / <code>IF EXISTS</code>).</div>
+
+<div class="mig-list">
+  <div class="mig-row head"><div>Timestamp</div><div>File</div><div>What</div></div>
+  <div class="mig-row">
+    <div><code>1777500…</code></div>
+    <div><code>add_aggregators_must_change_pin.sql</code></div>
+    <div>Adds <code>aggregators.must_change_pin BOOLEAN DEFAULT false</code>.</div>
+  </div>
+  <div class="mig-row">
+    <div><code>1777510…</code></div>
+    <div><code>widen_aggregators_pin.sql</code></div>
+    <div><code>ALTER TABLE aggregators ALTER COLUMN pin TYPE VARCHAR(255)</code>. Required before any hashed PIN is written into <code>aggregators.pin</code>.</div>
+  </div>
+  <div class="mig-row">
+    <div><code>1777520…</code></div>
+    <div><code>create_user_lockouts.js</code></div>
+    <div>Creates <code>user_lockouts</code> table + <code>(phone, locked_until)</code> index.</div>
+  </div>
+  <div class="mig-row">
+    <div><code>1777530…</code></div>
+    <div><code>create_pin_reset_codes.js</code></div>
+    <div>Creates <code>pin_reset_codes</code> + partial unique index on active codes.</div>
+  </div>
+  <div class="mig-row">
+    <div><code>1777540…</code></div>
+    <div><code>create_phone_change_codes.js</code></div>
+    <div>Creates <code>phone_change_codes</code> with <code>new_phone</code> column + partial unique index.</div>
+  </div>
+  <div class="mig-row">
+    <div><code>1777550…</code></div>
+    <div><code>create_admin_audit_log.js</code></div>
+    <div>Creates <code>admin_audit_log</code> table + actor/target indexes.</div>
+  </div>
+</div>
+
+<div class="box" style="margin-top:20px">
+<h3>Server code changes (no migration, but coordinated)</h3>
+<ul>
+  <li><code>shared/notifications.js</code> — new events + templates + security-event cap bypass (§12). Export a <code>SECURITY_EVENTS</code> Set for the bypass check.</li>
+  <li><code>server.js</code> — USSD dispatch lockout + reset check; welcome-screen copy updates (collector/aggregator/agent); new <code>handleForgotPinUssd</code>; 4 new admin endpoints.</li>
+  <li><code>public/admin.html</code> — collectors/aggregators/agents list pages, detail panel, change-phone modal, reset-PIN modal, audit-log viewer.</li>
+  <li><code>public/shared.css</code> — no changes expected (reuse existing modal / overlay patterns).</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 12: SMS CAP BYPASS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="cap-bypass">
+<div class="section-title">12. Security-event SMS cap bypass</div>
+<div class="section-desc">Locked in: option #2. Security-critical notifications bypass the 20/day per-phone cap.</div>
+
+<div class="box">
+<h3>Implementation in <code>shared/notifications.js</code></h3>
+<p>Add a named set of events that skip the bucket check:</p>
+<pre style="background:#0a150e;padding:12px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.55;overflow-x:auto">var SECURITY_EVENTS = new Set([
+  EVENTS.PIN_RESET_OTP,
+  EVENTS.PIN_RESET_COMPLETED,
+  EVENTS.PIN_RESET_UPSTREAM_ALERT,
+  EVENTS.PHONE_CHANGED_NEW,
+  EVENTS.PHONE_CHANGED_OLD,
+  EVENTS.PHONE_CHANGED_UPSTREAM_ALERT,
+  EVENTS.PHONE_CHANGE_OTP,
+  EVENTS.ADMIN_PIN_RESET_TRIGGERED
+]);
+
+// Inside notify(), before the cap check:
+if (provider === 'africastalking') {
+  if (!SECURITY_EVENTS.has(event)) {
+    // ... existing cap check ...
+  }
+  // ... send ...
+}</pre>
+<p style="margin-top:10px">Security events still count toward AT wallet consumption and Sentry logs, just not the per-phone daily cap. No double-counting or special telemetry needed — keeps the change surgical.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 13: TRUST-MODEL DISCLOSURE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="trust-model">
+<div class="section-title">13. Trust-model disclosure</div>
+<div class="section-desc">Communicate the trust model so users understand what protects them and what doesn't. Ship on onboarding welcome + marketing page.</div>
+
+<div class="box">
+<blockquote>
+<strong>Your Circul account</strong>
+<br><br>
+Your phone number is your Circul identity. We use SMS one-time codes to protect your account, but anyone with access to your SIM can receive these codes.
+<br><br>
+<strong>Protect your account:</strong>
+<br>
+• Use a PIN you can remember but others wouldn't guess (not 0000, 1234, your birth year).
+<br>
+• If you lose your phone, call Circul support or your aggregator immediately so we can freeze your account.
+<br>
+• If you get an unexpected "PIN reset" or "phone change" SMS, someone else tried to change your account — call support now.
+<br><br>
+<strong>If you lose your phone entirely and get a new number:</strong>
+<br>
+Contact Circul support. We can move your history to your new number after verifying who you are. Your transactions, ratings, and passport are kept on your account, not on your phone.
+<br><br>
+Your aggregator is notified every time your PIN is reset or your phone number is changed. They can flag suspicious activity and withhold payouts until resolved.
+</blockquote>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 14: VERIFIED VS ASSUMED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified-vs-assumed">
+<div class="section-title">14. Verified vs Assumed (pre-delivery pass)</div>
+<div class="section-desc">Per <code>feedback_pre_delivery_verification_pass.md</code>. Forces the honest distinction between what I confirmed against the live codebase and what rests on general knowledge or memory.</div>
+
+<div class="box verified">
+<h3>Verified (checked against live code)</h3>
+<ul>
+  <li><code>transactions</code> schema with <code>collector_id</code>, <code>aggregator_id</code>, <code>material_type</code>, <code>gross_weight_kg</code>, <code>net_weight_kg</code>, <code>transaction_date</code>, <code>price_per_kg</code> — read from <code>1774500000000_restructure_tiers.js</code>.</li>
+  <li><code>aggregators.pin VARCHAR(10)</code> — read from same migration; blocks scrypt storage until widened.</li>
+  <li><code>aggregators</code> has no <code>must_change_pin</code> — confirmed via grep (only <code>collectors</code> and <code>agents</code> have it).</li>
+  <li><code>collectors.aggregator_id</code> does NOT exist — confirmed via grep across migrations and server.js. The previous draft mockup's JOIN query would have thrown at runtime. Corrected lookup in this mockup uses <code>transactions</code> ordered by <code>transaction_date</code>.</li>
+  <li><code>shared/notifications.js</code> pattern (<code>notify(event, phone, data)</code>) — read in full. 14+ call sites verified in <code>server.js</code>.</li>
+  <li><code>AT_SENDER</code> defaults to <code>'Circul'</code> at <code>shared/notifications.js:14</code>, matching the registered sender ID per AT reference memory.</li>
+  <li>Admin PUT endpoints at <code>server.js:5554</code> (aggregators) and <code>server.js:5575</code> (collectors) — accept <code>phone</code> as a field; admin UI does not wire to them (<code>admin.html</code> has zero PUT calls).</li>
+  <li>No <code>admin_audit_log</code> or <code>pin_reset_codes</code> tables exist in any migration.</li>
+  <li>USSD handlers at lines 2505 / 2693 / 3083 — all use same PIN-retry pattern (3 attempts via loop over parts array).</li>
+  <li>USSD session state is implicit in <code>text.split('*')</code>; <code>ussd_sessions</code> is log-only.</li>
+  <li>PIN policy inconsistency: 4–6 digits in USSD/web registration, "exactly 4" in <code>PATCH /api/collectors/:id/change-pin</code> — flagged in §1 for cleanup.</li>
+</ul>
+</div>
+
+<div class="box assumed">
+<h3>Assumed (not freshly verified)</h3>
+<ul>
+  <li>USSD message length limit of 182 chars — industry GSM-standard, not AT-spec-verified for this account. If AT enforces a different limit on the shared code, some longer screens (e.g. Screen C5 lockout message) may need trimming.</li>
+  <li>Ghana-Card-linked SIM registration making same-number replacement the common lost-phone path — based on NCA policy memory, not freshly verified with Ghanaian carriers for 2026.</li>
+  <li>Timing of rollout: no user-facing prod regression because prod is demo-only (<code>project_circul_demo_state.md</code>). If a real pilot user exists before ship, the ship discipline tightens.</li>
+  <li><code>hashPassword</code> helper location — assumed to exist at <code>server.js:~2416</code>-area based on the grep hit. Not freshly read in full. Verify callable from <code>handleForgotPinUssd</code> before implementation.</li>
+</ul>
+</div>
+
+<div class="box" style="border-left:3px solid var(--red)">
+<h3>Could be wrong if</h3>
+<ul>
+  <li>The admin endpoints' dynamic SQL has a field I missed that would conflict with the phone-change flow (e.g. an implicit <code>updated_at</code> trigger that skips audit logging).</li>
+  <li>AT's shared short-code changes session lifecycle behavior in ways that break the "handler sees active reset" dispatch logic in §10 (Screen C8 jumps past the welcome screen because we detect the active code). Worth smoke-testing with a real AT session before shipping, once AT activation clears (per <code>project_circul_ussd_activation_pickup.md</code>).</li>
+  <li>A rogue-aggregator SIM-swap timing attack isn't covered: aggregator could trigger a collector phone change to a number they control by coordinating with a carrier insider. Mitigation lives in §7 (deferred aggregator-initiated flow); within admin-only scope this risk is admin-only, which is smaller surface.</li>
+  <li>The existing forgot-PIN mockup (<code>mockup-ussd-welcome-forgot-pin.html</code>, untracked) was authored with context I don't have access to. If there was a design review session between Jojo and prior-session Claude that I can't see, those decisions aren't reflected here.</li>
+</ul>
+</div>
+</div>
+
+<!-- ─────────── FOOTER ─────────── -->
+<div class="section" style="margin-bottom:0">
+<div class="box" style="border-left:3px solid var(--accent)">
+<h3>Next steps</h3>
+<ol style="margin-left:20px;line-height:1.8;font-size:0.85rem">
+  <li>Review this mockup. Flag any screen, copy, or backend decision that needs changing.</li>
+  <li>On approval: delete the superseded draft (<code>mockup-ussd-welcome-forgot-pin.html</code> — currently untracked, never committed).</li>
+  <li>Git-track this mockup and commit.</li>
+  <li>Draft the Claude Code prompt in the order of §11 — migrations first, then notifications events, then USSD handler changes, then admin endpoints, then admin UI.</li>
+  <li>Smoke test on staging / with AT sandbox once USSD activation completes.</li>
+  <li>Ship.</li>
+</ol>
+</div>
+</div>
+
+</body>
+</html>

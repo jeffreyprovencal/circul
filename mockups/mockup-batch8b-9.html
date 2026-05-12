@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<title>Circul — Batch 8b + 9 Feature Mockups</title>
+<style>
+:root {
+  --bg: #0a1a0f; --surface: #0d2818; --surface-2: #0c1e0e;
+  --border: #1a3a1a; --text-1: #e8f5e9; --text-2: #9ab8a0; --text-3: #7a9a7a;
+  --accent: #00e676; --accent-hover: #33eb8e; --accent-muted: rgba(0,230,118,0.1);
+  --green: #00e676; --red: #f85149; --yellow: #ffd740;
+  --pill-green-bg: rgba(0,230,118,0.1); --pill-green: #00e676;
+  --pill-cyan-bg: #0a1e2e; --pill-cyan: #26c6da;
+  --pill-blue-bg: #0a1a2e; --pill-blue: #42a5f5;
+  --pill-purple-bg: #160d2e; --pill-purple: #b388ff;
+  --pill-pink-bg: #2a0a1a; --pill-pink: #f48fb1;
+  --r-sm: 8px; --r-md: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-1); line-height: 1.5; }
+
+.mockup-nav { position: sticky; top: 0; background: rgba(10,26,15,0.95); border-bottom: 1px solid var(--border); padding: 16px 24px; z-index: 100; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; backdrop-filter: blur(8px); }
+.mockup-nav h1 { font-size: 1.1rem; color: var(--accent); margin-right: 16px; white-space: nowrap; font-weight: 800; }
+.mockup-nav a { color: var(--text-2); text-decoration: none; font-size: 0.82rem; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); transition: 0.2s; }
+.mockup-nav a:hover { color: var(--accent); border-color: var(--accent); }
+.mockup-nav .batch-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; }
+
+.feature-block { max-width: 900px; margin: 40px auto; padding: 0 24px; }
+.feature-block h2 { color: var(--accent); font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; padding-top: 60px; }
+.feature-block .feat-sub { color: var(--text-2); font-size: 0.85rem; margin-bottom: 20px; }
+.feature-block .feat-context { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; margin-bottom: 24px; font-size: 0.85rem; color: var(--text-2); }
+.feature-block .feat-context strong { color: var(--text-1); }
+
+.section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 20px; margin-bottom: 16px; overflow: hidden; }
+.section-head { margin-bottom: 16px; }
+.section-title { font-size: 1rem; font-weight: 700; color: var(--text-1); }
+.section-sub { font-size: 0.78rem; color: var(--text-2); margin-top: 2px; }
+.btn { padding: 8px 16px; border-radius: var(--r-sm); border: 1px solid var(--border); background: transparent; color: var(--text-2); font-size: 0.82rem; cursor: pointer; font-family: inherit; }
+.btn:hover { border-color: var(--text-3); color: var(--text-1); }
+.btn-green { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+.btn-green:hover { background: var(--accent-hover); }
+.btn-submit { background: var(--accent); color: #000; border: none; padding: 8px 18px; border-radius: var(--r-sm); font-weight: 600; font-size: 0.82rem; cursor: pointer; font-family: inherit; }
+.btn-submit:hover { background: var(--accent-hover); }
+.form-input, .form-select { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-1); padding: 9px 12px; border-radius: var(--r-sm); font-size: 0.85rem; width: 100%; font-family: inherit; }
+.form-input::placeholder { color: var(--text-3); }
+.form-input:focus, .form-select:focus { outline: none; border-color: var(--accent); }
+.form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.form-row > * { flex: 1; min-width: 140px; }
+.form-row label { display: block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em; color: var(--text-2); text-transform: uppercase; margin-bottom: 4px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+th { text-align: left; color: var(--text-3); font-weight: 600; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-1); vertical-align: middle; white-space: nowrap; }
+td.td-wrap { white-space: normal; }
+.td-green { color: var(--accent); font-weight: 600; }
+.td-name { font-weight: 600; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+
+.pill { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; white-space: nowrap; }
+.pill-meets { background: rgba(0,230,118,0.15); color: #00e676; }
+.pill-partial { background: rgba(255,215,64,0.15); color: #ffd740; }
+.pill-below { background: rgba(248,81,73,0.15); color: #f85149; }
+.pill-pet { background: #2196f326; color: #64b5f6; }
+.pill-hdpe { background: #4caf5026; color: #81c784; }
+.pill-ldpe { background: #ff980026; color: #ffb74d; }
+.pill-pp { background: #e91e6326; color: #f06292; }
+
+.stat-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.stat-card { flex: 1; min-width: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 18px; }
+.stat-card .stat-label { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-bottom: 4px; }
+.stat-card .stat-val { font-size: 1.4rem; font-weight: 700; }
+
+.dashboard-label { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+/* Profile tab mockup */
+.profile-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.profile-tab { padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; border: 1px solid var(--border); background: transparent; color: var(--text-2); cursor: pointer; font-family: inherit; }
+.profile-tab.on { background: var(--accent); color: #000; border-color: var(--accent); }
+
+/* Photo upload area */
+.photo-upload { display: flex; align-items: center; gap: 16px; margin-top: 12px; padding: 14px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: var(--r-md); }
+.photo-placeholder { width: 80px; height: 100px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 2rem; flex-shrink: 0; }
+.photo-upload-info { flex: 1; }
+.photo-upload-info .upload-label { font-size: 0.82rem; font-weight: 600; color: var(--text-1); margin-bottom: 4px; }
+.photo-upload-info .upload-hint { font-size: 0.75rem; color: var(--text-3); margin-bottom: 8px; }
+.btn-upload { display: inline-flex; align-items: center; gap: 6px; background: var(--accent); color: #000; border: none; padding: 6px 14px; border-radius: var(--r-sm); font-weight: 600; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+.btn-upload:hover { background: var(--accent-hover); }
+
+.spec-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px; margin-bottom: 10px; }
+.spec-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.spec-card-head .material { font-weight: 700; font-size: 0.9rem; }
+.spec-card-head .source { font-size: 0.78rem; color: var(--text-2); }
+.spec-row { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.78rem; }
+.spec-item .spec-label { color: var(--text-3); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.spec-item .spec-val { color: var(--text-1); font-weight: 600; }
+
+.premium-badge { display: inline-block; background: rgba(255,215,64,0.15); color: var(--yellow); padding: 2px 8px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; margin-left: 6px; }
+
+.agent-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.agent-row:last-child { border-bottom: none; }
+.agent-info .agent-name { font-weight: 600; }
+.agent-info .agent-detail { font-size: 0.78rem; color: var(--text-2); }
+.agent-status { font-size: 0.72rem; }
+.agent-status.active { color: var(--accent); }
+
+.activity-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.activity-item:last-child { border-bottom: none; }
+.activity-item .activity-agent { font-weight: 600; color: var(--pill-cyan); }
+.activity-item .activity-time { font-size: 0.72rem; color: var(--text-3); }
+
+.mockup-divider { border: none; border-top: 2px dashed var(--accent-muted); margin: 60px 0 20px; }
+
+/* Form ladder callout */
+.form-ladder { display: flex; flex-direction: column; gap: 0; margin: 16px 0; }
+.form-step { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); background: var(--surface); font-size: 0.82rem; }
+.form-step:first-child { border-radius: var(--r-md) var(--r-md) 0 0; }
+.form-step:last-child { border-radius: 0 0 var(--r-md) var(--r-md); }
+.form-step:not(:last-child) { border-bottom: none; }
+.form-step .step-tier { font-weight: 700; min-width: 110px; }
+.form-step .step-arrow { color: var(--text-3); }
+.form-step .step-forms { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<nav class="mockup-nav">
+  <h1>Batch 8b + 9 Mockups</h1>
+  <span class="batch-label" style="background: var(--accent-muted); color: var(--accent);">8b</span>
+  <a href="#ghana-card">Ghana Card</a>
+  <a href="#agent">Agent Dashboard</a>
+  <a href="#agent-agg">Agent → Aggregator</a>
+  <span class="batch-label" style="background: rgba(255,215,64,0.15); color: var(--yellow); margin-left: 8px;">9</span>
+  <a href="#proc-requirements">Processor Requirements</a>
+  <a href="#req-visibility">Requirement Visibility</a>
+  <a href="#spec-linked">Spec-Linked Txns</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FEATURE 1: GHANA CARD                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="feature-block" id="ghana-card">
+  <h2>1. Ghana Card — Identity Verification</h2>
+  <p class="feat-sub">Collectors, aggregators, and agents — inside the Profile tab, not always visible</p>
+  <div class="feat-context">
+    <strong>Who gets it:</strong> Collectors, aggregators, and agents only<br>
+    <strong>Where it lives:</strong> Profile tab → "Identity Verification" section (not on the main dashboard)<br>
+    <strong>Fields:</strong> Ghana Card number (GHA-XXXXXXXXX-X, validated) + photo upload (front of card)<br>
+    <strong>After verified:</strong> A small ✓ badge appears next to the user's name in the nav bar<br>
+    <strong>Agents:</strong> Can be entered during registration by the aggregator, or by the agent on first login
+  </div>
+
+  <!-- Collector Profile tab view -->
+  <div class="dashboard-label" style="background: var(--pill-green-bg); color: var(--pill-green);">COLLECTOR DASHBOARD — PROFILE TAB</div>
+
+  <div class="section" style="max-width: 560px;">
+    <!-- Tab bar showing this lives under Profile -->
+    <div class="profile-tabs">
+      <button class="profile-tab">Dashboard</button>
+      <button class="profile-tab">Deliveries</button>
+      <button class="profile-tab">Earnings</button>
+      <button class="profile-tab on">Profile</button>
+    </div>
+
+    <div style="font-size: 0.82rem; color: var(--text-2); margin-bottom: 16px;">Manage your account details and identity verification.</div>
+
+    <!-- Basic info (existing, shown for context) -->
+    <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+      <div style="font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em; color: var(--text-3); text-transform: uppercase; margin-bottom: 8px;">Account Info</div>
+      <div style="font-size: 0.85rem; margin-bottom: 4px;"><span style="color: var(--text-2); display: inline-block; width: 80px;">Name</span> Kwame Asante</div>
+      <div style="font-size: 0.85rem; margin-bottom: 4px;"><span style="color: var(--text-2); display: inline-block; width: 80px;">Phone</span> 024-555-1234</div>
+      <div style="font-size: 0.85rem; margin-bottom: 4px;"><span style="color: var(--text-2); display: inline-block; width: 80px;">Location</span> Accra, Greater Accra</div>
+    </div>
+
+    <!-- NEW: Identity Verification section -->
+    <div>
+      <div style="font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em; color: var(--text-3); text-transform: uppercase; margin-bottom: 12px;">Identity Verification</div>
+
+      <div class="form-row">
+        <div>
+          <label>Ghana Card Number</label>
+          <input type="text" placeholder="GHA-XXXXXXXXX-X" class="form-input">
+        </div>
+      </div>
+
+      <div class="photo-upload">
+        <div class="photo-placeholder">📇</div>
+        <div class="photo-upload-info">
+          <div class="upload-label">Ghana Card Photo</div>
+          <div class="upload-hint">Upload a clear photo of the front of your Ghana Card. JPG or PNG, max 5 MB.</div>
+          <button class="btn-upload">Upload Photo</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;"><button class="btn-submit">Save Verification</button></div>
+    </div>
+  </div>
+
+  <div style="height: 24px;"></div>
+
+  <!-- Verified state (aggregator) -->
+  <div class="dashboard-label" style="background: var(--pill-cyan-bg); color: var(--pill-cyan);">AGGREGATOR — VERIFIED STATE</div>
+
+  <div class="section" style="max-width: 560px;">
+    <!-- Nav bar showing the verified badge -->
+    <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem;">
+      <span style="font-weight: 700; color: var(--accent);">circul</span>
+      <span class="pill" style="background: var(--pill-cyan-bg); color: var(--pill-cyan);">AGGREGATOR</span>
+      <span style="font-weight: 600;">Kwesi Amankwah</span>
+      <span class="pill" style="background: var(--pill-green-bg); color: var(--pill-green);">✓ Verified</span>
+      <span style="color: var(--text-3); font-size: 0.78rem;">AGG-0009</span>
+    </div>
+
+    <div style="font-size: 0.78rem; color: var(--text-2); margin-bottom: 12px;">In the Profile tab, the verification section shows the completed state:</div>
+
+    <div style="padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px;">
+      <div style="font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em; color: var(--text-3); text-transform: uppercase; margin-bottom: 12px;">Identity Verification</div>
+      <div style="font-size: 0.85rem; margin-bottom: 4px;"><span style="color: var(--text-2); display: inline-block; width: 100px;">Ghana Card</span> GHA-987654321-5 <span class="pill" style="background: var(--pill-green-bg); color: var(--pill-green); margin-left: 4px;">Verified</span></div>
+    </div>
+
+    <div class="photo-upload" style="border-style: solid;">
+      <div class="photo-placeholder" style="background: var(--accent-muted); border-color: var(--accent); color: var(--accent); font-size: 1.4rem;">✓</div>
+      <div class="photo-upload-info">
+        <div class="upload-label">ghana-card-front.jpg</div>
+        <div class="upload-hint">Uploaded Apr 2, 2026 · 1.2 MB</div>
+        <button class="btn" style="padding: 4px 10px; font-size: 0.72rem;">Replace Photo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FEATURE 2: AGENT DASHBOARD + 2b: AGENT → AGGREGATOR FEED          -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="feature-block" id="agent">
+  <h2>2. Agent Dashboard</h2>
+  <p class="feat-sub">Mobile-first field ops dashboard — sub-account under aggregator</p>
+  <div class="feat-context">
+    <strong>Login:</strong> Phone + PIN (same as collector/aggregator)<br>
+    <strong>Parent:</strong> Linked to aggregator — all collections feed into the aggregator's data<br>
+    <strong>Can do:</strong> Log collections, register collectors, record payments<br>
+    <strong>Cannot do:</strong> Post prices, access marketplace, see financials
+  </div>
+
+  <div class="dashboard-label" style="background: var(--pill-cyan-bg); color: var(--pill-cyan);">AGENT DASHBOARD</div>
+
+  <!-- Header -->
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-weight: 700; color: var(--accent);">circul</span>
+      <span class="pill" style="background: var(--pill-cyan-bg); color: var(--pill-cyan);">AGENT</span>
+      <span style="font-weight: 600;">Yaw Boateng</span>
+      <span style="color: var(--text-3); font-size: 0.82rem;">AGT-0001</span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center; font-size: 0.82rem;">
+      <span style="color: var(--text-2);">for Kwesi Amankwah (AGG-0009)</span>
+      <a href="#" style="background: var(--accent); color: #000; padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-decoration: none;">Log out</a>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-label">Today's collections</div>
+      <div class="stat-val">3</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">kg this month</div>
+      <div class="stat-val">267</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Value this month</div>
+      <div class="stat-val">GH₵ 1,335</div>
+    </div>
+  </div>
+
+  <!-- Log Collection -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Log a Collection</div>
+      <div class="section-sub">Record a pickup from a collector</div>
+    </div>
+    <div class="form-row">
+      <div style="flex: 2;"><label>Collector</label><select class="form-select"><option>Select collector...</option><option>Kwame Asante (C-0004)</option><option>Ama Mensah (C-0003)</option></select></div>
+      <div><label>Material</label><select class="form-select"><option>PET</option><option>HDPE</option><option>LDPE</option><option>PP</option></select></div>
+    </div>
+    <div class="form-row">
+      <div><label>Weight (kg)</label><input class="form-input" type="number" placeholder="0.0"></div>
+      <div><label>Price/kg (GH₵)</label><input class="form-input" type="number" placeholder="0.00"></div>
+      <div style="align-self: flex-end;"><button class="btn-submit">Log Collection</button></div>
+    </div>
+  </div>
+
+  <!-- Register Collector -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Register New Collector</div>
+      <div class="section-sub">Sign up a new collector in the field</div>
+    </div>
+    <div class="form-row">
+      <div><label>First Name</label><input class="form-input" placeholder="First name"></div>
+      <div><label>Last Name</label><input class="form-input" placeholder="Last name"></div>
+    </div>
+    <div class="form-row">
+      <div><label>Phone</label><input class="form-input" placeholder="024XXXXXXX"></div>
+      <div><label>PIN (4 digits)</label><input class="form-input" type="password" placeholder="••••" maxlength="4"></div>
+    </div>
+    <div class="form-row">
+      <div><label>City</label><select class="form-select"><option value="">Select city...</option><option>Accra</option><option>Tema</option><option>Kumasi</option><option>Takoradi</option><option>Tamale</option><option>Cape Coast</option></select></div>
+      <div><label>Ghana Card (optional)</label><input class="form-input" placeholder="GHA-XXXXXXXXX-X"></div>
+    </div>
+    <div style="margin-top: 8px;"><button class="btn-submit">Register Collector</button></div>
+  </div>
+
+  <!-- Recent Collections -->
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Recent Collections</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Collector</th><th>Material</th><th>kg</th><th>GH₵/kg</th><th>Total</th></tr></thead>
+        <tbody>
+          <tr><td>Apr 4</td><td>Kwame Asante</td><td><span class="pill pill-pet">PET</span></td><td>45</td><td>5.00</td><td class="td-green">GH₵ 225</td></tr>
+          <tr><td>Apr 4</td><td>Ama Mensah</td><td><span class="pill pill-hdpe">HDPE</span></td><td>32</td><td>4.50</td><td class="td-green">GH₵ 144</td></tr>
+          <tr><td>Apr 3</td><td>Kwame Asante</td><td><span class="pill pill-pet">PET</span></td><td>28</td><td>5.00</td><td class="td-green">GH₵ 140</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FEATURE 2b: AGENT → AGGREGATOR FEED                               -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="feature-block" id="agent-agg">
+  <h2>2b. Agent Feed on Aggregator Dashboard</h2>
+  <p class="feat-sub">Aggregators see their agents and their activity</p>
+
+  <div class="dashboard-label" style="background: var(--pill-cyan-bg); color: var(--pill-cyan);">AGGREGATOR DASHBOARD</div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">My Field Agents</div>
+      <div class="section-sub">Agents operating on your behalf</div>
+    </div>
+
+    <div class="agent-row">
+      <div class="agent-info">
+        <div class="agent-name">Yaw Boateng <span style="color: var(--text-3); font-size: 0.78rem;">AGT-0001</span></div>
+        <div class="agent-detail">0201111111 · Accra</div>
+      </div>
+      <div class="agent-status active">● Active</div>
+    </div>
+
+    <div style="margin-top: 12px;">
+      <button class="btn">+ Register New Agent</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Agent Activity</div>
+      <div class="section-sub">Recent field operations by your agents</div>
+    </div>
+
+    <div class="activity-item">
+      <span class="activity-agent">Yaw Boateng</span> logged 45 kg PET from collector Kwame Asante
+      <div class="activity-time">Today at 09:32</div>
+    </div>
+    <div class="activity-item">
+      <span class="activity-agent">Yaw Boateng</span> logged 32 kg HDPE from collector Ama Mensah
+      <div class="activity-time">Today at 08:15</div>
+    </div>
+    <div class="activity-item">
+      <span class="activity-agent">Yaw Boateng</span> registered collector Kofi Nyarko (0241234567)
+      <div class="activity-time">Yesterday at 14:22</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- BATCH 9 STARTS HERE                                               -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FEATURE 3: PROCESSOR SUPPLY REQUIREMENTS                          -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="feature-block" id="proc-requirements">
+  <h2>3. Processor Supply Requirements</h2>
+  <p class="feat-sub">Processors define what they need from their aggregators — driven by client purchase orders</p>
+  <div class="feat-context">
+    <strong>Who creates:</strong> Processors only (based on POs from their recycler/converter/export clients)<br>
+    <strong>Who sees:</strong> Their aggregators and (through cascade) their collectors<br>
+    <strong>Key idea:</strong> The processor is the quality gatekeeper. They translate client POs into supply requirements that flow downward.<br>
+    <strong>Miniplast case:</strong> As a vertically integrated processor+recycler+converter, they just set requirements at their processor account — the chain below sees the same specs regardless.
+  </div>
+
+  <!-- Form ladder reference -->
+  <div style="font-size: 0.82rem; font-weight: 600; margin-bottom: 8px;">Accepted Forms Per Tier Transition</div>
+  <div class="form-ladder">
+    <div class="form-step">
+      <span class="step-tier" style="color: var(--pill-green);">Collector</span>
+      <span class="step-arrow">→ Aggregator</span>
+      <span class="step-forms">Loose</span>
+    </div>
+    <div class="form-step">
+      <span class="step-tier" style="color: var(--pill-cyan);">Aggregator</span>
+      <span class="step-arrow">→ Processor</span>
+      <span class="step-forms">Loose, Bales, Flakes</span>
+    </div>
+    <div class="form-step">
+      <span class="step-tier" style="color: var(--pill-blue);">Processor</span>
+      <span class="step-arrow">→ Recycler</span>
+      <span class="step-forms">Bales, Flakes</span>
+    </div>
+    <div class="form-step">
+      <span class="step-tier" style="color: var(--pill-purple);">Recycler</span>
+      <span class="step-arrow">→ Converter</span>
+      <span class="step-forms">Flakes, Pellets</span>
+    </div>
+  </div>
+
+  <div style="height: 16px;"></div>
+
+  <div class="dashboard-label" style="background: var(--pill-blue-bg); color: var(--pill-blue);">PROCESSOR DASHBOARD</div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Supply Requirements</div>
+      <div class="section-sub">What you need from your aggregators — visible to them and their collectors</div>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-card-head">
+        <span class="material">PET <span class="pill pill-pet" style="margin-left: 4px;">PET</span></span>
+        <span class="premium-badge">+5% premium</span>
+      </div>
+      <div class="spec-row">
+        <div class="spec-item"><div class="spec-label">Accepted Forms</div><div class="spec-val">Loose, Bales</div></div>
+        <div class="spec-item"><div class="spec-label">Colours</div><div class="spec-val">Clear, Blue</div></div>
+        <div class="spec-item"><div class="spec-label">Max Contam.</div><div class="spec-val">3.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Max Moisture</div><div class="spec-val">5.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Min Qty</div><div class="spec-val">200 kg</div></div>
+      </div>
+      <div style="font-size: 0.75rem; color: var(--text-3); margin-top: 6px;"><span style="color: var(--text-2);">Client:</span> Poly Recycling — PO #PR-2026-041 <span class="pill" style="background: rgba(248,81,73,0.1); color: #f85149; font-size: 0.6rem;">private</span></div>
+      <div style="font-size: 0.75rem; color: var(--text-3); margin-top: 2px;"><span style="color: var(--text-2);">Note:</span> Sort clear and blue PET separately — avoid mixed colours. Rinse if possible.</div>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-card-head">
+        <span class="material">HDPE <span class="pill pill-hdpe" style="margin-left: 4px;">HDPE</span></span>
+        <span class="premium-badge">+3% premium</span>
+      </div>
+      <div class="spec-row">
+        <div class="spec-item"><div class="spec-label">Accepted Forms</div><div class="spec-val">Loose, Bales, Flakes</div></div>
+        <div class="spec-item"><div class="spec-label">Colours</div><div class="spec-val">Natural, White</div></div>
+        <div class="spec-item"><div class="spec-label">Max Contam.</div><div class="spec-val">4.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Max Moisture</div><div class="spec-val">6.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Min Qty</div><div class="spec-val">150 kg</div></div>
+      </div>
+      <div style="font-size: 0.75rem; color: var(--text-3); margin-top: 6px;"><span style="color: var(--text-2);">Client:</span> Miniplast Ghana — PO #MG-2026-017 <span class="pill" style="background: rgba(248,81,73,0.1); color: #f85149; font-size: 0.6rem;">private</span></div>
+      <div style="font-size: 0.75rem; color: var(--text-3); margin-top: 2px;"><span style="color: var(--text-2);">Note:</span> Jerrycans and containers — empty and separate lids.</div>
+    </div>
+
+    <!-- Add requirement form -->
+    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+      <div style="font-size: 0.82rem; font-weight: 600; margin-bottom: 10px;">Add Requirement</div>
+      <div class="form-row">
+        <div><label>Material</label><select class="form-select"><option>PET</option><option>HDPE</option><option>LDPE</option><option>PP</option></select></div>
+        <div><label>Accepted Forms</label><select class="form-select" multiple style="min-height: 38px;"><option selected>Loose</option><option>Bales</option><option>Flakes</option></select></div>
+        <div><label>Accepted Colours</label><input class="form-input" placeholder="e.g. Clear, Blue"></div>
+      </div>
+      <div class="form-row">
+        <div><label>Max Contamination %</label><input class="form-input" type="number" step="0.1"></div>
+        <div><label>Max Moisture %</label><input class="form-input" type="number" step="0.1"></div>
+        <div><label>Min Qty (kg)</label><input class="form-input" type="number"></div>
+      </div>
+      <div class="form-row">
+        <div><label>Price Premium %</label><input class="form-input" type="number" step="0.1" placeholder="e.g. 5.0"></div>
+        <div style="flex: 2;"><label>Client / PO Reference (private)</label><input class="form-input" placeholder="e.g. Poly Recycling — PO #PR-2026-041"></div>
+      </div>
+      <div class="form-row">
+        <div style="flex: 3;"><label>Sorting Notes (visible to aggregators & collectors)</label><input class="form-input" placeholder="e.g. Sort clear and blue separately — avoid mixed colours. Rinse if possible."></div>
+        <div style="flex: 0; align-self: flex-end;"><button class="btn-submit">Save</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FEATURE 4: REQUIREMENT VISIBILITY (DOWNSTREAM)                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="feature-block" id="req-visibility">
+  <h2>4. Requirement Visibility — What Your Processor Needs</h2>
+  <p class="feat-sub">Aggregators and collectors see processor requirements so they know what to collect and how</p>
+  <div class="feat-context">
+    <strong>Aggregator view:</strong> Sees full processor requirements with accepted forms (Loose, Bales, Flakes) and quality thresholds. Knows exactly what to deliver.<br>
+    <strong>Collector view:</strong> Sees simplified version — material, colour, and the "Loose" form they need to meet. Knows what to sort for and the premium available.<br>
+    <strong>Key insight:</strong> A collector in Accra now sees that rePATRN Ghana needs Clear PET at &lt;3% contamination with a 5% premium. They don't need to know about PO numbers or downstream clients — just what to collect and how to earn more.
+  </div>
+
+  <!-- Aggregator view -->
+  <div class="dashboard-label" style="background: var(--pill-cyan-bg); color: var(--pill-cyan);">AGGREGATOR DASHBOARD — "What My Processor Needs"</div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Processor Requirements</div>
+      <div class="section-sub">What rePATRN Ghana (PRC-0001) needs from you — meet these for premium prices</div>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-card-head">
+        <span class="material">PET</span>
+        <span class="source">rePATRN Ghana</span>
+      </div>
+      <div class="spec-row">
+        <div class="spec-item"><div class="spec-label">Accepted Forms</div><div class="spec-val">Loose, Bales</div></div>
+        <div class="spec-item"><div class="spec-label">Colours</div><div class="spec-val">Clear, Blue</div></div>
+        <div class="spec-item"><div class="spec-label">Max Contam.</div><div class="spec-val">3.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Max Moisture</div><div class="spec-val">5.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Min Qty</div><div class="spec-val">200 kg</div></div>
+      </div>
+      <div style="font-size: 0.75rem; margin-top: 6px;"><span style="color: var(--yellow);">+5% premium</span> <span style="color: var(--text-3);">— sorted single-colour batches</span></div>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-card-head">
+        <span class="material">HDPE</span>
+        <span class="source">rePATRN Ghana</span>
+      </div>
+      <div class="spec-row">
+        <div class="spec-item"><div class="spec-label">Accepted Forms</div><div class="spec-val">Loose, Bales, Flakes</div></div>
+        <div class="spec-item"><div class="spec-label">Colours</div><div class="spec-val">Natural, White</div></div>
+        <div class="spec-item"><div class="spec-label">Max Contam.</div><div class="spec-val">4.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Max Moisture</div><div class="spec-val">6.0%</div></div>
+        <div class="spec-item"><div class="spec-label">Min Qty</div><div class="spec-val">150 kg</div></div>
+      </div>
+      <div style="font-size: 0.75rem; margin-top: 6px;"><span style="color: var(--yellow);">+3% premium</span> <span style="color: var(--text-3);">— jerrycans and containers preferred</span></div>
+    </div>
+  </div>
+
+  <hr class="mockup-divider">
+
+  <!-- Collector view (simplified) -->
+  <div class="dashboard-label" style="background: var(--pill-green-bg); color: var(--pill-green);">COLLECTOR DASHBOARD — "What to Collect"</div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">What to Collect</div>
+      <div class="section-sub">Your processor's requirements — sort to these specs for premium prices</div>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-card-head">
+        <span class="material">PET <span class="pill pill-pet" style="margin-left: 4px;">PET</span></span>
+        <span class="premium-badge">+5% premium</span>
+      </div>
+      <div class="spec-row">
+        <div class="spec-item"><div class="spec-label">Your Form</div><div class="spec-val">Loose</div></div>
+        <div class="spec-item"><div class="spec-label">Sort By Colour</div><div class="spec-val">Clear, Blue</div></div>
+        <div class="spec-item"><div class="spec-label">Keep Clean</div><div class="spec-val">&lt; 3% contam.</div></div>
+      </div>
+      <div style="font-size: 0.75rem; color: var(--text-3); margin-top: 6px;">Sort clear and blue PET separately — avoid mixed colours. Rinse if possible.</div>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-card-head">
+        <span class="material">HDPE <span class="pill pill-hdpe" style="margin-left: 4px;">HDPE</span></span>
+        <span class="premium-badge">+3% premium</span>
+      </div>
+      <div class="spec-row">
+        <div class="spec-item"><div class="spec-label">Your Form</div><div class="spec-val">Loose</div></div>
+        <div class="spec-item"><div class="spec-label">Sort By Colour</div><div class="spec-val">Natural, White</div></div>
+        <div class="spec-item"><div class="spec-label">Keep Clean</div><div class="spec-val">&lt; 4% contam.</div></div>
+      </div>
+      <div style="font-size: 0.75rem; color: var(--text-3); margin-top: 6px;">Jerrycans and containers — empty and separate lids.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FEATURE 5: SPEC-LINKED TRANSACTIONS                               -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="feature-block" id="spec-linked">
+  <h2>5. Spec-Linked Transactions</h2>
+  <p class="feat-sub">Tag incoming deliveries against your supply requirements for quality traceability</p>
+  <div class="feat-context">
+    <strong>Where:</strong> In the processor's delivery queue (pending transactions)<br>
+    <strong>How:</strong> When reviewing an incoming delivery from an aggregator, the processor tags it against one of their supply requirements: "Meets", "Partial", or "Below"<br>
+    <strong>Why:</strong> Creates a quality traceability chain — each batch has a compliance record linked to a specific supply requirement. This is what partners pay premium for.
+  </div>
+
+  <div class="dashboard-label" style="background: var(--pill-blue-bg); color: var(--pill-blue);">PROCESSOR DASHBOARD — Delivery Queue</div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Pending Deliveries</div>
+      <div class="section-sub">Tag deliveries against your supply requirements</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>From</th><th>Material</th><th>Form</th><th>kg</th><th>Requirement</th><th>Compliance</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Apr 4</td>
+            <td class="td-name">Kwesi Amankwah<br><span style="font-size:0.72rem;color:var(--text-3)">AGG-0009</span></td>
+            <td><span class="pill pill-pet">PET</span></td>
+            <td>Bales</td>
+            <td>120</td>
+            <td>
+              <select class="form-select" style="min-width: 130px; max-width: 160px; padding: 4px 8px; font-size: 0.75rem;">
+                <option value="">— Link requirement —</option>
+                <option selected>PET — Clear, Blue</option>
+                <option>HDPE — Natural, White</option>
+              </select>
+            </td>
+            <td><span class="pill pill-meets">Meets</span></td>
+          </tr>
+          <tr>
+            <td>Apr 3</td>
+            <td class="td-name">Kwesi Amankwah<br><span style="font-size:0.72rem;color:var(--text-3)">AGG-0009</span></td>
+            <td><span class="pill pill-hdpe">HDPE</span></td>
+            <td>Loose</td>
+            <td>85</td>
+            <td>
+              <select class="form-select" style="min-width: 130px; max-width: 160px; padding: 4px 8px; font-size: 0.75rem;">
+                <option value="">— Link requirement —</option>
+                <option>PET — Clear, Blue</option>
+                <option selected>HDPE — Natural, White</option>
+              </select>
+            </td>
+            <td><span class="pill pill-partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td>Apr 2</td>
+            <td class="td-name">Kwesi Amankwah<br><span style="font-size:0.72rem;color:var(--text-3)">AGG-0009</span></td>
+            <td><span class="pill pill-ldpe">LDPE</span></td>
+            <td>Loose</td>
+            <td>200</td>
+            <td colspan="2">
+              <span style="font-size: 0.78rem; color: var(--text-3);">No matching requirement</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="max-width: 900px; margin: 30px auto; padding: 0 24px;">
+    <div class="feat-context">
+      <strong>Compliance pills:</strong><br>
+      <span class="pill pill-meets" style="margin-right: 8px;">Meets</span> Delivery fully meets the supply requirement<br>
+      <span class="pill pill-partial" style="margin-right: 8px;">Partial</span> Right material but quality slightly off (e.g. contamination over threshold)<br>
+      <span class="pill pill-below" style="margin-right: 8px;">Below</span> Does not meet requirement — needs re-sorting or downgrade
+    </div>
+  </div>
+</div>
+
+<div style="text-align: center; padding: 60px 24px; color: var(--text-3); font-size: 0.85rem;">
+  End of mockups — Batch 8b + 9
+</div>
+
+</body>
+</html>

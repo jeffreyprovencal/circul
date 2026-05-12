@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD — Aggregator Registration (request-first, admin-approved)</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h2{font-size:1.05rem;color:var(--accent);margin:0 0 8px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1000px;line-height:1.65}
+.section{margin-bottom:56px;max-width:1400px;scroll-margin-top:20px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1000px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:260px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .warn{color:var(--amber);font-weight:700}
+.phone-screen .hint{color:var(--text-3);font-size:0.72rem}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:100px;flex-shrink:0}
+
+.admin{width:340px;background:var(--surface);border:2px solid var(--border);border-radius:10px;overflow:hidden;flex-shrink:0}
+.admin-header{background:#000;padding:10px 16px;font-size:0.72rem;color:var(--text-2);border-bottom:1px solid var(--border)}
+.admin-body{padding:16px;font-size:0.78rem;color:var(--text-1);line-height:1.6}
+.admin-body .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)}
+.admin-body .row:last-child{border-bottom:none}
+.admin-body .label{color:var(--text-3);font-size:0.72rem}
+.admin-body .val{color:var(--text-1)}
+.admin-body .btn{display:inline-block;margin-top:12px;margin-right:8px;padding:6px 12px;background:var(--accent);color:#000;border-radius:4px;font-weight:700;font-size:0.72rem}
+.admin-body .btn.danger{background:var(--red);color:#fff}
+.admin-body .btn.secondary{background:var(--border);color:var(--text-1)}
+.admin-body input,.admin-body textarea{width:100%;padding:6px 8px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:4px;font-size:0.78rem;font-family:'Courier New',monospace}
+.admin-body .input-row{margin:8px 0}
+.admin-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.admin-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+
+.sms{width:280px;background:var(--surface);border:2px solid var(--blue);border-radius:14px;padding:0;overflow:hidden;flex-shrink:0;position:relative}
+.sms::after{content:'SMS';position:absolute;top:-10px;right:12px;background:var(--blue);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.sms-header{background:#000;padding:8px 14px;font-size:0.68rem;color:var(--text-2);display:flex;justify-content:space-between}
+.sms-header .from{color:var(--accent);font-weight:700}
+.sms-body{padding:14px;font-size:0.8rem;line-height:1.55;color:var(--text-1)}
+.sms-footer{padding:6px 14px;font-size:0.65rem;color:var(--text-3);border-top:1px solid var(--border)}
+
+.new{border:2px solid var(--accent);position:relative}
+.new::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.fix{border:2px solid var(--amber);position:relative}
+.fix::after{content:'FIX';position:absolute;top:-10px;right:12px;background:var(--amber);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.defer{border:2px dashed var(--purple);position:relative;opacity:0.82}
+.defer::after{content:'DEFERRED';position:absolute;top:-10px;right:12px;background:var(--purple);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+
+.legend{display:flex;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-2)}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.yellow{border-color:var(--amber)}
+.legend-swatch.blue{border-color:var(--blue)}
+.legend-swatch.purple{border-color:var(--purple);border-style:dashed}
+.legend-swatch.plain{border-color:var(--border)}
+
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1000px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.8;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1000px}
+.box h3{margin-top:0}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:6px 0 0 20px}
+.box li{margin-bottom:6px}
+.box.verified{border-left:3px solid var(--accent)}
+.box.assumed{border-left:3px solid var(--amber)}
+.box.warn-box{border-left:3px solid var(--red)}
+.box.rec{border-left:3px solid var(--accent);background:#0a150e}
+.box blockquote{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:8px 0;color:var(--text-1);font-size:0.88rem;line-height:1.65}
+
+.subflow{display:inline-block;font-size:0.7rem;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin:16px 0 8px;padding:3px 8px;background:var(--border);border-radius:4px}
+
+.mig-list{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.mig-row{display:grid;grid-template-columns:120px 320px 1fr;padding:10px 14px;border-bottom:1px solid var(--border);font-size:0.78rem;align-items:center}
+.mig-row:last-child{border-bottom:none}
+.mig-row.head{background:var(--border);color:var(--accent);font-weight:700;font-size:0.72rem;letter-spacing:0.04em}
+.mig-row code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.72rem}
+</style>
+</head>
+<body>
+
+<h1>USSD Aggregator Registration</h1>
+<p class="subtitle">Request-first-then-code flow: aggregator candidate (or WORK staff on the ground) dials USSD, selects "Register as Aggregator," provides name + company + city, which creates a <code>pending_aggregator_registration</code> row. Admin is notified, reviews in dashboard, approves or rejects. On approve, a 6-digit code is SMS'd; candidate re-dials, enters code, sets PIN, registration completes. Replaces the design in <code>project_circul_role_fraud_prevention.md</code> which assumed code-first (not feasible for Ghana's field reality per the BanQu lesson + 2026-04-24 Jojo correction). Coexists with peer-invite as a future extension.</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch yellow"></div> FIX — updated screen</div>
+  <div class="legend-item"><div class="legend-swatch green"></div> NEW — net-new screen</div>
+  <div class="legend-item"><div class="legend-swatch blue"></div> SMS — parallel notification</div>
+  <div class="legend-item"><div class="legend-swatch purple"></div> DEFERRED — future iteration</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div> Unchanged from today</div>
+</div>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#verified">Verified context — what was checked before drafting</a></li>
+    <li><a href="#security">Security model</a></li>
+    <li><a href="#welcome">USSD welcome — role split (new)</a></li>
+    <li><a href="#request">USSD aggregator request flow (new)</a></li>
+    <li><a href="#admin">Admin approval queue (new UI in admin.html)</a></li>
+    <li><a href="#code">Code SMS + USSD re-entry flow</a></li>
+    <li><a href="#rejection">Rejection flow</a></li>
+    <li><a href="#edges">Edge cases</a></li>
+    <li><a href="#sms">Parallel SMS alerts</a></li>
+    <li><a href="#backend">Backend + data model</a></li>
+    <li><a href="#migrations">Migration plan</a></li>
+    <li><a href="#deferred">Deferred scope (peer-invite, etc.)</a></li>
+    <li><a href="#verified-vs-assumed">Verified vs Assumed</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 1: VERIFIED CONTEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified">
+<div class="section-title">1. Verified context</div>
+<div class="section-desc">Every claim the mockup rests on, freshly checked against the live codebase.</div>
+
+<div class="box verified">
+<h3>Current state of aggregator registration</h3>
+<ul>
+  <li><strong>Web</strong>: <code>public/register.html</code> (334 lines) has a role selector with "Aggregator" as one of the cards (line 109: <code>data-role="aggregator"</code>). Posts to <code>POST /api/auth/register</code>.</li>
+  <li><strong>API</strong>: <code>POST /api/auth/register</code> at <code>server.js:6735</code> accepts <code>role: 'aggregator'</code> and inserts into the <code>aggregators</code> table. <strong>No invite gate today</strong> — anyone who knows the URL can register as an aggregator.</li>
+  <li><strong>USSD</strong>: <code>handleUnregisteredUssd</code> in <code>server.js</code> (find via grep — line ~2395-2430 on main pre-welcome-PR, may have shifted) only supports collector registration today. Aggregator role is not reachable via USSD.</li>
+  <li><strong>Admin-created</strong>: PR #58's admin dashboard has a User Management section with an Aggregators tab, but no "create new aggregator" affordance — admins can view/edit existing aggregators but not bootstrap from scratch.</li>
+</ul>
+
+<h3>Chain-of-custody + notifications infrastructure (ready to reuse)</h3>
+<ul>
+  <li><code>admin_audit_log</code> table from PR #58 — will log approval / rejection actions with <code>actor_type: 'admin'</code>, <code>action: 'aggregator_request_approved'</code> or <code>'aggregator_request_rejected'</code>.</li>
+  <li><code>recordAdminAction(client, { ... })</code> helper at <code>server.js:~200s</code> — pattern already established.</li>
+  <li><code>notify(event, phone, data)</code> via <code>shared/notifications.js</code> — add new events for this flow. Security-event SMS cap bypass (from PR #58) should include the new code-delivery event.</li>
+  <li><code>hashPassword</code> / <code>verifyPassword</code> from <code>server.js:~184/~154</code> — scrypt-based, reused for the new aggregator's PIN.</li>
+  <li><code>normalizeGhanaPhone</code> / <code>getPhoneVariants</code> from <code>shared/phone.js</code> — phone normalization, reused for the candidate's phone and collision detection.</li>
+  <li>Pattern for active-flow USSD detection exists in PR #58 (<code>pin_reset_codes</code> dispatch): on each incoming dial, check for an active flow row matching the phone BEFORE falling through to normal handlers. Mirror this pattern for <code>aggregator_registration_requests</code> with status = <code>code_issued</code>.</li>
+</ul>
+
+<h3>Dispatch precedence today (after PR #58)</h3>
+<ul>
+  <li><code>/api/ussd</code> dispatch: lockout check → active pin_reset check → collectors → aggregators → agents → unregistered. This PR adds one more layer at the top: active aggregator-registration-request with status=<code>code_issued</code> → <code>handleAggregatorRegistrationCode</code>.</li>
+</ul>
+
+<h3>Strategic context</h3>
+<ul>
+  <li><code>project_circul_banqu_lesson.md</code>: aggregators reliably do NOT have smartphones (Jojo's correction 2026-04-24). USSD aggregator registration is not a convenience — it's a pilot requirement.</li>
+  <li><code>project_circul_work_call_insights.md</code>: Coke requires aggregator reporting → Circul is the required reporting layer. Getting aggregators on the platform = downstream revenue via brand-tier. WORK staff will onboard aggregators at Pat's ground level — this flow is how they do it.</li>
+  <li><code>project_circul_role_fraud_prevention.md</code>: invite-based gate is the anti-fraud mechanism. Original design was code-first-then-register; this mockup is request-first-then-code. Admin becomes the trust anchor; the code confirms the candidate holds the phone they're claiming.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 2: SECURITY MODEL -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="security">
+<div class="section-title">2. Security model</div>
+<div class="section-desc">The feature is a trust gate on who joins the aggregator tier. Three layers of defense.</div>
+
+<div class="box">
+<h3>The three layers</h3>
+<ul>
+  <li><strong>1. Human-in-the-loop approval</strong> — admin reviews every incoming request before a code is issued. Admin has context (WORK staff intro? Existing relationship? Anomalous request?) that automation doesn't. Admin decides if this candidate belongs on the aggregator tier.</li>
+  <li><strong>2. Code-confirms-phone-possession</strong> — after admin approves, the 6-digit code is SMS'd to the candidate's claimed phone. Candidate must enter the code on USSD to complete registration. Proves the candidate holds the SIM they provided during the request step. Same mechanic as PIN reset in PR #58; reuse the helpers.</li>
+  <li><strong>3. Audit log</strong> — every approval, rejection, and completed registration writes to <code>admin_audit_log</code>. If a rogue aggregator shows up later, the chain (request created when, approved by whom, code issued when, registration completed when) is visible.</li>
+</ul>
+
+<h3>What this does NOT defend against</h3>
+<ul>
+  <li><strong>Approved-candidate turns-out-bad.</strong> Admin approves in good faith; candidate later engages in fraud. Defense lives in behavioral detection (flag aggregators with anomalous patterns — never buying from collectors, never selling upstream) + ratings system. Those exist or are scoped elsewhere; this PR doesn't own them.</li>
+  <li><strong>SIM-swap between approval and code-entry.</strong> Small window (10-min code TTL), SIM-swap is a multi-hour operation at minimum. Not a realistic threat at pilot scale.</li>
+  <li><strong>Collusion between admin and candidate.</strong> Audit log is the forensic layer. If Jojo approves his cousin's fake aggregator, the log shows it. Social/institutional deterrent, not technical.</li>
+</ul>
+
+<h3>Rate limiting</h3>
+<ul>
+  <li>Per-phone: max 1 active pending request at a time. If a request is pending, the same phone can't create a second one until the first is resolved (approved/rejected/expired).</li>
+  <li>Per-phone: max 3 requests per phone per 24h (catches "admin rejects, candidate immediately re-requests" loops — same 3/24h cap as PIN reset from PR #58).</li>
+  <li>Code TTL: 10 min. Code attempt limit: 3 wrong entries burns the code; candidate has to request again.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 3: WELCOME ROLE SPLIT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="welcome">
+<div class="section-title">3. USSD welcome — role split</div>
+<div class="section-desc">Upgrades the welcome copy from "Register / Exit" (which only supports collectors) to a role-choice screen. Uses the brand copy Jojo approved earlier today (Variant 1: "The operating system for Ghana's waste workers / Sell. Track. Get paid.").</div>
+
+<div class="subflow">Welcome — new role-split variant</div>
+<div class="flow">
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+The operating system for
+Ghana's waste workers.
+
+Sell. Track. Get paid.
+
+Register as:
+1. Collector
+2. Aggregator
+0. Exit</div>
+    <div class="phone-label">Screen W1 · welcome (role-split)</div>
+    <div class="phone-note">Supersedes the welcome copy from <code>claude-code-prompt-ussd-welcome.md</code>. If that PR merged first, this PR updates the same block again — no conflict, just re-replaces the line in <code>handleUnregisteredUssd</code>.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Collector registration
+
+Enter your first name:</div>
+    <div class="phone-label">Screen W2a · collector path</div>
+    <div class="phone-note">Add "Collector registration" header for parity with the aggregator path. Today (server.js:2425) just shows "Enter your first name:" with no context — this prompt updates it to match Screen W2b's framing. Existing collector flow (last name → city → PIN → success END) otherwise unchanged.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Aggregator registration
+
+Enter your first name:</div>
+    <div class="phone-label">Screen W2b · aggregator path (new)</div>
+    <div class="phone-note">Entry point for the request flow — see §4. Matches the collector first-name / last-name pattern already in <code>handleUnregisteredUssd</code> at server.js:2425-2426.</div>
+  </div>
+
+</div>
+
+<div class="box">
+<h3>Character count</h3>
+<p>Screen W1 is ~150 chars, comfortably under the 182-char GSM limit. Keeps Jojo's approved brand copy from Variant 1; adds "Register as:" and the role split. If truncation shows up post-deploy on AT, fall back to a shorter form (see §13 "Could be wrong if").</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 4: REQUEST FLOW -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="request">
+<div class="section-title">4. USSD aggregator request flow</div>
+<div class="section-desc">Candidate provides name, optional company, city. System creates a <code>pending_aggregator_registration</code> row, SMS-notifies admin, ends the USSD session with a "check back soon" message.</div>
+
+<div class="subflow">Request entry — name / company / city</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Aggregator registration
+
+Enter your first name:</div>
+    <div class="phone-label">Screen R1a · first name</div>
+    <div class="phone-note">Matches collector pattern (server.js:2425).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*Kwesi#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter your last name:</div>
+    <div class="phone-label">Screen R1b · last name (required)</div>
+    <div class="phone-note">Last name is required (no skip). Empty input or "0" returns "END Last name required. Dial again." This PR ALSO updates the collector flow at <code>server.js:2426</code> + 2410 to require last name (currently allows "0 to skip" — bug fix).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*Bonsu#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Company name
+<span class="hint">(Optional — dial 0 to skip)</span></div>
+    <div class="phone-label">Screen R2 · company (optional)</div>
+    <div class="phone-note">Some aggregators have a registered company; some operate under their own name. Optional field.</div>
+  </div>
+
+</div>
+
+<div class="subflow">City picker — 8 pilot regional capitals, paginated (3 pages)</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*Bonsu Recyclers#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Select your city:
+1. Accra
+2. Kumasi
+3. Tamale
+4. More →
+0. Cancel</div>
+    <div class="phone-label">Screen R3a · city page 1</div>
+    <div class="phone-note">Reuses existing <code>parsePaginatedSelection</code> helper (server.js:2402). Pagination convention: 3 items per page + "4. More →" + "0. Cancel."</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*4#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Select your city:
+1. Takoradi
+2. Cape Coast
+3. Koforidua
+4. More →
+0. Cancel</div>
+    <div class="phone-label">Screen R3b · city page 2</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*4*4#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Select your city:
+1. Ho
+2. Sunyani
+0. Cancel</div>
+    <div class="phone-label">Screen R3c · city page 3 (final)</div>
+    <div class="phone-note">No "4. More →" on the last page (only 2 remaining items). Pilot coverage: 8 cities across Greater Accra, Ashanti, Northern, Western, Central, Eastern, Volta, Bono regions. Post-pilot geographic expansion to the remaining 8 regional capitals (Wa, Bolgatanga, Techiman, Sekondi, Dambai, Nalerigu, Damongo, Goaso) is a separate scope item.</div>
+  </div>
+
+</div>
+
+<div class="subflow">Request confirmation + admin notify</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm request:
+
+Kwesi Bonsu
+Bonsu Recyclers
+Accra
+
+1. Submit
+0. Cancel</div>
+    <div class="phone-label">Screen R4 · confirm</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> Request submitted.
+
+Thank you, Kwesi. Circul
+support will review your
+application.
+
+You'll receive an SMS
+within 24 hours.
+
+Call 024 131 48 41 for
+help.</div>
+    <div class="phone-label">Screen R5 · success END</div>
+    <div class="phone-note">At this point: request row created with status='pending', admin ntfy push + Ghana SMS fallback fired, candidate has no further action until code arrives. Support contact is Pat's phone in Ghana.</div>
+  </div>
+
+</div>
+
+<div class="subflow">Rate-limit + collision edges</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Request already pending.</span>
+
+You have an active
+aggregator registration
+request. Wait for Circul
+support to review it.
+
+Call 024 131 48 41 if
+it's been over 24 hours.</div>
+    <div class="phone-label">Screen R6 · existing pending</div>
+    <div class="phone-note">Prevents duplicate requests. Checked at the start of screen R1 — if a pending request exists for the phone, END immediately.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Already registered.</span>
+
+This phone is already an
+aggregator on Circul.
+
+Dial *920*54# and enter
+your PIN to log in.</div>
+    <div class="phone-label">Screen R7 · already registered</div>
+    <div class="phone-note">Shouldn't happen in practice (registered aggregators wouldn't hit <code>handleUnregisteredUssd</code>), but defensive check before creating a request.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Too many requests.</span>
+
+You've submitted 3 requests
+in the last 24 hours. Wait
+24 hours before trying
+again.
+
+Call 024 131 48 41
+for urgent help.</div>
+    <div class="phone-label">Screen R8 · rate limit hit</div>
+    <div class="phone-note">3 requests / phone / 24h cap (matches PIN reset rate limit from PR #58).</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 5: ADMIN APPROVAL QUEUE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="admin">
+<div class="section-title">5. Admin approval queue (new UI in admin.html)</div>
+<div class="section-desc">New section below User Management. Lists pending aggregator registration requests, shows context, one-click approve / reject. Builds on the User Management scaffolding shipped in PR #58 + admin-polish PR #62.</div>
+
+<div class="subflow">Admin notification (inbound)</div>
+<div class="flow">
+
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body"><strong>New aggregator request</strong>
+
+Kwesi Bonsu (Bonsu Recyclers), Accra. Phone 0244XXXXXXX.
+
+Review at circul.polsia.app/admin.html</div>
+    <div class="sms-footer">To: admin (ntfy push primary + Ghana SMS fallback) · <code>AGGREGATOR_REQUEST_RECEIVED</code></div>
+  </div>
+</div>
+
+<div class="subflow">Admin queue view</div>
+<div class="flow">
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Aggregator Requests · Pending (3)</div>
+    <div class="admin-body">
+      <div class="row"><span class="label">Kwesi Bonsu</span><span class="val">5 min ago</span></div>
+      <div class="row"><span class="label" style="font-size:0.68rem;color:var(--text-3)">Bonsu Recyclers · Accra · 0244XXXXXXX</span><span></span></div>
+      <div class="btn">Review</div>
+
+      <div class="row" style="margin-top:16px"><span class="label">Akosua Mensah</span><span class="val">2 hr ago</span></div>
+      <div class="row"><span class="label" style="font-size:0.68rem;color:var(--text-3)">(no company) · Kumasi · 0207XXXXXXX</span><span></span></div>
+      <div class="btn">Review</div>
+
+      <div class="row" style="margin-top:16px"><span class="label">Yaw Osei</span><span class="val">8 hr ago</span></div>
+      <div class="row"><span class="label" style="font-size:0.68rem;color:var(--text-3)">Osei Waste Ltd · Tamale · 0278XXXXXXX</span><span></span></div>
+      <div class="btn">Review</div>
+    </div>
+    <div class="admin-label">Screen A1 · queue</div>
+    <div class="admin-note">Filtered to <code>status = 'pending'</code>. Sorted by <code>created_at ASC</code> (oldest first — admin attention follows FIFO).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Review request · Kwesi Bonsu</div>
+    <div class="admin-body">
+      <div class="row"><span class="label">Name</span><span class="val">Kwesi Bonsu</span></div>
+      <div class="row"><span class="label">Company</span><span class="val">Bonsu Recyclers</span></div>
+      <div class="row"><span class="label">City</span><span class="val">Accra</span></div>
+      <div class="row"><span class="label">Phone</span><span class="val">+233244XXXXXXX</span></div>
+      <div class="row"><span class="label">Requested</span><span class="val">5 min ago</span></div>
+      <div class="row"><span class="label">Source</span><span class="val">USSD *920*54#</span></div>
+      <div style="margin-top:12px;color:var(--text-3);font-size:0.72rem">Approving will SMS a 6-digit code to the candidate's phone. They enter it on USSD to complete registration.</div>
+      <div class="btn">Approve</div>
+      <div class="btn secondary">Reject</div>
+      <div class="btn secondary">Cancel</div>
+    </div>
+    <div class="admin-label">Screen A2 · review detail</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Approved · Kwesi Bonsu</div>
+    <div class="admin-body">
+      <div class="row" style="color:var(--accent)"><span class="label">✓ Request approved</span><span></span></div>
+      <div class="row"><span class="label">Code SMS'd to</span><span class="val">+233244XXXXXXX</span></div>
+      <div class="row"><span class="label">Code expires</span><span class="val">in 10 min</span></div>
+      <div class="row"><span class="label">Audit ID</span><span class="val">audit_N</span></div>
+      <div class="row" style="font-size:0.7rem;color:var(--text-3)"><span>Candidate will re-dial *920*54# to enter the code. Their registration completes when they do.</span><span></span></div>
+      <div class="btn secondary">Back to queue</div>
+    </div>
+    <div class="admin-label">Screen A3 · approval confirmation</div>
+    <div class="admin-note">Row status transitions pending → code_issued. Code hash stored, TTL 10 min, 3-attempt burn (reuses the PIN reset pattern from PR #58).</div>
+  </div>
+
+</div>
+
+<div class="subflow">Reject path</div>
+<div class="flow">
+
+  <div class="admin new">
+    <div class="admin-header">Admin · Reject request · Akosua Mensah</div>
+    <div class="admin-body">
+      <div class="row"><span class="label">Name</span><span class="val">Akosua Mensah</span></div>
+      <div class="row"><span class="label">Phone</span><span class="val">+233207XXXXXXX</span></div>
+      <div class="input-row"><span class="label" style="color:var(--text-3);font-size:0.72rem">Rejection reason (SMS'd to candidate):</span>
+      <textarea rows="3" placeholder="e.g. Circul currently operates in select regional capitals only. Contact Circul support for updates on expansion to your area." style="margin-top:6px"></textarea></div>
+      <div class="btn danger">Confirm reject</div>
+      <div class="btn secondary">Cancel</div>
+    </div>
+    <div class="admin-label">Screen A4 · reject with reason</div>
+    <div class="admin-note">Rejection reason is required + SMS'd verbatim. Keeps the candidate informed without a vague "rejected" end state. Audit log records both action and reason.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 6: CODE SMS + RE-ENTRY -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="code">
+<div class="section-title">6. Code SMS + USSD re-entry + PIN</div>
+<div class="section-desc">Candidate receives the code via SMS, re-dials USSD, enters the code, sets a PIN, registration completes.</div>
+
+<div class="subflow">Candidate receives code</div>
+<div class="flow">
+
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul aggregator code: <strong>847291</strong>
+
+Dial *920*54# and enter this code to finish registration. Expires in 10 min. Never share this code.</div>
+    <div class="sms-footer">To: candidate's phone · <code>AGGREGATOR_CODE_ISSUED</code></div>
+  </div>
+</div>
+
+<div class="subflow">Re-entry: code → PIN → complete</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome back, Kwesi!
+
+Finish your aggregator
+registration.
+
+Enter the 6-digit code
+from your SMS:
+<span class="hint">(Expires in 9 min 42s)</span></div>
+    <div class="phone-label">Screen C1 · code entry</div>
+    <div class="phone-note">Dispatch check: phone has active aggregator_registration_request with status=code_issued + not-expired → route here BEFORE the unregistered welcome screen.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*847291#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Create a 4-digit PIN:
+
+<span class="hint">4–6 digits, numbers only.
+Avoid 0000, 1234, or your
+birth year.</span></div>
+    <div class="phone-label">Screen C2 · new PIN</div>
+    <div class="phone-note">Matches PIN policy unified in PR #60 (4-6 digits numeric).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*5739#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm PIN:</div>
+    <div class="phone-label">Screen C3 · confirm PIN</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*5739*5739#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> Welcome to Circul,
+Kwesi!
+
+You're now an aggregator
+at Bonsu Recyclers.
+
+Dial *920*54# to log
+purchases and sales.
+
+Call 024 131 48 41 for
+help.</div>
+    <div class="phone-label">Screen C4 · success END</div>
+    <div class="phone-note">Backend: atomic transaction — INSERT into <code>aggregators</code>, mark the request row status=completed, write audit row, fire completion SMSes. New aggregator can now dial *920*54# and be routed to <code>handleAggregatorUssd</code>.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 7: REJECTION -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="rejection">
+<div class="section-title">7. Rejection flow (candidate perspective)</div>
+<div class="section-desc">Candidate sees the rejection via SMS, not a USSD callback. Keeps the flow asymmetric — approvals pull candidate back in via code; rejections close the loop via notification.</div>
+
+<div class="flow">
+
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul aggregator registration wasn't approved.
+
+Reason: Circul currently operates in select regional capitals only. Contact Circul support for updates on expansion to your area.
+
+Call 024 131 48 41 with questions.</div>
+    <div class="sms-footer">To: candidate's phone · <code>AGGREGATOR_REQUEST_REJECTED</code></div>
+  </div>
+
+  <div class="phone new" style="margin-left:24px">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+The operating system for
+Ghana's waste workers.
+
+Sell. Track. Get paid.
+
+Register as:
+1. Collector
+2. Aggregator
+0. Exit</div>
+    <div class="phone-label">Screen RJ1 · candidate re-dials</div>
+    <div class="phone-note">Rejected candidate dialing again hits the standard welcome screen (no stale state from the rejected request). They can re-submit a new request if the rejection-reason circumstances change. Subject to the 3-per-24h rate limit.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 8: EDGE CASES -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="edges">
+<div class="section-title">8. Edge cases</div>
+
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Code expired.</span>
+
+Your registration code
+expired. Call Circul
+support at 024 131 48 41
+to request a new one,
+or try registering
+again later.</div>
+    <div class="phone-label">Screen E1 · code expired</div>
+    <div class="phone-note">After 10 min TTL, request row status moves to <code>expired</code>. Candidate re-dialing sees this END. Request log keeps the full chain.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*000000#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> <span class="warn">Wrong code. 2 attempts left.</span>
+
+Enter the 6-digit code
+from your SMS:</div>
+    <div class="phone-label">Screen E2 · wrong code</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*111111#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Too many wrong codes.</span>
+
+Your code is invalid.
+Call Circul support
+at 024 131 48 41
+for a new code.</div>
+    <div class="phone-label">Screen E3 · code burned</div>
+    <div class="phone-note">3 wrong attempts → code marked used, request status moves to <code>code_failed</code>. Admin can re-approve (generates new code) from the admin queue.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2*Ama Osei#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> <span class="warn">Phone already in use.</span>
+
+A collector on Circul is
+using this phone. To
+register as an aggregator
+instead, contact Circul
+support first.</div>
+    <div class="phone-label">Screen E4 · phone collision (collector)</div>
+    <div class="phone-note">At request-creation, check phone uniqueness across collectors / aggregators / agents. If collision → END with the right message per existing role.</div>
+  </div>
+
+</div>
+
+<div class="box warn-box">
+<h3>Race: admin approves while candidate is in-flight</h3>
+<p>Candidate submits request, immediately dials again to see status. Admin approves in between. If we route based solely on "pending" vs "code_issued" status, the candidate dialing at an unusual moment could bypass the code-entry screen and land in the fresh welcome.</p>
+<p><strong>Mitigation:</strong> dispatch check is strict — "active request for this phone with status IN (pending, code_issued)" routes to the appropriate screen. Pending → "Request already pending" END (screen R6). Code_issued → code-entry screen (C1). Only after registration completes (status=completed) does the welcome re-appear, and by then they're a registered aggregator so they hit the aggregator welcome anyway.</p>
+</div>
+
+<div class="box warn-box">
+<h3>Race: code entered while admin is still approving</h3>
+<p>Not possible by construction — the code is only generated at approval time. Before approval, no code exists in the DB, candidate has nothing to enter. Dispatch sees status=pending → screen R6.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 9: SMS CHAIN -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="sms">
+<div class="section-title">9. Parallel SMS alerts</div>
+<div class="section-desc">Five new notification events. All go through the existing <code>shared/notifications.js</code> pattern. Code-delivery event joins <code>SECURITY_EVENTS</code> to bypass the 20/day per-phone SMS cap.</div>
+
+<h3>Fires on request-received (admin)</h3>
+<div class="flow">
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body"><strong>New aggregator request</strong>
+
+Kwesi Bonsu (Bonsu Recyclers), Accra. Phone 0244XXXXXXX.
+
+Review at circul.polsia.app/admin.html</div>
+    <div class="sms-footer">To: admin (ntfy push primary + Ghana SMS fallback) · <code>AGGREGATOR_REQUEST_RECEIVED</code></div>
+  </div>
+</div>
+
+<h3>Fires on code-issued (candidate)</h3>
+<div class="flow">
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul aggregator code: <strong>847291</strong>
+
+Dial *920*54# and enter this code to finish registration. Expires in 10 min. Never share this code.</div>
+    <div class="sms-footer">To: candidate · <code>AGGREGATOR_CODE_ISSUED</code> — security event, cap bypass</div>
+  </div>
+</div>
+
+<h3>Fires on rejection (candidate)</h3>
+<div class="flow">
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Your Circul aggregator registration wasn't approved.
+
+Reason: [admin's rejection reason]
+
+Call 024 131 48 41 with questions.</div>
+    <div class="sms-footer">To: candidate · <code>AGGREGATOR_REQUEST_REJECTED</code></div>
+  </div>
+</div>
+
+<h3>Fires on completion (2 SMSes)</h3>
+<div class="flow">
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body">Welcome to Circul, Kwesi! You're now an aggregator at Bonsu Recyclers.
+
+Dial *920*54# and enter your PIN to start logging purchases.</div>
+    <div class="sms-footer">To: new aggregator · <code>AGGREGATOR_REGISTRATION_COMPLETED</code></div>
+  </div>
+  <div class="sms">
+    <div class="sms-header"><span class="from">Circul</span><span>now</span></div>
+    <div class="sms-body"><strong>Registration completed</strong>
+
+Kwesi Bonsu (Bonsu Recyclers, Accra) completed aggregator registration via USSD.
+
+AGG-0023 now live on Circul.</div>
+    <div class="sms-footer">To: admin · <code>AGGREGATOR_REGISTRATION_COMPLETED_ADMIN</code></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 10: BACKEND + DATA MODEL -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="backend">
+<div class="section-title">10. Backend + data model</div>
+
+<div class="box">
+<h3>New table: <code>aggregator_registration_requests</code></h3>
+<p>One row per request. Status transitions: <code>pending</code> → <code>code_issued</code> → <code>completed</code> OR <code>pending</code> → <code>rejected</code> OR <code>code_issued</code> → <code>expired</code>/<code>code_failed</code>.</p>
+
+<pre style="background:#0a150e;padding:12px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.55;overflow-x:auto">CREATE TABLE aggregator_registration_requests (
+  id                     SERIAL PRIMARY KEY,
+  phone                  VARCHAR(50) NOT NULL,
+  name                   VARCHAR(255) NOT NULL,
+  company                VARCHAR(255),
+  city                   VARCHAR(100) NOT NULL,
+  region                 VARCHAR(100),
+  country                VARCHAR(100) DEFAULT 'Ghana',
+  status                 VARCHAR(20) NOT NULL DEFAULT 'pending'
+                         CHECK (status IN ('pending','code_issued','completed','rejected','expired','code_failed')),
+  code_hash              VARCHAR(64),         -- SHA-256 of the 6-digit, null until approval
+  code_expires_at        TIMESTAMPTZ,         -- null until approval; approval sets NOW() + 10 min
+  code_attempts_remaining SMALLINT DEFAULT 3,
+  approved_by_admin_email VARCHAR(255),       -- null until approved
+  approved_at            TIMESTAMPTZ,
+  rejected_by_admin_email VARCHAR(255),       -- null until rejected
+  rejected_at            TIMESTAMPTZ,
+  rejection_reason       TEXT,                -- mandatory on reject; SMS'd to candidate
+  aggregator_id          INTEGER REFERENCES aggregators(id) ON DELETE SET NULL,  -- null until completed
+  source                 VARCHAR(20) DEFAULT 'ussd',
+  created_at             TIMESTAMPTZ DEFAULT NOW(),
+  updated_at             TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_agg_reg_phone ON aggregator_registration_requests (phone);
+CREATE INDEX idx_agg_reg_status ON aggregator_registration_requests (status);
+CREATE INDEX idx_agg_reg_created ON aggregator_registration_requests (created_at DESC);
+-- Partial unique index: one active (pending or code_issued) request per phone at a time
+CREATE UNIQUE INDEX idx_agg_reg_active
+  ON aggregator_registration_requests (phone)
+  WHERE status IN ('pending', 'code_issued');</pre>
+
+<h3>USSD handler changes</h3>
+<ul>
+  <li><strong>Dispatch update</strong> at <code>/api/ussd</code> (server.js; grep for location): before the user-lockout check, add an active-aggregator-registration-request check. If a row exists with status IN ('pending', 'code_issued'), route to the appropriate handler.</li>
+  <li><strong>New handler</strong> <code>handleAggregatorRegistrationCode(parts, requestRow)</code> — handles Screens C1-C4 (code entry, PIN, confirm, complete). Uses <code>verifyOtp</code> from PR #58 for code validation. On success: BEGIN, INSERT aggregator, UPDATE request row status=completed + aggregator_id, COMMIT. Fire completion SMSes (candidate + admin) non-blocking.</li>
+  <li><strong>Welcome copy update</strong>: <code>handleUnregisteredUssd</code> depth-0 branch now returns the role-split screen (Screen W1). The collector path (<code>parts[0] === '1'</code>) stays as-is. Aggregator path (<code>parts[0] === '2'</code>) routes to <code>handleAggregatorRegistrationRequest(parts.slice(1), phone)</code>.</li>
+  <li><strong>New handler</strong> <code>handleAggregatorRegistrationRequest(parts, phone)</code> — Screens R1-R5, E1-E4. Pre-flight checks (already-aggregator, already-pending, rate-limit). Collects name / company / city / confirm. On submit: INSERT into <code>aggregator_registration_requests</code> with status=pending, fire admin notification, END with success message.</li>
+</ul>
+
+<h3>New admin endpoints</h3>
+<ul>
+  <li><code>GET /api/admin/aggregator-requests</code> — list pending + recent (configurable via <code>?status=</code> query). Returns requests with name, company, city, phone, created_at, status. <code>requireAdmin</code>-gated.</li>
+  <li><code>POST /api/admin/aggregator-requests/:id/approve</code> — transitions status pending → code_issued. Generates OTP, hashes, stores, sets expires_at, SMSes candidate via <code>AGGREGATOR_CODE_ISSUED</code>, writes admin_audit_log row. Returns <code>{ success: true, code_id: N }</code>.</li>
+  <li><code>POST /api/admin/aggregator-requests/:id/reject</code> — body <code>{ reason }</code> required. Transitions pending → rejected. Stores reason. SMSes candidate via <code>AGGREGATOR_REQUEST_REJECTED</code>. Writes admin_audit_log row.</li>
+  <li>(Deferred) <code>POST /api/admin/aggregator-requests/:id/re-approve</code> — for code_failed/expired states, generate new code. Out of MVP scope.</li>
+</ul>
+
+<h3>New notification events in <code>shared/notifications.js</code></h3>
+<ul>
+  <li><code>AGGREGATOR_REQUEST_RECEIVED</code> → admin (ntfy primary + Ghana SMS fallback); body includes candidate name + company + city + phone + admin URL. See §10.3 below for dual-channel wiring.</li>
+  <li><code>AGGREGATOR_CODE_ISSUED</code> → candidate phone; 6-digit code + 10-min TTL + "never share." <strong>Added to SECURITY_EVENTS set (cap bypass).</strong></li>
+  <li><code>AGGREGATOR_REQUEST_REJECTED</code> → candidate phone; rejection reason + support contact.</li>
+  <li><code>AGGREGATOR_REGISTRATION_COMPLETED</code> → new aggregator phone; welcome message.</li>
+  <li><code>AGGREGATOR_REGISTRATION_COMPLETED_ADMIN</code> → admin (ntfy primary + Ghana SMS fallback); confirmation with new AGG-XXXX code.</li>
+</ul>
+
+<h3>Admin notification dual-channel — ntfy.sh primary + Ghana SMS fallback</h3>
+<p>ntfy.sh is already used for error-spike alerts (<code>server.js:7235</code>, env var <code>NTFY_TOPIC</code>). Reuse the pattern with a new topic for admin alerts.</p>
+<ul>
+  <li>New env var <code>NTFY_ADMIN_TOPIC</code> — Jojo subscribes to this topic on his ntfy mobile app. Default fallback: <code>circul-admin-alerts</code>.</li>
+  <li>New env var <code>ADMIN_ALERT_PHONE</code> — Jojo's Ghana number (<code>0207973412</code>) for SMS fallback.</li>
+  <li>New helper in <code>shared/notifications.js</code>: <code>notifyAdmin(event, data)</code> — fires both channels in parallel via <code>Promise.allSettled</code>. Each channel logs independently if it fails; no exception propagates.</li>
+  <li>Ntfy POST: <code>fetch('https://ntfy.sh/' + process.env.NTFY_ADMIN_TOPIC, { method: 'POST', body: messageText, headers: { 'Title': event, 'Priority': 'default', 'Tags': 'building' } })</code>. No API key needed; topics are effectively shared-secret URLs.</li>
+  <li>SMS fallback: existing <code>notify(event, process.env.ADMIN_ALERT_PHONE, data)</code> path.</li>
+  <li>Either channel can be disabled by leaving the corresponding env var unset. If both are unset, log a warning — no admin alerts will fire.</li>
+</ul>
+<p style="margin-top:10px"><strong>Why dual-channel:</strong> ntfy works internationally (Jojo is often in Bristol) and is free; SMS is guaranteed delivery but domestic only. Together: Jojo gets a near-instant push even in Bristol; if he's on the road without ntfy/data, the Ghana SMS still reaches him whenever he has reception.</p>
+
+<h3>Admin UI section (additions to <code>public/admin.html</code>)</h3>
+<ul>
+  <li>New section "Aggregator Requests" between User Management and Active Lockouts.</li>
+  <li>Table of pending requests (name, company, city, phone, age) + Review button per row.</li>
+  <li>Review modal shows full detail + Approve/Reject buttons.</li>
+  <li>Reject modal collects mandatory rejection reason textarea.</li>
+  <li>Approve button disables during API call, shows "Code sent" on success + auto-refreshes the queue.</li>
+  <li>Styles: reuse <code>shared.css</code> pill + tab patterns (post-polish from PR #62).</li>
+</ul>
+
+<h3>Security + integrity properties</h3>
+<ul>
+  <li>Codes: 6-digit random via <code>crypto.randomInt(100000, 1000000)</code>. SHA-256 at rest. Plaintext only in the SMS body. Timing-safe compare on entry (<code>crypto.timingSafeEqual</code>, reused from PR #58).</li>
+  <li>Rate limit: max 3 requests per phone per 24h. Max 1 active (pending or code_issued) request per phone at a time (enforced by partial unique index).</li>
+  <li>Code TTL: 10 minutes. 3 attempt limit. Burned on success OR on 3rd wrong attempt. Timed expiry (status=expired) if not used by expires_at.</li>
+  <li>Cross-table phone uniqueness: at request-create time, SELECT across <code>collectors</code>, <code>aggregators</code>, <code>agents</code> to prevent registering a phone already in use. Per-role END messages (Screen E4).</li>
+  <li>Audit: every admin action writes to <code>admin_audit_log</code> with <code>action</code> IN ('aggregator_request_approved', 'aggregator_request_rejected', 'aggregator_registration_completed'). Completion audit is system-authored (<code>actor_type='system'</code>) — candidate completed, not an admin mutation.</li>
+</ul>
+
+<h3>Concurrent-admin race</h3>
+<p>Two admins open the same pending request, both click Approve. <code>POST /approve</code> uses <code>UPDATE ... SET status='code_issued' ... WHERE status='pending'</code> — first-write-wins semantics. Second admin's request returns 409 Conflict with current status. UI refreshes queue on error, second admin sees the request now in code_issued state.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 11: MIGRATION PLAN -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="migrations">
+<div class="section-title">11. Migration plan (ordered)</div>
+<div class="section-desc">One migration. Low-risk — new table, no alterations to existing tables.</div>
+
+<div class="mig-list">
+  <div class="mig-row head"><div>Timestamp</div><div>File</div><div>What</div></div>
+  <div class="mig-row">
+    <div><code>1777700000000</code></div>
+    <div><code>create_aggregator_registration_requests.js</code></div>
+    <div>Creates the table with the schema above, indexes, CHECK constraint on status. Idempotent via <code>IF NOT EXISTS</code>.</div>
+  </div>
+</div>
+
+<div class="box" style="margin-top:20px">
+<h3>Server code changes (no migration, but coordinated)</h3>
+<ul>
+  <li><code>shared/notifications.js</code> — 5 new events + templates + <code>SECURITY_EVENTS</code> set update for the code-delivery event.</li>
+  <li><code>server.js</code> — USSD dispatch update (active-request check), welcome copy role split, 2 new USSD handlers (request + code+PIN), 3 new admin endpoints.</li>
+  <li><code>public/admin.html</code> — new Aggregator Requests section with queue view + review modal + reject modal.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 12: DEFERRED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="deferred">
+<div class="section-title">12. Deferred scope (future iterations)</div>
+
+<div class="box deferred">
+<h3>Peer-invite path (processor / aggregator approves)</h3>
+<p>The original <code>project_circul_role_fraud_prevention.md</code> had processors and existing aggregators issuing codes. This is still worth building, but not in this MVP. Adds: permission system (who can approve), per-role invite-issuance UI, separate code-issuance endpoint. Holds until we see pilot demand signal for "my processor already knows me, why does Circul support need to re-approve?"</p>
+</div>
+
+<div class="box deferred">
+<h3>Re-approve for expired / code-failed requests</h3>
+<p>If a code expires or burns through 3 attempts, admin currently has to reject and the candidate re-requests. Adds one fetch-and-regenerate endpoint. Saves one admin step; low priority until real operational signal.</p>
+</div>
+
+<div class="box deferred">
+<h3>USSD aggregator sell-upstream integration with declared-stock flow</h3>
+<p>PR #59's aggregator-sell flow has a declare-shortfall path for untraced inventory. Newly-registered aggregators will have zero inventory, so their first sale will hit the declare path. That's working as designed — no change needed — but worth naming as an expected interaction.</p>
+</div>
+
+<div class="box deferred">
+<h3>City expansion beyond pilot 4</h3>
+<p>USSD city picker is hardcoded to 4 cities (Accra / Kumasi / Tamale / Takoradi). Expansion to more cities is post-pilot scope; add to <code>USSD_CITIES</code> constant when geographic footprint grows. Memory <code>project_circul_stakeholders.md</code> — events like GHNPAP June/July 2026 may surface new cities.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 13: VERIFIED VS ASSUMED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified-vs-assumed">
+<div class="section-title">13. Verified vs Assumed</div>
+
+<div class="box verified">
+<h3>Verified</h3>
+<ul>
+  <li>Current aggregator registration paths (web open via POST /api/auth/register, USSD not supported) — confirmed via grep server.js:6735 + register.html:109.</li>
+  <li>Chain-of-custody / notification / audit infrastructure from PRs #58 + #60 — pattern established, reusable with new events + audit actions.</li>
+  <li>USSD dispatch precedence from PR #58 — active-flow check pattern documented, extend with one more layer at the top.</li>
+  <li>PIN policy (4-6 digits numeric) unified in PR #60 — new aggregator PIN uses the same validation.</li>
+  <li>BanQu lesson + Jojo's 2026-04-24 correction on aggregator smartphone assumption — memory updated in the same session.</li>
+  <li><code>admin_audit_log</code> schema + <code>recordAdminAction</code> helper — read in PR #58 work, pattern confirmed.</li>
+  <li><code>shared.css</code> tab + pill patterns from post-polish PR #62 — admin UI additions inherit cleanly.</li>
+</ul>
+</div>
+
+<div class="box verified">
+<h3>Locked design decisions (2026-04-24)</h3>
+<ul>
+  <li><strong>Support contact phone: 024 131 48 41</strong> — Pat's Ghana phone. Used in Screens R5, R6, R8, E1, E3 + the rejection SMS. Pat is the frontline support contact for field interactions.</li>
+  <li><strong>Admin notification channel: dual-channel.</strong> Primary via ntfy.sh push to topic <code>circul-admin-alerts</code> (works internationally from Bristol/Ghana/anywhere, free, Jojo subscribes via ntfy mobile app). Fallback via SMS to Jojo's Ghana number <code>020 797 34 12</code> (in case ntfy fails or app is inactive). Both wired via env vars (<code>NTFY_ADMIN_TOPIC</code> + <code>ADMIN_ALERT_PHONE</code>); either can be disabled at runtime.</li>
+  <li><strong>Name parsing: split.</strong> Separate screens for first name + last name, matching collector registration pattern at <code>server.js:2425-2426</code>. Verified collectors already split; aggregator now matches (Screens R1a + R1b).</li>
+  <li><strong>USSD welcome char count.</strong> Screen W1 is ~150 chars, well under the 182-char GSM limit. Fallback variant drops "Sell. Track. Get paid." line (~25 chars savings) if AT truncates. Confirm post-deploy.</li>
+  <li><strong>Preposition rule:</strong> <code>aggregator on Circul</code> for platform context (e.g. R7 "already on the platform"); <code>aggregator at [Company]</code> for company context (e.g. C4 + completion SMS). Rationale: "on" reads as platform membership; "at" reads as embedded in the company (better fit for owner-operator aggregators than "for", which sounds external/contractual).</li>
+  <li><strong>"Circul support" not "Circul admin"</strong> — unified in all audience-facing copy. Internal admin.html / admin endpoints / <code>admin_audit_log</code> / <code>actor_type='admin'</code> keep "admin" (technical, not user-facing).</li>
+  <li><strong>Rejection SMS drops "Pat at WORK"</strong> — replaced with generic "Circul support" framing. Platform-neutral, consistent.</li>
+  <li><strong>"Collector registration" header on W2a</strong> — added for parity with the aggregator path's W2b header. Bug-fix back-port: collector flow at server.js:2425 currently shows just "Enter your first name:" with no context. This PR updates to match.</li>
+  <li><strong>Last name required, no skip</strong> — both collectors and aggregators must provide a last name. Bug-fix back-port: server.js:2426 currently allows "0 to skip" for collectors; this PR removes the skip, requires non-empty input, and rejects "0" as a valid last name.</li>
+</ul>
+</div>
+
+<div class="box assumed">
+<h3>Remaining open question</h3>
+<ul>
+  <li><strong>City picker scope — 8 or 16 regional capitals?</strong> Current mockup proposes 8 pilot cities across 3 paginated pages (Accra / Kumasi / Tamale / Takoradi / Cape Coast / Koforidua / Ho / Sunyani — the 8 most-populated regional capitals). Covering all 16 regional capitals (adding Wa / Bolgatanga / Techiman / Sekondi / Dambai / Nalerigu / Damongo / Goaso) would be 6 paginated pages — more "More →" tapping but full national coverage from day one. My current call: 8 now, expand post-pilot when demand from non-pilot regions surfaces. Push back if you want full 16.</li>
+</ul>
+</div>
+
+<div class="box warn-box">
+<h3>Could be wrong if</h3>
+<ul>
+  <li>Another session has changed <code>handleUnregisteredUssd</code> or the admin UI patterns since this mockup was drafted. Re-grep before writing the prompt.</li>
+  <li>The USSD welcome PR (`feat/ussd-welcome-copy` if fired) lands with slightly different copy than Variant 1 — this mockup's Screen W1 would need to match whatever shipped. If welcome PR isn't merged yet at implementation time, this PR's welcome-copy-role-split change supersedes.</li>
+  <li><code>shared.css</code>'s pill / tab patterns have been further modified by another session between admin-polish PR #62 and this mockup. Re-grep current state.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- NEXT STEPS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" style="margin-bottom:0">
+<div class="box rec">
+<h3>Next steps</h3>
+<ol style="margin-left:20px;line-height:1.8;font-size:0.85rem">
+  <li>Jojo reviews this mockup. Key decisions to lock: support phone number (assumed #1), admin notification channel (assumed #2), name parsing (assumed #3).</li>
+  <li>On approval: I re-grep the USSD dispatch, welcome screen (post-welcome-PR), admin.html (post-polish-PR) for fresh line numbers, then draft the Claude Code prompt.</li>
+  <li>Commit strategy (anticipated): 5 commits mirroring structure — migration, notifications events, USSD dispatch + welcome role split, USSD handlers (request + code), admin endpoints + admin UI.</li>
+  <li>Branch: <code>feat/aggregator-registration</code> off main (which should have welcome + dead-code + admin-polish all merged by the time we implement).</li>
+  <li>Bundle into tonight's second Polsia sync or defer to Monday depending on your call-it-a-night timing.</li>
+</ol>
+</div>
+</div>
+
+</body>
+</html>

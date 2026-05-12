@@ -1,0 +1,3037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD v2.2 — Full Spec with PIN Auth, Agents, Self-Registration &amp; Quality Specs</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1a0f;
+    --surface: #0d2818;
+    --surface-2: #112e1e;
+    --border: #1a3d28;
+    --accent: #00e676;
+    --accent-dim: #00e67633;
+    --text-1: #e8f5e9;
+    --text-2: #a5d6a7;
+    --text-3: #66bb6a;
+    --red: #ef5350;
+    --red-dim: #ef535033;
+    --yellow: #ffca28;
+    --yellow-dim: #ffca2833;
+    --blue: #42a5f5;
+    --blue-dim: #42a5f533;
+    --cyan: #26c6da;
+    --cyan-dim: #26c6da33;
+    --phone-bg: #1a1a2e;
+    --phone-screen: #0f0f23;
+    --phone-text: #00e676;
+    --phone-dim: #4a9;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-1); padding: 24px; line-height: 1.5; }
+
+  .mockup-title { text-align: center; color: var(--accent); font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; }
+  .mockup-subtitle { text-align: center; color: var(--text-2); font-size: 0.95rem; margin-bottom: 48px; max-width: 700px; margin-left: auto; margin-right: auto; }
+
+  .section-label {
+    display: inline-block; background: var(--accent-dim); color: var(--accent);
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 20px; margin-bottom: 16px;
+  }
+  .role-label {
+    display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 3px 10px; border-radius: 20px;
+  }
+  .role-label.collector { background: var(--accent-dim); color: var(--accent); }
+  .role-label.aggregator { background: var(--blue-dim); color: var(--blue); }
+  .role-label.agent { background: var(--cyan-dim); color: var(--cyan); }
+  .new-tag { background: var(--yellow-dim); color: var(--yellow); font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .existing-tag { color: var(--text-3); font-size: 0.72rem; }
+
+  .phone-row { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
+  .phone-wrap { text-align: center; }
+  .phone-label { font-size: 0.72rem; font-weight: 600; color: var(--text-3); margin-bottom: 8px; }
+  .phone-sublabel { font-size: 0.65rem; color: var(--text-3); opacity: 0.6; margin-top: 4px; }
+  .phone {
+    width: 215px; background: var(--phone-bg); border-radius: 24px;
+    border: 2px solid #333; padding: 12px;
+  }
+  .phone-notch { width: 60px; height: 6px; background: #333; border-radius: 3px; margin: 0 auto 10px; }
+  .phone-screen {
+    background: var(--phone-screen); border-radius: 12px; padding: 14px 11px; min-height: 250px;
+    font-family: 'Courier New', monospace; font-size: 0.7rem; color: var(--phone-text);
+    line-height: 1.5; white-space: pre-wrap; text-align: left;
+  }
+  .phone-screen .title { color: #fff; font-weight: 700; font-size: 0.78rem; margin-bottom: 6px; display: block; }
+  .phone-screen .dim { color: var(--phone-dim); }
+  .phone-screen .hl { color: var(--yellow); font-weight: 700; }
+  .phone-screen .contact { color: #42a5f5; }
+  .phone-screen .err { color: var(--red); }
+  .phone-home { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #444; margin: 12px auto 0; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: var(--accent); padding: 0 2px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+  .menu-tree {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; max-width: 800px; margin: 0 auto 40px; font-size: 0.82rem;
+  }
+  .menu-tree h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tree-level .item { padding: 5px 0; display: flex; align-items: flex-start; gap: 8px; }
+  .tree-level .num { color: var(--accent); font-weight: 700; min-width: 20px; }
+  .tree-level .desc { color: var(--text-2); }
+  .tree-level .sub { margin-left: 28px; border-left: 2px solid var(--border); padding-left: 16px; margin-top: 4px; margin-bottom: 8px; }
+  .tree-level .sub .item .num { color: var(--text-3); }
+
+  .callout {
+    background: var(--yellow-dim); border-left: 3px solid var(--yellow);
+    padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 16px 0;
+    font-size: 0.78rem; color: var(--yellow);
+  }
+  .callout.green { background: var(--accent-dim); border-left-color: var(--accent); color: var(--accent); }
+  .callout.blue { background: var(--blue-dim); border-left-color: var(--blue); color: var(--blue); }
+  .callout.red { background: var(--red-dim); border-left-color: var(--red); color: var(--red); }
+
+  .full-width { max-width: 1200px; margin: 0 auto; }
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1000px; margin: 0 auto 40px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+  .panel h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; }
+  .panel.old { border-color: var(--red); border-style: dashed; }
+  .panel.new { border-color: var(--accent); }
+  .panel ul { list-style: none; padding: 0; }
+  .panel ul li { padding: 4px 0; font-size: 0.82rem; color: var(--text-2); }
+  .panel ul li::before { content: '→ '; color: var(--text-3); }
+
+  .tech-notes {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; max-width: 900px; margin: 0 auto 40px;
+    font-size: 0.82rem; color: var(--text-2); line-height: 1.7;
+  }
+
+  .principles-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1000px; margin: 0 auto 40px; }
+  .changes-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; max-width: 1000px; margin: 0 auto 40px; }
+  @media (max-width: 800px) { .changes-grid, .principles-grid { grid-template-columns: 1fr; } }
+  .change-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .change-card h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .change-card p { font-size: 0.78rem; color: var(--text-2); line-height: 1.5; }
+  .change-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: var(--accent); color: #0a1a0f; border-radius: 50%; font-size: 0.7rem; font-weight: 700; }
+
+  .sms-example { background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 14px; margin: 8px 0; font-family: 'Courier New', monospace; font-size: 0.72rem; color: #e0e0e0; line-height: 1.5; max-width: 320px; }
+  .sms-label { font-size: 0.65rem; font-weight: 600; color: var(--text-3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+</style>
+</head>
+<body>
+
+<div class="mockup-title">USSD v2.2 — Full Spec</div>
+<div class="mockup-subtitle">PIN auth for all roles &middot; Three roles (Collector, Aggregator, Agent) &middot; Self-registration &middot; Quality specs &middot; Marketplace &middot; Ratings</div>
+
+<!-- ========== DESIGN PRINCIPLES ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Design Principles</span>
+</div>
+<div class="principles-grid">
+  <div class="change-card">
+    <h4><span class="change-num">1</span> Max 4 menu items</h4>
+    <p>Every menu has at most 4 options plus "0. Back/Exit". Fewer choices = faster decisions = more screens within the 180s timeout.</p>
+  </div>
+  <div class="change-card">
+    <h4><span class="change-num">2</span> One question per screen</h4>
+    <p>No compound inputs. Each screen asks one thing. Weight on one screen, grade on the next, price after that. Zero chance of format errors on feature phones.</p>
+  </div>
+  <div class="change-card">
+    <h4><span class="change-num">3</span> Contact on every close</h4>
+    <p>Every acceptance or "I can supply" screen shows the other party's phone + location. SMS mirrors this. Digital → physical immediately.</p>
+  </div>
+  <div class="change-card" style="border-color:var(--yellow);">
+    <h4><span class="change-num">4</span> PIN on every session <span class="new-tag">v2.2</span></h4>
+    <p>Every session starts with a 4-digit PIN — just like MoMo. Builds trust, prevents SIM-swap fraud, and ensures only the account holder can transact. PIN entry takes ~8 seconds (fast muscle memory).</p>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== PIN AUTH FLOW ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">PIN Authentication — All Roles</span>
+  <span class="role-label collector" style="margin-left:8px;">Collector</span>
+  <span class="role-label aggregator" style="margin-left:4px;">Aggregator</span>
+  <span class="role-label agent" style="margin-left:4px;">Agent</span>
+  <span class="new-tag">v2.2</span>
+</div>
+
+<div style="max-width:1000px;margin:0 auto 24px;font-size:0.82rem;color:var(--text-2);">
+  Every USSD session begins with PIN entry — same flow for all three roles. The system identifies the role from the phone number in the database, then asks for PIN. Wrong PIN gets 2 more attempts before lockout. Locked accounts can be reset by an aggregator (for collectors/agents) or via web dashboard (for aggregators).
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">PIN Entry</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+
+Enter your 4-digit PIN:
+
+<span class="dim">Type PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "" → PIN screen</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Success → Main Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+Welcome, Ama Mensah
+
+<span class="hl">1.</span> Log Drop-off
+<span class="hl">2.</span> Marketplace
+<span class="hl">3.</span> My Activity
+<span class="hl">0.</span> Exit
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Role-specific menu loads</div>
+  </div>
+</div>
+
+<!-- Wrong PIN + Lockout -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">ERROR STATES — wrong PIN &amp; lockout</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Wrong PIN (attempt 1 or 2)</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+
+<span class="err">Wrong PIN.</span>
+2 attempts remaining.
+
+Enter your 4-digit PIN:
+
+<span class="dim">Type PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Retry on same session</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Locked (3 failures)</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">ACCOUNT LOCKED</span>
+
+Too many wrong attempts.
+
+Your account has been
+locked for security.
+
+Contact your aggregator
+or visit circul.app
+to reset your PIN.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Lockout for 30 mins</div>
+  </div>
+</div>
+
+<!-- First login PIN change -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">FIRST LOGIN — forced PIN change (agent-registered collectors)</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Enter temp PIN</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+
+Enter the temporary PIN
+given to you:
+
+<span class="dim">Type PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Temp PIN from agent</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Choose new PIN</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SET YOUR PIN</span>
+
+Choose a 4-digit PIN
+you will remember.
+
+<span class="dim">Do not use 0000 or
+1234.</span>
+
+<span class="dim">Enter new PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Validates not trivial</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Confirm PIN</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CONFIRM PIN</span>
+
+Enter your new PIN
+again to confirm:
+
+<span class="dim">Confirm PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Must match</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">PIN Set → Main Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">PIN SET ✓</span>
+Your PIN has been saved.
+
+Welcome, Kojo Asare!
+
+<span class="hl">1.</span> Log Drop-off
+<span class="hl">2.</span> Marketplace
+<span class="hl">3.</span> My Activity
+<span class="hl">0.</span> Exit
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Straight into main menu</div>
+  </div>
+</div>
+
+<div class="callout green" style="max-width:1000px;margin:0 auto 40px;">
+  <strong>Why PIN for every session?</strong> MoMo has trained 40M+ Ghanaians to enter a PIN before any transaction. Skipping it would feel less trustworthy, not more convenient. PIN entry takes ~8 seconds — fast muscle memory for anyone who uses MoMo daily. It also protects against SIM swap attacks and shared-phone scenarios (common in households where family members share a feature phone).
+</div>
+
+<hr class="divider">
+
+<!-- ========== ALL MENU TREES ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Menu Trees — All Three Roles</span>
+</div>
+
+<!-- COLLECTOR MENU TREE -->
+<div class="menu-tree">
+  <h4><span class="role-label collector">Collector</span> Main Menu — 4 options (after PIN)</h4>
+  <div class="tree-level">
+    <div class="item"><span class="num">1.</span><span class="desc">Log Drop-off <span class="existing-tag">(existing)</span></span></div>
+    <div class="sub">
+      <div class="item"><span class="num">→</span><span class="desc">material → weight → select aggregator → confirm → done</span></div>
+    </div>
+    <div class="item"><span class="num">2.</span><span class="desc">Marketplace <span class="new-tag">NEW</span></span></div>
+    <div class="sub">
+      <div class="item"><span class="num">1.</span><span class="desc">Sell material → material → qty → price → confirm → listed</span></div>
+      <div class="item"><span class="num">2.</span><span class="desc">Find buyers → material filter → browse aggregator requests → respond</span></div>
+      <div class="item"><span class="num">3.</span><span class="desc">My offers → view received offers → accept/decline</span></div>
+      <div class="item"><span class="num">4.</span><span class="desc">Quality specs → filter by material → view processor requirements</span></div>
+      <div class="item"><span class="num">0.</span><span class="desc">Back</span></div>
+    </div>
+    <div class="item"><span class="num">3.</span><span class="desc">My Activity <span class="new-tag">NEW</span></span></div>
+    <div class="sub">
+      <div class="item"><span class="num">1.</span><span class="desc">My stats (month/YTD/total earned/rating)</span></div>
+      <div class="item"><span class="num">2.</span><span class="desc">Recent transactions → check if confirmed + rate if completed</span></div>
+      <div class="item"><span class="num">3.</span><span class="desc">Prices near me</span></div>
+      <div class="item"><span class="num">0.</span><span class="desc">Back</span></div>
+    </div>
+    <div class="item"><span class="num">0.</span><span class="desc">Exit</span></div>
+  </div>
+</div>
+
+<!-- AGGREGATOR MENU TREE -->
+<div class="menu-tree">
+  <h4><span class="role-label aggregator">Aggregator</span> Main Menu — 4 options (after PIN)</h4>
+  <div class="tree-level">
+    <div class="item"><span class="num">1.</span><span class="desc">Log Purchase <span class="existing-tag">(existing)</span></span></div>
+    <div class="sub">
+      <div class="item"><span class="num">→</span><span class="desc">select collector → material → weight → price → confirm → done</span></div>
+    </div>
+    <div class="item"><span class="num">2.</span><span class="desc">Marketplace <span class="new-tag">NEW</span></span></div>
+    <div class="sub">
+      <div class="item"><span class="num">1.</span><span class="desc">Buy material → browse collector listings → make offer</span></div>
+      <div class="item"><span class="num">2.</span><span class="desc">Sell material → material → qty → grade → price → listed</span></div>
+      <div class="item"><span class="num">3.</span><span class="desc">My listings &amp; offers → manage active, accept/decline</span></div>
+      <div class="item"><span class="num">4.</span><span class="desc">Quality specs → filter by material → view processor requirements</span></div>
+      <div class="item"><span class="num">0.</span><span class="desc">Back</span></div>
+    </div>
+    <div class="item"><span class="num">3.</span><span class="desc">My Activity <span class="new-tag">NEW</span></span></div>
+    <div class="sub">
+      <div class="item"><span class="num">1.</span><span class="desc">My stats (month/YTD/total spent/rating)</span></div>
+      <div class="item"><span class="num">2.</span><span class="desc">Pending drop-offs → confirm/reject <span class="existing-tag">(existing)</span></span></div>
+      <div class="item"><span class="num">3.</span><span class="desc">Rate a transaction → select recent → 1-5 stars → done</span></div>
+      <div class="item"><span class="num">0.</span><span class="desc">Back</span></div>
+    </div>
+    <div class="item"><span class="num">0.</span><span class="desc">Exit</span></div>
+  </div>
+</div>
+
+<!-- AGENT MENU TREE -->
+<div class="menu-tree" style="border-color:var(--cyan);">
+  <h4><span class="role-label agent">Agent</span> Main Menu — 3 options (after PIN)</h4>
+  <div class="tree-level">
+    <div class="item"><span class="num">1.</span><span class="desc">Log Collection</span></div>
+    <div class="sub">
+      <div class="item"><span class="num">→</span><span class="desc">select collector → material → weight → price/kg → confirm → done</span></div>
+    </div>
+    <div class="item"><span class="num">2.</span><span class="desc">Register Collector</span></div>
+    <div class="sub">
+      <div class="item"><span class="num">→</span><span class="desc">first name → last name → phone → city → temp PIN → confirm → registered</span></div>
+    </div>
+    <div class="item"><span class="num">3.</span><span class="desc">My Activity</span></div>
+    <div class="sub">
+      <div class="item"><span class="num">1.</span><span class="desc">My stats (today/month collections, total kg, value)</span></div>
+      <div class="item"><span class="num">2.</span><span class="desc">Recent collections → last 10 with status</span></div>
+      <div class="item"><span class="num">3.</span><span class="desc">Quality specs → filter by material → view processor requirements</span></div>
+      <div class="item"><span class="num">0.</span><span class="desc">Back</span></div>
+    </div>
+    <div class="item"><span class="num">0.</span><span class="desc">Exit</span></div>
+  </div>
+</div>
+
+<div class="callout green" style="max-width:800px;margin:0 auto 40px;">
+  <strong>Why agents don't get Marketplace:</strong> Agents are field operators — they log collections and register collectors on behalf of their aggregator. They don't trade independently. Marketplace trading happens under the aggregator's account. But agents DO get quality specs so they can guide collectors on sorting in the field.
+</div>
+
+<hr class="divider">
+
+<!-- ========== COLLECTOR SELF-REGISTRATION ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">Collector Self-Registration (with PIN setup)</span>
+  <span class="role-label collector" style="margin-left:8px;">Collector</span>
+</div>
+
+<div style="max-width:1000px;margin:0 auto 24px;font-size:0.82rem;color:var(--text-2);">
+  When an unrecognized phone number dials the USSD code, the system offers self-registration. The collector chooses their own PIN during registration (same as opening a MoMo account). 6 screens, ~140 seconds — comfortable within timeout.
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Unrecognized phone</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+This phone number is
+not registered.
+
+<span class="hl">1.</span> Register as collector
+<span class="hl">0.</span> Exit
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "" → depth 0</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">1. First name</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTER</span>
+
+What is your first name?
+
+<span class="dim">Type your first name:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1" → depth 1</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Last name</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTER</span>
+Hi, Ama!
+
+What is your last name?
+
+<span class="dim">Type your last name:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*Ama" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. City</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTER</span>
+Ama Mensah
+
+Where are you located?
+
+<span class="hl">1.</span> Accra
+<span class="hl">2.</span> Kumasi
+<span class="hl">3.</span> Takoradi
+<span class="hl">4.</span> Tamale
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*Ama*Mensah" → depth 3</div>
+  </div>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">4. Choose PIN</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SET YOUR PIN</span>
+
+Choose a 4-digit PIN
+you will remember.
+Use it each time you
+dial Circul.
+
+<span class="dim">Do not use 0000 or
+1234.</span>
+
+<span class="dim">Enter new PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*Ama*Mensah*1" → depth 4</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">5. Confirm</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CONFIRM</span>
+
+Name: Ama Mensah
+Phone: 0241234567
+City: Accra
+PIN: set ✓
+
+<span class="hl">1.</span> Register
+<span class="hl">2.</span> Cancel</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*Ama*Mensah*1*5678" → depth 5</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">6. Done</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">WELCOME TO CIRCUL!</span>
+
+You are now registered.
+
+Your ID: COL-0089
+
+Next time you dial,
+enter your PIN to
+start trading.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*Ama*Mensah*1*5678*1" → END</div>
+  </div>
+</div>
+
+<div class="callout" style="max-width:1000px;margin:0 auto 16px;">
+  <strong>Agent-registered vs self-registered:</strong> When an agent registers a collector, they set a temporary PIN and give it to the collector verbally. On first dial, the collector must change this PIN (forced change flow shown above). Self-registered collectors choose their own PIN immediately — no forced change needed.
+</div>
+
+<div class="callout green" style="max-width:1000px;margin:0 auto 40px;">
+  <strong>No aggregator link on self-registration:</strong> Self-registered collectors are "unattached" — not assigned to any aggregator. The link forms naturally when they log their first drop-off or an aggregator makes an offer. Agent-registered collectors are automatically linked to the agent's parent aggregator.
+</div>
+
+<hr class="divider">
+
+<!-- ========== COLLECTOR MARKETPLACE FLOW ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">Collector — Marketplace (Sell + Find Buyers + Offers + Specs)</span>
+  <span class="role-label collector" style="margin-left:8px;">Collector</span>
+</div>
+
+<div style="max-width:1000px;margin:0 auto 24px;font-size:0.82rem;color:var(--text-2);">
+  One menu for everything marketplace. All flows begin after PIN → Main Menu. Screen counts below exclude the PIN screen (one-time per session, not per flow).
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Marketplace Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MARKETPLACE</span>
+
+<span class="hl">1.</span> Sell my material
+<span class="hl">2.</span> Find buyers
+<span class="hl">3.</span> My offers (2 new)
+<span class="hl">4.</span> Quality specs
+<span class="hl">0.</span> Back
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2" → depth 1</div>
+  </div>
+</div>
+
+<!-- Sell flow: screen by screen -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">SELL FLOW — one question per screen</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">1. What material?</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — MATERIAL</span>
+What are you selling?
+
+<span class="hl">1.</span> PET
+<span class="hl">2.</span> HDPE
+<span class="hl">3.</span> LDPE
+<span class="hl">4.</span> PP
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. How much?</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — QUANTITY</span>
+Material: PET
+
+How many kg?
+
+<span class="dim">Enter weight in kg:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1*1" → depth 3</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Your price?</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — PRICE</span>
+PET · 80 kg
+
+Your asking price/kg?
+<span class="dim">(Reply 0 for "open to
+offers")</span>
+
+<span class="dim">GH₵ per kg:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1*1*80" → depth 4</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">4. Confirm</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CONFIRM LISTING</span>
+
+PET · 80 kg
+Price: GH₵ 2.00/kg
+Location: Accra
+Expires: 7 days
+
+<span class="hl">1.</span> Confirm
+<span class="hl">2.</span> Cancel</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1*1*80*2" → depth 5</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">5. Done</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LISTED ✓</span>
+
+80 kg PET at GH₵ 2.00
+posted in Accra.
+
+Buyers can see your
+listing. SMS when an
+offer comes in.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1*1*80*2*1" → END</div>
+  </div>
+</div>
+
+<!-- Find buyers flow -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">FIND BUYERS — browse aggregator buy requests</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">1. Filter by material</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">FIND BUYERS</span>
+What material do you
+have?
+
+<span class="hl">1.</span> PET
+<span class="hl">2.</span> HDPE
+<span class="hl">3.</span> LDPE
+<span class="hl">4.</span> PP
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Results</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">PET BUYERS (Accra)</span>
+
+<span class="hl">1.</span> Kofi Aggregates
+   200kg @ GH₵ 2.50
+<span class="hl">2.</span> Nana Traders
+   500kg @ GH₵ 2.30
+<span class="hl">3.</span> GreenLoop
+   100kg @ open
+<span class="hl">4.</span> More results
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">3 results per page + "More"</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Respond</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">KOFI AGGREGATES</span>
+Wants: 200kg PET
+Price: GH₵ 2.50/kg
+Location: Madina
+Rating: ★★★★☆ (4.2)
+
+<span class="hl">1.</span> I have this
+<span class="dim">   (shares your phone
+   with this buyer)</span>
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2*1*1" → depth 4</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">4. Connected</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RESPONSE SENT ✓</span>
+
+Kofi Aggregates knows
+you can supply PET.
+
+<span class="contact">Contact buyer:</span>
+Kofi Aggregates
+Phone: 0300000002
+Madina, Accra
+
+Call to arrange
+drop-off.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2*1*1*1" → END</div>
+  </div>
+</div>
+
+<!-- Accept offer flow -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">MY OFFERS — accept with contact details</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">1. Offers list</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MY OFFERS</span>
+<span class="dim">2 new offers</span>
+
+<span class="hl">1.</span> Kofi Aggregates
+   80kg PET @ GH₵ 2.20
+   <span style="color:var(--yellow);">★ NEW</span>
+<span class="hl">2.</span> GreenLoop
+   50kg PET @ GH₵ 1.80
+   <span style="color:var(--yellow);">★ NEW</span>
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Shows business names</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Offer detail</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">OFFER DETAIL</span>
+
+From: Kofi Aggregates
+Rating: ★★★★☆ (4.2)
+80 kg PET
+Offer: GH₵ 2.20/kg
+Total: GH₵ 176.00
+
+<span class="hl">1.</span> Accept
+<span class="hl">2.</span> Decline
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Rating shown to build trust</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Accepted + contact</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">ACCEPTED ✓</span>
+
+80kg PET @ GH₵ 2.20/kg
+Total: GH₵ 176.00
+
+<span class="contact">Contact buyer:</span>
+Kofi Aggregates
+Phone: 0300000002
+Madina, Accra
+
+Call to arrange
+drop-off. Logged.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*3*1*1" → END</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== QUALITY SPECS FLOW ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">Quality Specs — All Roles</span>
+  <span class="role-label collector" style="margin-left:8px;">Collector</span>
+  <span class="role-label aggregator" style="margin-left:4px;">Aggregator</span>
+  <span class="role-label agent" style="margin-left:4px;">Agent</span>
+</div>
+
+<div style="max-width:1000px;margin:0 auto 24px;font-size:0.82rem;color:var(--text-2);">
+  Same flow for all three roles. Browse processor/recycler quality requirements by material. Uses existing <code>GET /api/supply-requirements</code> endpoint. Accessed via Marketplace → Quality specs (collectors/aggregators) or My Activity → Quality specs (agents).
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">1. Select material</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">QUALITY SPECS</span>
+What material?
+
+<span class="hl">1.</span> PET
+<span class="hl">2.</span> HDPE
+<span class="hl">3.</span> LDPE
+<span class="hl">4.</span> PP
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">depth varies by role</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Buyer specs list</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">PET SPECS</span>
+<span class="dim">Processors buying PET:</span>
+
+<span class="hl">1.</span> rePATRN Ghana
+   Min: 200kg · +5%
+<span class="hl">2.</span> PlastiCycle
+   Min: 100kg · +3%
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Shows active specs</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Spec detail</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">rePATRN — PET</span>
+
+Forms: Loose, Bales
+Colours: Clear, Blue
+Max dirt: 3%
+Max moisture: 5%
+Min qty: 200 kg
+Premium: +5% if met
+
+<span class="dim">Sort clear + blue
+separately. Rinse.</span>
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">sorting_notes shown</div>
+  </div>
+</div>
+
+<div class="callout green" style="max-width:1000px;margin:0 auto 40px;">
+  <strong>Why specs matter on USSD:</strong> A collector who knows rePATRN pays 5% more for sorted PET will sort before selling. An agent can tell collectors exactly what's needed. This closes the information gap between upstream processors and the grassroots supply chain — which is the whole point of Circul.
+</div>
+
+<hr class="divider">
+
+<!-- ========== COLLECTOR MY ACTIVITY ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">Collector — My Activity (Stats + Status + Rating)</span>
+  <span class="role-label collector" style="margin-left:8px;">Collector</span>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Activity Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MY ACTIVITY</span>
+
+<span class="hl">1.</span> My stats
+<span class="hl">2.</span> Recent transactions
+<span class="hl">3.</span> Prices near me
+<span class="hl">0.</span> Back
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3" → depth 1</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Recent Transactions</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RECENT TRANSACTIONS</span>
+
+<span class="hl">1.</span> 3 Apr · 45kg PET
+   Kofi Agg · <span style="color:var(--accent);">Confirmed</span>
+   <span class="dim">★ Not yet rated</span>
+<span class="hl">2.</span> 1 Apr · 30kg HDPE
+   Kofi Agg · <span style="color:var(--yellow);">Pending</span>
+<span class="hl">3.</span> 28 Mar · 60kg PET
+   GreenLoop · <span style="color:var(--accent);">Confirmed</span>
+   <span class="dim">★ Rated 4/5</span>
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Shows partner names, not IDs</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Rate (if unrated)</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RATE TRANSACTION</span>
+3 Apr · 45kg PET
+Partner: Kofi Aggregates
+
+How many stars? (1-5)
+
+<span class="hl">1</span> = Poor
+<span class="hl">3</span> = OK
+<span class="hl">5</span> = Excellent
+
+<span class="dim">Enter 1-5:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*2*1" → depth 3</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Rating Done</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RATED ✓</span>
+
+You gave Kofi Aggregates
+★★★★☆ (4/5) for the
+45kg PET transaction.
+
+Thank you!
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*2*1*4" → END</div>
+  </div>
+</div>
+
+<div class="callout" style="max-width:1000px;margin:0 auto 40px;">
+  <strong>Rating kept simple on USSD:</strong> Stars only (1-5). No tags, no photos, no notes — those are web features. The goal on USSD is to capture a signal. Even a bare star rating from a collector is data that didn't exist before.
+</div>
+
+<hr class="divider">
+
+<!-- ========== AGGREGATOR MARKETPLACE ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">Aggregator — Marketplace (Buy + Sell + Offers + Specs)</span>
+  <span class="role-label aggregator" style="margin-left:8px;">Aggregator</span>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Marketplace Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MARKETPLACE</span>
+
+<span class="hl">1.</span> Buy material
+<span class="dim">   (from collectors)</span>
+<span class="hl">2.</span> Sell material
+<span class="dim">   (to processors etc.)</span>
+<span class="hl">3.</span> My listings &amp; offers
+<span class="hl">4.</span> Quality specs
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2" → depth 1</div>
+  </div>
+</div>
+
+<!-- Buy flow -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">BUY — browse collector listings + make offer</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">1. Filter</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">BUY — MATERIAL</span>
+What material?
+
+<span class="hl">1.</span> PET
+<span class="hl">2.</span> HDPE
+<span class="hl">3.</span> LDPE
+<span class="hl">4.</span> PP
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Results</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">PET SELLERS (Accra)</span>
+
+<span class="hl">1.</span> COL-0001
+   80kg @ GH₵ 2.00
+<span class="hl">2.</span> COL-0045
+   120kg @ open
+<span class="hl">3.</span> COL-0012
+   200kg @ GH₵ 1.80
+<span class="hl">4.</span> More results
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">3 per page + pagination</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Offer price</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MAKE OFFER</span>
+COL-0001 · 80kg PET
+Asking: GH₵ 2.00/kg
+
+Your offer price/kg?
+<span class="dim">(Reply 0 to match
+their price)</span>
+
+<span class="dim">GH₵ per kg:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1*1*1" → depth 4</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">4. Confirm</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CONFIRM OFFER</span>
+
+To: COL-0001
+80 kg PET
+Your offer: GH₵ 2.20/kg
+Total: GH₵ 176.00
+
+<span class="hl">1.</span> Send offer
+<span class="hl">2.</span> Cancel</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1*1*1*2.20" → depth 5</div>
+  </div>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">5. Sent</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">OFFER SENT ✓</span>
+
+GH₵ 2.20/kg for 80kg
+PET from COL-0001.
+
+Collector notified
+by SMS.
+
+SMS when they accept
+with their phone +
+location.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*1*1*1*2.20*1" → END</div>
+  </div>
+</div>
+
+<!-- Sell upstream flow -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">SELL — post listing to processors/recyclers/converters (screen-by-screen)</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">1. Material</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — MATERIAL</span>
+What are you selling?
+
+<span class="hl">1.</span> PET
+<span class="hl">2.</span> HDPE
+<span class="hl">3.</span> LDPE
+<span class="hl">4.</span> PP
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Quantity</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — QUANTITY</span>
+Material: HDPE
+
+How many kg?
+
+<span class="dim">Enter weight in kg:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2*2" → depth 3</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Grade</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — GRADE</span>
+HDPE · 500 kg
+
+What grade?
+
+<span class="hl">1.</span> Clean (sorted, low
+   contamination)
+<span class="hl">2.</span> Mixed (unsorted)
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2*2*500" → depth 4</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">4. Price</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — PRICE</span>
+HDPE · 500 kg · Clean
+
+Your asking price/kg?
+<span class="dim">(Reply 0 for "open to
+offers")</span>
+
+<span class="dim">GH₵ per kg:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2*2*500*1" → depth 5</div>
+  </div>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">5. Confirm</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CONFIRM LISTING</span>
+
+HDPE · 500 kg · Clean
+Price: GH₵ 4.50/kg
+Location: Madina, Accra
+Expires: 7 days
+
+<span class="hl">1.</span> Confirm
+<span class="hl">2.</span> Cancel</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2*2*500*1*4.50" → depth 6</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">6. Listed</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LISTED ✓</span>
+
+500 kg HDPE (Clean)
+at GH₵ 4.50/kg posted
+in Madina.
+
+SMS when offer arrives
+with buyer contact.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*2*2*500*1*4.50*1" → END</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== AGGREGATOR MY ACTIVITY ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">Aggregator — My Activity (Stats + Pending + Rating)</span>
+  <span class="role-label aggregator" style="margin-left:8px;">Aggregator</span>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Activity Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MY ACTIVITY</span>
+
+<span class="hl">1.</span> My stats
+<span class="hl">2.</span> Pending drop-offs (1)
+<span class="hl">3.</span> Rate a transaction
+<span class="hl">0.</span> Back
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3" → depth 1</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Rate — select transaction</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RATE TRANSACTION</span>
+<span class="dim">Unrated transactions:</span>
+
+<span class="hl">1.</span> 3 Apr · COL-0001
+   45kg PET · GH₵ 90
+<span class="hl">2.</span> 1 Apr · COL-0012
+   30kg HDPE · GH₵ 75
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*3" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Rate — give stars</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RATE COL-0001</span>
+3 Apr · 45kg PET
+
+How many stars? (1-5)
+
+<span class="hl">1</span> = Poor
+<span class="hl">3</span> = OK
+<span class="hl">5</span> = Excellent
+
+<span class="dim">Enter 1-5:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*3*1" → depth 3</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Rating done</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RATED ✓</span>
+
+You gave COL-0001
+★★★★★ (5/5) for the
+45kg PET transaction.
+
+Thank you!
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*3*1*5" → END</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== AGENT FLOWS ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">Agent — Full USSD Experience</span>
+  <span class="role-label agent" style="margin-left:8px;">Agent</span>
+</div>
+
+<div style="max-width:1000px;margin:0 auto 24px;font-size:0.82rem;color:var(--text-2);">
+  Agents (Tier 4, phone + PIN auth) log collections and register collectors on behalf of their aggregator. PIN required every session, same as all other roles.
+</div>
+
+<!-- Agent Log Collection -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">LOG COLLECTION — record a pickup from a collector</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Main Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL — AGENT</span>
+Welcome, Kwesi
+(Kofi Aggregates)
+
+<span class="hl">1.</span> Log Collection
+<span class="hl">2.</span> Register Collector
+<span class="hl">3.</span> My Activity
+<span class="hl">0.</span> Exit
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Shows parent aggregator</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">1. Select collector</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LOG COLLECTION</span>
+Which collector?
+
+<span class="hl">1.</span> Ama Mensah
+<span class="hl">2.</span> Yaw Boateng
+<span class="hl">3.</span> Abena Osei
+<span class="hl">4.</span> More
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1" → depth 1</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Material</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LOG — MATERIAL</span>
+Collector: Ama Mensah
+
+What material?
+
+<span class="hl">1.</span> PET
+<span class="hl">2.</span> HDPE
+<span class="hl">3.</span> LDPE
+<span class="hl">4.</span> PP
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*1" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Weight</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LOG — WEIGHT</span>
+Ama Mensah · PET
+
+How many kg?
+
+<span class="dim">Enter weight in kg:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*1*1" → depth 3</div>
+  </div>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">4. Price</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LOG — PRICE</span>
+Ama Mensah · 45kg PET
+
+Price per kg?
+
+<span class="dim">GH₵ per kg:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*1*1*45" → depth 4</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">5. Confirm</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CONFIRM COLLECTION</span>
+
+Collector: Ama Mensah
+Material: PET · 45 kg
+Price: GH₵ 2.00/kg
+Total: GH₵ 90.00
+
+<span class="hl">1.</span> Confirm
+<span class="hl">2.</span> Cancel</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*1*1*45*2" → depth 5</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">6. Logged</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LOGGED ✓</span>
+
+45 kg PET from
+Ama Mensah (COL-0089)
+at GH₵ 2.00/kg.
+Total: GH₵ 90.00
+
+Logged for
+Kofi Aggregates.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "1*1*1*45*2*1" → END</div>
+  </div>
+</div>
+
+<!-- Agent Register Collector -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">REGISTER COLLECTOR — enrol a new collector with a temporary PIN</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">1. First name</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTER COLLECTOR</span>
+
+Collector's first name?
+
+<span class="dim">Type first name:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2" → depth 1</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. Last name</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTER COLLECTOR</span>
+First name: Kojo
+
+Last name?
+
+<span class="dim">Type last name:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*Kojo" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Phone</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTER COLLECTOR</span>
+Kojo Asare
+
+Phone number?
+
+<span class="dim">Enter 10-digit number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*Kojo*Asare" → depth 3</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">4. City</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTER COLLECTOR</span>
+Kojo Asare · 0241234567
+
+City?
+
+<span class="hl">1.</span> Accra
+<span class="hl">2.</span> Kumasi
+<span class="hl">3.</span> Takoradi
+<span class="hl">4.</span> Tamale
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*Kojo*Asare*0241234567" → depth 4</div>
+  </div>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">5. Set temp PIN</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SET TEMP PIN</span>
+Kojo Asare · Accra
+
+Choose a 4-digit PIN
+for this collector.
+
+<span class="dim">They will change it
+on first dial.</span>
+
+<span class="dim">Enter 4 digits:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*Kojo*Asare*...*1" → depth 5</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">6. Confirm</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CONFIRM</span>
+
+Name: Kojo Asare
+Phone: 0241234567
+City: Accra
+For: Kofi Aggregates
+Temp PIN: set ✓
+
+<span class="hl">1.</span> Register
+<span class="hl">2.</span> Cancel</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "2*...*1234" → depth 6</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">7. Registered</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">REGISTERED ✓</span>
+
+Kojo Asare (COL-0090)
+registered under
+Kofi Aggregates.
+
+Give them their temp
+PIN so they can dial
+in and set their own.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Agent tells them verbally</div>
+  </div>
+</div>
+
+<!-- Agent My Activity -->
+<div style="max-width:1000px;margin:0 auto 12px;font-size:0.78rem;color:var(--text-3);font-weight:600;">MY ACTIVITY — stats, recent collections, quality specs</div>
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Activity Menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MY ACTIVITY</span>
+
+<span class="hl">1.</span> My stats
+<span class="hl">2.</span> Recent collections
+<span class="hl">3.</span> Quality specs
+<span class="hl">0.</span> Back
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3" → depth 1</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">My Stats</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MY STATS</span>
+
+<span class="dim">Today:</span>
+3 collections · 125 kg
+
+<span class="dim">This month:</span>
+47 collections · 2,340 kg
+Value: GH₵ 5,890
+
+<span class="dim">Collectors registered:</span>
+12 total
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*1" → depth 2</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Recent Collections</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RECENT COLLECTIONS</span>
+
+<span class="hl">1.</span> 5 Apr · Ama Mensah
+   45kg PET · GH₵ 90
+<span class="hl">2.</span> 5 Apr · Yaw Boateng
+   30kg HDPE · GH₵ 75
+<span class="hl">3.</span> 4 Apr · Abena Osei
+   60kg PET · GH₵ 120
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*2" → depth 2</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== SMS TEMPLATES ========== -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">SMS Notifications — What Users Receive</span>
+</div>
+
+<div style="max-width:1000px;margin:0 auto 24px;font-size:0.82rem;color:var(--text-2);">
+  Every key event triggers an SMS to the relevant party. SMS includes a transaction reference for record-keeping — same pattern Ghanaians see from MoMo. SMS is the durable record; USSD screens are ephemeral.
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:700px;margin:0 auto 40px;">
+  <div>
+    <div class="sms-label">New offer received (to collector)</div>
+    <div class="sms-example">CIRCUL: New offer for your 80kg PET listing.
+
+Kofi Aggregates offers GH₵ 2.20/kg (GH₵ 176.00 total).
+
+Dial *920*123# and go to Marketplace → My offers to accept or decline.
+
+Ref: TXN-20260405-0042</div>
+  </div>
+  <div>
+    <div class="sms-label">Offer accepted (to aggregator)</div>
+    <div class="sms-example">CIRCUL: Your offer was ACCEPTED!
+
+Ama Mensah accepted your offer for 80kg PET @ GH₵ 2.20/kg.
+
+Contact collector:
+Phone: 0241234567
+Location: Accra
+
+Ref: TXN-20260405-0042</div>
+  </div>
+  <div>
+    <div class="sms-label">Registration confirmation</div>
+    <div class="sms-example">CIRCUL: Welcome, Ama Mensah!
+
+You are registered as a collector (COL-0089).
+
+Dial *920*123# anytime to log drop-offs, sell material, or find buyers.
+
+Your PIN is required each time.</div>
+  </div>
+  <div>
+    <div class="sms-label">Collection logged (to collector)</div>
+    <div class="sms-example">CIRCUL: Collection recorded.
+
+45 kg PET collected by agent Kwesi (Kofi Aggregates) at GH₵ 2.00/kg.
+
+Total: GH₵ 90.00
+
+Ref: TXN-20260405-0043</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== UX IMPROVEMENTS ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">UX/UI Improvements (v2.2)</span>
+</div>
+
+<div class="tech-notes" style="max-width:1000px;">
+  <p><strong style="color:var(--accent);">Improvements already applied in this spec:</strong></p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">1. Ratings visible in listings.</strong> When a collector browses buyers or reviews an offer, the aggregator's star rating is shown (e.g., "★★★★☆ (4.2)"). This builds trust and rewards good actors — a key feedback loop for the whole system.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">2. Pagination on all list screens.</strong> Results screens show 3 items + "4. More results" instead of assuming everything fits on one screen. When there are 20 PET sellers in Accra, users can page through 3 at a time without overwhelming the screen. Back always available via 0.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">3. Business names instead of IDs.</strong> In collector-facing screens, aggregators are shown by business name ("Kofi Aggregates") rather than ID codes ("AGG-0002"). IDs are still used in aggregator-facing screens for collectors (privacy: "COL-0001") per existing privacy rules, but the partner context is more human.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">4. SMS notification templates with transaction references.</strong> Every SMS includes a TXN reference number (like MoMo receipts). SMS is the durable record for illiterate or semi-literate users who ask someone to read it later. Section added above.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">5. Error states designed explicitly.</strong> Wrong PIN, account lockout, and first-login PIN change flows are all shown with real screens — not just described in text. These edge cases are critical for first-time users who will inevitably mistype their PIN.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">6. Contextual breadcrumbs on every screen.</strong> Each data entry screen shows what the user has already entered (e.g., "HDPE · 500 kg · Clean" on the price screen). This reduces the "where am I?" confusion common on USSD and lets users verify their choices before committing.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">7. Trivial PIN rejection.</strong> Registration flows explicitly warn against 0000 and 1234 and reject them server-side. Simple security measure that prevents the most common weak PINs without adding friction.</p>
+</div>
+
+<div class="tech-notes" style="max-width:1000px;">
+  <p><strong style="color:var(--yellow);">Improvements to consider for implementation (not in spec yet):</strong></p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">A. "00" as universal shortcut to main menu.</strong> Instead of pressing 0 repeatedly to navigate back, "00" jumps straight to the main menu from any depth. Saves time on deep flows. Common pattern in West African USSD services.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">B. PIN change option.</strong> Under My Activity, add "Change PIN" (4 screens: current PIN → new PIN → confirm → done). Low priority but important for users who suspect someone saw their PIN, or who forgot and had it reset.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">C. "No results" empty states.</strong> When there are no listings, no offers, or no pending transactions — show a helpful message instead of nothing. E.g., "No PET buyers in Accra right now. Try posting a Sell listing instead! Dial → Marketplace → Sell."</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">D. Twi language option.</strong> After PIN, show "1. English / 2. Twi" before the main menu. Adds 1 screen but could dramatically improve accessibility in rural areas. Could defer to v3 and test with English-only first.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">E. Listing expiry reminder SMS.</strong> 24 hours before a listing expires, send an SMS: "Your 80kg PET listing expires tomorrow. Dial *920*123# to relist if it hasn't sold." Keeps the marketplace active without requiring users to check.</p>
+  <br>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">F. "Repeat last action" shortcut.</strong> If a collector logs the same type of drop-off daily, the main menu could show "Quick: Log 50kg PET to Kofi Agg?" as a fast-path option 1. Saves 4 screens for repeat users. Complex to build — defer to v3.</p>
+</div>
+
+<hr class="divider">
+
+<!-- ========== SCREEN COUNT ANALYSIS ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Timeout Analysis — Does it all fit in 180 seconds?</span>
+</div>
+
+<div class="tech-notes">
+  <p><strong style="color:var(--text-1);">Updated model with PIN:</strong> PIN entry takes ~8 seconds (fast muscle memory, same as MoMo). Menu picks take ~8 seconds. Text entry (weight, price, name) takes ~12-15 seconds. Using a blended average of ~15s per screen (more realistic than the conservative 25s):</p>
+  <br>
+  <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">Flow</th>
+        <th style="text-align:center;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">Screens (incl. PIN)</th>
+        <th style="text-align:center;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">~Seconds</th>
+        <th style="text-align:center;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;color:var(--accent);">Collector: Self-registration</td>
+        <td style="text-align:center;padding:6px;">6</td>
+        <td style="text-align:center;padding:6px;">~90s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ Comfortable</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Collector: Log Drop-off</td>
+        <td style="text-align:center;padding:6px;">PIN + 6</td>
+        <td style="text-align:center;padding:6px;">~105s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ OK</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Collector: Sell material</td>
+        <td style="text-align:center;padding:6px;">PIN + 6</td>
+        <td style="text-align:center;padding:6px;">~105s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ OK</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Collector: Find buyers + respond</td>
+        <td style="text-align:center;padding:6px;">PIN + 5</td>
+        <td style="text-align:center;padding:6px;">~90s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ Comfortable</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Collector: Accept offer</td>
+        <td style="text-align:center;padding:6px;">PIN + 4</td>
+        <td style="text-align:center;padding:6px;">~75s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ Comfortable</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">All roles: Quality specs</td>
+        <td style="text-align:center;padding:6px;">PIN + 4</td>
+        <td style="text-align:center;padding:6px;">~75s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ Comfortable</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Collector: Rate transaction</td>
+        <td style="text-align:center;padding:6px;">PIN + 4</td>
+        <td style="text-align:center;padding:6px;">~75s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ Comfortable</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Aggregator: Buy (browse + offer)</td>
+        <td style="text-align:center;padding:6px;">PIN + 6</td>
+        <td style="text-align:center;padding:6px;">~105s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ OK</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Aggregator: Sell (screen-by-screen)</td>
+        <td style="text-align:center;padding:6px;">PIN + 7</td>
+        <td style="text-align:center;padding:6px;">~120s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ OK</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Aggregator: Rate transaction</td>
+        <td style="text-align:center;padding:6px;">PIN + 4</td>
+        <td style="text-align:center;padding:6px;">~75s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ Comfortable</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;color:var(--cyan);">Agent: Log collection</td>
+        <td style="text-align:center;padding:6px;">PIN + 7</td>
+        <td style="text-align:center;padding:6px;">~115s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ OK</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;color:var(--cyan);">Agent: Register collector</td>
+        <td style="text-align:center;padding:6px;">PIN + 7</td>
+        <td style="text-align:center;padding:6px;">~120s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ OK</td>
+      </tr>
+      <tr>
+        <td style="padding:6px;color:var(--cyan);">Agent: My Activity</td>
+        <td style="text-align:center;padding:6px;">PIN + 3</td>
+        <td style="text-align:center;padding:6px;">~60s</td>
+        <td style="text-align:center;padding:6px;color:var(--accent);">✓ Comfortable</td>
+      </tr>
+    </tbody>
+  </table>
+  <br>
+  <p><strong style="color:var(--accent);">All flows now comfortably within 180s.</strong> The previous "tight" warnings were based on a conservative 25s/screen estimate. With a more realistic model (PIN = 8s, menu picks = 8s, text entry = 12-15s, blended ~15s), even the longest flows (aggregator sell at PIN + 7 screens) come in at ~120s with 60 seconds of headroom.</p>
+</div>
+
+<hr class="divider">
+
+<!-- ========== COMPLETENESS CHECK ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Completeness Check</span>
+</div>
+
+<div class="tech-notes">
+  <p><strong style="color:var(--accent);">What's covered:</strong></p>
+  <br>
+  <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">Need</th>
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">Collector</th>
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">Aggregator</th>
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.72rem;text-transform:uppercase;">Agent</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">PIN auth every session</td>
+        <td style="padding:6px;color:var(--accent);">✓</td>
+        <td style="padding:6px;color:var(--accent);">✓</td>
+        <td style="padding:6px;color:var(--accent);">✓</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Self-registration</td>
+        <td style="padding:6px;color:var(--accent);">✓ Name + city + PIN</td>
+        <td style="padding:6px;color:var(--text-3);">n/a (web only)</td>
+        <td style="padding:6px;color:var(--text-3);">n/a (agg creates)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Log a transaction</td>
+        <td style="padding:6px;color:var(--accent);">✓ Log Drop-off</td>
+        <td style="padding:6px;color:var(--accent);">✓ Log Purchase</td>
+        <td style="padding:6px;color:var(--accent);">✓ Log Collection</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Sell to next tier up</td>
+        <td style="padding:6px;color:var(--accent);">✓ Marketplace → Sell</td>
+        <td style="padding:6px;color:var(--accent);">✓ Marketplace → Sell</td>
+        <td style="padding:6px;color:var(--text-3);">n/a (agg trades)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Browse and buy</td>
+        <td style="padding:6px;color:var(--text-3);">n/a</td>
+        <td style="padding:6px;color:var(--accent);">✓ Marketplace → Buy</td>
+        <td style="padding:6px;color:var(--text-3);">n/a</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Find best price</td>
+        <td style="padding:6px;color:var(--accent);">✓ Find buyers + Prices</td>
+        <td style="padding:6px;color:var(--accent);">✓ Browse listings</td>
+        <td style="padding:6px;color:var(--text-3);">n/a</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Manage offers</td>
+        <td style="padding:6px;color:var(--accent);">✓ Accept/decline</td>
+        <td style="padding:6px;color:var(--accent);">✓ Listings &amp; offers</td>
+        <td style="padding:6px;color:var(--text-3);">n/a</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">View quality specs</td>
+        <td style="padding:6px;color:var(--accent);">✓ Marketplace</td>
+        <td style="padding:6px;color:var(--accent);">✓ Marketplace</td>
+        <td style="padding:6px;color:var(--accent);">✓ My Activity</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Check transaction status</td>
+        <td style="padding:6px;color:var(--accent);">✓ Recent transactions</td>
+        <td style="padding:6px;color:var(--accent);">✓ Pending drop-offs</td>
+        <td style="padding:6px;color:var(--accent);">✓ Recent collections</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Rate a trade partner</td>
+        <td style="padding:6px;color:var(--accent);">✓ Stars only</td>
+        <td style="padding:6px;color:var(--accent);">✓ Stars only</td>
+        <td style="padding:6px;color:var(--text-3);">n/a (agg rates)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Register collectors</td>
+        <td style="padding:6px;color:var(--text-3);">n/a</td>
+        <td style="padding:6px;color:var(--text-3);">Via dashboard</td>
+        <td style="padding:6px;color:var(--accent);">✓ With temp PIN</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">View stats</td>
+        <td style="padding:6px;color:var(--accent);">✓</td>
+        <td style="padding:6px;color:var(--accent);">✓</td>
+        <td style="padding:6px;color:var(--accent);">✓</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">Connect after match</td>
+        <td style="padding:6px;color:var(--accent);">✓ Phone + location</td>
+        <td style="padding:6px;color:var(--accent);">✓ Phone + location</td>
+        <td style="padding:6px;color:var(--text-3);">n/a</td>
+      </tr>
+      <tr>
+        <td style="padding:6px;">SMS notifications</td>
+        <td style="padding:6px;color:var(--accent);">✓ With TXN refs</td>
+        <td style="padding:6px;color:var(--accent);">✓ With TXN refs</td>
+        <td style="padding:6px;color:var(--text-3);">n/a</td>
+      </tr>
+    </tbody>
+  </table>
+  <br>
+  <p><strong style="color:var(--text-1);">Deliberately excluded from USSD (web-only):</strong></p>
+  <br>
+  <p style="margin-left:16px;">• Counter-offers (accept/decline only — negotiate by phone after contact shared)</p>
+  <p style="margin-left:16px;">• Photo upload (no camera on USSD)</p>
+  <p style="margin-left:16px;">• Rating tags and notes (stars only)</p>
+  <p style="margin-left:16px;">• Traceability view / spec cascade</p>
+  <p style="margin-left:16px;">• Profile editing beyond PIN change</p>
+  <p style="margin-left:16px;">• Expense tracking (too complex)</p>
+  <p style="margin-left:16px;">• Dispatch photos (500kg+ batches — web/smartphone only)</p>
+  <p style="margin-left:16px;">• Aggregator/Agent self-registration (business registration needs web)</p>
+</div>
+
+<hr class="divider">
+
+<!-- ========== IMPLEMENTATION ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Implementation Summary</span>
+</div>
+
+<div class="tech-notes">
+  <p><strong style="color:var(--text-1);">New USSD handler files (7):</strong></p>
+  <p style="margin-left:16px;"><code>ussd/auth/pin.js</code> — PIN validation, lockout logic (3 attempts, 30-min cooldown), trivial PIN rejection, first-login forced change</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector-registration.js</code> — self-registration with PIN setup</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector-marketplace.js</code> — sell, find buyers, manage offers, quality specs</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector-activity.js</code> — stats, recent transactions, rate, prices</p>
+  <p style="margin-left:16px;"><code>ussd/menus/aggregator-marketplace.js</code> — buy, sell, manage listings, quality specs</p>
+  <p style="margin-left:16px;"><code>ussd/menus/aggregator-activity.js</code> — stats, pending drop-offs, rate</p>
+  <p style="margin-left:16px;"><code>ussd/menus/agent.js</code> — log collection, register collector (with temp PIN), activity + quality specs</p>
+  <br>
+  <p><strong style="color:var(--text-1);">Modified files:</strong></p>
+  <p style="margin-left:16px;"><code>ussd/handler.js</code> — PIN gate before all menus, role detection, unregistered phone routing, pagination helper</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector.js</code> — updated main menu (4 options)</p>
+  <p style="margin-left:16px;"><code>ussd/menus/aggregator.js</code> — updated main menu (4 options)</p>
+  <p style="margin-left:16px;"><code>ussd/sms.js</code> — SMS templates with TXN refs, contact details, registration confirmation</p>
+  <br>
+  <p><strong style="color:var(--text-1);">API — existing endpoints reused:</strong></p>
+  <p style="margin-left:16px;"><code>POST/GET /api/listings</code>, <code>POST /api/offers</code>, <code>PATCH /api/offers/:id</code>, <code>GET /api/offers/mine</code></p>
+  <p style="margin-left:16px;"><code>GET /api/ratings/pending</code>, <code>POST /api/ratings/operator</code></p>
+  <p style="margin-left:16px;"><code>GET /api/supply-requirements</code></p>
+  <p style="margin-left:16px;"><code>POST /api/agent/log-collection</code>, <code>POST /api/agent/register-collector</code></p>
+  <br>
+  <p><strong style="color:var(--text-1);">New API endpoints (2):</strong></p>
+  <p style="margin-left:16px;"><code>POST /api/collectors/self-register</code> — USSD self-registration with PIN hash</p>
+  <p style="margin-left:16px;"><code>POST /api/auth/verify-pin</code> — USSD PIN verification with lockout tracking</p>
+  <br>
+  <p><strong style="color:var(--text-1);">Database changes:</strong></p>
+  <p style="margin-left:16px;">Add <code>pin_attempts INTEGER DEFAULT 0</code> and <code>locked_until TIMESTAMPTZ</code> to collectors, aggregators, and agents tables</p>
+  <p style="margin-left:16px;">Add <code>photo_urls TEXT[] DEFAULT '{}'</code> to ratings table (for web rating redesign)</p>
+  <p style="margin-left:16px;">Ensure all collectors have a <code>pin</code> column (already exists) — self-registered collectors set their own, agent-registered get temp PIN</p>
+  <br>
+  <p><strong style="color:var(--text-1);">Estimated effort:</strong></p>
+  <p style="margin-left:16px;">PIN auth system (validation, lockout, first-login change) — ~3 days</p>
+  <p style="margin-left:16px;">Collector self-registration — ~2 days</p>
+  <p style="margin-left:16px;">Collector + Aggregator marketplace + activity — ~1.5 weeks</p>
+  <p style="margin-left:16px;">Agent USSD (log, register, activity) — ~1 week</p>
+  <p style="margin-left:16px;">Quality specs handler (shared) — ~2 days</p>
+  <p style="margin-left:16px;">SMS templates + TXN refs — ~1 day</p>
+  <p style="margin-left:16px;">UX improvements (A-E below) — ~3 days</p>
+  <p style="margin-left:16px;">Twi translation + language toggle — ~2 days</p>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">Total: ~4.5 weeks development</strong> + 1-3 days Arkesel setup + Twi native review</p>
+</div>
+
+<hr class="divider">
+
+<!-- ========== UX IMPROVEMENTS A-E ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">UX Improvements — Detailed Flows (A through E)</span>
+</div>
+
+<!-- A: 00 shortcut -->
+<div class="tech-notes" style="max-width:1000px;">
+  <p><strong style="color:var(--accent);">A. "00" Universal Shortcut to Main Menu</strong></p>
+  <br>
+  <p>Typing <code>00</code> at any screen immediately returns to the main menu without walking back through every level. This is a common pattern in West African USSD services (MTN, Vodafone, AirtelTigo all use it). Implementation is simple: the USSD handler checks if the latest input segment is "00" and, if so, resets the navigation state to depth 0.</p>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">Deep in a flow</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">SELL — PRICE</span>
+PET · 80 kg
+
+Your asking price/kg?
+
+<span class="dim">(Reply 0 for "open to
+offers")</span>
+
+<span class="dim">GH₵ per kg:</span>
+<span class="dim" style="margin-top:12px;display:block;border-top:1px solid #333;padding-top:8px;">Tip: type 00 to go
+back to main menu</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">User types "00"</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Jumps to main menu</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+Welcome, Ama Mensah
+
+<span class="hl">1.</span> Log Drop-off
+<span class="hl">2.</span> Marketplace
+<span class="hl">3.</span> My Activity
+<span class="hl">0.</span> Exit
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Skips intermediate menus</div>
+  </div>
+</div>
+
+<div class="callout green" style="max-width:1000px;margin:0 auto 40px;">
+  <strong>When to show the "00" hint:</strong> Only on screens 3+ levels deep. On shallow menus (main menu, marketplace menu) the user is already close to the top — showing the hint there adds noise. The hint disappears after the user's first few sessions (server tracks interaction count).
+</div>
+
+<hr class="divider">
+
+<!-- B: PIN change -->
+<div class="tech-notes" style="max-width:1000px;">
+  <p><strong style="color:var(--accent);">B. Change PIN — Under My Activity</strong></p>
+  <br>
+  <p>Available for all roles. Added as a 4th option under My Activity for collectors and agents (aggregator My Activity already has 3 items, so PIN change becomes item 4 there too). 4 screens: current PIN → new PIN → confirm → done.</p>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">My Activity (updated)</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MY ACTIVITY</span>
+
+<span class="hl">1.</span> My stats
+<span class="hl">2.</span> Recent transactions
+<span class="hl">3.</span> Prices near me
+<span class="hl">4.</span> Change PIN
+<span class="hl">0.</span> Back
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Collector version shown</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">1. Current PIN</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CHANGE PIN</span>
+
+Enter your current
+4-digit PIN to confirm
+your identity:
+
+<span class="dim">Current PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Verify identity first</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">2. New PIN</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CHANGE PIN</span>
+
+Choose your new
+4-digit PIN:
+
+<span class="dim">Do not use 0000 or
+1234.</span>
+
+<span class="dim">New PIN:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Validates not trivial</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">3. Confirm + done</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">PIN CHANGED ✓</span>
+
+Your PIN has been
+updated. Use your new
+PIN next time you
+dial Circul.
+
+<span class="dim">[Session ends]</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">text: "3*4*...*...*..." → END</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- C: Empty states -->
+<div class="tech-notes" style="max-width:1000px;">
+  <p><strong style="color:var(--accent);">C. Empty State Screens — No Results / No Offers / No Transactions</strong></p>
+  <br>
+  <p>When a list has zero items, show a helpful message with a suggested next action — don't just show a blank screen or "0 results". Every empty state nudges the user toward something productive.</p>
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">No buyers found</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">PET BUYERS</span>
+
+No buyers in Accra
+looking for PET
+right now.
+
+<span class="dim">Try posting a Sell
+listing instead —
+buyers will find you!</span>
+
+<span class="hl">1.</span> Post a Sell listing
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Suggests sell instead</div>
+  </div>
+
+  <div class="flow-arrow" style="color:var(--text-3);">|</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">No offers yet</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">MY OFFERS</span>
+
+No offers yet.
+
+Your listing (80kg PET)
+is active for 6 more
+days.
+
+You'll get an SMS
+as soon as an offer
+comes in.
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Shows listing status</div>
+  </div>
+
+  <div class="flow-arrow" style="color:var(--text-3);">|</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">No unrated transactions</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">RATE TRANSACTION</span>
+
+All caught up!
+No unrated transactions.
+
+Your average rating:
+★★★★☆ (4.3)
+
+Keep up the good work.
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Shows their own rating</div>
+  </div>
+
+  <div class="flow-arrow" style="color:var(--text-3);">|</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">No specs for material</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">LDPE SPECS</span>
+
+No processors in the
+system currently buying
+LDPE.
+
+Check back later or
+try a different
+material.
+
+<span class="hl">0.</span> Back</div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Encourages retry</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- D: Twi language -->
+<div class="full-width" style="margin-bottom: 16px;">
+  <span class="section-label">D. Twi Language Option — Full Translation</span>
+  <span class="new-tag">v2.2</span>
+</div>
+
+<div style="max-width:1000px;margin:0 auto 24px;font-size:0.82rem;color:var(--text-2);">
+  After PIN, the system checks the user's language preference (stored server-side, defaults to English). On first login only, it asks. Subsequent sessions use the saved preference. To change language later, it goes under My Activity alongside Change PIN.
+</div>
+
+<div class="phone-row">
+  <div class="phone-wrap">
+    <div class="phone-label">First login only</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+
+Choose your language /
+Yi wo kasa:
+
+<span class="hl">1.</span> English
+<span class="hl">2.</span> Twi
+
+<span class="dim">Reply with number:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Saved server-side</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Twi Main Menu (Collector)</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">CIRCUL</span>
+Akwaaba, Ama Mensah
+
+<span class="hl">1.</span> Gyae nneɛma
+<span class="hl">2.</span> Aguadibea
+<span class="hl">3.</span> Me nhwehwɛmu
+<span class="hl">0.</span> Firi mu
+
+<span class="dim">Kyerɛw nɔma bi:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Full Twi interface</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Twi Marketplace</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">AGUADIBEA</span>
+
+<span class="hl">1.</span> Tɔn me nneɛma
+<span class="hl">2.</span> Hwehwɛ atɔfoɔ
+<span class="hl">3.</span> Me nhyiamu (2 foforɔ)
+<span class="hl">4.</span> Papayɛ nhyehyɛeɛ
+<span class="hl">0.</span> San
+
+<span class="dim">Kyerɛw nɔma bi:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Marketplace in Twi</div>
+  </div>
+
+  <div class="flow-arrow">→</div>
+
+  <div class="phone-wrap">
+    <div class="phone-label">Twi Sell Flow</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen"><span class="title">TƆN — ADEƐ</span>
+Deɛ woretɔn?
+
+<span class="hl">1.</span> PET
+<span class="hl">2.</span> HDPE
+<span class="hl">3.</span> LDPE
+<span class="hl">4.</span> PP
+
+<span class="dim">Kyerɛw nɔma bi:</span></div>
+      <div class="phone-home"></div>
+    </div>
+    <div class="phone-sublabel">Material names stay English</div>
+  </div>
+</div>
+
+<div class="callout" style="max-width:1000px;margin:0 auto 24px;">
+  <strong>Material types stay in English across both languages.</strong> PET, HDPE, LDPE, PP are industry-standard abbreviations used on the ground in Ghana. Translating them would cause confusion — collectors and aggregators already know these terms from their daily work.
+</div>
+
+<!-- FULL TRANSLATION TABLE -->
+<div class="tech-notes" style="max-width:1000px;">
+  <p><strong style="color:var(--accent);">Full Twi Translation Reference</strong></p>
+  <p style="color:var(--yellow);font-size:0.75rem;margin-top:4px;">⚠ Requires native Twi speaker review before deployment</p>
+  <br>
+  <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.7rem;text-transform:uppercase;">Context</th>
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.7rem;text-transform:uppercase;">English</th>
+        <th style="text-align:left;padding:6px;color:var(--text-3);font-size:0.7rem;text-transform:uppercase;">Twi</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Navigation & System -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">NAVIGATION &amp; SYSTEM</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Welcome</td>
+        <td style="padding:5px 6px;">Welcome</td>
+        <td style="padding:5px 6px;">Akwaaba</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Navigation</td>
+        <td style="padding:5px 6px;">Reply with number</td>
+        <td style="padding:5px 6px;">Kyerɛw nɔma bi</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Navigation</td>
+        <td style="padding:5px 6px;">Back</td>
+        <td style="padding:5px 6px;">San</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Navigation</td>
+        <td style="padding:5px 6px;">Exit</td>
+        <td style="padding:5px 6px;">Firi mu</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Navigation</td>
+        <td style="padding:5px 6px;">More results</td>
+        <td style="padding:5px 6px;">Nea ɛka</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Session end</td>
+        <td style="padding:5px 6px;">[Session ends]</td>
+        <td style="padding:5px 6px;">[Ɛwie]</td>
+      </tr>
+
+      <!-- PIN & Auth -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">PIN &amp; AUTHENTICATION</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">PIN entry</td>
+        <td style="padding:5px 6px;">Enter your 4-digit PIN</td>
+        <td style="padding:5px 6px;">Hyɛ wo PIN nɔma ɛnan</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">PIN error</td>
+        <td style="padding:5px 6px;">Wrong PIN</td>
+        <td style="padding:5px 6px;">PIN no nyɛ</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">PIN error</td>
+        <td style="padding:5px 6px;">X attempts remaining</td>
+        <td style="padding:5px 6px;">Wowɔ X nsɛm bi a ɛka</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Lockout</td>
+        <td style="padding:5px 6px;">Account locked</td>
+        <td style="padding:5px 6px;">Wo akontaa no ato mu</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">PIN setup</td>
+        <td style="padding:5px 6px;">Choose a 4-digit PIN you will remember</td>
+        <td style="padding:5px 6px;">Yi PIN nɔma ɛnan a wokae</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">PIN setup</td>
+        <td style="padding:5px 6px;">Do not use 0000 or 1234</td>
+        <td style="padding:5px 6px;">Mfa 0000 anaa 1234</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">PIN confirm</td>
+        <td style="padding:5px 6px;">Enter your new PIN again to confirm</td>
+        <td style="padding:5px 6px;">San hyɛ wo PIN foforɔ no</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">PIN success</td>
+        <td style="padding:5px 6px;">PIN set / PIN changed</td>
+        <td style="padding:5px 6px;">PIN no asesa</td>
+      </tr>
+
+      <!-- Main Menus -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">COLLECTOR MAIN MENU</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu item</td>
+        <td style="padding:5px 6px;">Log Drop-off</td>
+        <td style="padding:5px 6px;">Gyae nneɛma</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu item</td>
+        <td style="padding:5px 6px;">Marketplace</td>
+        <td style="padding:5px 6px;">Aguadibea</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu item</td>
+        <td style="padding:5px 6px;">My Activity</td>
+        <td style="padding:5px 6px;">Me nhwehwɛmu</td>
+      </tr>
+
+      <!-- Marketplace -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">MARKETPLACE</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Sub-menu</td>
+        <td style="padding:5px 6px;">Sell my material</td>
+        <td style="padding:5px 6px;">Tɔn me nneɛma</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Sub-menu</td>
+        <td style="padding:5px 6px;">Find buyers</td>
+        <td style="padding:5px 6px;">Hwehwɛ atɔfoɔ</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Sub-menu</td>
+        <td style="padding:5px 6px;">My offers</td>
+        <td style="padding:5px 6px;">Me nhyiamu</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Sub-menu</td>
+        <td style="padding:5px 6px;">Quality specs</td>
+        <td style="padding:5px 6px;">Papayɛ nhyehyɛeɛ</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Sub-menu (agg)</td>
+        <td style="padding:5px 6px;">Buy material</td>
+        <td style="padding:5px 6px;">Tɔ nneɛma</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Sub-menu (agg)</td>
+        <td style="padding:5px 6px;">My listings &amp; offers</td>
+        <td style="padding:5px 6px;">Me nneɛma ne nhyiamu</td>
+      </tr>
+
+      <!-- Sell Flow -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">SELL FLOW</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">What are you selling?</td>
+        <td style="padding:5px 6px;">Deɛ woretɔn?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">How many kg?</td>
+        <td style="padding:5px 6px;">Kilogram ahe?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">Your asking price/kg?</td>
+        <td style="padding:5px 6px;">Wo boɔ (GH₵/kg)?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">Reply 0 for "open to offers"</td>
+        <td style="padding:5px 6px;">Kyerɛw 0 sɛ "mehwɛ nhyiamu"</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Confirm</td>
+        <td style="padding:5px 6px;">Confirm</td>
+        <td style="padding:5px 6px;">Di mu dua</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Confirm</td>
+        <td style="padding:5px 6px;">Cancel</td>
+        <td style="padding:5px 6px;">Twa mu</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Success</td>
+        <td style="padding:5px 6px;">Listed ✓</td>
+        <td style="padding:5px 6px;">Ɛda hɔ ✓</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Info</td>
+        <td style="padding:5px 6px;">Expires: 7 days</td>
+        <td style="padding:5px 6px;">Ɛbɛwie: nnawɔtwe 7</td>
+      </tr>
+
+      <!-- Find Buyers / Offers -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">FIND BUYERS / OFFERS</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">What material do you have?</td>
+        <td style="padding:5px 6px;">Adeɛ bɛn na wowɔ?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Action</td>
+        <td style="padding:5px 6px;">I have this</td>
+        <td style="padding:5px 6px;">Mewɔ</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Info</td>
+        <td style="padding:5px 6px;">(shares your phone with this buyer)</td>
+        <td style="padding:5px 6px;">(ɛde wo fon kyerɛ otɔfoɔ no)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Success</td>
+        <td style="padding:5px 6px;">Response sent ✓</td>
+        <td style="padding:5px 6px;">Wo nka no akɔ ✓</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Action</td>
+        <td style="padding:5px 6px;">Accept</td>
+        <td style="padding:5px 6px;">Gye tom</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Action</td>
+        <td style="padding:5px 6px;">Decline</td>
+        <td style="padding:5px 6px;">Po</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Success</td>
+        <td style="padding:5px 6px;">Accepted ✓</td>
+        <td style="padding:5px 6px;">Wagye atom ✓</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Contact</td>
+        <td style="padding:5px 6px;">Contact buyer:</td>
+        <td style="padding:5px 6px;">Frɛ otɔfoɔ no:</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Contact</td>
+        <td style="padding:5px 6px;">Phone:</td>
+        <td style="padding:5px 6px;">Fon:</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Info</td>
+        <td style="padding:5px 6px;">Call to arrange drop-off</td>
+        <td style="padding:5px 6px;">Frɛ no na mo nhyehyɛ</td>
+      </tr>
+
+      <!-- Activity / Stats -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">MY ACTIVITY / STATS</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu</td>
+        <td style="padding:5px 6px;">My stats</td>
+        <td style="padding:5px 6px;">Me nsɛm</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu</td>
+        <td style="padding:5px 6px;">Recent transactions</td>
+        <td style="padding:5px 6px;">Adetɔ a ɛyɛ foforo</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu</td>
+        <td style="padding:5px 6px;">Prices near me</td>
+        <td style="padding:5px 6px;">Boɔ a ɛbɛn me</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu</td>
+        <td style="padding:5px 6px;">Change PIN</td>
+        <td style="padding:5px 6px;">Sesa PIN</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Status</td>
+        <td style="padding:5px 6px;">Confirmed</td>
+        <td style="padding:5px 6px;">Adi mu dua</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Status</td>
+        <td style="padding:5px 6px;">Pending</td>
+        <td style="padding:5px 6px;">Ɛretwɛn</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Status</td>
+        <td style="padding:5px 6px;">Not yet rated</td>
+        <td style="padding:5px 6px;">Yɛmfa nkansi mma</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Stats</td>
+        <td style="padding:5px 6px;">This month</td>
+        <td style="padding:5px 6px;">Bosome yi</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Stats</td>
+        <td style="padding:5px 6px;">Today</td>
+        <td style="padding:5px 6px;">Ɛnnɛ</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Stats</td>
+        <td style="padding:5px 6px;">Total earned</td>
+        <td style="padding:5px 6px;">Sika a woanya</td>
+      </tr>
+
+      <!-- Rating -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">RATING</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu</td>
+        <td style="padding:5px 6px;">Rate a transaction</td>
+        <td style="padding:5px 6px;">Ma nkansi</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">How many stars? (1-5)</td>
+        <td style="padding:5px 6px;">Nsoromma ahe? (1-5)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Scale</td>
+        <td style="padding:5px 6px;">Poor / OK / Excellent</td>
+        <td style="padding:5px 6px;">Ɛnyɛ / Ɛyɛ / Papa paa</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Success</td>
+        <td style="padding:5px 6px;">Rated ✓</td>
+        <td style="padding:5px 6px;">Wo nkansi akɔ ✓</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Thanks</td>
+        <td style="padding:5px 6px;">Thank you!</td>
+        <td style="padding:5px 6px;">Medaase!</td>
+      </tr>
+
+      <!-- Registration -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">REGISTRATION</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Intro</td>
+        <td style="padding:5px 6px;">This phone number is not registered</td>
+        <td style="padding:5px 6px;">Fon nɔma yi nni mu</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Action</td>
+        <td style="padding:5px 6px;">Register as collector</td>
+        <td style="padding:5px 6px;">Kyerɛw wo din sɛ oboafoɔ</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">What is your first name?</td>
+        <td style="padding:5px 6px;">Wo din a ɛdi kan?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">What is your last name?</td>
+        <td style="padding:5px 6px;">Wo din a ɛtwa to?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">Where are you located?</td>
+        <td style="padding:5px 6px;">Wote he?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Action</td>
+        <td style="padding:5px 6px;">Register</td>
+        <td style="padding:5px 6px;">Kyerɛw din</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Success</td>
+        <td style="padding:5px 6px;">Welcome to Circul!</td>
+        <td style="padding:5px 6px;">Akwaaba Circul!</td>
+      </tr>
+
+      <!-- Quality Specs -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">QUALITY SPECS</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Title</td>
+        <td style="padding:5px 6px;">Quality specs</td>
+        <td style="padding:5px 6px;">Papayɛ nhyehyɛeɛ</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">What material?</td>
+        <td style="padding:5px 6px;">Adeɛ bɛn?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Label</td>
+        <td style="padding:5px 6px;">Forms:</td>
+        <td style="padding:5px 6px;">Suban:</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Label</td>
+        <td style="padding:5px 6px;">Colours:</td>
+        <td style="padding:5px 6px;">Akɔntaabu:</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Label</td>
+        <td style="padding:5px 6px;">Max dirt:</td>
+        <td style="padding:5px 6px;">Efi a ɛsɛ:</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Label</td>
+        <td style="padding:5px 6px;">Max moisture:</td>
+        <td style="padding:5px 6px;">Nsuo a ɛsɛ:</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Label</td>
+        <td style="padding:5px 6px;">Min quantity:</td>
+        <td style="padding:5px 6px;">Nneɛma a ɛsɛ:</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Label</td>
+        <td style="padding:5px 6px;">Premium:</td>
+        <td style="padding:5px 6px;">Akatua:</td>
+      </tr>
+
+      <!-- Agent-specific -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">AGENT MENU</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu</td>
+        <td style="padding:5px 6px;">Log Collection</td>
+        <td style="padding:5px 6px;">Kyerɛ nneɛma a woanya</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Menu</td>
+        <td style="padding:5px 6px;">Register Collector</td>
+        <td style="padding:5px 6px;">Kyerɛw oboafoɔ din</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">Which collector?</td>
+        <td style="padding:5px 6px;">Oboafoɔ bɛn?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Prompt</td>
+        <td style="padding:5px 6px;">Price per kg?</td>
+        <td style="padding:5px 6px;">Boɔ (GH₵/kg)?</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Success</td>
+        <td style="padding:5px 6px;">Collection logged ✓</td>
+        <td style="padding:5px 6px;">Ɛda hɔ ✓</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 6px;">Success</td>
+        <td style="padding:5px 6px;">Registered ✓</td>
+        <td style="padding:5px 6px;">Wɔakyerɛw din ✓</td>
+      </tr>
+
+      <!-- Aggregator Sell -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">AGGREGATOR SELL (UPSTREAM)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Label</td>
+        <td style="padding:5px 6px;">Grade</td>
+        <td style="padding:5px 6px;">Soronko</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Option</td>
+        <td style="padding:5px 6px;">Clean (sorted, low contamination)</td>
+        <td style="padding:5px 6px;">Fɛw (wɔapaw mu, efi sua)</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 6px;">Option</td>
+        <td style="padding:5px 6px;">Mixed (unsorted)</td>
+        <td style="padding:5px 6px;">Afra (wɔmpaw mu)</td>
+      </tr>
+
+      <!-- Empty States -->
+      <tr style="border-bottom:1px solid var(--border);background:var(--surface-2);">
+        <td colspan="3" style="padding:8px 6px;color:var(--accent);font-weight:700;font-size:0.72rem;">EMPTY STATES</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">No results</td>
+        <td style="padding:5px 6px;">No buyers in [city] looking for [material] right now</td>
+        <td style="padding:5px 6px;">[Material] atɔfoɔ biara nni [city] seesei</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">Suggest</td>
+        <td style="padding:5px 6px;">Try posting a Sell listing instead</td>
+        <td style="padding:5px 6px;">Bɔ nneɛma a woretɔn dawuru</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:5px 6px;">No offers</td>
+        <td style="padding:5px 6px;">No offers yet</td>
+        <td style="padding:5px 6px;">Nhyiamu biara mmma</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 6px;">All rated</td>
+        <td style="padding:5px 6px;">All caught up! No unrated transactions</td>
+        <td style="padding:5px 6px;">Woawie! Adetɔ biara wɔ nkansi</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout" style="max-width:1000px;margin:0 auto 40px;">
+  <strong>Translation notes:</strong> The Twi here is functional but must be reviewed by a native speaker before deployment. Specific areas to watch: (1) "Papayɛ nhyehyɛeɛ" for "Quality specs" — this is a pragmatic translation; a reviewer may prefer something more natural. (2) Some USSD-specific phrases ("Reply with number") have no exact Twi equivalent — "Kyerɛw nɔma bi" is understood but could be refined. (3) Technical terms (contamination, moisture %) may need to use English loan words rather than pure Twi, since these are trade terms.
+</div>
+
+<hr class="divider">
+
+<!-- E: Expiry SMS -->
+<div class="tech-notes" style="max-width:1000px;">
+  <p><strong style="color:var(--accent);">E. Listing Expiry Reminder SMS</strong></p>
+  <br>
+  <p>24 hours before a listing expires, send an SMS nudge. This keeps the marketplace active without requiring users to check. Server-side cron job runs daily at 8am, queries listings expiring in the next 24 hours, sends SMS via Arkesel API.</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:700px;margin:0 auto 40px;">
+  <div>
+    <div class="sms-label">Expiry reminder (English)</div>
+    <div class="sms-example">CIRCUL: Your listing for 80kg PET at GH₵ 2.00/kg expires tomorrow.
+
+Dial *920*123# → Marketplace → Sell to relist.
+
+Or wait — if it sells, you'll get an SMS!</div>
+  </div>
+  <div>
+    <div class="sms-label">Expiry reminder (Twi)</div>
+    <div class="sms-example">CIRCUL: Wo 80kg PET a wo boɔ yɛ GH₵ 2.00/kg bɛwie ɔkyena.
+
+Frɛ *920*123# → Aguadibea → Tɔn sɛ wopɛ sɛ wosan de to hɔ.
+
+Yɛbɛtwerɛ wo sɛ obi bɛtɔ a!</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== UPDATED IMPLEMENTATION ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Updated Implementation Summary (v2.2 Final)</span>
+</div>
+
+<div class="tech-notes">
+  <p><strong style="color:var(--text-1);">Handler files (7 new + 1 translation module):</strong></p>
+  <p style="margin-left:16px;"><code>ussd/auth/pin.js</code> — PIN validation, lockout, first-login change, PIN change flow</p>
+  <p style="margin-left:16px;"><code>ussd/i18n/twi.js</code> — Twi string table (all translations from reference above)</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector-registration.js</code> — self-registration with PIN + language choice</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector-marketplace.js</code> — sell, find, offers, specs</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector-activity.js</code> — stats, transactions, rate, prices, change PIN</p>
+  <p style="margin-left:16px;"><code>ussd/menus/aggregator-marketplace.js</code> — buy, sell, listings, specs</p>
+  <p style="margin-left:16px;"><code>ussd/menus/aggregator-activity.js</code> — stats, pending, rate, change PIN</p>
+  <p style="margin-left:16px;"><code>ussd/menus/agent.js</code> — log, register, activity + specs + change PIN</p>
+  <br>
+  <p><strong style="color:var(--text-1);">Modified files:</strong></p>
+  <p style="margin-left:16px;"><code>ussd/handler.js</code> — PIN gate, role detection, "00" shortcut handler, language preference lookup, pagination helper, empty state helper</p>
+  <p style="margin-left:16px;"><code>ussd/menus/collector.js</code> / <code>aggregator.js</code> — updated menus</p>
+  <p style="margin-left:16px;"><code>ussd/sms.js</code> — bilingual SMS templates, expiry reminder, TXN refs</p>
+  <br>
+  <p><strong style="color:var(--text-1);">Database changes:</strong></p>
+  <p style="margin-left:16px;"><code>pin_attempts INTEGER DEFAULT 0</code> + <code>locked_until TIMESTAMPTZ</code> on collectors, aggregators, agents</p>
+  <p style="margin-left:16px;"><code>language VARCHAR(2) DEFAULT 'en'</code> on collectors, aggregators, agents (values: 'en', 'tw')</p>
+  <p style="margin-left:16px;"><code>photo_urls TEXT[] DEFAULT '{}'</code> on ratings (for web rating redesign)</p>
+  <br>
+  <p><strong style="color:var(--text-1);">Cron job:</strong></p>
+  <p style="margin-left:16px;">Daily 8am — query listings expiring in &lt;24h, send reminder SMS in user's language preference</p>
+  <br>
+  <p><strong style="color:var(--text-1);">Estimated effort:</strong></p>
+  <p style="margin-left:16px;">PIN auth system — ~3 days</p>
+  <p style="margin-left:16px;">Collector self-registration — ~2 days</p>
+  <p style="margin-left:16px;">Collector + Aggregator marketplace + activity — ~1.5 weeks</p>
+  <p style="margin-left:16px;">Agent USSD — ~1 week</p>
+  <p style="margin-left:16px;">Quality specs — ~2 days</p>
+  <p style="margin-left:16px;">UX improvements (A-C, E) — ~3 days</p>
+  <p style="margin-left:16px;">Twi i18n module + bilingual SMS — ~2 days</p>
+  <p style="margin-left:16px;">SMS templates + TXN refs + cron — ~2 days</p>
+  <p style="margin-left:16px;"><strong style="color:var(--text-1);">Total: ~4.5 weeks development</strong> + 1-3 days Arkesel setup + native Twi review</p>
+</div>
+
+</body>
+</html>

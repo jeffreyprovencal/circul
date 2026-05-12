@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD Phase 2 — Aggregator Flow Mockup</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--yellow:#ffd54f;--cyan:#26c6da;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.4rem;color:var(--cyan);margin-bottom:4px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:32px}
+.section{margin-bottom:48px}
+.section-title{font-size:1.1rem;font-weight:700;color:var(--cyan);margin-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:800px}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:280px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--cyan);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:100px;flex-shrink:0}
+.change{border:2px solid var(--cyan);position:relative}
+.change::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--cyan);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.infra{border:2px solid var(--yellow);position:relative}
+.infra::after{content:'INFRA';position:absolute;top:-10px;right:12px;background:var(--yellow);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.compare{width:100%;border-collapse:collapse;margin:16px 0;font-size:0.8rem}
+.compare th{text-align:left;padding:8px 12px;background:var(--border);color:var(--cyan);font-weight:600;font-size:0.72rem}
+.compare td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+.compare .new{color:var(--cyan)}
+.compare .fix{color:var(--yellow)}
+.depth{font-family:'Courier New',monospace;font-size:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin:12px 0;overflow-x:auto;white-space:pre;line-height:1.7;color:var(--text-2)}
+.depth .hl{color:var(--cyan);font-weight:700}
+.legend{display:flex;gap:20px;margin-bottom:24px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.cyan{border-color:var(--cyan)}
+.legend-swatch.yellow{border-color:var(--yellow)}
+.legend-swatch.plain{border-color:var(--border)}
+</style>
+</head>
+<body>
+
+<h1>USSD Phase 2 — Aggregator Flow Mockup</h1>
+<p class="subtitle">Cyan border = new screen · Yellow border = infrastructure change · No border = shared with Phase 1</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch cyan"></div> New aggregator screen</div>
+  <div class="legend-item"><div class="legend-swatch yellow"></div> Infrastructure change (routing, migration)</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div> Unchanged / shared</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 0: ROLE DETECTION -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">0. Role Detection — How the handler routes</div>
+<div class="section-desc">The POST /api/ussd handler must now identify whether the caller is a collector, aggregator, or agent. Lookup order: collectors → aggregators → agents. First match wins. Same phone in multiple tables → collector takes priority.</div>
+
+<div class="flow">
+  <div class="phone infra">
+    <div class="phone-header"><span>POST /api/ussd</span><span>server.js</span></div>
+    <div class="phone-label">Role Detection Logic</div>
+    <div class="phone-screen" style="font-size:0.72rem">1. normalizeGhanaPhone(phone)
+2. getPhoneVariants(normalized)
+
+3. Query collectors WHERE
+   phone=ANY(variants)
+   → found? role='collector'
+
+4. Query aggregators WHERE
+   phone=ANY(variants)
+   → found? role='aggregator'
+
+5. Query agents WHERE
+   phone=ANY(variants)
+   → found? role='agent'
+
+6. None found?
+   → handleUnregisteredUssd()
+   (registers as collector)</div>
+    <div class="phone-note">Collector priority: if same phone in both tables, collector flow runs. Agents checked last (sub-accounts under aggregators).</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 1: AGGREGATOR LOGIN + MAIN MENU -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">1. Aggregator Login + Main Menu</div>
+<div class="section-desc">Same PIN flow as collector (3 retries). verifyPassword() handles both plaintext legacy PINs and scrypt-hashed new ones.</div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 1 · text = ""</div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome Kwesi Amankwah!
+(Aggregator)
+Enter your PIN:</div>
+    <div class="phone-note">Shows role so user knows which account they're in</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 2 · text = "2222"</div>
+    <div class="phone-screen"><span class="con">CON</span> 1. Log Purchase
+2. Pending Drop-offs
+3. My Stats
+0. Exit</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 2: LOG PURCHASE FLOW -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">2. Log Purchase Flow</div>
+<div class="section-desc">Aggregator logs a purchase from a collector. One question per screen: select collector, material, weight, price, then confirm. Creates pending_transaction with source='ussd'.</div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 3 · text = "2222*1"</div>
+    <div class="phone-screen"><span class="con">CON</span> Select collector:
+1. Ama Mensah
+   COL-0001 · 17 txns
+2. Kwame Asante
+   COL-0004 · 1 txn
+3. Enter phone number
+0. Cancel</div>
+    <div class="phone-note">Fetches from transaction history + phone lookup fallback. If list is empty, only shows option 3 + 0.</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 4 · text = "2222*1*2"</div>
+    <div class="phone-screen"><span class="con">CON</span> Select material:
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    <div class="phone-note">User presses: 2 (HDPE)</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 5 · text = "2222*1*2*2"</div>
+    <div class="phone-screen"><span class="con">CON</span> Enter weight in kg:</div>
+    <div class="phone-note">User types: 120</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 6 · text = "2222*1*2*2*120"</div>
+    <div class="phone-screen"><span class="con">CON</span> Enter price per kg
+(GH₵):</div>
+    <div class="phone-note">User types: 3.10</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 7 · text = "2222*1*2*2*120*3.10"</div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm purchase:
+120kg HDPE
+From: Kwame Asante (COL-0004)
+Price: GH₵3.10/kg
+Total: GH₵372.00
+
+1. Confirm
+2. Cancel</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 8 · text = "2222*1*2*2*120*3.10*1"</div>
+    <div class="phone-screen"><span class="end">END</span> PURCHASE LOGGED
+Ref: TXN-20260406-0052
+120kg HDPE from Kwame Asante
+Total: GH₵372.00
+Status: Pending
+Collector: 0241000001</div>
+    <div class="phone-note">INSERT into pending_transactions with transaction_type='aggregator_purchase', source='ussd'</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 2B: PHONE LOOKUP + EMPTY STATE -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">2b. Phone Lookup + Empty State</div>
+<div class="section-desc">When the aggregator picks "Enter phone number" (option 3), or when the collector list is empty (first-time aggregator). Looks up the collector by phone in the collectors table.</div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Empty state · text = "2222*1"</div>
+    <div class="phone-screen"><span class="con">CON</span> No previous collectors.
+Enter collector phone
+number:</div>
+    <div class="phone-note">Shows when transaction history query returns 0 rows. Skips list, goes straight to phone input.</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Phone lookup · text = "2222*1*3" or "2222*1*0241000001"</div>
+    <div class="phone-screen"><span class="con">CON</span> Enter collector phone
+number:</div>
+    <div class="phone-note">User types: 0241000001</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Found · text = "2222*1*3*0241000001"</div>
+    <div class="phone-screen"><span class="con">CON</span> Collector found:
+Kwame Asante (COL-0004)
+Accra
+
+1. Confirm — proceed
+2. Try different number
+0. Cancel</div>
+    <div class="phone-note">Shows name + code + city so aggregator can verify identity. Continues to material selection on confirm.</div>
+  </div>
+</div>
+
+<div style="margin-top:16px"></div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Not found · text = "2222*1*3*0555000000"</div>
+    <div class="phone-screen"><span class="end">END</span> Collector not registered.
+Ask them to dial *920*123#
+to register first.</div>
+    <div class="phone-note">Clean dead end — no inline registration on USSD. Collector self-registers in 30 seconds.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 3: PENDING DROP-OFFS -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">3. Pending Drop-offs Flow</div>
+<div class="section-desc">Aggregator reviews inbound drop-offs initiated by collectors (via USSD or web). Can confirm receipt or reject with a reason. Same SQL as the web dashboard's pending inbound list.</div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 3 · text = "2222*2"</div>
+    <div class="phone-screen"><span class="con">CON</span> Pending drop-offs:
+1. Kwame Asante
+   45kg PET · Apr 6
+2. Ama Mensah
+   30kg HDPE · Apr 5
+
+0. Back</div>
+    <div class="phone-note">Fetches pending_transactions WHERE aggregator_id=$1 AND status='pending' AND transaction_type IN ('collector_sale','aggregator_purchase')</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Screen 4 · text = "2222*2*1"</div>
+    <div class="phone-screen"><span class="con">CON</span> Drop-off details:
+Kwame Asante (COL-0004)
+45kg PET
+Submitted: Apr 6, 2026
+Phone: 0241000001
+
+1. Confirm receipt
+2. Reject
+0. Back</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Confirm · text = "2222*2*1*1"</div>
+    <div class="phone-screen"><span class="end">END</span> DROP-OFF CONFIRMED
+45kg PET from Kwame Asante
+Status: Confirmed
+
+Remaining pending: 1</div>
+    <div class="phone-note">UPDATE pending_transactions SET status='confirmed' WHERE id=$1</div>
+  </div>
+</div>
+
+<div style="margin-top:16px"></div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">Reject path · text = "2222*2*1*2"</div>
+    <div class="phone-screen"><span class="con">CON</span> Reason for rejection:
+1. Weight mismatch
+2. Wrong material
+3. Contaminated
+4. Not received</div>
+    <div class="phone-note">Predefined reasons (dropdown, not free text — per platform rule)</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">text = "2222*2*1*2*1"</div>
+    <div class="phone-screen"><span class="end">END</span> DROP-OFF REJECTED
+45kg PET from Kwame Asante
+Reason: Weight mismatch
+
+Remaining pending: 1</div>
+    <div class="phone-note">UPDATE pending_transactions SET status='rejected', rejection_reason=$1 WHERE id=$2</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 4: MY STATS -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">4. My Stats</div>
+<div class="section-desc">Aggregator's stats screen. Queries transactions + pending_transactions for volumes, revenue, and outstanding payments. Rating computed from ratings table.</div>
+
+<div class="flow">
+  <div class="phone change">
+    <div class="phone-header"><span>*920*123#</span><span>Telecel</span></div>
+    <div class="phone-label">text = "2222*3"</div>
+    <div class="phone-screen"><span class="end">END</span> My Stats — Kwesi Amankwah
+
+This month: 44.0 kg
+Year to date: 1,071.0 kg
+Revenue: GH₵2,677.50
+Outstanding: GH₵450.00 (3 unpaid)
+Rating: ★4.4 (12 ratings)
+
+Collectors: 2 active
+Pending inbound: 2</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 5: STATE MACHINE -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">5. State Machine — Aggregator text Chain</div>
+
+<div class="depth"><span class="hl">Login:</span>
+text = ""                                → Welcome [name]! (Aggregator) Enter PIN
+text = "2222"                            → Main menu (after PIN verified)
+
+<span class="hl">Log Purchase — existing collector (one question per screen):</span>
+text = "2222*1"                          → Select collector (list + phone option)
+text = "2222*1*2"                        → Select material (chose collector #2)
+text = "2222*1*2*2"                      → Enter weight (chose HDPE)
+text = "2222*1*2*2*120"                  → Enter price per kg
+text = "2222*1*2*2*120*3.10"             → Confirm (120kg at GH₵3.10/kg)
+text = "2222*1*2*2*120*3.10*1"           → END — Purchase logged
+
+<span class="hl">Log Purchase — phone lookup path:</span>
+text = "2222*1*3"                        → Enter collector phone
+text = "2222*1*3*0241000001"             → Collector found — confirm identity
+text = "2222*1*3*0241000001*1"           → Select material (proceeds same as above)
+text = "2222*1*3*0555000000"             → END — Collector not registered
+
+<span class="hl">Log Purchase — empty state (no transaction history):</span>
+text = "2222*1"                          → "No previous collectors. Enter phone:"
+text = "2222*1*0241000001"               → Collector found — confirm identity
+text = "2222*1*0241000001*1"             → Select material (proceeds same as above)
+
+Depth mapping (existing collector path):
+  m[0]=1 (menu), m[1]=2 (collector#), m[2]=2 (material)
+  m[3]=120 (weight), m[4]=3.10 (price), m[5]=1 (confirm)
+  Each part = exactly one screen. No compound inputs.
+
+<span class="hl">Pending Drop-offs:</span>
+text = "2222*2"                          → List pending (up to 5)
+text = "2222*2*1"                        → Details of drop-off #1
+text = "2222*2*1*1"                      → END — Confirmed
+text = "2222*2*1*2"                      → Select rejection reason
+text = "2222*2*1*2*1"                    → END — Rejected (weight mismatch)
+
+<span class="hl">My Stats:</span>
+text = "2222*3"                          → END — Stats screen</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 6: INFRASTRUCTURE CHANGES -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">6. Infrastructure Changes (Migration + Handler)</div>
+
+<table class="compare">
+<tr><th>Change</th><th>Details</th></tr>
+<tr>
+  <td class="fix">Migration: ussd_sessions</td>
+  <td>Add <code>aggregator_id INTEGER REFERENCES aggregators(id) ON DELETE SET NULL</code> and <code>agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL</code>. Keep existing <code>collector_id</code> as-is — no rename, no data loss.</td>
+</tr>
+<tr>
+  <td class="fix">POST /api/ussd handler</td>
+  <td>After collector lookup fails, query <code>aggregators</code> table with same phone variants. If found, call <code>handleAggregatorUssd(parts, aggregator)</code>. Log <code>aggregator_id</code> in ussd_sessions INSERT.</td>
+</tr>
+<tr>
+  <td class="fix">Aggregator web login bug</td>
+  <td>Line 3287: <code>WHERE phone=$1 AND pin=$2</code> does plaintext comparison. Change to fetch by phone only, then <code>verifyPassword(pin, row.pin)</code>. Same pattern as collector login. Otherwise new registrations (with hashed PINs) can't log in via web.</td>
+</tr>
+<tr>
+  <td class="new">handleAggregatorUssd()</td>
+  <td>New function ~120 lines. PIN retry (same pattern as collector), 3 menu options, aggregator-specific SQL queries.</td>
+</tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 7: DATABASE WRITES -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">7. Database Writes</div>
+
+<table class="compare">
+<tr><th>Action</th><th>Table</th><th>Key Columns</th></tr>
+<tr>
+  <td>Log Purchase</td>
+  <td class="new">pending_transactions</td>
+  <td>aggregator_id, collector_id, material_type, gross_weight_kg, price_per_kg, total_price, status='pending', transaction_type='aggregator_purchase', source='ussd'</td>
+</tr>
+<tr>
+  <td>Confirm drop-off</td>
+  <td>pending_transactions (UPDATE)</td>
+  <td>SET status='confirmed', updated_at=NOW() WHERE id=$1</td>
+</tr>
+<tr>
+  <td>Reject drop-off</td>
+  <td>pending_transactions (UPDATE)</td>
+  <td>SET status='rejected', rejection_reason=$1, updated_at=NOW() WHERE id=$2</td>
+</tr>
+<tr>
+  <td>Log session</td>
+  <td>ussd_sessions</td>
+  <td>session_id, phone, service_code, aggregator_id, text_input, response</td>
+</tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION 8: QUERIES REUSED -->
+<!-- ═══════════════════════════════════════ -->
+<div class="section">
+<div class="section-title">8. Existing Queries Reused (verified against codebase)</div>
+
+<table class="compare">
+<tr><th>Screen</th><th>Source</th><th>Verified Location</th></tr>
+<tr>
+  <td>Select collector</td>
+  <td>Same SQL as "My Collectors" on agg dashboard</td>
+  <td>server.js line 724 — JOIN transactions ON collector_id WHERE aggregator_id=$1, GROUP BY c.id</td>
+</tr>
+<tr>
+  <td>Pending drop-offs list</td>
+  <td>Same SQL as pending inbound endpoint</td>
+  <td>server.js line 2657 — pending_transactions WHERE aggregator_id=$1 AND transaction_type IN ('collector_sale','aggregator_purchase')</td>
+</tr>
+<tr>
+  <td>Confirm/reject</td>
+  <td>Same SQL as review endpoint</td>
+  <td>server.js line 2667 — UPDATE pending_transactions SET status=$1 WHERE id=$2</td>
+</tr>
+<tr>
+  <td>My Stats — volume/revenue</td>
+  <td>Same SQL as aggregator dashboard stats</td>
+  <td>server.js line 720 — SUM(net_weight_kg), SUM(total_price) FROM transactions WHERE aggregator_id=$1</td>
+</tr>
+<tr>
+  <td>My Stats — outstanding</td>
+  <td>Same SQL as unpaid count</td>
+  <td>server.js line 721 — COUNT(*), SUM(total_price) WHERE payment_status='unpaid'</td>
+</tr>
+<tr>
+  <td>My Stats — rating</td>
+  <td>Computed from ratings table</td>
+  <td>AVG(rating) FROM ratings WHERE rated_type='aggregator' AND rated_id=$1 (no column shortcut — aggregators table has no average_rating)</td>
+</tr>
+</table>
+</div>
+
+<p style="text-align:center;color:var(--text-3);font-size:0.75rem;margin-top:40px;padding-bottom:24px">
+  Phase 2 Mockup · Circul USSD · April 2026
+</p>
+
+</body>
+</html>

@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rating UX Redesign — Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1a0f;
+    --surface: #0d2818;
+    --surface-2: #112e1e;
+    --border: #1a3d28;
+    --accent: #00e676;
+    --accent-dim: #00e67633;
+    --text-1: #e8f5e9;
+    --text-2: #a5d6a7;
+    --text-3: #66bb6a;
+    --red: #ef5350;
+    --red-dim: #ef535033;
+    --yellow: #ffca28;
+    --yellow-dim: #ffca2833;
+    --blue: #42a5f5;
+    --blue-dim: #42a5f533;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-1); padding: 24px; line-height: 1.5; }
+
+  .mockup-title { text-align: center; color: var(--accent); font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; }
+  .mockup-subtitle { text-align: center; color: var(--text-2); font-size: 0.95rem; margin-bottom: 40px; }
+
+  .section-label {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .issue-label {
+    display: inline-block;
+    background: var(--red-dim);
+    color: var(--red);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-left: 8px;
+  }
+  .fix-label {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-left: 8px;
+  }
+
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 1200px; margin: 0 auto 60px; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+  }
+  .panel h3 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .panel.current { border-color: var(--red); border-style: dashed; }
+  .panel.proposed { border-color: var(--accent); }
+
+  /* Rating pill mockups */
+  .pill-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .rating-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--red-dim);
+    color: var(--red);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .rating-pill .dot { width: 8px; height: 8px; background: var(--red); border-radius: 50%; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .rating-pill.success { background: var(--accent-dim); color: var(--accent); }
+  .rating-pill.success .dot { background: var(--accent); animation: none; }
+
+  /* Transaction rows */
+  .txn-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .txn-table th { text-align: left; color: var(--text-3); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  .txn-table td { padding: 10px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .material-tag { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .material-tag.pet { background: #1b5e20; color: #a5d6a7; }
+  .material-tag.hdpe { background: #0d47a1; color: #90caf9; }
+  .status-tag { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .status-tag.completed { background: var(--accent-dim); color: var(--accent); }
+  .status-tag.arrived { background: var(--blue-dim); color: var(--blue); }
+
+  /* Rate button on row */
+  .rate-btn {
+    background: var(--accent);
+    color: #0a1a0f;
+    border: none;
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .rate-btn:hover { filter: brightness(1.1); }
+  .rated-check { color: var(--accent); font-size: 0.85rem; display: flex; align-items: center; gap: 4px; }
+  .rated-check .star { color: var(--yellow); }
+
+  /* Rating modal */
+  .modal-demo {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 520px;
+    margin: 0 auto 60px;
+  }
+  .modal-demo h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+  .modal-demo .sub { color: var(--text-3); font-size: 0.85rem; margin-bottom: 16px; }
+  .modal-txn-context {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    font-size: 0.78rem;
+  }
+  .modal-txn-context .label { color: var(--text-3); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .modal-txn-context .value { color: var(--text-1); font-weight: 600; margin-top: 2px; }
+
+  .stars-row { display: flex; gap: 6px; margin-bottom: 16px; }
+  .star-btn { font-size: 1.6rem; background: none; border: none; color: var(--border); cursor: pointer; transition: color 0.15s; }
+  .star-btn.active { color: var(--yellow); }
+  .star-btn:hover { color: var(--yellow); }
+
+  .tags-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .rtag {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    transition: all 0.15s;
+  }
+  .rtag.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .rtag.negative { color: var(--text-3); }
+  .rtag.negative.selected { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+  /* Photo upload area */
+  .photo-section { margin-bottom: 16px; }
+  .photo-section .label { font-size: 0.78rem; font-weight: 600; color: var(--text-2); margin-bottom: 8px; }
+  .photo-upload-area {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .photo-upload-area:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .photo-upload-area .icon { font-size: 1.5rem; margin-bottom: 6px; }
+  .photo-upload-area .text { color: var(--text-3); font-size: 0.78rem; }
+  .photo-upload-area .hint { color: var(--text-3); font-size: 0.68rem; opacity: 0.7; margin-top: 4px; }
+  .photo-thumbs { display: flex; gap: 8px; margin-top: 10px; }
+  .photo-thumb {
+    width: 60px; height: 60px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; color: var(--text-3);
+    position: relative;
+  }
+  .photo-thumb .remove { position: absolute; top: -4px; right: -4px; width: 16px; height: 16px; background: var(--red); color: white; border-radius: 50%; font-size: 0.55rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+  textarea.note {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 12px;
+    resize: vertical;
+    min-height: 60px;
+    margin-bottom: 16px;
+  }
+  textarea.note::placeholder { color: var(--text-3); opacity: 0.6; }
+
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 8px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn-submit {
+    background: var(--accent);
+    color: #0a1a0f;
+    border: none;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 8px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  /* Annotation callouts */
+  .callout {
+    background: var(--yellow-dim);
+    border-left: 3px solid var(--yellow);
+    padding: 10px 14px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 0.78rem;
+    color: var(--yellow);
+  }
+  .callout strong { color: var(--yellow); }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+  /* Profile section for ID */
+  .profile-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 600px;
+    margin: 0 auto 40px;
+  }
+  .profile-section h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+  .profile-section .sub { color: var(--text-3); font-size: 0.78rem; margin-bottom: 16px; }
+  .form-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+  .form-label { font-size: 0.72rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .form-input {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+  }
+  .btn-green {
+    background: var(--accent);
+    color: #0a1a0f;
+    border: none;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 8px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .full-width { max-width: 1200px; margin: 0 auto; }
+
+  /* Changes summary */
+  .changes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1200px; margin: 0 auto 40px; }
+  .change-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .change-card h4 { font-size: 0.88rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .change-card p { font-size: 0.78rem; color: var(--text-2); line-height: 1.5; }
+  .change-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: var(--accent); color: #0a1a0f; border-radius: 50%; font-size: 0.7rem; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="mockup-title">Rating UX Redesign</div>
+<div class="mockup-subtitle">Transaction-specific ratings &middot; Photo upload &middot; Persistent pill fix &middot; ID verification moved to Profile</div>
+
+<!-- ========== CHANGES SUMMARY ========== -->
+<div class="full-width" style="margin-bottom: 40px;">
+  <span class="section-label">Summary of Changes</span>
+</div>
+<div class="changes-grid">
+  <div class="change-card">
+    <h4><span class="change-num">1</span> Transaction-specific ratings</h4>
+    <p>Ratings are now tied to individual completed transactions, not partner-level. Each transaction row gets a "Rate" button. The modal shows transaction context (material, weight, date) so the user knows exactly what they're rating.</p>
+  </div>
+  <div class="change-card">
+    <h4><span class="change-num">2</span> Pill fixes (count + dismiss)</h4>
+    <p>The pill shows the exact count of unrated transactions. After rating, the count decrements in real time. At 0, the pill disappears entirely. No more stuck "success" state.</p>
+  </div>
+  <div class="change-card">
+    <h4><span class="change-num">3</span> Photo upload in ratings</h4>
+    <p>New optional photo section in the rating modal. Lets users document material quality, contamination, or delivery condition. Photos stored as URLs in a new <code>rating_photos</code> column.</p>
+  </div>
+  <div class="change-card">
+    <h4><span class="change-num">4</span> ID verification stays in Profile</h4>
+    <p>Ghana Card input lives exclusively in the Profile section — never in the Ratings tab. Clean separation: identity = Profile, feedback = Ratings.</p>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== PILL COMPARISON ========== -->
+<div class="full-width">
+  <span class="section-label">1 &mdash; Rating pill</span>
+</div>
+<div class="comparison">
+  <div class="panel current">
+    <h3>Current <span class="issue-label">Bug</span></h3>
+    <div class="pill-row">
+      <a class="rating-pill success">
+        <span class="dot"></span>
+        <span>Rating submitted ✓</span>
+        <span style="font-size:0.7rem;opacity:0.7">→</span>
+      </a>
+    </div>
+    <div class="callout">
+      <strong>Problem:</strong> After submitting a rating, the pill switches to green "Rating submitted ✓" but stays permanently. Not transaction-specific — doesn't tell you which transaction or how many remain.
+    </div>
+  </div>
+
+  <div class="panel proposed">
+    <h3>Proposed <span class="fix-label">Fix</span></h3>
+    <div class="pill-row">
+      <a class="rating-pill">
+        <span class="dot"></span>
+        <span>2 unrated transactions — rate now</span>
+        <span style="font-size:0.7rem;opacity:0.7">→</span>
+      </a>
+    </div>
+    <div style="color:var(--text-3);font-size:0.75rem;margin-bottom:8px;font-style:italic;">After rating one transaction → pill updates:</div>
+    <div class="pill-row">
+      <a class="rating-pill">
+        <span class="dot"></span>
+        <span>1 unrated transaction — rate now</span>
+        <span style="font-size:0.7rem;opacity:0.7">→</span>
+      </a>
+    </div>
+    <div style="color:var(--text-3);font-size:0.75rem;margin-bottom:8px;font-style:italic;">After rating all → pill disappears entirely</div>
+    <div class="callout">
+      <strong>Fix:</strong> Pill shows count, decrements after each rating, vanishes at 0. Re-calls <code>/api/ratings/pending</code> after each submission. No "success" state — the pill is a to-do indicator, not a status indicator.
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== TRANSACTION-SPECIFIC RATINGS ========== -->
+<div class="full-width">
+  <span class="section-label">2 &mdash; Transaction-specific ratings in the Ratings tab</span>
+</div>
+<div class="comparison">
+  <div class="panel current">
+    <h3>Current <span class="issue-label">Issue</span></h3>
+    <div style="padding:16px 0;">
+      <div style="font-weight:600;margin-bottom:4px;">Rate your processors</div>
+      <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:16px;">Your feedback helps improve the supply chain</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+        <span style="font-weight:600;">rePATRN Ghana</span>
+        <button class="rate-btn">Rate</button>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>Problem:</strong> Rates the <em>partner</em>, not a specific transaction. Clicking "Rate" opens a generic modal for "rePATRN Ghana" — no context about which transaction or delivery you're evaluating.
+    </div>
+  </div>
+
+  <div class="panel proposed">
+    <h3>Proposed <span class="fix-label">Redesign</span></h3>
+    <div style="padding:16px 0;">
+      <div style="font-weight:600;margin-bottom:4px;">Rate your transactions</div>
+      <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:16px;">Rate completed transactions to build trust in the supply chain</div>
+      <table class="txn-table">
+        <thead>
+          <tr><th>Date</th><th>Partner</th><th>Material</th><th>Weight</th><th>Amount</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>23 Mar 2026</td>
+            <td style="font-weight:600;">rePATRN Ghana<br><span style="font-size:0.7rem;color:var(--text-3);">PRC-0001</span></td>
+            <td><span class="material-tag hdpe">HDPE</span></td>
+            <td>320 kg</td>
+            <td style="color:var(--accent);">GH₵ 1,440</td>
+            <td><button class="rate-btn">Rate</button></td>
+          </tr>
+          <tr>
+            <td>18 Mar 2026</td>
+            <td style="font-weight:600;">rePATRN Ghana<br><span style="font-size:0.7rem;color:var(--text-3);">PRC-0001</span></td>
+            <td><span class="material-tag pet">PET</span></td>
+            <td>750 kg</td>
+            <td style="color:var(--accent);">GH₵ 3,750</td>
+            <td>
+              <span class="rated-check"><span class="star">★</span> 4.0</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <strong>Fix:</strong> The Ratings tab now shows individual transactions. Unrated ones get a "Rate" button; rated ones show the score inline. Clicking "Rate" opens a modal pre-filled with transaction context.
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== RATING MODAL REDESIGN ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">3 &mdash; Redesigned rating modal (with photo upload)</span>
+</div>
+
+<div class="modal-demo">
+  <h3>Rate this transaction</h3>
+  <div class="sub">Your feedback helps improve the supply chain</div>
+
+  <!-- Transaction context -->
+  <div class="modal-txn-context">
+    <div><div class="label">Partner</div><div class="value">rePATRN Ghana</div></div>
+    <div><div class="label">Material</div><div class="value"><span class="material-tag hdpe">HDPE</span></div></div>
+    <div><div class="label">Weight</div><div class="value">320 kg</div></div>
+    <div><div class="label">Date</div><div class="value">23 Mar 2026</div></div>
+  </div>
+
+  <!-- Stars -->
+  <div class="stars-row">
+    <button class="star-btn active">★</button>
+    <button class="star-btn active">★</button>
+    <button class="star-btn active">★</button>
+    <button class="star-btn active">★</button>
+    <button class="star-btn">★</button>
+  </div>
+
+  <!-- Tags -->
+  <div class="tags-wrap">
+    <span class="rtag selected">Consistent quality</span>
+    <span class="rtag">Accurate batch weight</span>
+    <span class="rtag selected">On-time delivery</span>
+    <span class="rtag">Good communication</span>
+    <span class="rtag negative">Contaminated batch</span>
+    <span class="rtag negative">Wrong material grade</span>
+    <span class="rtag negative">Late delivery</span>
+  </div>
+
+  <!-- Photo upload (NEW) -->
+  <div class="photo-section">
+    <div class="label">📷 Photos (optional)</div>
+    <div class="photo-upload-area">
+      <div class="icon">📷</div>
+      <div class="text">Tap to add photos of material quality or delivery</div>
+      <div class="hint">Max 3 photos &middot; JPG, PNG &middot; 5 MB each</div>
+    </div>
+    <div class="photo-thumbs">
+      <div class="photo-thumb">
+        <span>batch.jpg</span>
+        <div class="remove">✕</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Note -->
+  <textarea class="note" placeholder="Add a note (optional)…"></textarea>
+
+  <!-- Actions -->
+  <div class="modal-actions">
+    <button class="btn-cancel">Cancel</button>
+    <button class="btn-submit">Submit Rating</button>
+  </div>
+</div>
+
+<div class="callout" style="max-width:520px;margin:0 auto 60px;">
+  <strong>Key changes in modal:</strong> (1) Transaction context bar at top showing what you're rating, (2) Photo upload area for documenting material quality, contamination etc., (3) Modal title changed from partner name to "Rate this transaction".
+</div>
+
+<hr class="divider">
+
+<!-- ========== ID VERIFICATION PLACEMENT ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">4 &mdash; ID verification stays in Profile (not Ratings)</span>
+</div>
+
+<div class="comparison">
+  <div class="panel current">
+    <h3>Current <span class="issue-label">Misplaced</span></h3>
+    <div style="font-size:0.82rem;color:var(--text-2);padding:16px 0;">
+      On some dashboards, the Ghana Card input appears visually close to or within the Ratings section, creating confusion about whether ID verification is part of the rating flow.
+    </div>
+    <div class="callout">
+      <strong>Problem:</strong> Users may think they need to verify identity to rate, or that ID verification IS the rating. These are completely separate concerns.
+    </div>
+  </div>
+
+  <div class="panel proposed">
+    <h3>Proposed <span class="fix-label">Clear separation</span></h3>
+    <div style="font-size:0.82rem;color:var(--text-2);padding:8px 0 16px;">
+      Ghana Card lives <strong>only</strong> in the Profile section at the top of the dashboard — never in the Ratings tab or near rating UI.
+    </div>
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:10px;">Identity Verification — Ghana Card</div>
+      <div class="form-row">
+        <div>
+          <div class="form-label">Ghana Card Number</div>
+          <input class="form-input" type="text" value="GHA-123456789-0" readonly style="opacity:0.7">
+        </div>
+        <button class="btn-green">Save</button>
+      </div>
+      <div style="font-size:0.72rem;color:var(--accent);margin-top:8px;">✓ Verified</div>
+    </div>
+    <div class="callout" style="margin-top:16px;">
+      <strong>Rule:</strong> Profile section = identity (Ghana Card, contact info, company name). Ratings tab = transaction feedback (stars, tags, photos). Never mix them.
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== FULL FLOW DIAGRAM ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Complete flow</span>
+</div>
+
+<div style="max-width:900px;margin:0 auto 60px;">
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+      <div style="font-size:1.2rem;margin-bottom:6px;">📦</div>
+      <div style="font-size:0.75rem;font-weight:700;color:var(--accent);margin-bottom:4px;">Transaction completes</div>
+      <div style="font-size:0.68rem;color:var(--text-3);">Status → completed</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+      <div style="font-size:1.2rem;margin-bottom:6px;">🔴</div>
+      <div style="font-size:0.75rem;font-weight:700;color:var(--red);margin-bottom:4px;">Pill appears</div>
+      <div style="font-size:0.68rem;color:var(--text-3);">"1 unrated transaction"</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+      <div style="font-size:1.2rem;margin-bottom:6px;">⭐</div>
+      <div style="font-size:0.75rem;font-weight:700;color:var(--yellow);margin-bottom:4px;">User rates</div>
+      <div style="font-size:0.68rem;color:var(--text-3);">Stars + tags + photo + note</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+      <div style="font-size:1.2rem;margin-bottom:6px;">🔄</div>
+      <div style="font-size:0.75rem;font-weight:700;color:var(--blue);margin-bottom:4px;">Pill updates</div>
+      <div style="font-size:0.68rem;color:var(--text-3);">Count decrements or disappears</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+      <div style="font-size:1.2rem;margin-bottom:6px;">✅</div>
+      <div style="font-size:0.75rem;font-weight:700;color:var(--accent);margin-bottom:4px;">Row shows score</div>
+      <div style="font-size:0.68rem;color:var(--text-3);">★ 4.0 inline on transaction</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ========== TECHNICAL NOTES ========== -->
+<div class="full-width" style="margin-bottom: 24px;">
+  <span class="section-label">Technical implementation notes</span>
+</div>
+
+<div style="max-width:900px;margin:0 auto 40px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;font-size:0.82rem;color:var(--text-2);line-height:1.7;">
+    <p><strong style="color:var(--text-1);">Database:</strong> No schema change needed. The <code>ratings</code> table already has <code>transaction_id</code> as a foreign key. Add <code>photo_urls TEXT[] DEFAULT '{}'</code> column to ratings table for photos.</p>
+    <br>
+    <p><strong style="color:var(--text-1);">API:</strong> <code>/api/ratings/pending</code> already returns transaction-specific data (transaction_id, material, weight, peer name). The Ratings tab just needs to render it as a table instead of a partner list.</p>
+    <br>
+    <p><strong style="color:var(--text-1);">Photo upload:</strong> Reuse the existing aggregator photo upload pattern (<code>&lt;input type="file" accept="image/*"&gt;</code>). Convert to base64 or upload to server, store URLs in <code>rating_photos</code> column. Max 3 photos, 5 MB each.</p>
+    <br>
+    <p><strong style="color:var(--text-1);">Pill behavior:</strong> After <code>submitRating()</code> succeeds, immediately call <code>checkPendingRatings()</code>. Remove the "success" state entirely — the pill is either counting unrated transactions or hidden.</p>
+    <br>
+    <p><strong style="color:var(--text-1);">Applies to all buyer dashboards:</strong> Recycler, Processor, Converter (rate their sellers). Collector and Aggregator already have similar patterns. Unified approach across all 5 dashboards.</p>
+  </div>
+</div>
+
+</body>
+</html>

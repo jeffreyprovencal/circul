@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD Phase 3 — Agent Flow Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a1a0f; color: #e0e0e0; padding: 24px; }
+  h1 { color: #00e676; font-size: 1.6rem; margin-bottom: 4px; }
+  .subtitle { color: #999; margin-bottom: 32px; font-size: 0.95rem; }
+  .section { margin-bottom: 48px; }
+  .section-title { color: #00e676; font-size: 1.15rem; margin-bottom: 6px; border-bottom: 1px solid #1a3a1f; padding-bottom: 6px; }
+  .section-desc { color: #aaa; font-size: 0.88rem; margin-bottom: 18px; }
+  .flow { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .phone { width: 220px; background: #111; border: 2px solid #333; border-radius: 24px; padding: 18px 14px; flex-shrink: 0; }
+  .phone-header { font-size: 0.65rem; color: #666; text-align: center; margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .phone-screen { background: #1a1a2e; border-radius: 8px; padding: 14px 12px; min-height: 160px; font-family: 'Courier New', monospace; font-size: 0.78rem; line-height: 1.5; color: #e0e0e0; white-space: pre-wrap; word-break: break-word; }
+  .phone-screen .highlight { color: #00e676; font-weight: bold; }
+  .phone-screen .input { color: #ffd740; }
+  .phone-screen .warn { color: #ff5252; }
+  .phone-screen .dim { color: #777; }
+  .arrow { font-size: 1.4rem; color: #00e676; align-self: center; flex-shrink: 0; }
+  .note { background: #1a2a1f; border-left: 3px solid #00e676; padding: 10px 14px; border-radius: 4px; margin-top: 14px; font-size: 0.82rem; color: #bbb; max-width: 700px; }
+  .note strong { color: #00e676; }
+  .badge { display: inline-block; background: #00e676; color: #0a1a0f; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+  .depth-diagram { background: #111; border: 1px solid #333; border-radius: 8px; padding: 16px 20px; font-family: 'Courier New', monospace; font-size: 0.78rem; line-height: 1.7; color: #ccc; max-width: 600px; margin-top: 12px; }
+  .depth-diagram .g { color: #00e676; }
+  .depth-diagram .y { color: #ffd740; }
+  .depth-diagram .r { color: #ff5252; }
+</style>
+</head>
+<body>
+
+<h1>USSD Phase 3 — Agent Flow</h1>
+<p class="subtitle">Field operations: Log Collection, Record Payment, Register Collector, My Stats</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- AUTHENTICATION -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Authentication <span class="badge">PIN REQUIRED</span></div>
+  <div class="section-desc">Same pattern as collector & aggregator — PIN on every session, max 3 retries</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Welcome</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Welcome Kofi!
+(Agent)
+Enter your PIN:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">PIN OK → Main Menu</div>
+      <div class="phone-screen"><span class="highlight">CON</span> <span class="dim">Working for: Ama Trading</span>
+
+1. Log Collection
+2. Record Payment
+3. Register Collector
+4. My Stats
+0. Exit</div>
+    </div>
+  </div>
+
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Wrong PIN (attempt 1)</div>
+      <div class="phone-screen"><span class="warn">CON</span> Wrong PIN.
+2 attempts remaining.
+Enter your PIN:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">3 wrong → locked out</div>
+      <div class="phone-screen"><span class="warn">END</span> Too many wrong PINs.
+Dial again to retry.</div>
+    </div>
+  </div>
+  <div class="note"><strong>Note:</strong> Aggregator name shown on main menu so agent knows which account they're operating under. Fetched from agents.aggregator_id → aggregators.name.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 1: LOG COLLECTION — POWER USER -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 1: Log Collection — Power User Path</div>
+  <div class="section-desc">Agent has previous transaction history → sees recent collectors</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Select Collector</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Select collector:
+1. Ama Serwaa
+   COL-0005 · 8 txns
+2. Kwame Asante
+   COL-0012 · 3 txns
+3. Yaa Mensah
+   COL-0019 · 1 txn
+4. Enter phone number</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Select Material</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Material type:
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Enter Weight</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Enter weight in kg:</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Enter Price</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Enter price per kg
+(GH₵):</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Confirm</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Confirm collection:
+45kg PET
+From: Ama Serwaa (COL-0005)
+Price: GH₵ 3.50/kg
+<span class="input">Total: GH₵ 157.50</span>
+
+1. Confirm
+2. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Success ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> Collection logged!
+<span class="input">Ref: TXN-20260406-1047</span>
+
+GH₵ 157.50 — 45 kg PET
+From: Ama Serwaa
+Phone: 024-100-0005
+City: Accra
+
+For: Ama Trading</div>
+    </div>
+  </div>
+  <div class="note"><strong>Contact on close:</strong> Shows collector phone + city so agent can follow up. Also shows parent aggregator name for confirmation.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 1B: LOG COLLECTION — PHONE LOOKUP -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 1B: Log Collection — Phone Lookup Path</div>
+  <div class="section-desc">Agent picks "4. Enter phone number" or has no transaction history (empty state)</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Enter Phone</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Enter collector's
+phone number:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Found → Confirm</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Collector found:
+Ama Serwaa (COL-0005)
+Accra
+
+1. Confirm — proceed
+2. Try different number
+0. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">→ Material screen</div>
+      <div class="phone-screen"><span class="dim">(continues to material
+→ weight → price →
+confirm → done)</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 1C: LOG COLLECTION — NOT REGISTERED -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 1C: Log Collection — Collector Not Registered</div>
+  <div class="section-desc">Phone lookup finds no match → offer to register</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Not Found</div>
+      <div class="phone-screen"><span class="warn">CON</span> No collector found
+with that phone.
+
+1. Register them now
+0. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">If "1" → Register flow</div>
+      <div class="phone-screen"><span class="dim">(jumps into Register
+Collector flow at
+"Enter first name"
+with phone pre-filled)</span></div>
+    </div>
+  </div>
+  <div class="note"><strong>Smart redirect:</strong> Phone number is carried forward so the agent doesn't re-enter it. Registration completes with an END screen (USSD is stateless). Agent redials to log the collection — the new collector will be found via phone lookup.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 1D: LOG COLLECTION — EMPTY STATE -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 1D: Log Collection — Empty State (New Agent)</div>
+  <div class="section-desc">No transaction history → skip collector list, go straight to phone input</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">No History</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Enter collector's
+phone number:
+
+<span class="dim">(No recent collectors)</span></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">→ Found or Not Found</div>
+      <div class="phone-screen"><span class="dim">(same as 1B/1C paths
+above)</span></div>
+    </div>
+  </div>
+  <div class="note"><strong>First-time UX:</strong> New agents aren't blocked — they just skip the shortcut list and go directly to phone lookup.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 2: RECORD PAYMENT -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 2: Record Payment</div>
+  <div class="section-desc">Agent pays collector cash in the field → mark transaction as paid</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Unpaid Collections</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Unpaid collections:
+1. Ama S. 45kg PET
+   GH₵ 157.50
+2. Kwame A. 20kg HDPE
+   GH₵ 60.00
+3. Yaa M. 30kg LDPE
+   GH₵ 75.00
+0. Back</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Confirm Payment</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Pay collector:
+Ama Serwaa
+45 kg PET
+<span class="input">Amount: GH₵ 157.50</span>
+
+1. Confirm payment
+2. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Success ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> Payment recorded!
+<span class="input">Ref: TXN-20260406-1047</span>
+
+GH₵ 157.50 paid to
+Ama Serwaa
+Phone: 024-100-0005
+
+For: Ama Trading</div>
+    </div>
+  </div>
+  <div class="note"><strong>Database:</strong> UPDATE pending_transactions SET payment_status='paid', payment_method='cash', payment_completed_at=NOW(). Logs to agent_activity with action_type='payment'. Only shows this agent's own unpaid collections (via agent_activity JOIN).</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 2B: RECORD PAYMENT — EMPTY STATE -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 2B: Record Payment — No Unpaid Collections</div>
+  <div class="section-desc">New agent or everything already paid</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Empty State</div>
+      <div class="phone-screen"><span class="highlight">END</span> No unpaid collections.
+
+Log a collection first,
+then come back to
+record the payment.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 3: REGISTER COLLECTOR -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 3: Register Collector</div>
+  <div class="section-desc">Onboard a new collector in the field — one input per screen</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">First Name</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Enter collector's
+first name:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Last Name</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Enter collector's
+last name:</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Phone Number</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Enter collector's
+phone number:</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Select City</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Select city:
+1. Accra
+2. Kumasi
+3. Tamale
+4. Takoradi</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Confirm</div>
+      <div class="phone-screen"><span class="highlight">CON</span> Register collector:
+Name: Ama Serwaa
+Phone: 024-100-0020
+City: Accra
+
+1. Confirm
+2. Cancel</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="phone">
+      <div class="phone-header">Success ✓</div>
+      <div class="phone-screen"><span class="highlight">END</span> Collector registered!
+
+Ama Serwaa
+Phone: 024-100-0020
+Default PIN: 0000
+<span class="input">Ask them to change
+their PIN on first use.</span>
+
+For: Ama Trading</div>
+    </div>
+  </div>
+  <div class="note"><strong>Database:</strong> Creates collector row with hashPassword('0000'), must_change_pin=true. Logs to agent_activity with action_type='registered_collector'.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 3B: REGISTER — PHONE CONFLICT -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 3B: Register Collector — Phone Already Exists</div>
+  <div class="section-desc">Unique constraint violation → clear message</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Duplicate Phone</div>
+      <div class="phone-screen"><span class="warn">END</span> This phone number is
+already registered.
+
+Use Log Collection to
+record from existing
+collectors.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FLOW 4: MY STATS -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Flow 4: My Stats</div>
+  <div class="section-desc">Agent-specific stats via agent_activity table (not aggregator-wide)</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Stats Display</div>
+      <div class="phone-screen"><span class="highlight">END</span> Your stats, Kofi:
+
+<span class="input">Today:</span> 3 collections, 85 kg
+<span class="input">This week:</span> 12 collections, 340 kg
+<span class="input">Registered:</span> 5 collectors
+
+Working for: Ama Trading</div>
+    </div>
+  </div>
+  <div class="flow" style="margin-top: 14px;">
+    <div class="phone">
+      <div class="phone-header">Empty State (new agent)</div>
+      <div class="phone-screen"><span class="highlight">END</span> Your stats, Kofi:
+
+<span class="input">Today:</span> 0 collections, 0 kg
+<span class="input">This week:</span> 0 collections, 0 kg
+<span class="input">Registered:</span> 0 collectors
+
+Working for: Ama Trading
+Start by logging a
+collection!</div>
+    </div>
+  </div>
+  <div class="note"><strong>Data source:</strong> All stats from agent_activity (agent_id=$1) joined to pending_transactions for weight. Not aggregator-wide — shows only this agent's work.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- EXIT -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Exit</div>
+  <div class="flow">
+    <div class="phone">
+      <div class="phone-header">Menu → 0</div>
+      <div class="phone-screen"><span class="highlight">END</span> Thank you, Kofi!
+Working for: Ama Trading
+
+Questions? Call your
+aggregator: 030-000-0002</div>
+    </div>
+  </div>
+  <div class="note"><strong>Contact on close:</strong> Shows parent aggregator's phone so the agent can reach their supervisor.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- STATE MACHINE DEPTH -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">State Machine — Depth Diagram</div>
+  <div class="depth-diagram">
+<span class="g">Depth 0</span>  → PIN prompt
+<span class="g">Depth 1</span>  → PIN check (retry up to 3)
+<span class="g">Depth 2</span>  → Main menu
+<span class="g">Depth 3</span>  → Branch: <span class="y">1</span>=Log  <span class="y">2</span>=Payment  <span class="y">3</span>=Register  <span class="y">4</span>=Stats  <span class="y">0</span>=Exit
+
+<span class="y">── Log Collection (menu 1) ──</span>
+  d3: Collector select (list or phone prompt)
+  d4: <span class="g">List path:</span> material select
+      <span class="g">Phone path:</span> enter phone
+  d5: <span class="g">List:</span> weight  |  <span class="g">Phone:</span> confirm identity
+  d6: <span class="g">List:</span> price   |  <span class="g">Phone:</span> material
+  d7: <span class="g">List:</span> confirm |  <span class="g">Phone:</span> weight
+  d8: <span class="g">List:</span> END     |  <span class="g">Phone:</span> price
+  d9:                   <span class="g">Phone:</span> confirm
+  d10:                  <span class="g">Phone:</span> END
+
+<span class="r">  ── Not registered redirect ──</span>
+  d5: "Not found" → 1=Register now
+  d6: first name (phone pre-filled)
+  d7: last name
+  d8: city select
+  d9: confirm registration
+  d10: END (registered) → session ends
+  <span class="dim">(agent must redial to log the collection)</span>
+
+<span class="y">── Record Payment (menu 2) ──</span>
+  d3: unpaid collections list (or END if empty)
+  d4: confirm payment
+  d5: END (success)
+
+<span class="y">── Register Collector (menu 3) ──</span>
+  d3: first name
+  d4: last name
+  d5: phone number
+  d6: city select
+  d7: confirm
+  d8: END (success or duplicate)
+
+<span class="y">── My Stats (menu 4) ──</span>
+  d3: END (stats display)
+
+Max depth: 10 (Log Collection → phone lookup → not registered → register)
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- CODE CHANGES SUMMARY -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Code Changes Summary</div>
+  <div class="note" style="max-width: 800px;">
+    <strong>Single file: server.js</strong><br><br>
+    <strong>Change 1:</strong> Replace line 2901-2902 placeholder with: <code>response = await handleAgentUssd(parts, agentResult.rows[0]);</code><br><br>
+    <strong>Change 2:</strong> New function <code>handleAgentUssd(parts, agent)</code> — PIN validation + main menu (4 items) + exit + stats<br><br>
+    <strong>Change 3:</strong> New function <code>handleAgentCollection(m, agent)</code> — collector select, material, weight, price, confirm, DB insert + activity log<br><br>
+    <strong>Change 4:</strong> New function <code>resolveCollectorForAgent(m, agent)</code> — shared collector lookup logic (list + phone + identity confirm + not-registered redirect)<br><br>
+    <strong>Change 5:</strong> New function <code>handleAgentPayment(m, agent)</code> — list unpaid (via agent_activity JOIN), confirm, UPDATE payment_status='paid' + activity log<br><br>
+    <strong>Change 6:</strong> New function <code>handleAgentRegister(m, agent, prefilledPhone)</code> — 5-step registration with duplicate detection + activity log<br><br>
+    <strong>No migration needed</strong> — agent_id column in ussd_sessions was added in Phase 2. All tables (pending_transactions, collectors, agent_activity) already have payment_status, payment_method, and payment_completed_at columns.
+  </div>
+</div>
+
+</body>
+</html>

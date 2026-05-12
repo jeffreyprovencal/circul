@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Rating System Overhaul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --accent: #00e676;
+  --accent-hover: #33eb8e;
+  --accent-muted: rgba(0,230,118,0.1);
+  --bg: #0a1a0f;
+  --surface: #0d2818;
+  --surface-alt: #0c1e0e;
+  --text-1: #e8f5e9;
+  --text-2: #9ab8a0;
+  --text-3: #7a9a7a;
+  --border: #1a3a1a;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --gap: 24px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);min-height:100vh;-webkit-font-smoothing:antialiased}
+a{text-decoration:none;color:inherit}
+
+.page{max-width:1100px;margin:0 auto;padding:var(--gap)}
+
+/* Banner */
+.mockup-banner{background:linear-gradient(135deg,#1a0a2e,#0a1a2e);border-bottom:2px solid #b388ff;color:#e0c0ff;text-align:center;padding:14px;font-size:0.85rem;font-weight:600;letter-spacing:0.05em}
+.mockup-banner span{opacity:0.6;font-weight:400}
+
+/* Section labels */
+.mockup-label{margin:32px 0 12px;padding:8px 16px;background:rgba(179,136,255,0.08);border:1px solid rgba(179,136,255,0.2);border-radius:var(--r-sm);color:#b388ff;font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;display:inline-block}
+.mockup-note{font-size:0.8rem;color:var(--text-3);margin-bottom:16px;padding-left:2px}
+
+/* Section card */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:20px;margin-bottom:var(--gap)}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px}
+.section-title{font-size:0.95rem;font-weight:700}
+.section-sub{font-size:0.75rem;color:var(--text-3);margin-top:2px}
+
+/* Table */
+table{width:100%;border-collapse:collapse}
+th{font-size:0.65rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-align:middle}
+
+/* Pills */
+.pill{display:inline-block;font-size:0.7rem;font-weight:600;padding:3px 8px;border-radius:10px;white-space:nowrap}
+.pill-paid{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-sent{background:rgba(255,215,64,0.15);color:#ffd740}
+.pill-pending{background:rgba(255,152,0,0.15);color:#ffb74d}
+.pill-rated{background:rgba(255,215,64,0.15);color:#ffd740}
+
+/* Buttons */
+.btn{font-family:var(--font);font-size:0.8rem;padding:6px 14px;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer}
+.btn:hover{border-color:var(--text-3);color:var(--text-1)}
+
+/* Rating pill link */
+.rating-pill-link{display:inline-flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-2);background:var(--surface-alt);border:1px solid var(--border);border-radius:20px;padding:4px 14px 4px 10px;cursor:pointer;transition:border-color 0.2s}
+.rating-pill-link:hover{border-color:var(--accent);color:var(--text-1)}
+.rating-pill-link .count{font-weight:800;color:#ffd740}
+
+/* Rating queue section */
+.rate-queue-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.rate-queue-info{flex:1}
+.rate-queue-name{font-weight:600;font-size:0.85rem;margin-bottom:2px}
+.rate-queue-meta{font-size:0.75rem;color:var(--text-3)}
+.btn-rate{background:var(--accent);color:#000;border:none;padding:8px 18px;border-radius:20px;font-family:var(--font);font-weight:700;font-size:0.8rem;cursor:pointer}
+.btn-rate:hover{background:var(--accent-hover)}
+.btn-skip{background:transparent;border:1px solid var(--border);color:var(--text-3);padding:8px 14px;border-radius:20px;font-family:var(--font);font-weight:600;font-size:0.8rem;cursor:pointer}
+
+/* Rating modal */
+.rating-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;justify-content:center;align-items:center;z-index:200}
+.rating-overlay.show{display:flex}
+.rating-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:28px;width:100%;max-width:460px}
+.rating-box h3{font-size:1rem;font-weight:700;margin-bottom:4px}
+.rating-box .sub{font-size:0.8rem;color:var(--text-2);margin-bottom:16px}
+.stars-row{display:flex;gap:8px;margin-bottom:18px}
+.star-btn{font-size:1.6rem;cursor:pointer;color:var(--border);background:none;border:none;padding:0;transition:color 0.15s}
+.star-btn.active,.star-btn:hover{color:#ffd740}
+.rtag{display:inline-block;font-size:0.75rem;padding:5px 12px;border-radius:20px;border:1px solid var(--border);color:var(--text-2);background:transparent;cursor:pointer;font-family:var(--font);margin:0 6px 6px 0}
+.rtag.selected{background:var(--accent-muted);border-color:var(--accent);color:var(--accent)}
+.rtag.negative.selected{background:rgba(255,183,77,0.1);border-color:#ffb74d;color:#ffb74d}
+.rating-note{width:100%;padding:8px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem;resize:vertical;min-height:60px;margin-top:12px}
+.rating-note::placeholder{color:var(--text-3)}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+.btn-cancel{padding:8px 16px;border:1px solid var(--border);background:transparent;color:var(--text-2);border-radius:20px;font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer}
+.btn-submit-modal{padding:8px 20px;background:var(--accent);color:#000;border:none;border-radius:20px;font-family:var(--font);font-size:0.8rem;font-weight:700;cursor:pointer}
+
+/* Progress indicator */
+.rate-progress{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.rate-progress-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.rate-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s}
+.rate-progress-text{font-size:0.75rem;color:var(--text-3);white-space:nowrap}
+
+/* Comparison layout */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:var(--gap)}
+.compare-col{position:relative}
+.compare-label{position:absolute;top:-10px;left:12px;background:var(--bg);padding:0 8px;font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase}
+.compare-label.before{color:#ef5350}
+.compare-label.after{color:var(--accent)}
+
+/* Annotations */
+.annotation{position:relative;margin-top:6px;padding:8px 12px;background:rgba(179,136,255,0.06);border-left:2px solid #b388ff;border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:0.75rem;color:#ce93d8}
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">MOCKUP — Rating System Overhaul (Prompt 2) <span>| Uses actual Circul design system</span></div>
+
+<div class="page">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- CHANGE 1: Rate button → Rated pill         -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="mockup-label">Change 1: Transaction table — Rate button becomes a pill after rating</div>
+  <p class="mockup-note">The "Rate" button in the Action column changes to a "Rated" pill (like the Payment column). Once rated, no further action is possible. This prevents duplicate ratings.</p>
+
+  <div class="compare">
+    <div class="compare-col">
+      <span class="compare-label before">Current</span>
+      <div class="section">
+        <div class="section-head">
+          <div><div class="section-title">Recent transactions</div><div class="section-sub">Your last 10 drop-offs</div></div>
+        </div>
+        <table>
+          <tr><th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Earned</th><th>Payment</th><th>Action</th></tr>
+          <tr>
+            <td>26 Mar 2026</td><td>Kwesi Amankwah</td><td>HDPE</td><td>45 kg</td><td>GH&#8373; 113.85</td>
+            <td><span class="pill pill-paid">Paid &#10003;</span></td>
+            <td><button class="btn">Rate</button></td>
+          </tr>
+          <tr>
+            <td>22 Mar 2026</td><td>Abena Osei</td><td>PET</td><td>120 kg</td><td>GH&#8373; 384.00</td>
+            <td><span class="pill pill-sent">Sent</span></td>
+            <td><button class="btn">Rate</button></td>
+          </tr>
+          <tr>
+            <td>18 Mar 2026</td><td>Kwesi Amankwah</td><td>LDPE</td><td>80 kg</td><td>GH&#8373; 152.00</td>
+            <td><span class="pill pill-paid">Paid &#10003;</span></td>
+            <td><button class="btn">Rate</button></td>
+          </tr>
+        </table>
+        <div class="annotation">Problem: all 3 transactions show "Rate" — even if already rated. Clicking Rate again submits a duplicate.</div>
+      </div>
+    </div>
+
+    <div class="compare-col">
+      <span class="compare-label after">Proposed</span>
+      <div class="section">
+        <div class="section-head">
+          <div><div class="section-title">Recent transactions</div><div class="section-sub">Your last 10 drop-offs</div></div>
+        </div>
+        <table>
+          <tr><th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Earned</th><th>Payment</th><th>Rating</th></tr>
+          <tr>
+            <td>26 Mar 2026</td><td>Kwesi Amankwah</td><td>HDPE</td><td>45 kg</td><td>GH&#8373; 113.85</td>
+            <td><span class="pill pill-paid">Paid &#10003;</span></td>
+            <td><span class="pill pill-rated">&#9733; 4</span></td>
+          </tr>
+          <tr>
+            <td>22 Mar 2026</td><td>Abena Osei</td><td>PET</td><td>120 kg</td><td>GH&#8373; 384.00</td>
+            <td><span class="pill pill-sent">Sent</span></td>
+            <td><button class="btn" onclick="document.getElementById('ratingModal').classList.add('show')">Rate</button></td>
+          </tr>
+          <tr>
+            <td>18 Mar 2026</td><td>Kwesi Amankwah</td><td>LDPE</td><td>80 kg</td><td>GH&#8373; 152.00</td>
+            <td><span class="pill pill-paid">Paid &#10003;</span></td>
+            <td><button class="btn" onclick="document.getElementById('ratingModal').classList.add('show')">Rate</button></td>
+          </tr>
+        </table>
+        <div class="annotation">Column renamed "Action" → "Rating". First row shows rated pill (&#9733; 4) — no further action. Remaining rows still show Rate button. Click one to see the modal.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- CHANGE 2: Unrated transactions pill + queue -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="mockup-label">Change 2: "Unrated transactions" pill scrolls to a rating queue</div>
+  <p class="mockup-note">Currently the pill in "My top buyers" says "X unrated transactions — rate now" but just scrolls to the table. Proposed: it scrolls to a dedicated rating queue where you rate one transaction at a time with a progress indicator.</p>
+
+  <div class="compare">
+    <div class="compare-col">
+      <span class="compare-label before">Current</span>
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-title">My top buyers</div>
+            <div class="section-sub">Aggregators who buy from you</div>
+          </div>
+          <a href="#" class="rating-pill-link"><span class="count">3</span> unrated — rate now</a>
+        </div>
+        <div class="annotation">Clicking this scrolls to the transaction table — you have to find the unrated ones yourself and rate each by clicking "Rate" in the Action column. Easy to miss some, easy to rate the same one twice.</div>
+      </div>
+    </div>
+
+    <div class="compare-col">
+      <span class="compare-label after">Proposed</span>
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-title">My top buyers</div>
+            <div class="section-sub">Aggregators who buy from you</div>
+          </div>
+          <a href="#rateQueue" class="rating-pill-link"><span class="count">2</span> unrated — rate now</a>
+        </div>
+        <div class="annotation">Clicking scrolls to the rating queue below instead of the transaction table.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- The actual rating queue section -->
+  <div class="mockup-label" id="rateQueue">New section: Rating queue (appears between "My top buyers" and "Recent transactions")</div>
+  <p class="mockup-note">Each unrated transaction is shown as a card. You rate one at a time. After rating, the card disappears and progress updates. When all are rated, the section shows a completion message and hides.</p>
+
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Rate your transactions</div>
+        <div class="section-sub">Rate each transaction individually</div>
+      </div>
+    </div>
+
+    <div class="rate-progress">
+      <div class="rate-progress-bar"><div class="rate-progress-fill" style="width:33%"></div></div>
+      <div class="rate-progress-text">1 of 3 rated</div>
+    </div>
+
+    <div class="rate-queue-item">
+      <div class="rate-queue-info">
+        <div class="rate-queue-name">Abena Osei</div>
+        <div class="rate-queue-meta">22 Mar 2026 &middot; PET &middot; 120 kg &middot; GH&#8373; 384.00</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-rate" onclick="document.getElementById('ratingModal').classList.add('show')">Rate</button>
+      </div>
+    </div>
+
+    <div class="rate-queue-item">
+      <div class="rate-queue-info">
+        <div class="rate-queue-name">Kwesi Amankwah</div>
+        <div class="rate-queue-meta">18 Mar 2026 &middot; LDPE &middot; 80 kg &middot; GH&#8373; 152.00</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-rate" onclick="document.getElementById('ratingModal').classList.add('show')">Rate</button>
+      </div>
+    </div>
+
+    <div class="annotation">Each card = one unrated transaction. Click "Rate" to open the modal for that specific transaction. After submitting, the card disappears, progress updates, and the "Rate" button in the transaction table changes to a rated pill. When all done, this section auto-hides.</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- CHANGE 3: The rating modal (same as today)  -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="mockup-label">Rating modal (largely unchanged — just shows which transaction you're rating)</div>
+  <p class="mockup-note">The existing modal stays the same but now shows the transaction context at the top so you know exactly what you're rating.</p>
+
+  <div class="section" style="max-width:480px">
+    <div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:16px;font-size:0.8rem">
+      <span style="color:var(--text-3)">Rating for:</span> <strong>Abena Osei</strong> <span style="color:var(--text-3)">&middot; 22 Mar 2026 &middot; PET &middot; 120 kg</span>
+    </div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:4px">Rate aggregator</h3>
+    <div style="font-size:0.8rem;color:var(--text-2);margin-bottom:16px">How was your experience?</div>
+
+    <div class="stars-row">
+      <button class="star-btn active">&#9733;</button>
+      <button class="star-btn active">&#9733;</button>
+      <button class="star-btn active">&#9733;</button>
+      <button class="star-btn active">&#9733;</button>
+      <button class="star-btn">&#9733;</button>
+    </div>
+
+    <div style="margin-bottom:8px">
+      <span class="rtag selected">Fair price</span>
+      <span class="rtag">Paid on time</span>
+      <span class="rtag selected">Professional</span>
+      <span class="rtag negative">Slow payment</span>
+      <span class="rtag negative">Unfair price</span>
+    </div>
+
+    <textarea class="rating-note" placeholder="Any additional feedback..."></textarea>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('ratingModal').classList.remove('show')">Cancel</button>
+      <button class="btn-submit-modal" onclick="document.getElementById('ratingModal').classList.remove('show')">Submit Rating</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SUMMARY OF ALL CHANGES                      -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="mockup-label">Summary of changes</div>
+  <div class="section">
+    <table>
+      <tr><th style="width:30%">What</th><th style="width:35%">Current</th><th style="width:35%">Proposed</th></tr>
+      <tr>
+        <td><strong>Transaction table "Action" column</strong></td>
+        <td>"Rate" button always visible, even after rating. Column called "Action".</td>
+        <td>Column renamed "Rating". Shows "Rate" button if unrated, rated pill (&#9733; N) if already rated. No duplicate ratings possible.</td>
+      </tr>
+      <tr>
+        <td><strong>"Unrated" pill in My top buyers</strong></td>
+        <td>Scrolls to transaction table. User must find unrated rows manually.</td>
+        <td>Scrolls to new "Rate your transactions" queue section with one-by-one flow and progress bar.</td>
+      </tr>
+      <tr>
+        <td><strong>Rating modal</strong></td>
+        <td>Shows aggregator name but no transaction context.</td>
+        <td>Shows transaction context bar at top (name, date, material, weight).</td>
+      </tr>
+      <tr>
+        <td><strong>Backend</strong></td>
+        <td>No duplicate check. Multiple ratings per transaction allowed.</td>
+        <td>Returns 409 if rating already exists for (transaction_id, rater_id). Frontend disables Rate button on 409.</td>
+      </tr>
+      <tr>
+        <td><strong>Applies to</strong></td>
+        <td colspan="2">All dashboards with rating capability: Collector, Aggregator, Processor, Recycler, Converter</td>
+      </tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- RATING MODAL (floating, click Rate to open) -->
+<div class="rating-overlay" id="ratingModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="rating-box">
+    <div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:16px;font-size:0.8rem">
+      <span style="color:var(--text-3)">Rating for:</span> <strong>Abena Osei</strong> <span style="color:var(--text-3)">&middot; 22 Mar 2026 &middot; PET &middot; 120 kg</span>
+    </div>
+    <h3>Rate aggregator</h3>
+    <div class="sub">How was your experience?</div>
+    <div class="stars-row">
+      <button class="star-btn" onclick="selectStars(this,1)">&#9733;</button>
+      <button class="star-btn" onclick="selectStars(this,2)">&#9733;</button>
+      <button class="star-btn" onclick="selectStars(this,3)">&#9733;</button>
+      <button class="star-btn" onclick="selectStars(this,4)">&#9733;</button>
+      <button class="star-btn" onclick="selectStars(this,5)">&#9733;</button>
+    </div>
+    <div>
+      <span class="rtag" onclick="this.classList.toggle('selected')">Fair price</span>
+      <span class="rtag" onclick="this.classList.toggle('selected')">Paid on time</span>
+      <span class="rtag" onclick="this.classList.toggle('selected')">Professional</span>
+      <span class="rtag negative" onclick="this.classList.toggle('selected')">Slow payment</span>
+      <span class="rtag negative" onclick="this.classList.toggle('selected')">Unfair price</span>
+    </div>
+    <textarea class="rating-note" placeholder="Any additional feedback..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('ratingModal').classList.remove('show')">Cancel</button>
+      <button class="btn-submit-modal" onclick="document.getElementById('ratingModal').classList.remove('show')">Submit Rating</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectStars(el, count) {
+  var btns = el.parentElement.querySelectorAll('.star-btn');
+  btns.forEach(function(b, i) {
+    if (i < count) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+}
+</script>
+
+</body>
+</html>

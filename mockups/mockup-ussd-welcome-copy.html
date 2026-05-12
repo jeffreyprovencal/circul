@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD — Unregistered welcome screen copy</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1000px}
+.section{margin-bottom:48px;max-width:1400px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1000px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:260px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .hint{color:var(--text-3);font-size:0.72rem}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+
+.current{border:2px solid var(--text-3);position:relative;opacity:0.82}
+.current::after{content:'CURRENT';position:absolute;top:-10px;right:12px;background:var(--text-3);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.option{border:2px solid var(--accent);position:relative}
+.option::after{content:attr(data-opt);position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.option-b{border-color:var(--amber)}
+.option-b::after{background:var(--amber)}
+.option-c{border-color:var(--blue)}
+.option-c::after{background:var(--blue)}
+.option-d{border-color:var(--purple)}
+.option-d::after{background:var(--purple)}
+
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1000px}
+.box h3{margin-top:0;color:var(--text-1)}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:6px 0 0 20px}
+.box li{margin-bottom:6px}
+.box.pros{border-left:3px solid var(--accent)}
+.box.cons{border-left:3px solid var(--amber)}
+.box.rec{border-left:3px solid var(--accent);background:#0a150e}
+
+.metric{display:inline-block;font-size:0.68rem;color:var(--text-3);background:var(--border);padding:3px 8px;border-radius:4px;font-family:'Courier New',monospace;margin-right:6px}
+
+.variant-block{margin-bottom:40px}
+.variant-pros-cons{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px;margin-top:12px}
+@media(max-width:800px){.variant-pros-cons{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>USSD Unregistered Welcome — Copy Variants</h1>
+<p class="subtitle">First-time dialers hitting <code>*920*54#</code> from an unregistered phone see <code>handleUnregisteredUssd</code>'s depth-0 screen. Today's version is bare (2 menu items, no context). This mockup enumerates copy variants so we pick the right one before coding. Pick A/B/C/D (or mix), I'll revise <code>claude-code-prompt-ussd-welcome.md</code> to match.</p>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- CURRENT STATE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section">
+<div class="section-title">Today — what dialers actually see right now on prod</div>
+<div class="section-desc">Shipped in the initial USSD build, pre-PR-58. Two menu items, no value prop, no brand anchor. First impression for every new Ghanaian dialer including the WORK-network collectors Pat might send our way.</div>
+
+<div class="flow">
+  <div class="phone current">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+1. Register
+2. Exit</div>
+    <div class="phone-label">Current · 35 chars</div>
+    <div class="phone-note">Inconsistent with the rest of the USSD system, which uses 0 for back/cancel/exit. The 2 here is a leftover from early development.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- OPTION A -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section variant-block">
+<div class="section-title">Option A — Terse value prop</div>
+<div class="section-desc">Minimal addition. One line, six words. Fixes the menu-number inconsistency. Closest to the current feel; lowest risk of AT truncation.</div>
+
+<div class="flow">
+  <div class="phone option" data-opt="A">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+Sell recyclables for income.
+
+1. Register
+0. Exit</div>
+    <div class="phone-label">Option A · ~65 chars</div>
+  </div>
+</div>
+
+<div class="variant-pros-cons">
+  <div class="box pros">
+    <h3>Pros</h3>
+    <ul>
+      <li>Shortest addition — minimal gateway truncation risk</li>
+      <li>"Sell recyclables for income" is action-oriented, user-readable in 2 seconds</li>
+      <li>Fixes the <code>2 → 0</code> design-rule inconsistency</li>
+      <li>No new code paths — one line copy change + one branch fix</li>
+    </ul>
+  </div>
+  <div class="box cons">
+    <h3>Cons</h3>
+    <ul>
+      <li>Doesn't name the brand context — no "Ghana", no "waste economy", no aggregator mention</li>
+      <li>No "learn more" path for curious first-timers — they either register or exit</li>
+      <li>"Income" may over-promise for collectors who don't know the economics yet</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- OPTION B -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section variant-block">
+<div class="section-title">Option B — Brand + user-target framing</div>
+<div class="section-desc">Adds a second line naming the target user and what they do with Circul. Slightly longer but grounds the pitch.</div>
+
+<div class="flow">
+  <div class="phone option option-b" data-opt="B">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+Ghana's marketplace for
+waste collectors.
+
+1. Register
+0. Exit</div>
+    <div class="phone-label">Option B · ~85 chars</div>
+  </div>
+</div>
+
+<div class="variant-pros-cons">
+  <div class="box pros">
+    <h3>Pros</h3>
+    <ul>
+      <li>Anchors the geography ("Ghana") — reassures that this isn't a scam foreign platform</li>
+      <li>Names the user ("waste collectors") — if a non-collector dials, they know to exit early</li>
+      <li>Still well under the 182-char GSM limit</li>
+      <li>"Marketplace" signals two-sided platform (buyers + sellers)</li>
+    </ul>
+  </div>
+  <div class="box cons">
+    <h3>Cons</h3>
+    <ul>
+      <li>Doesn't tell them what they gain — no "income" or "fair prices" hook</li>
+      <li>"Waste collectors" language might feel undignified to some users — consider alternatives like "recyclables collectors" or "recyclers"</li>
+      <li>Aggregators who dial will see "waste collectors" and bounce — even though they ARE supposed to register (via the invite-code path once that UX lands on USSD)</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- OPTION C -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section variant-block">
+<div class="section-title">Option C — "What is Circul?" info branch</div>
+<div class="section-desc">Adds a third menu option (<code>2. What is Circul?</code>) that leads to a one-screen explainer with contact info. Costs one small new branch in <code>handleUnregisteredUssd</code>. Gives curious first-timers a way to learn before committing to registration.</div>
+
+<div class="flow">
+  <div class="phone option option-c" data-opt="C">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+Sell recyclables for income.
+
+1. Register
+2. What is Circul?
+0. Exit</div>
+    <div class="phone-label">Option C · screen 1 · ~95 chars</div>
+  </div>
+
+  <div class="phone option option-c" data-opt="C">
+    <div class="phone-header"><span>*920*54*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> Circul is Ghana's
+recycling marketplace.
+
+Collectors sell waste to
+aggregators who pay fair
+prices by weight.
+
+Support: 0300000003
+Learn more: circul.app</div>
+    <div class="phone-label">Option C · screen 2 · info END</div>
+    <div class="phone-note">END screen — dial *920*54# again to register. Contact + web for follow-up. Total ~150 chars.</div>
+  </div>
+</div>
+
+<div class="variant-pros-cons">
+  <div class="box pros">
+    <h3>Pros</h3>
+    <ul>
+      <li>Curious first-timers can learn without committing — reduces "what IS this?" registration abandonment</li>
+      <li>Shows support phone + URL — professional, reachable, not a fly-by-night feel</li>
+      <li>Second screen can be tweaked independently as the pitch evolves (e.g. when we add brand-tier messaging post-WORK-call)</li>
+      <li>3 menu items + <code>0. Exit</code> = exactly 4 total, stays inside the max-4-items design rule</li>
+    </ul>
+  </div>
+  <div class="box cons">
+    <h3>Cons</h3>
+    <ul>
+      <li>Adds a new code branch — bigger PR scope</li>
+      <li>Support phone in the copy means we need a real support phone — do we have one? (<code>0300000003</code> is Kofi Mensah the demo agent — not a real support line)</li>
+      <li>Info screen hard-codes the marketplace framing — needs updating when the brand-tier pitch lands</li>
+      <li>circul.app domain status: per memory, domain is via cyon but pending Polsia custom-domain setup — is it resolving yet?</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- OPTION D -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section variant-block">
+<div class="section-title">Option D — Role split (Collector vs Aggregator)</div>
+<div class="section-desc">Acknowledges both user types that might dial in. Adds a role-choice screen before registration so aggregators land in the invite-code flow (once we ship that path). Most ambitious; also solves a design gap that comes up as soon as we add USSD aggregator registration.</div>
+
+<div class="flow">
+  <div class="phone option option-d" data-opt="D">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Welcome to Circul
+Ghana's recycling marketplace.
+
+Register as:
+1. Collector
+2. Aggregator
+0. Exit</div>
+    <div class="phone-label">Option D · ~95 chars</div>
+  </div>
+
+  <div class="phone option option-d" data-opt="D">
+    <div class="phone-header"><span>*920*54*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Aggregator registration
+needs an invite code
+from a processor or
+another aggregator.
+
+Enter invite code:
+0. Cancel</div>
+    <div class="phone-label">Option D · aggregator path</div>
+    <div class="phone-note">Feeds into the invite-based aggregator registration from `project_circul_role_fraud_prevention.md` — currently NOT implemented on USSD. This option would force us to ship that path alongside the welcome copy change.</div>
+  </div>
+</div>
+
+<div class="variant-pros-cons">
+  <div class="box pros">
+    <h3>Pros</h3>
+    <ul>
+      <li>Solves the aggregator-registration USSD gap at the same time — one bigger win instead of two small ones</li>
+      <li>Invite-code flow has been designed in memory for a while; this gives it the entry point</li>
+      <li>Clearer routing — Pat's aggregator contacts can self-register via USSD without needing an admin to set them up</li>
+    </ul>
+  </div>
+  <div class="box cons">
+    <h3>Cons</h3>
+    <ul>
+      <li>Meaningfully bigger scope — adds invite-code validation flow, database table (invites from memory §`project_circul_role_fraud_prevention.md`), SMS triggers</li>
+      <li>Not doable today — would spill into post-holiday</li>
+      <li>If an aggregator dials without an invite code, they hit a dead end — still a UX friction point</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- RECOMMENDATION -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section">
+<div class="section-title">CTO recommendation</div>
+
+<div class="box rec">
+<h3>Option A for today, Option C as the natural follow-up</h3>
+<p><strong>Ship A now:</strong> smallest change, clearest win, fixes the design-rule inconsistency, lands in today's second Polsia credit. Closes a visible wart without expanding scope.</p>
+<p><strong>Queue C as a small post-holiday PR:</strong> the info-screen path is worth doing, but it hinges on two things that need resolution first — (1) a real support phone number or channel we're comfortable putting in USSD copy, (2) circul.app resolving cleanly. Neither blocks A; both block C. So ship A now, draft C when those two are confirmed.</p>
+<p><strong>Defer D indefinitely</strong> until Miniplast pilot signal on USSD aggregator registration demand. Memory's invite-code flow is the right design but the cost is non-trivial (schema + SMS + validation) and we have no live demand signal yet.</p>
+<p style="margin-top:12px"><strong>Open question for Jojo:</strong> is "Sell recyclables for income" the right hook? Or would "Turn waste into income" / "Get paid for your recycling" / "Circul pays for your waste" land better with Ghanaian users? I'm copy-guessing from outside the market.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- WHAT'S NEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" style="margin-bottom:0">
+<div class="box" style="border-left:3px solid var(--accent)">
+<h3>Next steps</h3>
+<ol style="margin-left:20px;line-height:1.8;font-size:0.85rem">
+  <li>Jojo picks A, B, C, or a custom variant (mix and match, or new copy entirely).</li>
+  <li>I revise <code>claude-code-prompt-ussd-welcome.md</code> to match the approved variant — update both the copy block and any branch-count adjustments (C adds a <code>parts[0] === '2'</code> branch for the info END).</li>
+  <li>Jojo runs the revised prompt in Claude Code → PR opens → merges → bundled into the Friday-evening Polsia sync.</li>
+</ol>
+</div>
+</div>
+
+</body>
+</html>

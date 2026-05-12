@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aggregator Reports — Sourcing + Sales</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h2{font-size:1.05rem;color:var(--accent);margin:0 0 8px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1000px;line-height:1.65}
+.section{margin-bottom:48px;max-width:1400px;scroll-margin-top:20px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1000px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+.dash{width:760px;background:var(--surface);border:2px solid var(--border);border-radius:10px;overflow:hidden;flex-shrink:0;font-family:var(--font)}
+.dash-header{background:#000;padding:10px 18px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.dash-body{padding:20px}
+.dash-body h4{font-size:1rem;color:var(--text-1);margin:0 0 6px}
+.dash-body .desc{color:var(--text-3);font-size:0.78rem;margin-bottom:14px}
+.toggle-row{display:flex;background:#0a150e;border:1px solid var(--border);border-radius:6px;padding:3px;margin-bottom:18px;width:fit-content}
+.toggle-btn{padding:7px 18px;font-size:0.78rem;color:var(--text-2);cursor:pointer;border-radius:4px;font-weight:600}
+.toggle-btn.on{background:var(--accent);color:#000}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:0.72rem;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em}
+.field input,.field select,.field textarea{width:100%;padding:8px 12px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:4px;font-size:0.85rem;font-family:var(--font)}
+.field-row{display:flex;gap:12px}
+.field-row > .field{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.chip{display:inline-block;padding:4px 10px;background:#0a150e;border:1px solid var(--border);border-radius:14px;font-size:0.72rem;color:var(--text-2);cursor:pointer}
+.chip.on{background:rgba(0,230,118,0.15);border-color:var(--accent);color:var(--accent)}
+.btn-row{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+.btn{padding:8px 16px;background:var(--accent);color:#000;border:0;border-radius:4px;font-weight:700;font-size:0.78rem;font-family:var(--font);cursor:pointer}
+.btn.sec{background:var(--border);color:var(--text-1)}
+.btn.outline{background:transparent;color:var(--text-1);border:1px solid var(--border)}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.summary .card{background:#0a150e;border:1px solid var(--border);border-radius:6px;padding:12px}
+.summary .card .label{font-size:0.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.04em}
+.summary .card .val{font-size:1.15rem;font-weight:700;color:var(--accent);margin-top:4px}
+.summary .card .sub{font-size:0.7rem;color:var(--text-3);margin-top:2px}
+.txn-table{width:100%;border-collapse:collapse;font-size:0.74rem;table-layout:auto}
+.txn-table th{background:var(--border);color:var(--text-2);text-align:left;padding:8px 8px;font-size:0.66rem;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;white-space:nowrap}
+.txn-table td{padding:8px 8px;border-bottom:1px solid var(--border);color:var(--text-1);white-space:nowrap}
+.txn-table tr:last-child td{border-bottom:none}
+.txn-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:0.66rem;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.pill.paid{background:rgba(0,230,118,0.15);color:#00e676}
+.pill.sent{background:rgba(255,215,64,0.15);color:#ffd740}
+.pill.pending{background:rgba(255,152,0,0.15);color:#ffb74d}
+.pill.registered{background:rgba(0,230,118,0.15);color:#00e676}
+.pill.walkin{background:rgba(179,157,219,0.18);color:var(--purple)}
+.pill.traced{background:rgba(0,230,118,0.15);color:#00e676}
+.pill.declared{background:rgba(255,215,64,0.15);color:#ffd740}
+.dash-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.dash-note{padding:8px 16px;font-family:var(--font);font-size:0.7rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border);line-height:1.55}
+
+/* PDF in A4 landscape — 297mm × 210mm. At ~2.6px/mm, that's roughly 770px × 545px for preview. */
+.pdf{width:770px;background:#fff;color:#000;border:2px solid var(--border);border-radius:6px;flex-shrink:0;font-family:var(--font);overflow:hidden}
+.pdf-page{padding:26px 30px}
+.pdf-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0d1f14;padding-bottom:8px;margin-bottom:12px}
+.pdf-head .left h2{color:#0d1f14;font-size:1.1rem;font-weight:700;letter-spacing:-0.01em;line-height:1.15}
+.pdf-head .left .wordmark{font-size:0.62rem;color:#5a7566;text-transform:uppercase;letter-spacing:0.14em;margin-top:3px}
+.pdf-head .right{text-align:right}
+.pdf-head .right .biz{font-size:1.05rem;font-weight:700;color:#0d1f14;line-height:1.15}
+.pdf-head .right .code{font-size:0.7rem;color:#5a7566;margin-top:2px;font-family:'Courier New',monospace;letter-spacing:0.04em}
+.pdf-meta-line{font-size:0.74rem;color:#0d1f14;margin-bottom:3px;line-height:1.4}
+.pdf-meta-line strong{color:#0d1f14;font-weight:600}
+.pdf-meta-gen{font-size:0.66rem;color:#5a7566;margin-bottom:14px}
+.pdf-page .pdf-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.pdf-page .pdf-summary div{padding:8px 10px;background:#f4f7f5;border-radius:3px}
+.pdf-page .pdf-summary .label{font-size:0.6rem;color:#5a7566;text-transform:uppercase;letter-spacing:0.05em}
+.pdf-page .pdf-summary .val{font-size:1rem;font-weight:700;color:#0d1f14;margin-top:2px}
+.pdf-page .pdf-summary .sub{font-size:0.6rem;color:#5a7566;margin-top:1px}
+.pdf-table{width:100%;border-collapse:collapse;font-size:0.7rem;margin-top:6px;table-layout:auto}
+.pdf-table th{background:#e8efe9;color:#0d1f14;text-align:left;padding:6px 7px;font-size:0.6rem;text-transform:uppercase;font-weight:700;letter-spacing:0.03em;white-space:nowrap}
+.pdf-table td{padding:6px 7px;border-bottom:1px solid #e0e7e2;color:#0d1f14;white-space:nowrap}
+.pdf-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.pdf-footer{margin-top:14px;font-size:0.62rem;color:#5a7566;border-top:1px solid #e0e7e2;padding-top:8px;line-height:1.6}
+.pdf-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+
+.csv{background:#0a150e;border:2px solid var(--border);border-radius:6px;padding:14px;font-family:'Courier New',monospace;font-size:0.74rem;color:var(--text-1);max-width:1100px;overflow-x:auto;white-space:pre}
+
+.new{border:2px solid var(--accent);position:relative}
+.new::after{content:'PRE-HOLIDAY';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+
+.legend{display:flex;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-2)}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.plain{border-color:var(--border)}
+
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1000px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.8;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1100px}
+.box h3{margin-top:0;color:var(--text-1)}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:6px 0 0 20px}
+.box li{margin-bottom:6px}
+.box.verified{border-left:3px solid var(--accent)}
+.box.assumed{border-left:3px solid var(--amber)}
+.box.strategic{border-left:3px solid var(--accent);background:#0a150e}
+.box.privacy{border-left:3px solid var(--red);background:#1f0d0d}
+.box blockquote{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:8px 0;color:var(--text-1);font-size:0.88rem;line-height:1.65}
+
+.diff-table{width:100%;max-width:1100px;border-collapse:collapse;font-size:0.8rem;margin-top:10px}
+.diff-table th,.diff-table td{padding:8px 12px;border:1px solid var(--border);text-align:left;vertical-align:top}
+.diff-table th{background:var(--border);color:var(--text-2);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.03em}
+.diff-table td{color:var(--text-1)}
+.diff-table .left-col{color:var(--text-2);font-weight:600;width:25%}
+.diff-table code{background:#0a150e;padding:1px 5px;border-radius:3px;color:var(--amber);font-size:0.74rem}
+</style>
+</head>
+<body>
+
+<h1>Aggregator Reports — Sourcing + Sales</h1>
+<p class="subtitle">Two parallel reports an aggregator can generate over any window, exportable as CSV + PDF. <strong>Sourcing</strong> (collectors → aggregator) is the brand-tier feature: Coke and similar require it as a precondition for purchasing. <strong>Sales</strong> (aggregator → processor / recycler / converter) is the aggregator's own statement to send their downstream buyers. Same UI shape, same component, same export pipeline — different SQL slice + different copy. Per <code>project_circul_work_call_insights.md</code>: pull-adoption, not push.</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch green"></div>PRE-HOLIDAY scope (both reports ship together)</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div>Existing platform context (verified)</div>
+</div>
+
+<div class="toc">
+<h3>Contents</h3>
+<ol>
+  <li><a href="#why">Strategic context</a></li>
+  <li><a href="#privacy">Privacy rule — collector identity in exports</a></li>
+  <li><a href="#verified">Verified context</a></li>
+  <li><a href="#flow">UX flow — Reports tab</a></li>
+  <li><a href="#csv">CSV output — both reports</a></li>
+  <li><a href="#pdf">PDF output — both reports</a></li>
+  <li><a href="#backend">Backend — endpoints + SQL</a></li>
+  <li><a href="#decisions">Locked decisions</a></li>
+  <li><a href="#verified-vs-assumed">Verified vs Assumed</a></li>
+</ol>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §1 STRATEGIC CONTEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="why">
+<div class="section-title">1. Why this — strategic context</div>
+
+<div class="box strategic">
+<blockquote>"Coke can only buy from aggregators who can generate reports."<br>— WORK call insight, 2026-04-24</blockquote>
+<p style="margin-top:10px">The brand-tier ask isn't "nicer dashboards" — it's <strong>required reporting infrastructure</strong>. Brand sustainability leads need an audit-grade record of what aggregators sourced (chain back to identifiable collectors) before purchasing. Once Circul is the supplier of that record, brand-tier customers route through us by necessity. <strong>Pull-adoption.</strong></p>
+</div>
+
+<div class="box">
+<h3>Two reports, one system</h3>
+<ul>
+  <li><strong>Sourcing report</strong> (primary, brand-tier-facing): "What I sourced from collectors during this window." Total sourced kg, total paid out, % from registered collectors, audit-grade per-transaction list. <strong>This is the Coke-onboarding lever.</strong></li>
+  <li><strong>Sales report</strong> (secondary, statement-style): "What I sold to a buyer during this window." Total volume, total value, traceability split, per-transaction list. Aggregator's own record-keeping; can be sent as a settlement statement to a processor / recycler / converter.</li>
+</ul>
+<p style="margin-top:10px">Both share a single backend endpoint per type, a single client component, a single PDF template (A4 landscape), and a single CSV emitter. Naming and labels flip based on report type via a <code>type</code> prop.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §2 PRIVACY RULE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="privacy">
+<div class="section-title">2. Privacy rule — collector identity in exports</div>
+
+<div class="box privacy">
+<h3 style="color:#ef5350">HARD RULE — load-bearing</h3>
+<p>Per platform privacy policy (<em>"Notes on Circul"</em> + <code>project_circul_dropdowns.md</code>-era guidance): <strong>collector names NEVER appear in any generated report (PDF or CSV).</strong> Only collector ID codes (<code>COL-0026</code>). This rule is non-negotiable and applies to all current and future report types.</p>
+<ul>
+  <li><strong>R1 filter dropdown:</strong> shows name-first with ID in parens (e.g. <code>Ama Mensah (COL-0026)</code>) for the aggregator's own selection convenience. This is UI, not export.</li>
+  <li><strong>R2 on-screen preview:</strong> shows ID only — same as the export, so what you see is what you ship.</li>
+  <li><strong>R3 PDF:</strong> ID only.</li>
+  <li><strong>CSV:</strong> ID only. No <code>collector_name</code> column.</li>
+  <li><strong>Sourcing scope:</strong> SQL filter <code>collector_id IS NOT NULL</code> — every Sourcing row is a registered collector by construction. Walk-in / declared-stock rows live on the Sales side only.</li>
+</ul>
+<p>If implementation introduces a name field in any export by accident, the implementation is wrong and must be reverted.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §3 VERIFIED CONTEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified">
+<div class="section-title">3. Verified context</div>
+
+<div class="box verified">
+<h3>Existing PDF export pattern (template to model on)</h3>
+<p>Aggregator dashboard already ships a P&amp;L PDF export via <strong>jsPDF + jsPDF-autoTable</strong>. Same library, same client-side render path, same Blob-download trigger. Reports reuse this pipeline — no new client deps. Orientation switches via <code>new jsPDF('l', 'mm', 'a4')</code> for landscape.</p>
+</div>
+
+<div class="box verified">
+<h3>Transaction data already in place</h3>
+<ul>
+  <li><code>pending_transactions</code> with <code>transaction_type</code> discriminator: <code>collector_sale</code> (collector → aggregator), <code>aggregator_purchase</code> (aggregator's purchase ledger view), <code>aggregator_sale</code> (aggregator → processor/recycler/converter).</li>
+  <li>Source attribution: <code>pending_transaction_sources</code> junction table, live since PR3.</li>
+  <li>Form column (<code>loose</code> / <code>baled</code>) shipped in PR #59.</li>
+  <li>Payment status: 3-state — <code>pending</code> / <code>payment_sent</code> / <code>paid</code>. Cash-on-spot path direct to <code>paid</code> (server.js:4232).</li>
+  <li>Aggregator naming: <code>COALESCE(a.company, a.name)</code> pattern (server.js:5291).</li>
+</ul>
+</div>
+
+<div class="box verified">
+<h3>Aggregator dashboard section structure</h3>
+<p>Aggregator dashboard is a long-scroll layout of <code>&lt;div class="section"&gt;</code> blocks (incomingCard, sellCard, plCard, etc.). Reports lands as a new <code>&lt;div class="section" id="reportsCard"&gt;</code> placed near the bottom of the flow (after Marketplace + Transactions, before Profile). The Sourcing/Sales toggle is internal to that section.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §4 UX FLOW -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="flow">
+<div class="section-title">4. UX flow — Reports tab on aggregator dashboard</div>
+<div class="section-desc">A new "Reports" tab on the aggregator dashboard. At the top: a type toggle (<strong>Sourcing</strong> | <strong>Sales</strong>). Same filter / preview / download skeleton on both. Sourcing is shown in detail; the Sales variant has identical structure with the substitutions in §4.3.</p>
+
+<h3 style="margin-top:24px;color:var(--accent)">4.1 Sourcing — R1 filter screen</h3>
+
+<div class="flow">
+  <div class="dash new">
+    <div class="dash-header"><span>aggregator-dashboard.html · Reports section</span><span>Kwesi · Bonsu Recyclers · AGG-0023</span></div>
+    <div class="dash-body">
+      <div class="toggle-row">
+        <div class="toggle-btn on">Sourcing</div>
+        <div class="toggle-btn">Sales</div>
+      </div>
+      <h4>Sourcing report</h4>
+      <div class="desc">Show what you sourced from collectors during a window. Send the PDF to a brand or buyer who needs to verify your supply chain.</div>
+      <div class="field-row">
+        <div class="field"><label>Collector</label>
+          <select>
+            <option selected>All collectors (default)</option>
+            <option>Ama Mensah (COL-0026) · 12 sales · GH₵4,800</option>
+            <option>Kwame Asante (COL-0029) · 9 sales · GH₵3,200</option>
+            <option>Yaw Boateng (COL-0033) · 7 sales · GH₵1,950</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>From date</label><input type="date" value="2026-01-01"></div>
+        <div class="field"><label>To date</label><input type="date" value="2026-04-25"></div>
+      </div>
+      <div class="field"><label>Materials</label>
+        <div class="chips">
+          <div class="chip on">All</div>
+          <div class="chip">PET</div>
+          <div class="chip">HDPE</div>
+          <div class="chip">LDPE</div>
+          <div class="chip">PP</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn outline">Preview</button>
+        <button class="btn sec">Download CSV</button>
+        <button class="btn">Download PDF</button>
+      </div>
+    </div>
+    <div class="dash-label">R1 — Sourcing · filters + actions</div>
+    <div class="dash-note">Defaults: All collectors · All materials · year-to-date. Collector dropdown shows name-first with ID in parens (`Ama Mensah (COL-0026)`) — readable for the aggregator who knows their collectors. Names visible in the filter UI ONLY; they never reach the export.</div>
+  </div>
+</div>
+
+<h3 style="margin-top:36px;color:var(--accent)">4.2 Sourcing — R2 preview screen</h3>
+
+<div class="flow">
+  <div class="dash new">
+    <div class="dash-header"><span>aggregator-dashboard.html · Reports section</span><span>Preview · Sourcing</span></div>
+    <div class="dash-body">
+      <div class="toggle-row">
+        <div class="toggle-btn on">Sourcing</div>
+        <div class="toggle-btn">Sales</div>
+      </div>
+      <h4>Preview — All collectors, 2026-01-01 to 2026-04-25, PET + HDPE</h4>
+      <div class="summary">
+        <div class="card"><div class="label">Total Sourced</div><div class="val">3,360 kg</div><div class="sub">25 transactions</div></div>
+        <div class="card"><div class="label">Total Paid Out</div><div class="val">GH₵15,200</div><div class="sub">avg GH₵4.52/kg</div></div>
+        <div class="card"><div class="label">Collectors</div><div class="val">12</div><div class="sub">all registered</div></div>
+        <div class="card"><div class="label">Largest Supplier</div><div class="val">COL-0026</div><div class="sub">22% · 740 kg</div></div>
+      </div>
+      <table class="txn-table">
+        <thead><tr><th>Date</th><th>Ref</th><th>Collector</th><th>Material</th><th class="num">Net kg</th><th class="num">GH₵/kg</th><th class="num">Total</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>24 Apr</td><td>TXN-20260424-0142</td><td>COL-0026</td><td>PET</td><td class="num">120.00</td><td class="num">4.50</td><td class="num">GH₵540</td><td><span class="pill paid">Paid</span></td></tr>
+          <tr><td>22 Apr</td><td>TXN-20260422-0138</td><td>COL-0029</td><td>HDPE</td><td class="num">180.00</td><td class="num">5.20</td><td class="num">GH₵936</td><td><span class="pill paid">Paid</span></td></tr>
+          <tr><td>15 Apr</td><td>TXN-20260415-0124</td><td>COL-0033</td><td>HDPE</td><td class="num">140.00</td><td class="num">5.20</td><td class="num">GH₵728</td><td><span class="pill pending">Pending</span></td></tr>
+          <tr><td>10 Apr</td><td>TXN-20260410-0118</td><td>COL-0026</td><td>PET</td><td class="num">95.00</td><td class="num">4.50</td><td class="num">GH₵427</td><td><span class="pill paid">Paid</span></td></tr>
+          <tr><td colspan="8" style="color:var(--text-3);text-align:center;font-size:0.74rem">… 21 more rows in PDF / CSV</td></tr>
+        </tbody>
+      </table>
+      <div class="btn-row">
+        <button class="btn outline">Edit filters</button>
+        <button class="btn sec">Download CSV</button>
+        <button class="btn">Download PDF</button>
+      </div>
+    </div>
+    <div class="dash-label">R2 — Sourcing · preview before download</div>
+    <div class="dash-note"><strong>Sourcing report = 100% registered collectors only.</strong> SQL enforces <code>collector_id IS NOT NULL</code> at the data layer. Walk-in / declared-stock rows are excluded — they belong to the seller-side data flow, not the buyer-side report. <strong>Privacy applied:</strong> table shows collector IDs only, no names. <strong>Form column dropped from preview</strong> (kept in CSV). <strong>Largest Supplier</strong> card surfaces supplier concentration: high % flags single-supplier dependency risk, low % indicates diversified sourcing — both useful self-improvement signals for the aggregator.</div>
+  </div>
+</div>
+
+<h3 style="margin-top:36px;color:var(--accent)">4.3 Sales report — same shape, substitutions</h3>
+
+<div class="box">
+<p>Identical R1 + R2 + R3 skeleton. When the toggle is set to <strong>Sales</strong>:</p>
+<table class="diff-table">
+  <thead><tr><th>Element</th><th>Sourcing</th><th>Sales</th></tr></thead>
+  <tbody>
+  <tr><td class="left-col">R1 filter dropdown</td><td>"All collectors" + per-collector list (ID first)</td><td>"All buyers" + per-buyer list (processors / recyclers / converters)</td></tr>
+  <tr><td class="left-col">Summary cards</td><td>Total Sourced · Total Paid Out · Collectors · Largest Supplier</td><td>Total Volume · Total Value · Buyers · Traced %</td></tr>
+  <tr><td class="left-col">Counterparty col</td><td>Collector ID (always present — sourcing is registered-only)</td><td>Buyer code (PRO-0001, REC-0001, CNV-0001) + buyer name (buyers are not subject to the collector-privacy rule)</td></tr>
+  <tr><td class="left-col">Source / Trace pill</td><td><strong>None</strong> — sourcing is 100% registered, no pill needed</td><td><code>Traced</code> / <code>Declared</code> — chain-of-custody attribution metric</td></tr>
+  <tr><td class="left-col">SQL filter</td><td><code>transaction_type IN ('collector_sale','aggregator_purchase')</code> + <code>aggregator_id = $X</code></td><td><code>transaction_type = 'aggregator_sale'</code> + <code>aggregator_id = $X</code></td></tr>
+  <tr><td class="left-col">PDF title</td><td>"Aggregator Sourcing Report"</td><td>"Aggregator Sales Report"</td></tr>
+  <tr><td class="left-col">Filename</td><td><code>circul_sourcing_AGG-XXXX_FROM_to_TO.csv</code></td><td><code>circul_sales_AGG-XXXX_{buyer-slug}_FROM_to_TO.csv</code> (or <code>_all-buyers_</code>)</td></tr>
+  </tbody>
+</table>
+<p style="margin-top:10px">Visual layout, summary-then-table flow, jsPDF landscape template — all identical. Implementation is one component with a <code>type</code> prop.</p>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §5 CSV FORMAT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="csv">
+<div class="section-title">5. CSV output — both reports</div>
+
+<h3 style="color:var(--accent)">5.1 Sourcing CSV</h3>
+<div class="csv">circul_sourcing_AGG-0023_2026-01-01_to_2026-04-25.csv
+
+date,ref,collector_code,material,form,gross_kg,net_kg,price_per_kg_ghs,total_ghs,payment_status,paid_at
+2026-04-24,TXN-20260424-0142,COL-0026,PET,loose,120.00,120.00,4.50,540.00,paid,2026-04-24
+2026-04-22,TXN-20260422-0138,COL-0029,HDPE,baled,180.00,180.00,5.20,936.00,paid,2026-04-22
+2026-04-15,TXN-20260415-0124,COL-0033,HDPE,baled,140.00,140.00,5.20,728.00,pending,
+2026-04-10,TXN-20260410-0118,COL-0026,PET,loose,95.00,95.00,4.50,427.50,paid,2026-04-10
+…
+</div>
+
+<h3 style="color:var(--accent);margin-top:24px">5.2 Sales CSV</h3>
+<div class="csv">circul_sales_AGG-0023_miniplast_2026-01-01_to_2026-04-25.csv
+
+date,ref,buyer_kind,buyer_code,buyer_name,material,form,gross_kg,net_kg,price_per_kg_ghs,total_ghs,traced_pct,collector_codes,payment_status,paid_at
+2026-04-24,TXN-20260424-0167,processor,PRO-0001,Miniplast Ghana,PET,baled,500.00,500.00,4.50,2250.00,80,"COL-0026,COL-0029",pending,
+2026-04-22,TXN-20260422-0163,processor,PRO-0001,Miniplast Ghana,HDPE,loose,320.00,320.00,5.20,1664.00,100,"COL-0026,COL-0033,COL-0041",paid,2026-04-23
+…
+</div>
+
+<div class="box">
+<h3>Column rationale</h3>
+<ul>
+  <li><code>date</code> + <code>ref</code> — receipt-style identification.</li>
+  <li><code>price_per_kg_ghs</code> + <code>total_ghs</code> — financial line items, GHS suffix explicit.</li>
+  <li><code>payment_status</code> + <code>paid_at</code> — settlement status, 3-state.</li>
+  <li><strong>Sourcing-only:</strong> <code>collector_code</code>. Always populated — sourcing rows are filtered to registered collectors at the SQL layer. No collector name, no <code>source_kind</code> column needed (every row is registered).</li>
+  <li><strong>Sales-only:</strong> <code>buyer_kind</code> + <code>buyer_code</code> + <code>buyer_name</code> (buyers not subject to collector privacy rule) + <code>traced_pct</code> + <code>collector_codes</code> (still IDs, never names).</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §6 PDF FORMAT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="pdf">
+<div class="section-title">6. PDF output — both reports (A4 landscape)</div>
+<div class="section-desc">Polished, A4 <strong>landscape</strong>, 1–2 pages typical. Header redesigned: title left, aggregator company (or name) top-right, single-line meta with date range + actual materials list, generated date on its own line. Refs in the same font as the rest. Tables fit cleanly across the wider landscape canvas.</p>
+
+<h3 style="color:var(--accent)">6.1 Sourcing PDF (primary)</h3>
+
+<div class="flow">
+  <div class="pdf">
+    <div class="pdf-page">
+      <div class="pdf-head">
+        <div class="left">
+          <h2>Aggregator Sourcing Report</h2>
+          <div class="wordmark">Circul</div>
+        </div>
+        <div class="right">
+          <div class="biz">Bonsu Recyclers</div>
+          <div class="code">AGG-0023</div>
+        </div>
+      </div>
+      <div class="pdf-meta-line"><strong>1 Jan 2026</strong> to <strong>25 Apr 2026</strong> · Materials: PET, HDPE · All collectors</div>
+      <div class="pdf-meta-gen">Generated 25 Apr 2026 11:42 by Circul · circul.polsia.app</div>
+      <div class="pdf-summary">
+        <div><div class="label">Total Sourced</div><div class="val">3,360 kg</div><div class="sub">25 transactions</div></div>
+        <div><div class="label">Total Paid Out</div><div class="val">GH₵15,200</div><div class="sub">avg GH₵4.52/kg</div></div>
+        <div><div class="label">Collectors</div><div class="val">12</div><div class="sub">all registered</div></div>
+        <div><div class="label">Largest Supplier</div><div class="val">COL-0026</div><div class="sub">22% · 740 kg</div></div>
+      </div>
+      <table class="pdf-table">
+        <thead><tr><th>Date</th><th>Ref</th><th>Collector</th><th>Material</th><th class="num">Net kg</th><th class="num">GH₵/kg</th><th class="num">Total GH₵</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>24/04/2026</td><td>TXN-20260424-0142</td><td>COL-0026</td><td>PET</td><td class="num">120.00</td><td class="num">4.50</td><td class="num">540.00</td><td>Paid</td></tr>
+          <tr><td>22/04/2026</td><td>TXN-20260422-0138</td><td>COL-0029</td><td>HDPE</td><td class="num">180.00</td><td class="num">5.20</td><td class="num">936.00</td><td>Paid</td></tr>
+          <tr><td>15/04/2026</td><td>TXN-20260415-0124</td><td>COL-0033</td><td>HDPE</td><td class="num">140.00</td><td class="num">5.20</td><td class="num">728.00</td><td>Pending</td></tr>
+          <tr><td>10/04/2026</td><td>TXN-20260410-0118</td><td>COL-0026</td><td>PET</td><td class="num">95.00</td><td class="num">4.50</td><td class="num">427.50</td><td>Paid</td></tr>
+          <tr><td>05/04/2026</td><td>TXN-20260405-0109</td><td>COL-0029</td><td>HDPE</td><td class="num">220.00</td><td class="num">5.20</td><td class="num">1,144.00</td><td>Paid</td></tr>
+          <tr><td>02/04/2026</td><td>TXN-20260402-0102</td><td>COL-0033</td><td>PET</td><td class="num">85.00</td><td class="num">4.50</td><td class="num">382.50</td><td>Paid</td></tr>
+          <tr><td colspan="8" style="color:#5a7566;text-align:center;font-style:italic;padding:8px">… 19 more rows on pages 2–3 …</td></tr>
+        </tbody>
+      </table>
+      <div class="pdf-footer">
+        <strong>Supplier verification:</strong> 100% of sourced volume (3,360 kg) came from 12 collectors registered on Circul with phone-linked, verifiable identity profiles. Every transaction in this report is traceable to an identified supplier.<br>
+        <strong>Payment:</strong> 22 transactions paid (GH₵13,580), 3 pending settlement.<br>
+        For audit questions: hello@circul.app
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;width:340px">
+    <div class="pdf-label">R3 — Sourcing PDF page 1 (A4 landscape, ~770px preview)</div>
+    <div class="box" style="margin:0">
+      <h3 style="font-size:0.85rem;margin-top:0">Layout + scope fixes applied</h3>
+      <ul style="font-size:0.78rem">
+        <li>A4 <strong>landscape</strong> orientation — fits 8 columns without overflow.</li>
+        <li>Title left, company top-right, both on one visual line.</li>
+        <li>Meta line lists <strong>actual materials present</strong> ("PET, HDPE") — not "All materials."</li>
+        <li>"Generated…" on its own line, including platform attribution.</li>
+        <li>Refs in same font as rest; date in DD/MM/YYYY (Ghana convention, full year for export clarity).</li>
+        <li><strong>Collector IDs only</strong> — no names. Sourcing is 100% registered (SQL enforces <code>collector_id IS NOT NULL</code>) so no walk-in rows appear.</li>
+        <li><strong>Source column dropped</strong> — every row is registered, no Source/Walk-in distinction needed.</li>
+        <li>Form column dropped from PDF (kept in CSV).</li>
+        <li>Aggregator name = <code>COALESCE(a.company, a.name)</code>.</li>
+        <li><strong>Footer narrative is now "100% registered, every transaction traceable" — sharper brand-tier story.</strong></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h3 style="color:var(--accent);margin-top:36px">6.2 Sales PDF (secondary)</h3>
+
+<div class="box">
+<p>Identical layout. Substitutions:</p>
+<ul>
+  <li>Title: "Aggregator Sales Report"</li>
+  <li>Top-right: aggregator company / name (same — sender identity is the same)</li>
+  <li>Meta line: <code>1 Jan 2026 to 25 Apr 2026 · Materials: PET, HDPE · Sold to: Miniplast Ghana</code> (or <code>… · All buyers</code>)</li>
+  <li>Summary cards: Total Volume / Total Value / Buyers / Traced %</li>
+  <li>Table columns: Date · Ref · Buyer · Material · Net kg · GH₵/kg · Total GH₵ · Trace · Status</li>
+  <li>Counterparty cell: <code>PRO-0001 Miniplast Ghana</code> (buyer ID + buyer name; buyers not subject to collector privacy rule)</li>
+  <li>"Source" column → "Trace" column. Pill values: <strong>Traced</strong> (chain-linked source rows back to registered collectors) or <strong>Declared</strong> (no chain link, aggregator-vouched).</li>
+  <li>Footer: traceability split + payment summary + audit contact.</li>
+</ul>
+</div>
+
+<div class="box">
+<h3>Multi-page handling</h3>
+<p>jsPDF-autoTable handles overflow. Header + meta repeats on each page; page numbers in footer (<code>Page 1 of 3</code>).</p>
+<h3>Wordmark / branding</h3>
+<p>Text-only "Circul" wordmark below title. No logo asset coordination.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §7 BACKEND -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="backend">
+<div class="section-title">7. Backend</div>
+
+<div class="box">
+<h3>Endpoint shape</h3>
+<ul>
+  <li><code>GET /api/aggregator/reports/sourcing</code> — sourcing report data.</li>
+  <li><code>GET /api/aggregator/reports/sales</code> — sales report data.</li>
+</ul>
+<p><code>requireAuth</code> + role check (<code>req.user.hasRole('aggregator')</code>). Query params: <code>from</code>, <code>to</code>, <code>materials</code> (CSV string, optional, default = all), <code>collector_id</code> (sourcing only, optional, default = all), <code>buyer_kind</code> + <code>buyer_id</code> (sales only, optional, default = all). Response: <code>{ success: true, summary: {...}, rows: [...], materials_present: [...] }</code> — the <code>materials_present</code> array drives the PDF meta-line "Materials: PET, HDPE" rendering.</p>
+
+<h3>Sourcing SQL (sketch — to be verified during prompt drafting)</h3>
+<pre style="background:#0a150e;padding:12px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.74rem;line-height:1.55;overflow-x:auto;max-width:1100px">
+SELECT
+  pt.id,
+  pt.created_at AS date,
+  'TXN-' || TO_CHAR(pt.created_at, 'YYYYMMDD') || '-' || LPAD(pt.id::text, 4, '0') AS ref,
+  pt.collector_id,
+  'COL-' || LPAD(pt.collector_id::text, 4, '0') AS collector_code,
+  pt.material_type,
+  pt.form,
+  pt.gross_weight_kg,
+  pt.net_weight_kg,
+  pt.price_per_kg,
+  pt.total_price,
+  pt.payment_status,
+  pt.payment_completed_at AS paid_at
+FROM pending_transactions pt
+WHERE pt.transaction_type IN ('collector_sale', 'aggregator_purchase')
+  AND pt.aggregator_id = $1
+  AND pt.collector_id IS NOT NULL    -- registered-only filter, hard rule
+  AND pt.created_at &gt;= $2 AND pt.created_at &lt; $3
+  AND ($4::text IS NULL OR pt.material_type = ANY(string_to_array($4, ',')))
+  AND ($5::int IS NULL OR pt.collector_id = $5)
+ORDER BY pt.created_at DESC
+</pre>
+<p style="margin-top:8px;font-size:0.78rem;color:var(--text-3)"><em>Notes: (1) SQL does NOT join the <code>collectors</code> table — names must never enter the response payload. (2) <code>collector_id IS NOT NULL</code> filter enforces the registered-only rule at the data layer — walk-in / declared-stock rows are excluded by definition. (3) The summary card "Largest Supplier" is computed in JS from the result set: GROUP BY collector_code, MAX kg.</em></p>
+
+<h3>Client-side rendering</h3>
+<ul>
+  <li><strong>Preview</strong> (R2): client renders summary + first ~5 rows.</li>
+  <li><strong>CSV</strong>: client builds CSV string from response, triggers Blob download.</li>
+  <li><strong>PDF</strong>: client uses jsPDF landscape mode (<code>'l'</code> orientation) + jsPDF-autoTable.</li>
+</ul>
+
+<h3>No new tables</h3>
+<p>Generate-on-demand. No <code>aggregator_reports_generated</code> table. Re-evaluate post-pilot.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §8 LOCKED DECISIONS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="decisions">
+<div class="section-title">8. Locked decisions</div>
+
+<div class="box">
+<ul>
+  <li><strong>Both reports ship pre-holiday</strong> — same PR, one component, two SQL slices.</li>
+  <li><strong>Toggle naming:</strong> <code>Sourcing</code> | <code>Sales</code>. Parallel, brand-tier-readable.</li>
+  <li><strong>Storage:</strong> generate-on-demand only.</li>
+  <li><strong>Privacy (HARD RULE):</strong> collector names NEVER in any export — PDF or CSV. IDs only. Names visible in R1 dropdown UI for selection only.</li>
+  <li><strong>Sourcing scope = 100% registered.</strong> SQL filter <code>collector_id IS NOT NULL</code> excludes walk-in / declared-stock rows. No "Registered %" metric needed — it's always 100% by construction.</li>
+  <li><strong>Sourcing 4th summary card:</strong> Largest Supplier (anonymized to COL-XXXX in the report). Surfaces supplier concentration as a self-improvement signal.</li>
+  <li><strong>Sales scope keeps Traced/Declared split.</strong> The chain-of-custody attribution metric is meaningful precisely because it's honest about gaps. Asymmetric with sourcing is intentional — see <code>project_circul_chain_of_custody_status.md</code> for the PR3-vs-PR#59 history.</li>
+  <li><strong>Traceability calc (sales):</strong> weight-weighted % of kg traced via <code>pending_transaction_sources</code> back to a registered collector.</li>
+  <li><strong>Default filters:</strong> All collectors / All buyers, All materials, year-to-date.</li>
+  <li><strong>Aggregator name on PDF:</strong> <code>COALESCE(a.company, a.name)</code>.</li>
+  <li><strong>PDF orientation:</strong> A4 <strong>landscape</strong> for both reports.</li>
+  <li><strong>PDF header:</strong> title left, aggregator (company/name) top-right, single-line meta listing actual materials, "Generated…" on its own line.</li>
+  <li><strong>Materials in meta:</strong> list actual materials present (e.g. "PET, HDPE") — never the word "All."</li>
+  <li><strong>Form column:</strong> in CSV always; dropped from R2 preview + R3 PDF for fit.</li>
+  <li><strong>Sourcing report:</strong> registered-only at SQL layer. No walk-in rows, no Source/Walk-in pill needed. Sales report keeps the Traced/Declared pill (chain-of-custody attribution metric).</li>
+  <li><strong>Wordmark:</strong> text-only "Circul" below title.</li>
+  <li><strong>Audit contact:</strong> <code>hello@circul.app</code> (forward-compatible).</li>
+  <li><strong>Date format:</strong> <code>DD/MM/YYYY</code> in PDF (Ghana convention, full year for export clarity); ISO <code>YYYY-MM-DD</code> in CSV (machine-readable).</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §9 VERIFIED VS ASSUMED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified-vs-assumed">
+<div class="section-title">9. Verified vs Assumed</div>
+
+<div class="box verified">
+<h3>Verified against current main (prod tip <code>02d162b</code>)</h3>
+<ul>
+  <li>Aggregator dashboard ships jsPDF + jsPDF-autoTable for the existing expense PDF export. Landscape mode is a 1-line constructor change.</li>
+  <li>Tab pattern: <code>.tab.on</code> active-state class (PR #62 unified).</li>
+  <li>Aggregator naming: <code>aggregators.company</code> + <code>aggregators.name</code> both exist; <code>COALESCE(a.company, a.name)</code> at server.js:5291.</li>
+  <li>Payment states: 3-state on both <code>transactions</code> and <code>pending_transactions</code> (server.js:4232 / 5977 / 6011).</li>
+  <li>Form column shipped in PR #59 on <code>pending_transactions</code>.</li>
+  <li>Chain-of-custody junction (<code>pending_transaction_sources</code>) live since PR3.</li>
+  <li>Privacy rule in memory (Notes on Circul + dropdowns guidance): collector names NEVER in exports.</li>
+</ul>
+</div>
+
+<div class="box assumed">
+<h3>Assumed (verify during implementation prompt drafting)</h3>
+<ul>
+  <li><strong><code>collector_sale</code> vs <code>aggregator_purchase</code> overlap.</strong> Both transaction types appear at insert sites (server.js:3167 / 3384 / 3619 / 4030 / 5390 / 7907). Need to verify whether the same logical event lands as both rows (would double-count) or if they're disjoint slices. Resolve via grep + insert-path review during prompt drafting.</li>
+  <li><strong>Walk-in collector modeling (Sales side, not Sourcing).</strong> The chain-of-custody attribution metric for Sales reports counts source rows where <code>collector_id IS NOT NULL</code> as "traced" and ones where it's NULL as "declared". Verified at server.js:3619 — declared-stock rows are <code>aggregator_purchase</code> with <code>collector_id: null</code>, <code>source: 'ussd_declared'</code>. This modeling is correct.</li>
+  <li><strong>Reports section placement.</strong> Lands as <code>&lt;div class="section" id="reportsCard"&gt;</code> in the aggregator dashboard's long-scroll flow. Suggested position: after Transactions, before Profile. Confirm during implementation.</li>
+  <li><strong>jsPDF-autoTable column-fit at A4 landscape.</strong> 9 columns + landscape should fit comfortably; verify with a render pass on the first implementation.</li>
+</ul>
+</div>
+
+<div class="box">
+<h3>Could be wrong if</h3>
+<ul>
+  <li>The <code>aggregator_purchase</code> / <code>collector_sale</code> overlap is non-trivial — sourcing SQL would need a deduplication step.</li>
+  <li>Brand-tier reviewers want <code>traced_pct</code> calculated differently. Revisit if the first brand-tier buyer pushes back.</li>
+  <li>Collectors want to be NAMED on reports they're proud to be associated with. Counter to current privacy rule; would require explicit opt-in mechanism, post-pilot signal.</li>
+</ul>
+</div>
+</div>
+
+</body>
+</html>

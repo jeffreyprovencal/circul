@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD — Aggregator Sell-Upstream</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1000px}
+.section{margin-bottom:56px;max-width:1400px;scroll-margin-top:20px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1000px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:260px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .warn{color:var(--amber);font-weight:700}
+.phone-screen .hint{color:var(--text-3);font-size:0.72rem}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:100px;flex-shrink:0}
+
+.new{border:2px solid var(--accent);position:relative}
+.new::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.fix{border:2px solid var(--amber);position:relative}
+.fix::after{content:'FIX';position:absolute;top:-10px;right:12px;background:var(--amber);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+
+.legend{display:flex;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-2)}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.yellow{border-color:var(--amber)}
+.legend-swatch.plain{border-color:var(--border)}
+
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1000px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.8;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1000px}
+.box h3{margin-top:0}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:6px 0 0 20px}
+.box li{margin-bottom:6px}
+.box.verified{border-left:3px solid var(--accent)}
+.box.assumed{border-left:3px solid var(--amber)}
+.box.warn-box{border-left:3px solid var(--red)}
+
+.subflow{display:inline-block;font-size:0.7rem;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin:16px 0 8px;padding:3px 8px;background:var(--border);border-radius:4px}
+
+.menu-compare{display:grid;grid-template-columns:1fr 40px 1fr;gap:20px;align-items:start;max-width:800px;margin-bottom:24px}
+.menu-compare > div{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-family:'Courier New',monospace;font-size:0.82rem;line-height:1.8;color:var(--text-1)}
+.menu-compare > div.arrow-col{background:transparent;border:none;color:var(--text-3);font-size:1.4rem;text-align:center;padding-top:40px;font-family:var(--font)}
+.menu-compare .menu-label{font-family:var(--font);font-size:0.68rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;font-weight:600}
+.menu-compare .old-val{color:var(--text-3);text-decoration:line-through;text-decoration-color:var(--red)}
+.menu-compare .new-val{color:var(--accent);font-weight:700}
+</style>
+</head>
+<body>
+
+<h1>USSD — Aggregator Sell-Upstream</h1>
+<p class="subtitle">Adds the aggregator → processor/recycler/converter sell path to USSD. Collapses "Log Purchase" into "Log Transaction" with a direction sub-screen, adds loose/bale form toggle, uses FIFO auto-attribution (existing <code>attributeAndInsert</code> helper) on the sell side. Reuses existing backend machinery — this is mostly new USSD UI + one new handler branch.</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch yellow"></div> FIX — updated screen</div>
+  <div class="legend-item"><div class="legend-swatch green"></div> NEW — net-new screen</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div> Unchanged from today</div>
+</div>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#verified">Verified context</a></li>
+    <li><a href="#scope">Scope + rationale</a></li>
+    <li><a href="#menu">Menu reshape — Log Purchase → Log Transaction</a></li>
+    <li><a href="#purchase">Purchase flow (unchanged, accessed via direction=1)</a></li>
+    <li><a href="#sale">Sale flow (new, direction=2)</a></li>
+    <li><a href="#edges">Edge cases</a></li>
+    <li><a href="#backend">Backend notes</a></li>
+    <li><a href="#verified-vs-assumed">Verified vs Assumed</a></li>
+  </ol>
+</div>
+
+<!-- ─────────── SECTION 1: VERIFIED CONTEXT ─────────── -->
+
+<div class="section" id="verified">
+<div class="section-title">1. Verified context</div>
+<div class="section-desc">What's in the codebase today, freshly checked before drafting.</div>
+
+<div class="box verified">
+<h3>Current aggregator USSD handler (<code>server.js:2693</code>)</h3>
+<ul>
+  <li>Main menu today: <code>1. Log Purchase</code> / <code>2. Pending Drop-offs</code> / <code>3. Marketplace</code> / <code>4. My Stats</code> / <code>0. Exit</code></li>
+  <li><code>m[0] === '1'</code> routes to <code>handleAggregatorPurchase</code> (aggregator → collector buy flow)</li>
+  <li>No existing path for aggregator → upstream-tier sale via USSD</li>
+</ul>
+
+<h3>Backend plumbing already exists — no new helper needed</h3>
+<ul>
+  <li><code>attributeAndInsert</code> (imported at <code>server.js:22</code> from <code>shared/chain-of-custody-db.js</code>) handles FIFO auto-attribution. Takes a target like <code>{ transaction_type: 'aggregator_sale', aggregator_id, processor_id, material_type, gross_weight_kg, ... }</code> and consumes the aggregator's oldest matching inventory via FIFO across their collector-purchase transactions.</li>
+  <li><code>aggregator_sale</code> transaction_type is already live in the web flow and queried from processor/recycler/converter dashboards (grep: 14+ call sites across <code>server.js</code>). USSD just adds a new entry point.</li>
+  <li><code>posted_prices</code> accepts <code>poster_type IN ('aggregator','processor','recycler','converter')</code> per migrations <code>1774500</code> + <code>1774800</code>. Buyer discovery for the aggregator sell flow queries this table filtered by processor/recycler/converter.</li>
+  <li><code>USSD_MATERIALS</code> constant (PET/HDPE/LDPE/PP) already defined.</li>
+  <li>Existing USSD confirmation pattern (Screen → Confirm → END) from <code>handleRegisteredUssd</code> drop-off flow (<code>server.js:2782</code>ish) is the template to mirror.</li>
+</ul>
+
+<h3>Load-bearing behaviors preserved</h3>
+<ul>
+  <li><code>Pending Drop-offs</code> (menu item 2) — aggregators use this to confirm collector drop-offs. Must stay at menu index 2.</li>
+  <li><code>Marketplace</code> (menu item 3) — browse-only today, will become more valuable once discovery USSD lands. Must stay at menu index 3.</li>
+  <li>Per the USSD design rules memory: max 4 items + 0, one input per screen, contact details on every close/success screen.</li>
+</ul>
+</div>
+</div>
+
+<!-- ─────────── SECTION 2: SCOPE + RATIONALE ─────────── -->
+
+<div class="section" id="scope">
+<div class="section-title">2. Scope + rationale</div>
+<div class="section-desc">Why this, why now, what's in and out.</div>
+
+<div class="box">
+<h3>Why now</h3>
+<ul>
+  <li>USSD went live on prod 2026-04-24 (97 sessions / 11 Ghana phones dialed in, demo-mode). The aggregator channel that was planned post-CoC-series is now the natural next build — memory <code>project_circul_ussd_aggregator_sell</code> has been the holding design.</li>
+  <li>BanQu trial learning: aggregators without smartphones were the bottleneck. A USSD-only aggregator should be able to do BOTH purchase (from collector) AND sale (to processor/recycler/converter) without ever touching a web dashboard. This ships the second half of that story.</li>
+  <li>Pilot-readiness for Pat Mensah / WORK partnership demo — a complete aggregator workflow on USSD is more compelling than a half-workflow.</li>
+</ul>
+
+<h3>In scope</h3>
+<ul>
+  <li>Menu rename: "Log Purchase" → "Log Transaction", add direction sub-screen.</li>
+  <li>Existing Purchase flow is preserved exactly — accessed via direction=1. Zero behavior change on that path.</li>
+  <li>New Sale flow (direction=2): material → form (loose/bale) → weight → <em>declare-shortfall prompt if weight &gt; tracked inventory</em> → buyer → confirm → auto-attribute + write <code>aggregator_sale</code> pending_transaction.</li>
+  <li><strong>Declared-stock support</strong> — if the aggregator wants to sell more than they have tracked via <code>collector_sale</code> transactions, they can declare the shortfall as existing stock inline during the sale. Backend creates a root <code>transactions</code> row with <code>collector_id = NULL</code> to represent aggregator-declared (untraced) inventory. Unblocks day-one pilot adoption for aggregators with pre-existing material.</li>
+  <li>Buyer discovery shows processors + recyclers + converters via <code>posted_prices</code> in the aggregator's region, sorted by price.</li>
+  <li>Confirmation screen shows the traced/declared split so aggregators see their traceability mix — organic pressure over time to onboard their collectors to improve traced%.</li>
+  <li>Standard USSD end-screens with contact details (buyer's phone + city).</li>
+</ul>
+
+<h3>Out of scope for this PR</h3>
+<ul>
+  <li>Per-bale weight capture. Decision (2026-04-20): just capture total weight, form toggle is informational only.</li>
+  <li>Manual source picking for the sell side. FIFO auto-attribute is the only path; USSD users don't see attribution. Web source-selector UI (PR4/5/6) stays the advanced path for aggregators who want manual control.</li>
+  <li>Offering / counter-offering via USSD on the sell side. Marketplace existing functionality on the menu stays browse-only for now.</li>
+</ul>
+</div>
+</div>
+
+<!-- ─────────── SECTION 3: MENU RESHAPE ─────────── -->
+
+<div class="section" id="menu">
+<div class="section-title">3. Menu reshape — Log Purchase → Log Transaction</div>
+<div class="section-desc">Rename menu item 1, add one direction sub-screen. No other menu items move.</div>
+
+<div class="menu-compare">
+  <div>
+    <div class="menu-label">Today</div>
+<span class="old-val">1. Log Purchase</span>
+2. Pending Drop-offs
+3. Marketplace
+4. My Stats
+0. Exit
+  </div>
+  <div class="arrow-col">→</div>
+  <div>
+    <div class="menu-label">After this PR</div>
+<span class="new-val">1. Log Transaction</span>
+2. Pending Drop-offs
+3. Marketplace
+4. My Stats
+0. Exit
+  </div>
+</div>
+
+<div class="subflow">Welcome + main menu (menu label updated)</div>
+<div class="flow">
+
+  <div class="phone">
+    <div class="phone-header"><span>*920*54#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Circul Aggregator
+Welcome back, Kwesi!
+
+Enter 4-digit PIN:
+0. Forgot PIN</div>
+    <div class="phone-label">Screen A1 · unchanged</div>
+    <div class="phone-note">Welcome screen already ships in account-recovery PR #58. This mockup doesn't modify it.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54*2222#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> 1. Log Transaction
+2. Pending Drop-offs
+3. Marketplace
+4. My Stats
+0. Exit</div>
+    <div class="phone-label">Screen A2 · main menu</div>
+    <div class="phone-note">Was: "1. Log Purchase" (server.js:2715). One word swap.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2222*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Log Transaction
+
+1. Purchase (from collector)
+2. Sale (to processor)
+0. Back</div>
+    <div class="phone-label">Screen A3 · direction sub-screen</div>
+    <div class="phone-note">New. Routes direction=1 to existing handleAggregatorPurchase, direction=2 to new handleAggregatorSale.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ─────────── SECTION 4: PURCHASE FLOW (UNCHANGED) ─────────── -->
+
+<div class="section" id="purchase">
+<div class="section-title">4. Purchase flow (unchanged, accessed via direction=1)</div>
+<div class="section-desc">Existing <code>handleAggregatorPurchase</code> body stays exactly as-is. Only the entry depth changes: the function now sees one extra <code>parts</code> element (the '1' for direction). Adjust the handler's <code>slice</code> by 1 and the rest is untouched.</div>
+
+<div class="box">
+<h3>Implementation note</h3>
+<ul>
+  <li>Currently: <code>if (m[0] === '1') return await handleAggregatorPurchase(m.slice(1), aggregator)</code> at <code>server.js:2772</code>.</li>
+  <li>After this PR: <code>if (m[0] === '1' &amp;&amp; m[1] === '1') return await handleAggregatorPurchase(m.slice(2), aggregator)</code>.</li>
+  <li>Depth-2 direction screen returns before either sub-handler is called. <code>0</code> at direction goes back to main menu via END + dial-again.</li>
+  <li>No regression — all existing screens + tests in the purchase flow see identical <code>m</code> arrays. Verify by smoking the full purchase flow end-to-end post-merge.</li>
+</ul>
+</div>
+</div>
+
+<!-- ─────────── SECTION 5: SALE FLOW (NEW) ─────────── -->
+
+<div class="section" id="sale">
+<div class="section-title">5. Sale flow (new, direction=2)</div>
+<div class="section-desc">Aggregator selects material, confirms form (loose/bale), enters weight, picks buyer from processors/recyclers/converters in their region, confirms, auto-attributes via FIFO.</div>
+
+<div class="subflow">Material + inventory display</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54*2222*1*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Sell which material?
+1. PET (1240 kg)
+2. HDPE (880 kg)
+3. LDPE (210 kg)
+4. PP (0 kg)
+0. Back</div>
+    <div class="phone-label">Screen S1 · material + inventory</div>
+    <div class="phone-note">Weights pulled from aggregator's net remaining inventory (transactions where aggregator_id=$1 minus already-consumed via aggregator_sale FIFO).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> PET available: 1240 kg
+
+Form:
+1. Loose
+2. Baled
+0. Cancel</div>
+    <div class="phone-label">Screen S2 · form toggle</div>
+    <div class="phone-note">Informational only. Captured as pending_transaction.notes or a new 'form' column (decide in backend — see §7).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*1*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter weight in kg:
+<span class="hint">(Max 1240 kg)</span></div>
+    <div class="phone-label">Screen S3 · weight entry</div>
+  </div>
+
+</div>
+
+<div class="subflow">Declare-shortfall (conditional — shown only when entered weight &gt; tracked inventory)</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*1500#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> You have 1240kg PET tracked.
+You entered 1500kg.
+
+Declare 260kg as
+existing stock?
+
+1. Yes, declare + sell 1500kg
+2. No, sell 1240kg only
+0. Cancel</div>
+    <div class="phone-label">Screen S3.5a · declare shortfall</div>
+    <div class="phone-note">Shown when weight exceeds tracked inventory. On "Yes", backend will create an untraced <code>transactions</code> row (collector_id=NULL) for the 260kg before attribution.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*500#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> You have 0kg PP tracked.
+You entered 500kg.
+
+Declare 500kg as
+existing stock
+and proceed?
+
+1. Yes
+0. Cancel</div>
+    <div class="phone-label">Screen S3.5b · zero-inventory variant</div>
+    <div class="phone-note">When tracked=0, the "sell only tracked" option is hidden — it's always all-or-nothing.</div>
+  </div>
+
+</div>
+
+<div class="subflow">Buyer selection + confirm</div>
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*500#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Sell to:
+1. Miniplast (P)
+   Tema GH₵4.50/kg
+2. GreenLoop (P)
+   Accra GH₵4.20/kg
+3. RePATRN (R)
+   Accra GH₵4.00/kg
+4. More →
+0. Cancel</div>
+    <div class="phone-label">Screen S4 · buyer list, page 1</div>
+    <div class="phone-note">(P)=Processor, (R)=Recycler, (C)=Converter. Sorted by price_per_kg_ghs DESC. Filter by aggregator.region when possible; fall back to country-wide if no regional buyers.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*500*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Confirm sale:
+500kg PET (baled)
+To: Miniplast
+Price: GH₵4.50/kg
+Total: GH₵2,250.00
+
+Traced: 240kg
+Declared: 260kg
+
+1. Confirm
+2. Cancel</div>
+    <div class="phone-label">Screen S5 · confirm w/ split</div>
+    <div class="phone-note">Split lines only render when declared &gt; 0. Fully-traced sales skip them to stay compact.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*500*1*1#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> SALE LOGGED
+Ref: TXN-20260424-0142
+500kg PET → Miniplast
+<span class="hint">240kg traced + 260kg declared</span>
+Status: Pending arrival
+
+Contact: 0244XXX, Tema</div>
+    <div class="phone-label">Screen S6 · success</div>
+    <div class="phone-note">Backend flow: (1) if declared&gt;0, INSERT a <code>transactions</code> row with collector_id=NULL for the declared amount. (2) attributeAndInsert consumes 500kg via FIFO across all aggregator-owned transactions rows (traced + declared). (3) new pending_transaction created with transaction_type='aggregator_sale'. Whole thing in one DB transaction.</div>
+  </div>
+
+</div>
+</div>
+
+<!-- ─────────── SECTION 6: EDGE CASES ─────────── -->
+
+<div class="section" id="edges">
+<div class="section-title">6. Edge cases</div>
+
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*1*2*500#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> No buyers for PET
+near Accra right now.
+
+Try Marketplace (menu 3)
+to post a listing.</div>
+    <div class="phone-label">Screen E1 · no buyers</div>
+    <div class="phone-note">If posted_prices returns empty for this material + region, END with a Marketplace hint. Alternative: fall back to country-wide buyer list — decide in §7.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*abc#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> Invalid weight.
+Dial again to retry.</div>
+    <div class="phone-label">Screen E2 · invalid weight input</div>
+    <div class="phone-note">Non-numeric or negative — same pattern as existing drop-off flow. Still need this check — the declare-shortfall screen only applies when weight is a valid positive number.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>…*2#</span><span>MTN GH</span></div>
+    <div class="phone-screen"><span class="end">END</span> Cancelled.
+
+Dial *920*54# to start over.</div>
+    <div class="phone-label">Screen E3 · declare cancel</div>
+    <div class="phone-note">Aggregator picks "0. Cancel" on the declare-shortfall screen. No stock row created, no sale created.</div>
+  </div>
+
+</div>
+
+<div class="box">
+<h3>What changed from the first draft</h3>
+<p>The earlier version of this section had a "Screen E2 · over-inventory" that END'd the session with "Weight exceeds inventory. Dial again and enter a lower weight." That error path is now the <strong>primary</strong> happy-path for the common case of aggregators with pre-existing stock (handled via S3.5a/b in §5). The end-state was wrong: a real aggregator with 1500kg to sell but only 1240kg tracked would have been forced to either lie about the weight or abandon the flow. Kept the other edge cases (no buyers, invalid input) as real ENDs.</p>
+</div>
+
+<div class="box warn-box">
+<h3>Race: two concurrent sales drain the same inventory</h3>
+<p>Aggregator dials from two phones, both submit 800kg of PET against a 1000kg inventory simultaneously. Possible because inventory check runs at Screen S3 (pre-confirm) but attribution runs at Screen S6 (commit). Between those, another session could have committed.</p>
+<p><strong>Mitigation:</strong> <code>attributeAndInsert</code> re-checks inventory inside its transaction and throws <code>InsufficientSourceError</code> (which <code>handleInsufficientSource</code> at <code>server.js:41</code> already handles for the web path). On USSD, wrap the commit in try/catch and return <code>END Inventory changed, try again</code> on that error. Graceful degradation, no data corruption. Note: the declare-shortfall path sidesteps this race entirely when invoked — since declared stock is always sufficient for the requested sale, there's no source to race over.</p>
+</div>
+</div>
+
+<!-- ─────────── SECTION 7: BACKEND NOTES ─────────── -->
+
+<div class="section" id="backend">
+<div class="section-title">7. Backend notes</div>
+
+<div class="box">
+<h3>New USSD handler: <code>handleAggregatorSale(m, aggregator)</code></h3>
+<ul>
+  <li>Add alongside <code>handleAggregatorPurchase</code> in <code>server.js</code>.</li>
+  <li>Screens S1-S6 + edge cases E1-E4 handled via the parts array depth (same pattern as <code>handleRegisteredUssd</code>'s drop-off flow).</li>
+  <li>On commit: <code>attributeAndInsert(client, { transaction_type: 'aggregator_sale', aggregator_id, processor_id | recycler_id | converter_id, material_type, gross_weight_kg, net_weight_kg, price_per_kg, total_price, source: 'ussd' })</code>. Which FK to set depends on buyer poster_type; helper already handles all three.</li>
+  <li>Fire <code>notify(EVENTS.DELIVERY_PENDING, buyer.phone, { ... })</code> using the existing template. No new notification event needed.</li>
+</ul>
+
+<h3>Menu dispatch change in <code>handleAggregatorUssd</code></h3>
+<ul>
+  <li>Main menu string update (one word).</li>
+  <li>New depth-1 branch on <code>m[0] === '1'</code>: return direction sub-screen at depth 1, route based on <code>m[1]</code>.</li>
+  <li><code>m[0] === '1' &amp;&amp; m[1] === '1'</code> → <code>handleAggregatorPurchase(m.slice(2), aggregator)</code></li>
+  <li><code>m[0] === '1' &amp;&amp; m[1] === '2'</code> → <code>handleAggregatorSale(m.slice(2), aggregator)</code></li>
+  <li><code>m[0] === '1' &amp;&amp; m[1] === '0'</code> → <code>END Cancelled.</code></li>
+</ul>
+
+<h3>Inventory query (used in Screens S1 + S3 validation)</h3>
+<p>Mirrors the exact filter <code>attributeAndInsert</code> uses internally when FIFO-walking aggregator sources — so what the user sees matches what the backend will attribute. The <code>remaining_kg</code> column is pre-decremented by the helper on each sale, so it's the source of truth; no subquery subtracting consumed rows is needed.</p>
+<pre style="background:#0a150e;padding:12px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.55;overflow-x:auto">SELECT material_type,
+       COALESCE(SUM(remaining_kg), 0) AS available_kg
+  FROM pending_transactions
+ WHERE aggregator_id = $1
+   AND transaction_type IN ('collector_sale', 'aggregator_purchase')
+   AND remaining_kg &gt; 0
+   AND created_at &gt;= NOW() - INTERVAL '30 days'
+   AND status NOT IN ('rejected', 'dispatch_rejected', 'grade_c_flagged')
+ GROUP BY material_type</pre>
+<p style="margin-top:10px"><strong>The 30-day window.</strong> <code>attributeAndInsert</code> enforces a freshness constraint on source material per <code>shared/chain-of-custody-db.js</code>. <strong>Bundled with this PR: expand <code>WINDOW_DAYS</code> from 14 to 30.</strong> Rationale: pilot-scale aggregators consolidate for multiple weeks before selling upstream; 14 days pushed too much material into the declare path. 30 days keeps typical collection cycles inside the tracked window. Chain-of-custody freshness claim weakens slightly — revisit when a real brand-tier buyer sets an expectation. Aggregators who hold material longer than 30 days can still sell it via the declare-shortfall path (§5).</p>
+
+<h3>Buyer-discovery query (Screen S4)</h3>
+<pre style="background:#0a150e;padding:12px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.55;overflow-x:auto">SELECT pp.poster_type, pp.poster_id, pp.price_per_kg_ghs,
+       CASE pp.poster_type
+         WHEN 'processor' THEN (SELECT company FROM processors WHERE id = pp.poster_id)
+         WHEN 'recycler'  THEN (SELECT company FROM recyclers  WHERE id = pp.poster_id)
+         WHEN 'converter' THEN (SELECT company FROM converters WHERE id = pp.poster_id)
+       END AS name,
+       CASE pp.poster_type
+         WHEN 'processor' THEN (SELECT phone FROM processors WHERE id = pp.poster_id)
+         WHEN 'recycler'  THEN (SELECT phone FROM recyclers  WHERE id = pp.poster_id)
+         WHEN 'converter' THEN (SELECT phone FROM converters WHERE id = pp.poster_id)
+       END AS phone,
+       CASE pp.poster_type
+         WHEN 'processor' THEN (SELECT city FROM processors WHERE id = pp.poster_id)
+         WHEN 'recycler'  THEN (SELECT city FROM recyclers  WHERE id = pp.poster_id)
+         WHEN 'converter' THEN (SELECT city FROM converters WHERE id = pp.poster_id)
+       END AS city
+FROM posted_prices pp
+WHERE pp.material_type = $1
+  AND pp.is_active = true
+  AND pp.poster_type IN ('processor','recycler','converter')
+  AND (pp.region = $2 OR pp.region IS NULL)
+ORDER BY pp.price_per_kg_ghs DESC
+LIMIT 4 OFFSET $3</pre>
+<p style="margin-top:10px"><code>recyclers</code> table verified to exist (migration <code>1774800</code>, used 14+ places in <code>server.js</code> including <code>GET /api/recyclers</code> at <code>server.js:2090</code>). Query shape is correct.</p>
+
+<h3>Bale vs loose — where to store</h3>
+<ul>
+  <li>Current <code>pending_transactions</code> schema has no <code>form</code> column. Options:</li>
+  <li>(a) Append to <code>notes</code> field as <code>"form: baled"</code>. Zero migration. Weak queryability later.</li>
+  <li>(b) Add <code>form VARCHAR(10) CHECK (form IN ('loose','baled'))</code> column via new migration. Clean. Usable in processor dashboards later.</li>
+  <li><strong>Recommend (b)</strong> — form affects downstream processing (baled → less sorting), so processors will want to filter by it. One-column migration, idempotent, low risk.</li>
+</ul>
+
+<h3>Aggregator-declared stock — schema design (corrected after verification pass)</h3>
+<p>The entire chain-of-custody ledger lives in <code>pending_transactions</code>, not <code>transactions</code>. Root rows (<code>collector_sale</code>, <code>aggregator_purchase</code>) and downstream rows (<code>aggregator_sale</code>, <code>processor_sale</code>, <code>recycler_sale</code>) all share this one table. <code>attributeAndInsert</code> FIFO-walks it, <code>insertRootTransaction</code> inserts to it. The <code>transactions</code> table exists but isn't part of the chain-of-custody flow — declared stock has no business there.</p>
+
+<ul>
+  <li><strong>Storage:</strong> declared stock is a root <code>pending_transactions</code> row with <code>transaction_type = 'aggregator_purchase'</code> (existing root type, parentType-eligible for aggregator-seller attribution per <code>candidateFilterForSeller</code>), <code>collector_id = NULL</code>, <code>aggregator_id = X</code>. <code>pending_transactions.collector_id</code> is <strong>already nullable</strong> per migration <code>1774500</code> (<code>ON DELETE SET NULL</code>) — no schema change needed.</li>
+  <li><strong>Status:</strong> <code>'confirmed'</code> (skips the drop-off-confirmation limbo that <code>'pending'</code> carries). Keeps declared rows out of aggregator "Pending Drop-offs" lists that filter on <code>status = 'pending'</code> at <code>server.js:4705</code>. Confirmed by EXCLUDED_STATUSES in <code>shared/chain-of-custody.js:59</code> — <code>'confirmed'</code> is attribution-eligible.</li>
+  <li><strong>Write path:</strong> if declared &gt; 0, inside the same DB transaction as the sale:
+    <br>1. <code>insertRootTransaction(client, { transaction_type: 'aggregator_purchase', aggregator_id, collector_id: null, material_type, gross_weight_kg: declared, net_weight_kg: declared, price_per_kg: 0, total_price: 0, status: 'confirmed', source: 'ussd_declared' })</code>
+    <br>2. <code>attributeAndInsert(client, { transaction_type: 'aggregator_sale', aggregator_id, processor_id | recycler_id | converter_id, material_type, gross_weight_kg: total_sale_weight, price_per_kg, total_price })</code>
+    <br>The helper FIFO-consumes across all in-window aggregator sources (older <code>collector_sale</code> rows first, then the newly-inserted declared row if needed). Same transaction, atomic.</li>
+  <li><strong>30-day window bypass:</strong> declared rows enter with <code>created_at = NOW()</code>, so they're always in-window. Aggregators with &gt;30-day-old tracked material can effectively "refresh" it by declaring the equivalent amount — by design. The untraced label downstream is the accountability.</li>
+  <li><strong>Downstream visibility:</strong> <code>/api/trace/:batch_id</code> (<code>server.js:6374</code>) walks <code>pending_transaction_sources</code> and renders every ancestor. Rows with <code>collector_id IS NULL</code> render without a collector name; the trace page needs a small conditional to show "Aggregator-declared origin (untraced)" for those rows. Low-impact UI change.</li>
+  <li><strong>Aggregator "Pending Drop-offs" list:</strong> at <code>server.js:4705</code> filters on <code>status = 'pending'</code>, so declared rows (status <code>'confirmed'</code>) won't pollute it. Verified. At <code>server.js:4750</code>, a separate query filters <code>collector_id IS NOT NULL</code> for a confirmed-drop-offs display — declared rows won't appear there either. Verified.</li>
+</ul>
+
+<h3>Migration summary</h3>
+<ul>
+  <li><code>ALTER TABLE pending_transactions ADD COLUMN form VARCHAR(10) CHECK (form IN ('loose','baled'))</code> — bale-vs-loose capture (nullable default; old rows stay NULL).</li>
+  <li><strong>No schema change for declared stock.</strong> The earlier draft of this mockup proposed <code>DROP NOT NULL</code> on <code>transactions.collector_id</code>; that was based on a wrong assumption about where aggregator inventory lives. <code>pending_transactions.collector_id</code> was already nullable — nothing to migrate.</li>
+  <li>The <code>aggregator_sale</code> and <code>aggregator_purchase</code> transaction_types are already in the <code>pending_transactions.transaction_type</code> CHECK per <code>1774500</code>. No change there.</li>
+  <li><strong>Total: 1 small migration.</strong></li>
+</ul>
+
+<h3>Testing</h3>
+<ul>
+  <li>Local: curl-simulate the full flow end-to-end for a seeded aggregator (Kwesi, phone 0300000002, PIN 2222). Seed his inventory with a few collector_sale rows first.</li>
+  <li>Integration: exercise insufficient-inventory, no-buyers, and wrong-direction paths.</li>
+  <li>Post-deploy smoke: Kwesi dials <code>*920*54#</code>, logs a purchase (regression check on existing path), logs a sale (new path), both appear correctly in processor-dashboard pending drop-offs.</li>
+</ul>
+</div>
+</div>
+
+<!-- ─────────── SECTION 8: VERIFIED VS ASSUMED ─────────── -->
+
+<div class="section" id="verified-vs-assumed">
+<div class="section-title">8. Verified vs Assumed</div>
+
+<div class="box verified">
+<h3>Verified (fresh reads after the first draft)</h3>
+<ul>
+  <li>Current aggregator main menu + dispatch at <code>server.js:2693-2777</code>.</li>
+  <li><code>attributeAndInsert</code> + <code>insertRootTransaction</code> imports at <code>server.js:22-24</code>.</li>
+  <li><code>aggregator_sale</code> transaction_type is live in 14+ query sites across <code>server.js</code>.</li>
+  <li><code>aggregator_purchase</code> is an existing root type (<code>shared/chain-of-custody.js:64</code>: <code>ROOT_TYPES = { collector_sale: true, aggregator_purchase: true }</code>) and parentType for aggregator-seller attribution (<code>chain-of-custody-db.js:142</code>).</li>
+  <li><code>posted_prices.poster_type</code> accepts processor/recycler/converter per migrations <code>1774500</code> + <code>1774800</code>.</li>
+  <li><code>recyclers</code> table exists (migration <code>1774800</code>) and is queried directly throughout <code>server.js</code>. The buyer-discovery query in §7 is valid.</li>
+  <li><code>attributeAndInsert</code> FIFO query (<code>chain-of-custody-db.js:353</code>) filters on <code>fkColumn = seller.id</code>, <code>material_type</code>, <code>remaining_kg &gt; 0</code>, freshness window (14d today, 30d after this PR), <code>status NOT IN EXCLUDED_STATUSES</code>, <code>transaction_type IN parentTypes</code>. <strong>It does NOT filter on <code>collector_id IS NOT NULL</code></strong> — declared-stock rows will be consumed via FIFO without any helper change.</li>
+  <li><code>EXCLUDED_STATUSES</code> (<code>chain-of-custody.js:59</code>) is <code>['rejected', 'dispatch_rejected', 'grade_c_flagged']</code>. <code>'confirmed'</code> is attribution-eligible.</li>
+  <li><code>WINDOW_DAYS</code> (<code>chain-of-custody-db.js:46</code>) is <code>14</code> today. <strong>This PR bumps it to <code>30</code> (see §7 rationale).</strong> Aggregator inventory older than the window is invisible to attribution; declared stock enters with <code>created_at = NOW()</code> and bypasses this window by design.</li>
+  <li><code>pending_transactions.collector_id</code> already nullable (<code>1774500</code>, <code>ON DELETE SET NULL</code>). No migration needed.</li>
+  <li><code>InsufficientSourceError</code> raised by <code>attributeAndInsert</code> (<code>chain-of-custody-db.js:378</code>); the web path at <code>server.js:1577</code> wraps with <code>handleInsufficientSource</code>. USSD will catch and return an END message.</li>
+  <li>No existing aggregator-sell USSD handler. Confirmed by grep for <code>handleAggregatorSale</code> — zero matches. This is net-new work.</li>
+  <li>Aggregator "Pending Drop-offs" query (<code>server.js:4705</code>) filters <code>status = 'pending'</code>; declared stock with status <code>'confirmed'</code> stays out.</li>
+  <li>Aggregator "confirmed drop-offs" query (<code>server.js:4750</code>) filters <code>collector_id IS NOT NULL</code>; declared stock stays out of that view too.</li>
+  <li>Max-4-items-plus-0 USSD rule per design-rules memory.</li>
+</ul>
+</div>
+
+<div class="box assumed">
+<h3>Remaining assumptions</h3>
+<ul>
+  <li><strong>Region-fallback policy for buyer discovery.</strong> My recommendation: if a material has no regional buyers, fall back to country-wide. The mockup currently shows local-only + "try Marketplace" as the empty state. Decide before implementation — small UX call, backend supports either.</li>
+  <li><strong>Trace page behavior for NULL-collector rows.</strong> <code>/api/trace/:batch_id</code> walks every ancestor; the page render at <code>public/trace.html</code> probably uses <code>collector_display_name</code> and similar fields. Needs a small conditional to render "Aggregator-declared (untraced)" when the chain row's actor resolver returns null (i.e., aggregator-owned root with no collector). I'll read <code>public/trace.html</code> + the <code>_traceActorFor</code> helper in the Claude Code prompt-drafting step and specify the exact change.</li>
+  <li><strong>Price on declared row.</strong> Mockup recommends zero. Alternative: use the sale price as a proxy (so downstream "value in chain" math doesn't see a zero-value ancestor). Zero is simpler and clearly an audit signal "no purchase happened through Circul." Lock this at implementation time.</li>
+</ul>
+</div>
+
+<div class="box warn-box">
+<h3>Could still be wrong if</h3>
+<ul>
+  <li>The <code>form</code> toggle needs to be per-collection rather than per-sale-batch, if processors require knowing form of the original collection. Unlikely given the data flows downstream and aggregators bale after they collect.</li>
+  <li>The trace page has rendering logic that breaks on NULL collector_id beyond just missing display names (e.g., null-dereferences an actor object). Worth grepping <code>public/trace.html</code> before drafting the Claude Code prompt so the UI change can be scoped accurately.</li>
+</ul>
+</div>
+</div>
+
+<div class="section" style="margin-bottom:0">
+<div class="box" style="border-left:3px solid var(--accent)">
+<h3>Next steps</h3>
+<ol style="margin-left:20px;line-height:1.8;font-size:0.85rem">
+  <li>Review this mockup. Flag any screen, copy, or backend decision that needs changing.</li>
+  <li>On approval: draft the Claude Code prompt (5-10 phases, similar shape to the account-recovery prompt). Before drafting, re-grep for the <code>recyclers</code> table name + <code>InsufficientSourceError</code> semantics.</li>
+  <li>Ship on branch <code>feat/aggregator-sell</code>, target <code>main</code>. Same commit strategy as account-recovery (1 commit per logical area).</li>
+</ol>
+</div>
+</div>
+
+</body>
+</html>

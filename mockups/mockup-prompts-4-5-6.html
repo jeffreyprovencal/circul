@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockups — Prompts 4, 5, 6</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --accent: #00e676;
+  --accent-hover: #33eb8e;
+  --accent-muted: rgba(0,230,118,0.1);
+  --bg: #0a1a0f;
+  --surface: #0d2818;
+  --surface-alt: #0c1e0e;
+  --text-1: #e8f5e9;
+  --text-2: #9ab8a0;
+  --text-3: #7a9a7a;
+  --border: #1a3a1a;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --gap: 24px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);min-height:100vh;-webkit-font-smoothing:antialiased}
+a{text-decoration:none;color:inherit}
+.page{max-width:1100px;margin:0 auto;padding:var(--gap)}
+
+/* Banner */
+.mockup-banner{background:linear-gradient(135deg,#1a0a2e,#0a1a2e);border-bottom:2px solid #b388ff;color:#e0c0ff;text-align:center;padding:14px;font-size:0.85rem;font-weight:600;letter-spacing:0.05em}
+.mockup-banner span{opacity:0.6;font-weight:400}
+
+/* Prompt divider */
+.prompt-divider{margin:48px 0 24px;padding:16px 20px;background:linear-gradient(90deg,rgba(179,136,255,0.08),transparent);border-left:3px solid #b388ff;border-radius:0 var(--r-sm) var(--r-sm) 0}
+.prompt-divider h2{font-size:1.1rem;color:#e0c0ff;margin-bottom:4px}
+.prompt-divider p{font-size:0.8rem;color:var(--text-3);margin:0}
+
+/* Section labels */
+.mockup-label{margin:24px 0 10px;padding:8px 16px;background:rgba(179,136,255,0.08);border:1px solid rgba(179,136,255,0.2);border-radius:var(--r-sm);color:#b388ff;font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;display:inline-block}
+.mockup-note{font-size:0.8rem;color:var(--text-3);margin-bottom:16px;padding-left:2px}
+
+/* Section card */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:20px;margin-bottom:var(--gap)}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px}
+.section-title{font-size:0.95rem;font-weight:700}
+.section-sub{font-size:0.75rem;color:var(--text-3);margin-top:2px}
+
+/* Forms */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.form-group{display:flex;flex-direction:column}
+.form-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px}
+.form-input,.form-select{width:100%;padding:9px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem}
+.form-input::placeholder{color:var(--text-3)}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--accent)}
+
+/* Buttons */
+.btn{font-family:var(--font);font-size:0.8rem;padding:6px 14px;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer}
+.btn:hover{border-color:var(--text-3);color:var(--text-1)}
+.btn-green{background:var(--accent);color:#000;border:none;font-weight:600}
+.btn-green:hover{background:var(--accent-hover)}
+.btn-submit{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#000;font-family:var(--font);font-size:0.8rem;font-weight:700;padding:8px 20px;border:none;border-radius:20px;cursor:pointer;white-space:nowrap}
+.btn-submit:hover{background:var(--accent-hover)}
+
+/* Table */
+table{width:100%;border-collapse:collapse}
+th{font-size:0.65rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-align:middle}
+
+/* Pills */
+.pill{display:inline-block;font-size:0.7rem;font-weight:600;padding:3px 8px;border-radius:10px;white-space:nowrap}
+.pill-paid{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-sent{background:rgba(255,215,64,0.15);color:#ffd740}
+.pill-pending{background:rgba(255,152,0,0.15);color:#ffb74d}
+.pill-rated{background:rgba(255,215,64,0.15);color:#ffd740}
+
+/* Annotations */
+.annotation{position:relative;margin-top:6px;padding:8px 12px;background:rgba(179,136,255,0.06);border-left:2px solid #b388ff;border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:0.75rem;color:#ce93d8}
+
+/* Comparison layout */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:var(--gap)}
+.compare-col{position:relative}
+.compare-label{position:absolute;top:-10px;left:12px;background:var(--bg);padding:0 8px;font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase}
+.compare-label.before{color:#ef5350}
+.compare-label.after{color:var(--accent)}
+
+/* Price cards */
+.price-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.price-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px}
+.pc-label{font-size:0.65rem;font-weight:700;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px}
+.pc-name{font-weight:700;font-size:0.9rem;margin-bottom:6px}
+.pc-row{display:flex;justify-content:space-between;font-size:0.8rem;padding:2px 0}
+.pc-val{color:var(--accent);font-weight:600}
+.pc-inline{display:flex;gap:8px;margin-top:10px}
+.pc-inline input{flex:1;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem}
+.pc-inline input::placeholder{color:var(--text-3)}
+.pc-inline button{padding:7px 14px;background:var(--accent);color:#000;border:none;border-radius:var(--r-sm);font-family:var(--font);font-weight:600;font-size:0.8rem;cursor:pointer}
+
+/* Grade buttons */
+.di-grade-row{display:flex;gap:8px;margin-bottom:12px}
+.di-grade-btn{flex:1;padding:10px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-2);font-family:var(--font);font-size:0.8rem;font-weight:600;cursor:pointer;text-align:center}
+.di-grade-btn:hover{border-color:var(--text-3)}
+.di-grade-btn.sel-a{border-color:var(--accent);color:var(--accent);background:var(--accent-muted)}
+.di-grade-btn.sel-b{border-color:#ffd740;color:#ffd740;background:rgba(255,215,64,0.1)}
+.di-grade-btn.sel-c{border-color:#ef5350;color:#ef5350;background:rgba(239,83,80,0.1)}
+.grade-sub{font-size:0.7rem;font-weight:400;color:var(--text-3);display:block;margin-top:2px}
+
+/* Error message */
+.msg-error{color:#ef5350;font-size:0.8rem}
+.msg-success{color:var(--accent);font-size:0.8rem}
+
+/* Hidden */
+.hidden{display:none}
+
+/* Nav pill colors */
+.nav-pill{font-size:0.65rem;font-weight:700;letter-spacing:0.08em;padding:4px 10px;border-radius:20px;white-space:nowrap;display:inline-block;margin-bottom:4px}
+.nav-pill-collector{background:#0f2a14;color:#00e676}
+.nav-pill-recycler{background:#160d2e;color:#b388ff}
+.nav-pill-converter{background:#2a0a1a;color:#f48fb1}
+.nav-pill-aggregator{background:#0a2a28;color:#26c6da}
+.nav-pill-processor{background:#0a1e2a;color:#42a5f5}
+
+/* Order price highlight */
+.price-display{padding:10px 14px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:12px}
+.price-display-label{font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:4px}
+.price-display-val{font-size:1.1rem;font-weight:700;color:var(--accent)}
+.price-display-source{font-size:0.75rem;color:var(--text-3);margin-top:2px}
+
+/* Pending sales cards */
+.sale-card{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:8px}
+.sale-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.sale-card-title{font-weight:600;font-size:0.85rem}
+.sale-card-meta{font-size:0.75rem;color:var(--text-3)}
+.sale-card-badge{font-size:0.7rem;font-weight:600;padding:3px 8px;border-radius:10px}
+
+@media(max-width:768px){
+  .compare{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  .price-grid{grid-template-columns:1fr 1fr}
+  .di-grade-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">MOCKUPS — Prompts 4, 5 &amp; 6 <span>| Visual changes requiring approval</span></div>
+
+<div class="page">
+
+<!-- ╔══════════════════════════════════════════════════╗ -->
+<!-- ║  PROMPT 4: Form Validation & UX                  ║ -->
+<!-- ╚══════════════════════════════════════════════════╝ -->
+<div class="prompt-divider">
+  <h2>Prompt 4 — Form Validation &amp; UX</h2>
+  <p>Processor arrival validation, recycler/converter price field, converter name in sales</p>
+</div>
+
+<!-- ── 4A: Processor arrival — validation error ── -->
+<div class="mockup-label">4A: Processor — arrival confirmation shows error when no grade selected</div>
+<p class="mockup-note">Currently, clicking "Confirm Arrival" without selecting a grade does nothing (the button is disabled but there's no message explaining why). Proposed: show a clear inline error.</p>
+
+<div class="compare">
+  <div class="compare-col">
+    <span class="compare-label before">Current</span>
+    <div class="section">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:12px">Confirm arrival — PET 500kg from Aggregator Kwesi</div>
+      <div style="margin-bottom:12px">
+        <label class="form-label">Actual weight received (kg)</label>
+        <input type="number" class="form-input" value="498" style="max-width:200px">
+      </div>
+      <label class="form-label">Grade</label>
+      <div class="di-grade-row">
+        <button class="di-grade-btn">Grade A<span class="grade-sub">&lt;5% contamination</span></button>
+        <button class="di-grade-btn">Grade B<span class="grade-sub">5-15% contamination</span></button>
+        <button class="di-grade-btn">Grade C<span class="grade-sub">&gt;15% contamination</span></button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green" style="opacity:0.4;cursor:not-allowed" disabled>Confirm Arrival</button>
+        <button class="btn">Cancel</button>
+      </div>
+      <div class="annotation">Button is disabled but nothing tells the user why. Looks like nothing is happening.</div>
+    </div>
+  </div>
+
+  <div class="compare-col">
+    <span class="compare-label after">Proposed</span>
+    <div class="section">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:12px">Confirm arrival — PET 500kg from Aggregator Kwesi</div>
+      <div style="margin-bottom:12px">
+        <label class="form-label">Actual weight received (kg)</label>
+        <input type="number" class="form-input" value="498" style="max-width:200px">
+      </div>
+      <label class="form-label">Grade</label>
+      <div class="di-grade-row">
+        <button class="di-grade-btn">Grade A<span class="grade-sub">&lt;5% contamination</span></button>
+        <button class="di-grade-btn">Grade B<span class="grade-sub">5-15% contamination</span></button>
+        <button class="di-grade-btn">Grade C<span class="grade-sub">&gt;15% contamination</span></button>
+      </div>
+      <div class="msg-error" style="margin-bottom:8px">Please select a grade before confirming arrival</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green">Confirm Arrival</button>
+        <button class="btn">Cancel</button>
+      </div>
+      <div class="annotation">Button stays enabled. Clicking without a grade selection shows a clear error message. Once a grade is selected, the error disappears.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 4B: Recycler/Converter — visible price field in order form ── -->
+<div class="mockup-label">4B: Recycler &amp; Converter — make price visible in order form</div>
+<p class="mockup-note">Currently the price is a hidden input that's supposed to auto-populate from supplier selection. If it doesn't, users see "enter a valid price" with no way to fix it. Proposed: show the price explicitly — auto-filled from supplier's posted price with option to override.</p>
+
+<div class="compare">
+  <div class="compare-col">
+    <span class="compare-label before">Current</span>
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">Place purchase order</div><div class="section-sub">Request material from a processor</div></div>
+        <button class="btn-submit">Submit Order</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Material Type</label>
+          <select class="form-select"><option>PET</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity (kg)</label>
+          <input class="form-input" type="number" value="500">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Grade / Quality</label>
+          <select class="form-select"><option>Grade A</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Contamination %</label>
+          <input class="form-input" type="number" value="5">
+        </div>
+      </div>
+      <!-- Hidden price! -->
+      <input type="hidden" value="">
+      <div class="msg-error">Please enter a valid price</div>
+      <div class="annotation">Price field is hidden. User has no idea what price will be used or how to set one. Error message is confusing because there's no visible field to fix.</div>
+    </div>
+  </div>
+
+  <div class="compare-col">
+    <span class="compare-label after">Proposed</span>
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">Place purchase order</div><div class="section-sub">Request material from a processor</div></div>
+        <button class="btn-submit">Submit Order</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Material Type</label>
+          <select class="form-select"><option>PET</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity (kg)</label>
+          <input class="form-input" type="number" value="500">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Grade / Quality</label>
+          <select class="form-select"><option>Grade A</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price per kg (GH&#8373;)</label>
+          <input class="form-input" type="number" value="4.20" step="0.01" placeholder="Auto-filled from supplier price">
+        </div>
+      </div>
+      <div class="price-display">
+        <div class="price-display-label">Order total</div>
+        <div class="price-display-val">GH&#8373; 2,100.00</div>
+        <div class="price-display-source">Based on posted price from Accra Plastics Processing</div>
+      </div>
+      <div class="annotation">Price is now a visible, editable field — auto-filled from the supplier's posted price when available. Total is shown clearly. User can override if negotiated price differs.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════╗ -->
+<!-- ║  PROMPT 5: Collector sales visibility             ║ -->
+<!-- ╚══════════════════════════════════════════════════╝ -->
+<div class="prompt-divider">
+  <h2>Prompt 5 — Collector Sales Visibility</h2>
+  <p>Pending sales should be visible without opening the "log a collection" form</p>
+</div>
+
+<div class="mockup-label">5A: Collector — pending sales visible in main dashboard flow</div>
+<p class="mockup-note">Currently, after a collector logs a collection, the pending sale is only visible if you're inside the "log a collection" view. Proposed: show pending/recent sales in the "Recent transactions" table with a status column, so the collector always knows where their materials are.</p>
+
+<div class="compare">
+  <div class="compare-col">
+    <span class="compare-label before">Current</span>
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">Recent transactions</div><div class="section-sub">Your last 10 drop-offs</div></div>
+      </div>
+      <table>
+        <tr><th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Earned</th><th>Payment</th><th>Action</th></tr>
+        <tr>
+          <td>26 Mar</td><td>Kwesi Amankwah</td><td>HDPE</td><td>45 kg</td><td>GH&#8373; 113.85</td>
+          <td><span class="pill pill-paid">Paid &#10003;</span></td>
+          <td><span class="pill pill-rated">&#9733; 4</span></td>
+        </tr>
+      </table>
+      <div class="annotation">Only shows confirmed transactions. Pending sales (logged collections waiting for aggregator review) are hidden unless you open the "Log a collection" page.</div>
+    </div>
+  </div>
+
+  <div class="compare-col">
+    <span class="compare-label after">Proposed</span>
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">Recent transactions</div><div class="section-sub">Your last 10 drop-offs · includes pending</div></div>
+      </div>
+      <table>
+        <tr><th>Date</th><th>Aggregator</th><th>Material</th><th>Weight</th><th>Status</th><th>Payment</th><th>Rating</th></tr>
+        <tr>
+          <td>1 Apr</td><td>Abena Osei</td><td>PET</td><td>60 kg</td>
+          <td><span class="pill pill-pending">Pending review</span></td>
+          <td><span style="color:var(--text-3)">—</span></td>
+          <td><span style="color:var(--text-3)">—</span></td>
+        </tr>
+        <tr>
+          <td>30 Mar</td><td>Kwesi Amankwah</td><td>LDPE</td><td>80 kg</td>
+          <td><span class="pill pill-sent">Accepted</span></td>
+          <td><span class="pill pill-sent">Sent</span></td>
+          <td><button class="btn" style="font-size:0.75rem;padding:4px 10px">Rate</button></td>
+        </tr>
+        <tr>
+          <td>26 Mar</td><td>Kwesi Amankwah</td><td>HDPE</td><td>45 kg</td>
+          <td><span class="pill pill-paid">Completed</span></td>
+          <td><span class="pill pill-paid">Paid &#10003;</span></td>
+          <td><span class="pill pill-rated">&#9733; 4</span></td>
+        </tr>
+      </table>
+      <div class="annotation">Added "Status" column showing the lifecycle: Pending review → Accepted → Completed. Pending sales from /api/pending-transactions merged with confirmed transactions, sorted by date. Collector always sees where their materials are.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ╔══════════════════════════════════════════════════╗ -->
+<!-- ║  PROMPT 6: Feature Completion                     ║ -->
+<!-- ╚══════════════════════════════════════════════════╝ -->
+<div class="prompt-divider">
+  <h2>Prompt 6 — Feature Completion</h2>
+  <p>Register-a-collector inline flow, converter price posting consolidation</p>
+</div>
+
+<!-- ── 6A: Register a collector via "New" option ── -->
+<div class="mockup-label">6A: Aggregator — "Register new collector" via dropdown</div>
+<p class="mockup-note">Currently there's no way to register a new collector. Proposed: add a "+ New collector" option at the top of the collector dropdown in the "Register purchase" form. Selecting it reveals an inline registration form.</p>
+
+<div class="section">
+  <div class="section-head">
+    <div><div class="section-title">Register a purchase from collector</div></div>
+  </div>
+
+  <!-- Step 1: Dropdown with "New" option -->
+  <div style="margin-bottom:20px">
+    <div class="mockup-label" style="margin:0 0 8px">Step 1: Select collector</div>
+    <div class="form-group" style="max-width:400px">
+      <label class="form-label">Collector</label>
+      <select class="form-select" id="demo-collector-select" onchange="toggleNewCollector(this)">
+        <option value="">Select collector...</option>
+        <option value="__new">+ New collector</option>
+        <option value="4">Kwame Asante — 0241000001</option>
+        <option value="5">Ama Mensah — 0242000002</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Step 2: Inline registration (shown when "New" selected) -->
+  <div id="new-collector-form" class="hidden" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px">
+    <div style="font-weight:600;font-size:0.85rem;margin-bottom:12px;color:var(--accent)">Register new collector</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Full name</label>
+        <input class="form-input" type="text" placeholder="e.g. Kofi Mensah">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone number</label>
+        <input class="form-input" type="tel" placeholder="024X XXX XXX">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Region</label>
+        <select class="form-select">
+          <option value="">Select region...</option>
+          <option>Ahafo</option>
+          <option>Ashanti</option>
+          <option>Bono</option>
+          <option>Bono East</option>
+          <option>Central</option>
+          <option>Eastern</option>
+          <option>Greater Accra</option>
+          <option>North East</option>
+          <option>Northern</option>
+          <option>Oti</option>
+          <option>Savannah</option>
+          <option>Upper East</option>
+          <option>Upper West</option>
+          <option>Volta</option>
+          <option>Western</option>
+          <option>Western North</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:0.75rem;color:var(--text-3);margin:-8px 0 14px;padding:6px 10px;background:rgba(255,215,64,0.06);border-radius:var(--r-sm)">Default PIN <strong style="color:#ffd740">0000</strong> will be assigned. Collector will be prompted to set their own PIN on first login.</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-green" onclick="document.getElementById('new-collector-form').classList.add('hidden')">Register &amp; select</button>
+      <button class="btn" onclick="document.getElementById('new-collector-form').classList.add('hidden');document.getElementById('demo-collector-select').value=''">Cancel</button>
+    </div>
+    <div class="annotation" style="margin-top:12px">No PIN field — default 0000 is assigned automatically. On first login, collector is prompted to change it. Region dropdown uses a shared REGIONS constant (all 16 Ghana regions) consistent across the entire platform. After registering, the new collector is auto-selected in the dropdown and the purchase form continues.</div>
+  </div>
+
+  <!-- Rest of purchase form (always visible) -->
+  <div class="form-grid">
+    <div class="form-group">
+      <label class="form-label">Material</label>
+      <select class="form-select"><option value="">Select material...</option><option>PET</option><option>HDPE</option><option>LDPE</option><option>PP</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Weight (kg)</label>
+      <input class="form-input" type="number" placeholder="0.0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Price (GH&#8373;/kg)</label>
+      <input class="form-input" type="number" placeholder="0.00">
+    </div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-green">Register purchase</button>
+    <button class="btn">Cancel</button>
+  </div>
+</div>
+
+<!-- ── 6B: Converter — consolidate price posting ── -->
+<div class="mockup-label">6B: Converter — remove separate "Post Price" button, keep per-tile posting only</div>
+<p class="mockup-note">Currently the converter has both a "+ Post Price" button (which reveals a form) AND per-material-tile price inputs. These do the same thing. Proposed: remove the top-level button and form, keep only the per-tile inline inputs which are always visible.</p>
+
+<div class="compare">
+  <div class="compare-col">
+    <span class="compare-label before">Current</span>
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">Post purchase prices</div><div class="section-sub">Current prices posted &middot; GHS/kg</div></div>
+        <button class="btn btn-green">+ Post Price</button>
+      </div>
+      <!-- Separate form (hidden by default, revealed on button click) -->
+      <div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;margin-bottom:16px">
+        <div style="display:flex;gap:12px;align-items:flex-end">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">Material Type</label>
+            <select class="form-select"><option>PET</option><option>HDPE</option><option>LDPE</option><option>PP</option></select>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Price per kg (GH&#8373;)</label>
+            <input class="form-input" type="number" placeholder="0.00">
+          </div>
+          <button class="btn btn-green">Post</button>
+          <button class="btn">Cancel</button>
+        </div>
+      </div>
+      <!-- Plus per-tile inputs -->
+      <div class="price-grid">
+        <div class="price-card">
+          <div class="pc-label">Material</div><div class="pc-name">PET</div>
+          <div class="pc-row"><span>Current</span><span class="pc-val">GH&#8373; 4.50</span></div>
+          <div class="pc-inline"><input placeholder="GH&#8373;/kg"><button>Post</button></div>
+        </div>
+        <div class="price-card">
+          <div class="pc-label">Material</div><div class="pc-name">HDPE</div>
+          <div class="pc-row"><span>Current</span><span class="pc-val">GH&#8373; 3.20</span></div>
+          <div class="pc-inline"><input placeholder="GH&#8373;/kg"><button>Post</button></div>
+        </div>
+      </div>
+      <div class="annotation">Two ways to do the same thing: the top form and the per-tile inputs. Confusing redundancy.</div>
+    </div>
+  </div>
+
+  <div class="compare-col">
+    <span class="compare-label after">Proposed</span>
+    <div class="section">
+      <div class="section-head">
+        <div><div class="section-title">Post purchase prices</div><div class="section-sub">Current prices posted &middot; GHS/kg</div></div>
+      </div>
+      <!-- Only per-tile inputs, no separate form -->
+      <div class="price-grid">
+        <div class="price-card">
+          <div class="pc-label">Material</div><div class="pc-name">PET</div>
+          <div class="pc-row"><span>Current</span><span class="pc-val">GH&#8373; 4.50</span></div>
+          <div class="pc-inline"><input placeholder="GH&#8373;/kg"><button>Post</button></div>
+        </div>
+        <div class="price-card">
+          <div class="pc-label">Material</div><div class="pc-name">HDPE</div>
+          <div class="pc-row"><span>Current</span><span class="pc-val">GH&#8373; 3.20</span></div>
+          <div class="pc-inline"><input placeholder="GH&#8373;/kg"><button>Post</button></div>
+        </div>
+        <div class="price-card">
+          <div class="pc-label">Material</div><div class="pc-name">LDPE</div>
+          <div class="pc-row"><span>Current</span><span class="pc-val">Not set</span></div>
+          <div class="pc-inline"><input placeholder="GH&#8373;/kg"><button>Post</button></div>
+        </div>
+        <div class="price-card">
+          <div class="pc-label">Material</div><div class="pc-name">PP</div>
+          <div class="pc-row"><span>Current</span><span class="pc-val">Not set</span></div>
+          <div class="pc-inline"><input placeholder="GH&#8373;/kg"><button>Post</button></div>
+        </div>
+      </div>
+      <div class="annotation">Clean: one way to post prices, per material tile. Button and separate form removed. Each tile shows current price and lets you update inline.</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<script>
+function toggleNewCollector(sel) {
+  var form = document.getElementById('new-collector-form');
+  if (sel.value === '__new') {
+    form.classList.remove('hidden');
+  } else {
+    form.classList.add('hidden');
+  }
+}
+</script>
+
+</body>
+</html>

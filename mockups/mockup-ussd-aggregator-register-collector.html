@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSD — Aggregator registers Collector (top-level + inline)</title>
+<style>
+:root{--bg:#0a1a0f;--surface:#0d1f14;--border:#1a3a24;--accent:#00e676;--text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;--red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;--font:'Plus Jakarta Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h2{font-size:1.05rem;color:var(--accent);margin:0 0 8px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1000px;line-height:1.65}
+.section{margin-bottom:56px;max-width:1400px;scroll-margin-top:20px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1000px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+.phone{width:260px;border:2px solid var(--border);border-radius:24px;overflow:hidden;background:var(--surface);flex-shrink:0}
+.phone-header{background:#000;padding:8px 16px;font-size:0.65rem;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.phone-screen{padding:16px;min-height:240px;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.6;color:var(--text-1);white-space:pre-wrap}
+.phone-screen .con{color:var(--accent);font-weight:700}
+.phone-screen .end{color:var(--red);font-weight:700}
+.phone-screen .warn{color:var(--amber);font-weight:700}
+.phone-screen .hint{color:var(--text-3);font-size:0.72rem}
+.phone-label{background:var(--border);padding:6px 16px;font-family:var(--font);font-size:0.7rem;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:0.03em}
+.phone-note{padding:8px 16px;font-family:var(--font);font-size:0.68rem;color:var(--text-3);background:#0a150e;border-top:1px solid var(--border)}
+.arrow{display:flex;align-items:center;color:var(--text-3);font-size:1.2rem;padding-top:120px;flex-shrink:0}
+
+.new{border:2px solid var(--accent);position:relative}
+.new::after{content:'NEW';position:absolute;top:-10px;right:12px;background:var(--accent);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+.fix{border:2px solid var(--amber);position:relative}
+.fix::after{content:'FIX';position:absolute;top:-10px;right:12px;background:var(--amber);color:#000;font-size:0.55rem;font-weight:800;padding:2px 6px;border-radius:4px;font-family:var(--font)}
+
+.legend{display:flex;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-2)}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:2px solid}
+.legend-swatch.green{border-color:var(--accent)}
+.legend-swatch.yellow{border-color:var(--amber)}
+.legend-swatch.plain{border-color:var(--border)}
+
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1000px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.8;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.82rem;color:var(--text-2);line-height:1.65;max-width:1000px}
+.box h3{margin-top:0;color:var(--text-1)}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:6px 0 0 20px}
+.box li{margin-bottom:6px}
+.box.verified{border-left:3px solid var(--accent)}
+.box.assumed{border-left:3px solid var(--amber)}
+.box.strategic{border-left:3px solid var(--accent);background:#0a150e}
+.box blockquote{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:8px 0;color:var(--text-1);font-size:0.88rem;line-height:1.65}
+
+.menu-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.menu-block{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.menu-block.before{border-color:var(--text-3)}
+.menu-block.after{border-color:var(--accent)}
+.menu-block .menu-head{padding:8px 14px;font-size:0.74rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase}
+.menu-block.before .menu-head{background:#1a1a1a;color:var(--text-3)}
+.menu-block.after .menu-head{background:rgba(0,230,118,0.12);color:var(--accent)}
+.menu-block ol{list-style:none;padding:12px 14px;font-family:'Courier New',monospace;font-size:0.82rem;line-height:1.9}
+.menu-block ol li{padding:0;color:var(--text-1)}
+.menu-block ol li.changed{color:var(--accent);font-weight:700}
+.menu-block ol li.removed{color:var(--text-3);text-decoration:line-through}
+.menu-block ol li.deeper{color:var(--amber)}
+</style>
+</head>
+<body>
+
+<h1>USSD — Aggregator registers Collector</h1>
+<p class="subtitle">Aggregators on feature phones currently have <strong>no on-platform path to register collectors via USSD</strong> — only via web dashboard. Per <code>project_circul_aggregator_register_collector_paths.md</code>: agents have it, aggregators don't. The Sourcing report's "100% registered" strategic story can't operate for feature-phone aggregators without this. This mockup adds <strong>Option C</strong> (per Jojo 2026-04-25): top-level menu item <strong>+</strong> inline registration at point-of-purchase. Register Collector lands as menu item #1 — strategic placement signaling the platform's primary action.</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch yellow"></div> FIX — modified screen</div>
+  <div class="legend-item"><div class="legend-swatch green"></div> NEW — net-new screen</div>
+  <div class="legend-item"><div class="legend-swatch plain"></div> Unchanged from today</div>
+</div>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#why">Why this — strategic context</a></li>
+    <li><a href="#verified">Verified context — agent register flow as template</a></li>
+    <li><a href="#menu">Menu reshape</a></li>
+    <li><a href="#toplevel">Top-level Register Collector flow</a></li>
+    <li><a href="#inline">Inline-at-purchase registration</a></li>
+    <li><a href="#edges">Edge cases</a></li>
+    <li><a href="#backend">Backend + audit trail</a></li>
+    <li><a href="#decisions">Locked decisions</a></li>
+    <li><a href="#verified-vs-assumed">Verified vs Assumed</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §1 STRATEGIC CONTEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="why">
+<div class="section-title">1. Why this — strategic context</div>
+
+<div class="box strategic">
+<blockquote>"Aggregators have to be able to register collectors via USSD flow. We've just seen why. Neither agents, nor aggregators or collectors will predominantly using smartphones." — Jojo, 2026-04-25</blockquote>
+<p style="margin-top:10px">The Sourcing report's strategic story (Coke / brand-tier supplier verification) requires every collector who supplies an aggregator to be registered on Circul. The platform must give feature-phone aggregators a low-friction path to register — directly, without going through an agent or web dashboard. This is the missing pre-req for the "100% registered" claim.</p>
+</div>
+
+<div class="box">
+<h3>Two paths, one goal</h3>
+<ul>
+  <li><strong>Top-level path (Register Collector menu item #1):</strong> for batch onboarding. Aggregator dials in on a Sunday morning before market day and registers all the collectors they expect to buy from that week.</li>
+  <li><strong>Inline path (at point-of-purchase):</strong> when an aggregator is logging a purchase and the collector's phone doesn't match a registered collector, prompt to register on the spot. <strong>Strategic enforcer:</strong> there's no path to log a purchase from an unregistered seller — registration becomes a side-effect of buying.</li>
+</ul>
+<p style="margin-top:10px">Both paths reuse the existing <code>handleAgentRegister</code> data shape (server.js:3918) — same fields, same INSERT, same default PIN, same audit pattern.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §2 VERIFIED CONTEXT -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified">
+<div class="section-title">2. Verified context — agent register flow as template</div>
+
+<div class="box verified">
+<h3>Existing agent register-collector flow (server.js:3918)</h3>
+<p>The agent USSD has had a battle-tested register-collector flow since the agent feature shipped. The aggregator version mirrors it.</p>
+<ul>
+  <li><strong>Top-level path (no pre-fill):</strong> first_name → last_name → phone → city → confirm → INSERT.</li>
+  <li><strong>Inline path (phone pre-filled from purchase flow):</strong> first_name → last_name → city → confirm → INSERT. Skips phone entry because the phone is already known from the parent context.</li>
+  <li><strong>INSERT shape:</strong> <code>collectors (first_name, last_name, phone, pin, city, region, must_change_pin)</code> with default PIN <code>'0000'</code> (scrypt-hashed) and <code>must_change_pin = true</code>. The collector gets a default PIN they're forced to change on first login.</li>
+  <li><strong>Phone normalization:</strong> <code>normalizeGhanaPhone()</code> converts <code>0207973412</code> ↔ <code>+233207973412</code>. Stored in 0XXX format.</li>
+  <li><strong>Duplicate handling:</strong> unique constraint on <code>collectors.phone</code> (errcode <code>23505</code>) → END "This phone number is already registered."</li>
+  <li><strong>Audit:</strong> agent flow logs to <code>agent_activity</code> with <code>action_type = 'registered_collector'</code>. Aggregator flow needs an equivalent audit trail (see §7).</li>
+</ul>
+</div>
+
+<div class="box verified">
+<h3>USSD city picker (paginated)</h3>
+<p>Per PR #63, USSD has a <code>USSD_CITIES_LIST</code> at server.js:2417 with 8 pilot regional capitals (Accra, Kumasi, Tamale, Takoradi, Cape Coast, Koforidua, Ho, Sunyani), paginated 3 per page. Reuse this picker exactly. Don't introduce a new city list.</p>
+</div>
+
+<div class="box verified">
+<h3>Current aggregator menu (server.js:3242)</h3>
+<p><code>1. Log Transaction / 2. Pending Drop-offs / 3. Marketplace / 4. My Stats / 0. Exit</code> — already at the max-4 limit. Adding "Register Collector" requires reshape (see §3).</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §3 MENU RESHAPE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="menu">
+<div class="section-title">3. Menu reshape</div>
+<div class="section-desc">Per Jojo's call: Register Collector lands at the top of the menu (#1) as a strategic statement of the platform's primary action. Marketplace + My Stats demote to a "More" sub-menu. Net cost to existing flows: one extra dial for Marketplace or Stats access. Net gain: top-level access to the most important action for the brand-tier story.</p>
+
+<div class="menu-compare">
+  <div class="menu-block before">
+    <div class="menu-head">Before — current aggregator menu</div>
+    <ol>
+      <li>1. Log Transaction</li>
+      <li>2. Pending Drop-offs</li>
+      <li>3. Marketplace</li>
+      <li>4. My Stats</li>
+      <li>0. Exit</li>
+    </ol>
+  </div>
+  <div class="menu-block after">
+    <div class="menu-head">After — reshaped (Option C)</div>
+    <ol>
+      <li class="changed">1. Register Collector ← NEW, top placement</li>
+      <li>2. Log Transaction</li>
+      <li>3. Pending Drop-offs</li>
+      <li class="deeper">4. More → Marketplace / My Stats</li>
+      <li>0. Exit</li>
+    </ol>
+  </div>
+</div>
+
+<div class="box">
+<h3>"More" sub-menu</h3>
+<p>When aggregator picks <code>4</code> from the main menu:</p>
+<pre style="background:#0a150e;padding:10px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.55">CON More options
+1. Marketplace
+2. My Stats
+0. Back</pre>
+<p>Sub-menu has 2 items + 0 Back. Marketplace and Stats are unchanged behind it (their existing internal flows mount inside the sub-menu's branch handler).</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §4 TOP-LEVEL REGISTER FLOW -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="toplevel">
+<div class="section-title">4. Top-level Register Collector flow</div>
+<div class="section-desc">Aggregator picks <code>1. Register Collector</code> from the main menu. Five-screen flow mirroring the agent register-collector pattern. Register-and-return-to-menu shape so they can register multiple collectors in a single session.</p>
+
+<div class="flow">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Kwesi · 0300000002</span></div>
+    <div class="phone-screen"><span class="con">CON</span> 1. Register Collector
+2. Log Transaction
+3. Pending Drop-offs
+4. More
+0. Exit</div>
+    <div class="phone-label">A1 · main menu (Kwesi already PIN-authenticated)</div>
+    <div class="phone-note">Aggregator picks <strong>1</strong>.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · step 1</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter collector's
+first name:</div>
+    <div class="phone-label">A2 · enter first name</div>
+    <div class="phone-note">User types first name (e.g. <code>Ama</code>) and presses Send.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · step 2</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter collector's
+last name:</div>
+    <div class="phone-label">A3 · enter last name</div>
+    <div class="phone-note">User types last name (e.g. <code>Mensah</code>) and presses Send.</div>
+  </div>
+
+</div>
+
+<div class="flow" style="margin-top:24px">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · step 3</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter collector's
+phone number:
+<span class="hint">(e.g. 0207973412)</span></div>
+    <div class="phone-label">A4 · enter phone</div>
+    <div class="phone-note">User types Ghana mobile (10 digits, leading 0). Phone normalization happens server-side.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · step 4</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Select city:
+1. Accra
+2. Kumasi
+3. Tamale
+9. More
+0. Cancel</div>
+    <div class="phone-label">A5a · paginated city picker (page 1 of 3)</div>
+    <div class="phone-note">Reuses <code>USSD_CITIES_LIST</code> from PR #63. 3 cities per page; <code>9. More</code> advances to page 2 (Takoradi / Cape Coast / Koforidua) and page 3 (Ho / Sunyani).</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · step 5</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Register collector:
+Name: Ama Mensah
+Phone: 0207973412
+City: Accra
+
+1. Confirm
+2. Cancel</div>
+    <div class="phone-label">A6 · confirm</div>
+    <div class="phone-note">Picks <strong>1</strong>. Atomic INSERT. Picks <strong>2</strong>. Returns "END Cancelled."</div>
+  </div>
+
+</div>
+
+<div class="flow" style="margin-top:24px">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · success</span></div>
+    <div class="phone-screen"><span class="end">END</span> Collector registered!
+
+Ama Mensah
+Phone: 0207973412
+Default PIN: 0000
+
+Tell them to dial
+*920*54# and change
+their PIN on first use.</div>
+    <div class="phone-label">A7 · success</div>
+    <div class="phone-note">Default PIN <code>0000</code> with <code>must_change_pin: true</code>. Collector forced to change on first USSD login. Mirrors agent register-collector pattern exactly.</div>
+  </div>
+
+</div>
+
+<div class="box">
+<h3>SMS to the new collector?</h3>
+<p>Today's agent register-collector flow does NOT SMS the new collector. The aggregator tells them their default PIN verbally / in-person. We follow the same pattern — no SMS on registration. (Adding it would be cheap but post-pilot scope; the aggregator-collector relationship is in-person.)</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §5 INLINE-AT-PURCHASE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="inline">
+<div class="section-title">5. Inline registration at point-of-purchase</div>
+<div class="section-desc">When an aggregator is logging a purchase and the entered phone doesn't match a registered collector, prompt to register inline. Eliminates the "go register them first, then come back" friction. Strategic enforcer — every purchase ends up with a registered collector.</p>
+
+<div class="flow">
+
+  <div class="phone fix">
+    <div class="phone-header"><span>*920*54#</span><span>Log Transaction</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Buy from collector
+
+Enter collector's
+phone number:
+<span class="hint">(e.g. 0207973412)</span></div>
+    <div class="phone-label">B1 · existing purchase flow (unchanged)</div>
+    <div class="phone-note">User types phone and presses Send.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Not registered</span></div>
+    <div class="phone-screen"><span class="con">CON</span> 0207973412 is not
+registered on Circul.
+
+Register them now to
+log this purchase?
+
+1. Yes, register
+0. Cancel</div>
+    <div class="phone-label">B2 · NEW — register-or-cancel prompt</div>
+    <div class="phone-note">Replaces today's behavior (which is "Collector not found, dial again"). The aggregator can't proceed with this purchase without registering the collector first — but registration is one tap away.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · step 1</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Enter collector's
+first name:</div>
+    <div class="phone-label">B3 · enter first name (phone pre-filled)</div>
+    <div class="phone-note">Phone is carried forward from B1, so the inline path skips phone entry. From here, the flow is: first name → last name → city → confirm → register-and-return.</div>
+  </div>
+
+</div>
+
+<div class="flow" style="margin-top:24px">
+
+  <div class="phone new">
+    <div class="phone-header"><span>*920*54#</span><span>Register · success → continue</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Ama Mensah registered!
+PIN: 0000 (tell them
+to change on first use)
+
+Continue purchase:
+1. Yes, log purchase
+0. Done for now</div>
+    <div class="phone-label">B7 · NEW — bridge back to purchase</div>
+    <div class="phone-note">After registration, prompt to continue the purchase. Picking <strong>1</strong> drops back into the existing Log Transaction flow with the new collector pre-selected (jumps straight to material picker). Picking <strong>0</strong> ENDs.</div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="phone">
+    <div class="phone-header"><span>*920*54#</span><span>Log Transaction</span></div>
+    <div class="phone-screen"><span class="con">CON</span> Select material:
+1. PET
+2. HDPE
+3. LDPE
+4. PP</div>
+    <div class="phone-label">B8 · existing material picker (unchanged)</div>
+    <div class="phone-note">From here the existing purchase flow proceeds: material → weight → price → confirm. No further changes needed downstream.</div>
+  </div>
+
+</div>
+
+<div class="box">
+<h3>Why the bridge-back screen (B7)?</h3>
+<p>Without it, the aggregator finishes registration → END. Then they have to dial *920*54# again, navigate back to Log Transaction → Buy from collector → re-enter the phone. Three extra screens of friction at the worst possible moment. The bridge keeps the aggregator in the original purchase intent.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §6 EDGE CASES -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="edges">
+<div class="section-title">6. Edge cases</div>
+
+<div class="box">
+<h3>Already-registered phone (top-level)</h3>
+<p>At A6 confirm, INSERT raises errcode <code>23505</code> (unique constraint on <code>phone</code>). End screen:</p>
+<pre style="background:#0a150e;padding:10px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem">END This phone number is
+already registered.
+
+Use Log Transaction to
+record purchases from
+existing collectors.</pre>
+<p>Mirrors agent flow at server.js:4309 / 4358 verbatim.</p>
+</div>
+
+<div class="box">
+<h3>Already-registered phone (inline)</h3>
+<p>This case shouldn't happen — B2 only fires if the phone WAS NOT registered. But defensive: if a TOCTOU race somehow collides (two aggregators registering the same phone at the same instant), the second's INSERT raises <code>23505</code>, fall through to:</p>
+<pre style="background:#0a150e;padding:10px;border-radius:4px;color:var(--text-1);font-family:'Courier New',monospace;font-size:0.78rem">END This collector was
+just registered by
+someone else.
+
+Dial *920*54# again
+to log your purchase.</pre>
+</div>
+
+<div class="box">
+<h3>Invalid phone format</h3>
+<p>If <code>normalizeGhanaPhone()</code> returns null (not a valid Ghana mobile), END with "Invalid phone number. Dial again to retry." Mirrors today's USSD validation pattern.</p>
+</div>
+
+<div class="box">
+<h3>Aggregator hits "0. Cancel" mid-flow</h3>
+<p>At any depth, <code>0</code> exits to "END Cancelled." No partial state persisted. Standard USSD pattern.</p>
+</div>
+
+<div class="box">
+<h3>Aggregator typing whitespace-only first/last name</h3>
+<p>Trim before INSERT. If empty after trim, END with "Name cannot be empty. Dial again to retry."</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §7 BACKEND -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="backend">
+<div class="section-title">7. Backend + audit trail</div>
+
+<div class="box">
+<h3>Where the code lands</h3>
+<ul>
+  <li><strong>Menu reshape</strong> (server.js:3242 in <code>handleAggregatorUssd</code>): change main-menu return string + add branches for <code>1</code> (Register Collector) and <code>4</code> (More sub-menu). Marketplace + My Stats moves into the <code>4</code> sub-handler — internal logic unchanged.</li>
+  <li><strong>New top-level register handler</strong>: <code>handleAggregatorRegister(parts, aggregator, prefilledPhone)</code> — new function next to <code>handleAggregatorUssd</code>. Mirrors <code>handleAgentRegister</code> at server.js:3918 line-for-line, with the audit-log change noted below.</li>
+  <li><strong>Inline register branch</strong>: in the existing aggregator purchase flow (around server.js:3380 — handleAggregatorPurchase or similar), when the entered phone doesn't match a registered collector, return the B2 prompt. On <code>1</code>, route into <code>handleAggregatorRegister</code> with the entered phone pre-filled. On register success, return the B7 bridge prompt. On <code>1</code> from B7, drop back into the purchase flow with the new collector_id.</li>
+</ul>
+</div>
+
+<div class="box">
+<h3>Audit trail</h3>
+<p>Today's agent flow logs to <code>agent_activity</code> with <code>action_type = 'registered_collector'</code>. Aggregator-direct registration has no equivalent table. Two options:</p>
+<ul>
+  <li><strong>Option 1 (recommended):</strong> reuse <code>admin_audit_log</code> with <code>actor_type = 'aggregator'</code>. The audit log is generic enough to hold this. Action: <code>'aggregator_registered_collector'</code>, target_type: <code>'collector'</code>, target_id: new collector's id, details: aggregator_id + collector phone + name.</li>
+  <li><strong>Option 2:</strong> new <code>aggregator_activity</code> table mirroring <code>agent_activity</code>. Larger scope, justifiable if there are other aggregator-side activity events to track. For pre-holiday MVP, Option 1 keeps scope tight.</li>
+</ul>
+<p>If Option 1 is chosen, verify <code>admin_audit_log</code> doesn't enforce <code>actor_type IN ('admin')</code> — if it does, widen the constraint as part of this PR's migration scope. (Pre-flight check in the implementation prompt.)</p>
+</div>
+
+<div class="box">
+<h3>Schema</h3>
+<p>No new tables. No migrations beyond the possible <code>admin_audit_log.actor_type</code> constraint widening if Option 1 needs it.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §8 LOCKED DECISIONS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="decisions">
+<div class="section-title">8. Locked decisions</div>
+
+<div class="box">
+<ul>
+  <li><strong>Menu placement:</strong> Option C — Register Collector at #1 + inline at point-of-purchase. (Jojo 2026-04-25.)</li>
+  <li><strong>Demoted to "More" sub-menu:</strong> Marketplace + My Stats. One extra dial for those features.</li>
+  <li><strong>Register flow shape:</strong> mirror existing agent register-collector flow (server.js:3918) — same fields, same field order, same INSERT, same error handling.</li>
+  <li><strong>Default PIN:</strong> <code>'0000'</code> scrypt-hashed, <code>must_change_pin: true</code>. Same as agent flow.</li>
+  <li><strong>City picker:</strong> reuse <code>USSD_CITIES_LIST</code> from PR #63 (8 capitals, paginated 3-per-page).</li>
+  <li><strong>Inline path bridges back:</strong> after registration, prompt to continue the purchase the aggregator was originally trying to log (B7 screen). No re-dialling.</li>
+  <li><strong>No SMS to the new collector on registration.</strong> In-person handoff of default PIN, same as agent pattern. Re-evaluate post-pilot if onboarding friction surfaces.</li>
+  <li><strong>Audit trail:</strong> log to <code>admin_audit_log</code> with <code>actor_type = 'aggregator'</code>. Verify the constraint allows it; widen if needed in the same migration.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §9 VERIFIED VS ASSUMED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="verified-vs-assumed">
+<div class="section-title">9. Verified vs Assumed</div>
+
+<div class="box verified">
+<h3>Verified against current main (prod tip <code>02d162b</code>)</h3>
+<ul>
+  <li>Aggregator USSD menu at server.js:3242 is currently <code>1. Log Transaction / 2. Pending Drop-offs / 3. Marketplace / 4. My Stats / 0. Exit</code>.</li>
+  <li>Agent register-collector flow at server.js:3918 — signature <code>handleAgentRegister(m, agent, prefilledPhone)</code>. Two paths (with/without pre-fill), 5/4 depth respectively. INSERT to <code>collectors</code> with default PIN 0000 + must_change_pin true.</li>
+  <li><code>USSD_CITIES_LIST</code> at server.js:2417 — 8 pilot capitals with paginated picker via <code>9. More</code>.</li>
+  <li><code>normalizeGhanaPhone()</code> exists and is used in the agent flow.</li>
+  <li><code>collectors.phone</code> has a unique constraint (errcode 23505 on duplicate).</li>
+  <li><code>admin_audit_log</code> exists (added in PR #58 account-recovery series).</li>
+</ul>
+</div>
+
+<div class="box assumed">
+<h3>Assumed (verify during implementation prompt drafting)</h3>
+<ul>
+  <li><strong><code>admin_audit_log.actor_type</code> column constraint.</strong> Need to confirm whether it's <code>VARCHAR</code> (any string) or has a CHECK / enum restricting to <code>'admin'</code>. If restricted, the implementation either widens it or falls back to Option 2 (new aggregator_activity table). Resolved by reading the migration that created the table.</li>
+  <li><strong>Aggregator purchase flow phone-lookup branch.</strong> Confirmed <code>handleAggregatorPurchase</code>-style function exists around server.js:3380, but the exact pattern for handling "phone not found" needs to be read before inserting the B2 branch. Currently it likely does an END with "not found, dial again."</li>
+  <li><strong>Inline path's "drop back into purchase flow with collector pre-selected"</strong> — the purchase flow currently expects a phone-lookup at depth 1. After registration we have the collector_id directly. The cleanest implementation passes the collector_id forward via session state OR re-derives it from the phone lookup (now succeeds). Either works; verify the simpler path during implementation.</li>
+</ul>
+</div>
+
+<div class="box">
+<h3>Could be wrong if</h3>
+<ul>
+  <li>The <code>admin_audit_log.actor_type</code> is enum-restricted and widening it has cascade effects on existing admin audit queries. Mitigation: pre-flight grep for queries that filter by <code>actor_type</code>; widen migration with care.</li>
+  <li>The "More" sub-menu introduces too much friction for Marketplace browsing — possible but unlikely given Marketplace usage is low-frequency at pilot scale. Re-evaluate if usage data shows aggregators avoiding the sub-menu.</li>
+  <li>Aggregators want to register collectors WITH a custom PIN (not the default 0000). The current pattern hardcodes 0000 + force-change; agreeable for pilot. Post-pilot may want optional PIN entry on register.</li>
+</ul>
+</div>
+</div>
+
+</body>
+</html>

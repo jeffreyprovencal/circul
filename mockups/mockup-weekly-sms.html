@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Circul — Weekly SMS Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f4f6f5;
+    color: #0d1f14;
+    padding: 32px;
+    line-height: 1.5;
+  }
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    color: #5a7566;
+    font-size: 0.95rem;
+    margin-bottom: 32px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 800px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .sms-card {
+    background: white;
+    border: 1px solid #d8e2dc;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .role-tag {
+    display: inline-block;
+    background: #e8f3eb;
+    color: #1a6b3a;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+  }
+  .sms-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e8efe9;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+  }
+  .sender {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #0d1f14;
+  }
+  .timestamp {
+    font-size: 0.75rem;
+    color: #8a9c91;
+  }
+  .message {
+    background: #f0f6f1;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    color: #0d1f14;
+    white-space: pre-line;
+    line-height: 1.55;
+    border-left: 3px solid #00aa55;
+  }
+  .footer-note {
+    font-size: 0.7rem;
+    color: #8a9c91;
+    margin-top: 10px;
+    font-style: italic;
+  }
+  .context {
+    background: white;
+    border: 1px solid #d8e2dc;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-top: 20px;
+  }
+  .context h2 {
+    font-size: 1.05rem;
+    margin-bottom: 12px;
+    font-weight: 700;
+  }
+  .context p {
+    font-size: 0.9rem;
+    color: #3a4f44;
+    margin-bottom: 10px;
+  }
+  .context p:last-child { margin-bottom: 0; }
+  .stat {
+    display: inline-block;
+    background: #f0f6f1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #1a6b3a;
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Circul Weekly SMS</h1>
+  <div class="subtitle">Sample messages for USSD-only users · Three role-specific variants · Sent every Monday morning</div>
+
+  <div class="grid">
+
+    <!-- COLLECTOR -->
+    <div class="sms-card">
+      <div class="role-tag">Collector</div>
+      <div class="sms-header">
+        <span class="sender">Circul</span>
+        <span class="timestamp">Mon 8:00 AM</span>
+      </div>
+      <div class="message">Circul weekly:
+12 drop-offs · 87kg PET, 23kg HDPE
+Earned GHS 158
+Rating: 4.8 stars (5 ratings)
+Reply STOP to opt out</div>
+      <div class="footer-note">~135 chars · 1 SMS segment · GHS 0.02 to send</div>
+    </div>
+
+    <!-- AGGREGATOR -->
+    <div class="sms-card">
+      <div class="role-tag">Aggregator</div>
+      <div class="sms-header">
+        <span class="sender">Circul</span>
+        <span class="timestamp">Mon 8:00 AM</span>
+      </div>
+      <div class="message">Circul weekly:
+14 drop-offs (210kg) from 8 collectors
+Revenue GHS 420 · Top: COL-0042 (45kg)
+3 pending await confirm
+Reply STOP to opt out</div>
+      <div class="footer-note">~145 chars · 1 SMS segment · GHS 0.02 to send</div>
+    </div>
+
+    <!-- AGENT -->
+    <div class="sms-card">
+      <div class="role-tag">Agent</div>
+      <div class="sms-header">
+        <span class="sender">Circul</span>
+        <span class="timestamp">Mon 8:00 AM</span>
+      </div>
+      <div class="message">Circul weekly:
+You logged 8 collections (130kg) for 5 collectors
++15% vs last week
+Reply STOP to opt out</div>
+      <div class="footer-note">~95 chars · 1 SMS segment · GHS 0.02 to send</div>
+    </div>
+
+  </div>
+
+  <div class="context">
+    <h2>Cost envelope</h2>
+    <p>
+      Africa's Talking SMS rate: <span class="stat">~GHS 0.02 per SMS</span>.
+      At pilot scale (100 active users × 4 sends/month): <span class="stat">~GHS 8/month</span>.
+      At scale-up (10,000 users): <span class="stat">~GHS 800/month</span>.
+      Modest, scales linearly, pays for itself in retention.
+    </p>
+    <p>
+      <strong>Privacy:</strong> messages contain only role-relevant aggregates and IDs (e.g., COL-0042), never full names of counterparties, in line with Circul's tier-based privacy model. Recipients can opt out via Reply STOP per Africa's Talking compliance requirements.
+    </p>
+    <p>
+      <strong>Status:</strong> on the post-pilot roadmap. Captures the feedback raised during the 2026-04-24 WORK partnership conversation. Ready to ship as a small cron + AT notify integration once the production rebuild begins.
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

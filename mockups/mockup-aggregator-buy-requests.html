@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mockup — Aggregator Buy Requests</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── CIRCUL DESIGN SYSTEM (inlined from shared.css) ── */
+:root{
+  --font:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+  --accent:#00e676;
+  --accent-hover:#33eb8e;
+  --accent-muted:rgba(0,230,118,0.1);
+  --bg:#0a1a0f;
+  --surface:#0d2818;
+  --surface-alt:#0c1e0e;
+  --nav-bg:rgba(10,26,15,0.95);
+  --text-1:#e8f5e9;
+  --text-2:#9ab8a0;
+  --text-3:#7a9a7a;
+  --border:#1a3a1a;
+  --border-nav:#1a2e1a;
+  --r-sm:8px;
+  --r-md:12px;
+  --gap:24px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* nav */
+nav{display:flex;align-items:center;padding:12px 24px;background:var(--nav-bg);border-bottom:1px solid var(--border-nav);position:sticky;top:0;z-index:100}
+.nav-logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:1.1rem}
+.nav-logo-icon{width:30px;height:30px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#000;font-size:13px;font-weight:900}
+.nav-spacer{flex:1}
+.nav-pill{font-size:0.65rem;font-weight:700;letter-spacing:0.08em;padding:4px 10px;border-radius:20px;background:#0a2a28;color:#26c6da}
+
+/* page */
+.page{max-width:1200px;margin:0 auto;padding:var(--gap)}
+.hero{margin-bottom:var(--gap)}
+.hero-name{font-size:1.5rem;font-weight:800;margin-bottom:4px}
+.hero-meta{color:var(--text-2);font-size:0.85rem}
+
+/* section */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:20px;margin-bottom:var(--gap)}
+.section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:12px}
+.section-title{font-size:0.95rem;font-weight:700}
+.section-sub{font-size:0.75rem;color:var(--text-3);margin-top:2px}
+
+/* form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.form-label{display:block;font-size:0.7rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:5px}
+.form-input,.form-select,textarea{width:100%;padding:9px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.8rem}
+textarea{height:64px;resize:vertical}
+.form-input::placeholder,textarea::placeholder{color:var(--text-3)}
+.form-input:focus,.form-select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+.btn-submit{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#000;font-family:var(--font);font-size:0.8rem;font-weight:700;padding:10px 22px;border:none;border-radius:20px;cursor:pointer}
+.btn-submit:hover{background:var(--accent-hover)}
+.note{font-size:0.72rem;color:var(--text-3);margin-top:12px}
+
+/* table */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse}
+th{font-size:0.65rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.td-green{color:var(--accent);font-weight:600}
+
+/* pills */
+.pill{display:inline-block;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap}
+.pill-pet{background:#2196f326;color:#64b5f6}
+.pill-hdpe{background:#4caf5026;color:#81c784}
+.pill-ldpe{background:#ff980026;color:#ffb74d}
+.pill-pp{background:#e91e6326;color:#f06292}
+.pill-open{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-fulfilled{background:rgba(66,165,245,0.15);color:#42a5f5}
+.pill-cancelled{background:rgba(239,83,80,0.15);color:#ef5350}
+
+/* buttons */
+.btn{font-family:var(--font);font-size:0.75rem;padding:6px 14px;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer}
+.btn:hover{border-color:var(--text-3);color:var(--text-1)}
+.btn-danger{border-color:rgba(239,83,80,0.4);color:#ef5350}
+.btn-danger:hover{border-color:#ef5350;color:#ef5350}
+
+/* empty */
+.empty{text-align:center;padding:32px 20px;color:var(--text-3);font-size:0.85rem}
+
+/* mockup label */
+.section-flag{display:inline-block;font-size:0.62rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;background:var(--accent-muted);padding:4px 10px;border-radius:20px;margin-bottom:10px}
+
+/* backend block */
+.backend{font-size:0.82rem;color:var(--text-2);line-height:1.85}
+.backend b{color:var(--text-1)}
+code{background:var(--surface-alt);padding:2px 7px;border-radius:4px;font-size:0.78rem;color:var(--accent);border:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo"><div class="nav-logo-icon">◎</div> Circul</div>
+  <div class="nav-spacer"></div>
+  <div class="nav-pill">AGGREGATOR</div>
+</nav>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-name">Buy Requests</div>
+    <div class="hero-meta">Post buy requests visible to collectors on web and USSD. Aligns with USSD Phase 4.</div>
+  </div>
+
+  <!-- POST -->
+  <div class="section">
+    <div class="section-flag">① Post Buy Request</div>
+    <div class="section-head">
+      <div>
+        <div class="section-title">Post a buy request</div>
+        <div class="section-sub">Open for 14 days unless cancelled. Collectors in your area will see it.</div>
+      </div>
+      <button class="btn-submit">Post buy request</button>
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <label class="form-label">Material</label>
+        <select class="form-select"><option>PET</option><option>HDPE</option><option>LDPE</option><option>PP</option></select>
+      </div>
+      <div>
+        <label class="form-label">Target quantity (kg)</label>
+        <input class="form-input" type="number" placeholder="e.g. 1500" />
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <label class="form-label">Price per kg (GHS)</label>
+        <input class="form-input" type="number" step="0.01" placeholder="e.g. 3.50" />
+      </div>
+      <div>
+        <label class="form-label">City (optional)</label>
+        <select class="form-select"><option>Any</option><option>Accra</option><option>Kumasi</option><option>Tamale</option><option>Takoradi</option></select>
+      </div>
+    </div>
+
+    <div>
+      <label class="form-label">Notes (optional)</label>
+      <textarea placeholder="e.g. Clean, sorted PET only. Pickup possible."></textarea>
+    </div>
+
+    <div class="note">Posts to the same <code>orders</code> table USSD writes to, with <code>buyer_role='aggregator'</code>.</div>
+  </div>
+
+  <!-- LIST -->
+  <div class="section">
+    <div class="section-flag">② My Buy Requests</div>
+    <div class="section-head">
+      <div>
+        <div class="section-title">My buy requests</div>
+        <div class="section-sub">Open requests are visible to collectors. Cancel anytime.</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Posted</th><th>Material</th><th>Qty</th><th>Price/kg</th><th>Fulfilled</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Apr 6</td>
+            <td><span class="pill pill-pet">PET</span></td>
+            <td>1,500 kg</td>
+            <td class="td-green">GHS 3.50</td>
+            <td>0 kg</td>
+            <td><span class="pill pill-open">Open</span></td>
+            <td><button class="btn btn-danger">Cancel</button></td>
+          </tr>
+          <tr>
+            <td>Apr 3</td>
+            <td><span class="pill pill-hdpe">HDPE</span></td>
+            <td>800 kg</td>
+            <td class="td-green">GHS 4.20</td>
+            <td>320 kg</td>
+            <td><span class="pill pill-open">Open</span></td>
+            <td><button class="btn btn-danger">Cancel</button></td>
+          </tr>
+          <tr>
+            <td>Mar 28</td>
+            <td><span class="pill pill-pp">PP</span></td>
+            <td>2,000 kg</td>
+            <td class="td-green">GHS 2.80</td>
+            <td>2,000 kg</td>
+            <td><span class="pill pill-fulfilled">Fulfilled</span></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>Mar 24</td>
+            <td><span class="pill pill-ldpe">LDPE</span></td>
+            <td>500 kg</td>
+            <td class="td-green">GHS 3.00</td>
+            <td>0 kg</td>
+            <td><span class="pill pill-cancelled">Cancelled</span></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- EMPTY -->
+  <div class="section">
+    <div class="section-flag">③ Empty state</div>
+    <div class="empty">No buy requests yet. Post one above to let collectors know what you're buying.</div>
+  </div>
+
+  <!-- BACKEND -->
+  <div class="section">
+    <div class="section-flag">Backend changes implied</div>
+    <div class="backend">
+      <b>1.</b> <code>POST /api/orders</code> — widen role check to allow <code>aggregator</code>. Set <code>buyerId = req.user.id</code>, <code>buyerRole = 'aggregator'</code>.<br>
+      <b>2.</b> <code>GET /api/orders/my</code> — add aggregator branch so the dashboard can fetch their own requests.<br>
+      <b>3.</b> <code>POST /api/orders/:id/cancel</code> — owner-only, sets <code>status='cancelled'</code>.<br>
+      <b>4.</b> Aggregator dashboard HTML — new "Buy Requests" section using existing <code>.section</code> / <code>.form-grid</code> / table classes.<br>
+      <b>5.</b> USSD Phase 4 <code>handleAggregatorPostBuyRequest()</code> can call the API instead of writing to DB directly — no more bypass.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

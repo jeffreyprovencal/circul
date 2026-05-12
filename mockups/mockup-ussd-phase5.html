@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mockup — USSD Phase 5: Polish (SMS + Ratings)</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font:'Plus Jakarta Sans',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --accent:#00e676;
+  --accent-hover:#33eb8e;
+  --bg:#0a1a0f;
+  --surface:#0d2818;
+  --surface-alt:#0c1e0e;
+  --text-1:#e8f5e9;
+  --text-2:#9ab8a0;
+  --text-3:#7a9a7a;
+  --border:#1a3a1a;
+  --r-sm:8px;
+  --r-md:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:32px 24px;-webkit-font-smoothing:antialiased}
+.page{max-width:1200px;margin:0 auto}
+h1{font-size:1.6rem;font-weight:800;margin-bottom:6px}
+.sub{color:var(--text-2);font-size:0.9rem;margin-bottom:32px}
+h2{font-size:1.1rem;font-weight:700;color:var(--accent);margin:36px 0 14px;letter-spacing:0.02em}
+h2 .num{display:inline-block;width:28px;height:28px;line-height:28px;text-align:center;border-radius:50%;background:rgba(0,230,118,0.15);color:var(--accent);font-size:0.85rem;margin-right:10px}
+.intro{color:var(--text-2);font-size:0.85rem;margin-bottom:16px;max-width:780px;line-height:1.6}
+
+/* phone grid */
+.phones{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+.phone{background:#000;border:8px solid #1a1a1a;border-radius:32px;padding:18px 14px 22px;font-family:var(--mono);font-size:0.78rem;color:#a8e6a8;line-height:1.5;min-height:340px;display:flex;flex-direction:column}
+.phone-top{font-size:0.62rem;color:#666;text-align:center;margin-bottom:10px;font-family:var(--font);letter-spacing:0.05em}
+.phone-screen{flex:1;white-space:pre-wrap;word-break:break-word}
+.phone-label{font-size:0.65rem;color:var(--text-3);margin-top:8px;text-align:center;font-family:var(--font);letter-spacing:0.04em;text-transform:uppercase}
+
+/* SMS bubbles */
+.sms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.sms{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px}
+.sms-from{font-size:0.65rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.sms-bubble{background:#1a3a3a;border-radius:14px 14px 14px 4px;padding:10px 14px;font-size:0.8rem;color:#cfeaef;line-height:1.5}
+.sms-meta{font-size:0.7rem;color:var(--text-3);margin-top:6px}
+
+/* state diagram */
+.flow{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:18px;font-family:var(--mono);font-size:0.78rem;color:var(--text-2);line-height:1.7;white-space:pre;overflow-x:auto}
+.flow b{color:var(--accent);font-weight:600}
+
+/* rule cards */
+.rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.rule{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:16px}
+.rule-head{font-size:0.78rem;font-weight:700;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em}
+.rule-body{font-size:0.82rem;color:var(--text-2);line-height:1.6}
+.rule-body code{background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem}
+
+.legend{font-size:0.75rem;color:var(--text-3);margin-top:10px;font-style:italic}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>USSD Phase 5 — Polish: SMS + Ratings</h1>
+<div class="sub">Arkesel SMS provider, transaction event SMS triggers, USSD rating flow nested under My Stats, daily 20-SMS cap per phone.</div>
+
+<!-- ─────────────── PART A ─────────────── -->
+<h2><span class="num">A</span>Arkesel SMS provider — backend only, no UI</h2>
+<div class="intro">Single change in <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">shared/notifications.js</code>. Adds an <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">arkesel</code> case to the existing provider switch. All 9 existing notify() call sites light up automatically. New env vars: <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">NOTIFICATION_PROVIDER=arkesel</code>, <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">ARKESEL_API_KEY</code>, <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">ARKESEL_SENDER_ID</code>.</div>
+
+<div class="rules">
+  <div class="rule">
+    <div class="rule-head">Daily cap — 20 SMS / phone</div>
+    <div class="rule-body">In-memory Map keyed by normalized phone number. Resets at midnight UTC. When cap hit: log to console, return <code>{sent:false, reason:'daily-cap'}</code>, never throw. Upgrade to Redis when we have multi-instance.</div>
+  </div>
+  <div class="rule">
+    <div class="rule-head">Failure handling</div>
+    <div class="rule-body">If Arkesel API call throws or returns non-200, log to console + ntfy.sh, return <code>{sent:false, error}</code>. Never blocks the calling transaction. SMS is best-effort.</div>
+  </div>
+  <div class="rule">
+    <div class="rule-head">Phone normalization</div>
+    <div class="rule-body">Reuse <code>normalizeGhanaPhone()</code> from server.js so cap is keyed consistently regardless of input format (0244..., +233244..., 233244...).</div>
+  </div>
+  <div class="rule">
+    <div class="rule-head">Provider hot-swap</div>
+    <div class="rule-body">All call sites unchanged. Switching back to console-only is one env var. No code changes needed for rollback.</div>
+  </div>
+</div>
+
+<!-- ─────────────── PART B ─────────────── -->
+<h2><span class="num">B</span>SMS triggers on USSD transaction events</h2>
+<div class="intro">Five new events fire SMS at the moment a USSD action commits. Each adds a single <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">notify()</code> call inside an existing handler — no new endpoints, no schema changes.</div>
+
+<div class="sms-grid">
+  <div class="sms">
+    <div class="sms-from">▶ Drop-off logged → aggregator</div>
+    <div class="sms-bubble">Circul: COL-0042 logged 15kg PET (GH₵52.50). Review in your dashboard.</div>
+    <div class="sms-meta">Trigger: collector USSD Log Drop-off complete · Event: <code>DROPOFF_LOGGED</code></div>
+  </div>
+  <div class="sms">
+    <div class="sms-from">▶ Purchase logged → collector</div>
+    <div class="sms-bubble">Circul: AGG-0017 logged 22kg HDPE purchase, GH₵88.00. Rate it: dial *XXX# → My Stats → Rate a transaction.</div>
+    <div class="sms-meta">Trigger: aggregator USSD Log Purchase complete · Event: <code>PURCHASE_LOGGED</code></div>
+  </div>
+  <div class="sms">
+    <div class="sms-from">▶ Agent collection → both parties</div>
+    <div class="sms-bubble">Circul: Agent AGT-003 logged 18kg PET on behalf of AGG-0017. GH₵63.00 owed.</div>
+    <div class="sms-meta">Trigger: agent USSD Log Collection complete · Event: <code>AGENT_COLLECTION</code> · Sends to BOTH aggregator + collector (if registered)</div>
+  </div>
+  <div class="sms">
+    <div class="sms-from">▶ Payment sent → payee</div>
+    <div class="sms-bubble">Circul: GH₵88.00 payment sent to you via mobile money for 22kg HDPE. Confirm receipt in your dashboard or *XXX#.</div>
+    <div class="sms-meta">Trigger: aggregator marks payment_status='payment_sent' · Event: <code>PAYMENT_SENT</code></div>
+  </div>
+  <div class="sms">
+    <div class="sms-from">▶ Payment confirmed → payer</div>
+    <div class="sms-bubble">Circul: COL-0042 confirmed receipt of GH₵52.50. Transaction closed. Thank you.</div>
+    <div class="sms-meta">Trigger: collector marks payment_status='paid' · Event: <code>PAYMENT_CONFIRMED</code></div>
+  </div>
+</div>
+<div class="legend">All 5 templates added to <code>shared/notifications.js</code>. Existing 9 templates unchanged.</div>
+
+<!-- ─────────────── PART C ─────────────── -->
+<h2><span class="num">C</span>USSD rating flow — nested under My Stats</h2>
+<div class="intro">Per your call: rating flow lives under <b style="color:var(--text-1)">My Stats → Rate a Transaction</b>. Keeps the main menu at 4 items. Same flow for collector and aggregator. Writes to the existing <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">ratings</code> table via a new shared <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">createRating()</code> helper (single source of truth — same pattern as <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">createOrder()</code>).</div>
+
+<h3 style="font-size:0.9rem;font-weight:700;color:var(--text-2);margin:20px 0 12px">Collector rating an aggregator</h3>
+<div class="phones">
+  <div class="phone">
+    <div class="phone-top">*XXX#</div>
+<div class="phone-screen">CON Welcome COL-0042
+1. Log Drop-off
+2. Sell My Material
+3. Discovery
+4. My Stats</div>
+    <div class="phone-label">Main menu</div>
+  </div>
+  <div class="phone">
+    <div class="phone-top">*XXX*4#</div>
+<div class="phone-screen">CON My Stats
+1. This week
+2. This month
+3. All time
+4. Rate a transaction
+0. Back</div>
+    <div class="phone-label">Stats sub-menu (new item 4)</div>
+  </div>
+  <div class="phone">
+    <div class="phone-top">*XXX*4*4#</div>
+<div class="phone-screen">CON Rate a transaction
+Recent unrated:
+1. 15kg PET, AGG-0042
+   Apr 6, GH₵52.50
+2. 8kg HDPE, AGG-0017
+   Apr 5, GH₵32.00
+3. 22kg PET, AGG-0042
+   Apr 3, GH₵77.00
+0. Back</div>
+    <div class="phone-label">Unrated list (max 3, within window)</div>
+  </div>
+  <div class="phone">
+    <div class="phone-top">*XXX*4*4*1#</div>
+<div class="phone-screen">CON Rate this txn:
+15kg PET to AGG-0042
+Apr 6 · GH₵52.50
+
+How many stars?
+1. ★
+2. ★★
+3. ★★★
+4. ★★★★
+5. ★★★★★</div>
+    <div class="phone-label">Star selection</div>
+  </div>
+  <div class="phone">
+    <div class="phone-top">*XXX*4*4*1*5#</div>
+<div class="phone-screen">END Rating saved.
+You rated AGG-0042
+5★ for 15kg PET.
+
+Thank you!
+
+Need help? Call 0XX</div>
+    <div class="phone-label">Confirmation</div>
+  </div>
+  <div class="phone">
+    <div class="phone-top">*XXX*4*4#</div>
+<div class="phone-screen">END No transactions
+to rate.
+
+All recent transactions
+have been rated, or
+their rating window
+has closed.
+
+Need help? Call 0XX</div>
+    <div class="phone-label">Empty state</div>
+  </div>
+</div>
+
+<h3 style="font-size:0.9rem;font-weight:700;color:var(--text-2);margin:24px 0 12px">Flow logic</h3>
+<div class="flow">depth 0 → list query: SELECT recent unrated transactions
+            WHERE rater=user
+              AND NOT EXISTS (rating by this user for this txn)
+              AND t.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY created_at DESC LIMIT 3
+            <b>if 0 → END empty state</b>
+
+depth 1 → user picks 1/2/3 → store transaction in path
+            → show star screen
+
+depth 2 → user picks 1-5 → call createRating() helper
+            → INSERT INTO ratings (...)
+            → END confirmation
+
+at any depth: 0 → return to parent menu (CON)
+              invalid → END Invalid option</div>
+
+<!-- ─────────────── PART D ─────────────── -->
+<h2><span class="num">D</span>Closing the loop — SMS prompts drive rating adoption</h2>
+<div class="intro">Every transaction-logged SMS from Part B includes a tail: <b style="color:var(--text-1)">"Rate it: dial *XXX# → My Stats → Rate a transaction."</b> Position-agnostic — no hard-coded menu numbers in templates, so reordering the menu later doesn't break SMS copy.</div>
+
+<div class="sms-grid">
+  <div class="sms">
+    <div class="sms-from">Example — full purchase loop</div>
+    <div class="sms-bubble">Circul: AGG-0017 logged 22kg HDPE purchase, GH₵88.00. Rate it: dial *XXX# → My Stats → Rate a transaction.</div>
+    <div class="sms-meta">Collector dials → My Stats → Rate a Transaction → picks the txn → 5★ → done. Rating flow takes 3 screens, ~15 seconds.</div>
+  </div>
+</div>
+
+<!-- ─────────────── DEPENDENCIES ─────────────── -->
+<h2><span class="num">∎</span>What this phase depends on (verified)</h2>
+<div class="rules">
+  <div class="rule">
+    <div class="rule-head">✓ Existing</div>
+    <div class="rule-body"><code>shared/notifications.js</code> with 9 events + provider switch · <code>ratings</code> table with full schema · <code>normalizeGhanaPhone()</code> · USSD handlers for drop-off, purchase, agent collection, payment marks</div>
+  </div>
+  <div class="rule">
+    <div class="rule-head">✓ New (created in this phase)</div>
+    <div class="rule-body">5 new EVENTS + TEMPLATES · <code>arkesel</code> provider branch · in-memory daily cap · <code>createRating()</code> helper · <code>RATING_WINDOW_DAYS=7</code> constant (env-overridable) · 2 new USSD handlers (<code>handleStatsSubMenu</code>, <code>handleRateTransaction</code>) · 5 new <code>notify()</code> call sites in existing USSD handlers · web rating queries gated by same 7-day window for cross-channel consistency</div>
+  </div>
+  <div class="rule">
+    <div class="rule-head">✗ Out of scope (tracked)</div>
+    <div class="rule-body">Buy request notifications (no subscription model) · Listing expiry cron · Tag selection in USSD ratings (web-only) · Redis-backed rate limit · Bidirectional ratings (only the transaction party who didn't already rate gets prompted)</div>
+  </div>
+  <div class="rule">
+    <div class="rule-head">⚠ Known limits</div>
+    <div class="rule-body">In-memory cap resets on server restart (acceptable — Render restarts ~daily) · Single-instance only (we are) · Console fallback if Arkesel down · 3-txn limit on rating list (no pagination, simplest possible flow)</div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

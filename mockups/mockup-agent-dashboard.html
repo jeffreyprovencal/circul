@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circul — Agent Dashboard Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --accent: #00e676;
+  --accent-hover: #33eb8e;
+  --accent-muted: rgba(0,230,118,0.1);
+  --bg: #0a1a0f;
+  --surface: #0d2818;
+  --surface-alt: #0c1e0e;
+  --nav-bg: rgba(10,26,15,0.95);
+  --text-1: #e8f5e9;
+  --text-2: #9ab8a0;
+  --text-3: #7a9a7a;
+  --border: #1a3a1a;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --gap: 16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);min-height:100vh;-webkit-font-smoothing:antialiased;max-width:480px;margin:0 auto}
+
+/* Banner */
+.banner{background:#1a0a2e;border-bottom:2px solid #b388ff;color:#e0c0ff;text-align:center;padding:8px;font-size:0.75rem;font-weight:600;letter-spacing:0.05em}
+
+/* Nav — compact for mobile */
+nav{display:flex;align-items:center;padding:10px 16px;background:var(--nav-bg);border-bottom:1px solid var(--border);gap:10px}
+.nav-logo{display:flex;align-items:center;gap:6px;font-weight:700;font-size:1rem;color:var(--text-1)}
+.nav-logo-icon{width:26px;height:26px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#000;font-size:11px;font-weight:900;flex-shrink:0}
+.nav-spacer{flex:1}
+.nav-pill{font-size:0.6rem;font-weight:700;letter-spacing:0.08em;padding:3px 8px;border-radius:20px;white-space:nowrap;background:rgba(255,183,77,0.15);color:#ffb74d}
+.nav-right{display:flex;align-items:center;gap:10px}
+.nav-name{font-weight:600;font-size:0.8rem}
+.nav-logout{background:var(--accent);color:#000;border:none;padding:5px 14px;border-radius:20px;font-family:var(--font);font-size:0.75rem;font-weight:600;cursor:pointer}
+
+/* Page */
+.page{padding:var(--gap)}
+
+/* Aggregator link bar */
+.agg-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:var(--gap);font-size:0.8rem}
+.agg-bar-label{color:var(--text-3);font-size:0.65rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase}
+.agg-bar-name{font-weight:700;color:var(--text-1)}
+.agg-bar-id{color:var(--text-3);font-size:0.75rem}
+
+/* Stats — 2x2 grid for mobile */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:var(--gap)}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px}
+.stat-label{font-size:0.6rem;font-weight:600;letter-spacing:0.08em;color:var(--text-2);text-transform:uppercase;margin-bottom:3px}
+.stat-val{font-size:1.2rem;font-weight:700}
+.stat-val small{font-size:0.8rem;font-weight:400;color:var(--text-2)}
+.stat-sub{font-size:0.65rem;color:var(--text-3);margin-top:2px}
+
+/* Section */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;margin-bottom:var(--gap);overflow:hidden}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
+.section-title{font-size:0.9rem;font-weight:700}
+.section-sub{font-size:0.7rem;color:var(--text-3);margin-top:2px}
+.section-num{font-size:0.55rem;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px}
+
+/* Table */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;table-layout:auto;min-width:0}
+th{font-size:0.6rem;font-weight:600;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px;font-size:0.75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+.td-name{font-weight:600;white-space:nowrap}
+.td-green{color:var(--accent);font-weight:600}
+
+/* Pills */
+.pill{display:inline-block;font-size:0.65rem;font-weight:600;padding:2px 7px;border-radius:10px;white-space:nowrap}
+.pill-pet{background:#2196f326;color:#64b5f6}
+.pill-hdpe{background:#4caf5026;color:#81c784}
+.pill-ldpe{background:#ff980026;color:#ffb74d}
+.pill-pp{background:#e91e6326;color:#f06292}
+.pill-paid{background:rgba(0,230,118,0.15);color:#00e676}
+.pill-pending{background:rgba(255,152,0,0.15);color:#ffb74d}
+.pill-sent{background:rgba(255,215,64,0.15);color:#ffd740}
+
+/* Buttons */
+.btn{font-family:var(--font);font-size:0.75rem;padding:6px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer;width:100%}
+.btn:hover{border-color:var(--text-3);color:var(--text-1)}
+.btn-green{background:var(--accent);color:#000;border:none;font-weight:600}
+.btn-green:hover{background:var(--accent-hover)}
+.btn-sm{font-size:0.7rem;padding:5px 10px;width:auto}
+
+/* Forms — single column for mobile */
+.form-group{display:flex;flex-direction:column;margin-bottom:12px}
+.form-label{font-size:0.65rem;font-weight:600;letter-spacing:0.06em;color:var(--text-2);text-transform:uppercase;margin-bottom:4px}
+.form-input,.form-select{width:100%;padding:10px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);font-size:0.85rem}
+.form-input::placeholder{color:var(--text-3)}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--accent)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-submit{width:100%;padding:12px;background:var(--accent);color:#000;font-family:var(--font);font-size:0.85rem;font-weight:700;border:none;border-radius:var(--r-md);cursor:pointer;margin-top:4px}
+.form-submit:hover{background:var(--accent-hover)}
+
+/* Quick action buttons */
+.quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:var(--gap)}
+.qa-btn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;text-align:center;transition:border-color 0.2s}
+.qa-btn:hover{border-color:var(--accent)}
+.qa-icon{font-size:1.4rem}
+.qa-label{font-size:0.75rem;font-weight:600;color:var(--text-1)}
+.qa-sub{font-size:0.6rem;color:var(--text-3)}
+.qa-btn.active{border-color:var(--accent);background:var(--accent-muted)}
+
+/* Counterparty code */
+.counterparty-code{display:block;font-size:0.6rem;color:var(--text-3);font-weight:500;margin-top:1px;letter-spacing:0.03em}
+
+/* Empty state */
+.empty{text-align:center;padding:24px 16px;color:var(--text-3);font-size:0.8rem}
+
+/* Inline form reveal */
+.inline-form{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.inline-form.visible{display:block}
+
+/* Toggle tabs */
+.toggle-tabs{display:flex;gap:0;margin-bottom:var(--gap);border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border)}
+.toggle-tab{flex:1;padding:10px;text-align:center;font-family:var(--font);font-size:0.75rem;font-weight:600;background:var(--surface);color:var(--text-2);border:none;cursor:pointer;transition:all 0.2s}
+.toggle-tab.active{background:var(--accent);color:#000}
+</style>
+</head>
+<body>
+
+<div class="banner">MOCKUP — Agent Dashboard (Batch 8b) · Mobile-first field view</div>
+
+<!-- NAV — compact -->
+<nav>
+  <a class="nav-logo"><span class="nav-logo-icon">C</span> Circul</a>
+  <div class="nav-spacer"></div>
+  <div class="nav-right">
+    <span class="nav-pill">AGENT</span>
+    <span class="nav-name">Kofi Mensah</span>
+    <button class="nav-logout">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- Aggregator link -->
+  <div class="agg-bar">
+    <div>
+      <div class="agg-bar-label">Working for</div>
+      <span class="agg-bar-name">Waste Masters Ltd</span>
+      <span class="agg-bar-id">· AGG-0002</span>
+    </div>
+  </div>
+
+  <!-- ① AT A GLANCE — 2x2 mobile grid -->
+  <div class="section-num">① At a Glance</div>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Today</div>
+      <div class="stat-val">145 <small>kg</small></div>
+      <div class="stat-sub">3 collections</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">This Week</div>
+      <div class="stat-val">680 <small>kg</small></div>
+      <div class="stat-sub">12 collections</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Earnings</div>
+      <div class="stat-val">GHS 340</div>
+      <div class="stat-sub">5% commission</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Collectors</div>
+      <div class="stat-val">8</div>
+      <div class="stat-sub">active this month</div>
+    </div>
+  </div>
+
+  <!-- QUICK ACTIONS — big tap targets for field use -->
+  <div class="quick-actions" id="quickActions">
+    <div class="qa-btn active" onclick="showPanel('collect')">
+      <div class="qa-icon">📦</div>
+      <div class="qa-label">Log Collection</div>
+      <div class="qa-sub">Record a pickup</div>
+    </div>
+    <div class="qa-btn" onclick="showPanel('pay')">
+      <div class="qa-icon">💰</div>
+      <div class="qa-label">Record Payment</div>
+      <div class="qa-sub">Pay a collector</div>
+    </div>
+    <div class="qa-btn" onclick="showPanel('register')">
+      <div class="qa-icon">👤</div>
+      <div class="qa-label">New Collector</div>
+      <div class="qa-sub">Register on the spot</div>
+    </div>
+    <div class="qa-btn" onclick="showPanel('activity')">
+      <div class="qa-icon">📋</div>
+      <div class="qa-label">My Activity</div>
+      <div class="qa-sub">View history</div>
+    </div>
+  </div>
+
+  <!-- ② LOG COLLECTION PANEL -->
+  <div class="section panel" id="panel-collect">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Log Collection</div>
+        <div class="section-sub">Record a pickup on behalf of Waste Masters Ltd</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Collector</label>
+      <select class="form-select" id="agentCollector">
+        <option value="">Select collector...</option>
+        <option value="1">Kwame Asante · COL-0001</option>
+        <option value="15">Ama Serwaa · COL-0015</option>
+        <option value="23">Yaw Boateng · COL-0023</option>
+        <option value="new">+ New Collector</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Material</label>
+        <select class="form-select">
+          <option>PET</option>
+          <option>HDPE</option>
+          <option>LDPE</option>
+          <option>PP</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Weight (kg)</label>
+        <input class="form-input" type="number" placeholder="0.00">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Price / kg (GHS)</label>
+        <input class="form-input" type="number" placeholder="4.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <select class="form-select">
+          <option>Greater Accra</option>
+          <option>Ashanti</option>
+          <option>Western</option>
+          <option>Central</option>
+          <option>Eastern</option>
+          <option>Volta</option>
+          <option>Northern</option>
+          <option>Upper East</option>
+          <option>Upper West</option>
+          <option>Bono</option>
+          <option>Bono East</option>
+          <option>Ahafo</option>
+          <option>Oti</option>
+          <option>Savannah</option>
+          <option>North East</option>
+          <option>Western North</option>
+        </select>
+      </div>
+    </div>
+    <button class="form-submit">Log Collection</button>
+  </div>
+
+  <!-- ③ RECORD PAYMENT PANEL -->
+  <div class="section panel" id="panel-pay" style="display:none">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Record Payment</div>
+        <div class="section-sub">Pay a collector for a completed collection</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Collector</th><th>Material</th><th>Weight</th><th>Amount</th><th></th></tr>
+        <tr>
+          <td class="td-name">Kwame Asante<span class="counterparty-code">COL-0001</span></td>
+          <td><span class="pill pill-pet">PET</span></td>
+          <td>45 kg</td>
+          <td class="td-green">GHS 180</td>
+          <td><button class="btn btn-green btn-sm">Pay</button></td>
+        </tr>
+        <tr>
+          <td class="td-name">Ama Serwaa<span class="counterparty-code">COL-0015</span></td>
+          <td><span class="pill pill-hdpe">HDPE</span></td>
+          <td>32 kg</td>
+          <td class="td-green">GHS 128</td>
+          <td><button class="btn btn-green btn-sm">Pay</button></td>
+        </tr>
+        <tr>
+          <td class="td-name">Yaw Boateng<span class="counterparty-code">COL-0023</span></td>
+          <td><span class="pill pill-ldpe">LDPE</span></td>
+          <td>18 kg</td>
+          <td class="td-green">GHS 63</td>
+          <td><span class="pill pill-paid">Paid</span></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ④ REGISTER COLLECTOR PANEL -->
+  <div class="section panel" id="panel-register" style="display:none">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Register New Collector</div>
+        <div class="section-sub">On-the-spot registration for Waste Masters Ltd</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Full Name</label>
+      <input class="form-input" placeholder="Collector's full name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Phone Number</label>
+      <input class="form-input" type="tel" placeholder="024XXXXXXX">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Region</label>
+      <select class="form-select">
+        <option value="">Select region...</option>
+        <option>Greater Accra</option>
+        <option>Ashanti</option>
+        <option>Western</option>
+        <option>Central</option>
+        <option>Eastern</option>
+        <option>Volta</option>
+        <option>Northern</option>
+        <option>Upper East</option>
+        <option>Upper West</option>
+        <option>Bono</option>
+        <option>Bono East</option>
+        <option>Ahafo</option>
+        <option>Oti</option>
+        <option>Savannah</option>
+        <option>North East</option>
+        <option>Western North</option>
+      </select>
+    </div>
+    <div style="background:var(--surface-alt);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:0.75rem;color:var(--text-2)">
+      Collector will receive default PIN <strong style="color:var(--text-1)">0000</strong> and be prompted to set their own on first login.
+    </div>
+    <button class="form-submit">Register Collector</button>
+  </div>
+
+  <!-- ⑤ MY ACTIVITY PANEL -->
+  <div class="section panel" id="panel-activity" style="display:none">
+    <div class="section-head">
+      <div>
+        <div class="section-title">My Activity</div>
+        <div class="section-sub">Your collection history for Waste Masters Ltd</div>
+      </div>
+    </div>
+    <!-- Toggle: Today / This Week / All -->
+    <div class="toggle-tabs">
+      <button class="toggle-tab active">Today</button>
+      <button class="toggle-tab">This Week</button>
+      <button class="toggle-tab">All</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Time</th><th>Collector</th><th>Material</th><th>Weight</th><th>Amount</th><th>Payment</th></tr>
+        <tr>
+          <td>14:30</td>
+          <td class="td-name">Kwame Asante<span class="counterparty-code">COL-0001</span></td>
+          <td><span class="pill pill-pet">PET</span></td>
+          <td>45 kg</td>
+          <td class="td-green">GHS 180</td>
+          <td><span class="pill pill-paid">Paid</span></td>
+        </tr>
+        <tr>
+          <td>11:15</td>
+          <td class="td-name">Ama Serwaa<span class="counterparty-code">COL-0015</span></td>
+          <td><span class="pill pill-hdpe">HDPE</span></td>
+          <td>32 kg</td>
+          <td class="td-green">GHS 128</td>
+          <td><span class="pill pill-pending">Pending</span></td>
+        </tr>
+        <tr>
+          <td>09:00</td>
+          <td class="td-name">Yaw Boateng<span class="counterparty-code">COL-0023</span></td>
+          <td><span class="pill pill-pet">PET</span></td>
+          <td>68 kg</td>
+          <td class="td-green">GHS 272</td>
+          <td><span class="pill pill-paid">Paid</span></td>
+        </tr>
+      </table>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-size:0.75rem;color:var(--text-3)">
+      Today: 3 collections · 145 kg · GHS 580 total · <strong style="color:var(--accent)">GHS 29 earned</strong> (5%)
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.qa-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).style.display = 'block';
+  event.currentTarget.classList.add('active');
+}
+</script>
+
+</body>
+</html>
