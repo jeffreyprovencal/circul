@@ -340,15 +340,26 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 .btn-log-arrival:hover{background:rgba(0,230,118,0.22)}
 
 /* ── LOGIN OVERLAY (shared) ── */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-overlay.hidden{display:none}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
+.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
 .login-error{color:#ef4444;font-size:0.8rem;display:none;margin-top:8px;text-align:center}
 .login-error.visible{display:block}
+.login-forgot{display:block;text-align:right;font-size:0.75rem;color:var(--text-3);margin-top:10px;margin-bottom:14px;text-decoration:none}
+.login-forgot:hover{color:var(--accent)}
+
+/* ── PIN BOX GRID (shared phone+PIN login) ── */
+.pin-row{display:flex;gap:8px;justify-content:center}
+.pin-box{width:48px;height:48px;padding:0;text-align:center;font-size:1.2rem;font-weight:700;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-1);font-family:var(--font);-moz-appearance:textfield}
+.pin-box::-webkit-outer-spin-button,.pin-box::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.pin-box:focus{outline:none;border-color:var(--accent)}
+@media(max-width:480px){.pin-box{width:42px;height:42px;font-size:1rem}}
 
 /* ── SPINNER ── */
 .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* ── LOGIN OVERLAY (defensive fallback) ── */
-.login-overlay.hidden{display:none}
 
 /* ── RESPONSIVE — Narrow phones ≤ 480px ── */
 @media(max-width:480px){

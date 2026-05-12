@@ -8,14 +8,8 @@
 <link rel="stylesheet" href="/shared.css">
 <script src="/shared/roles.js"></script>
 <script src="/shared/format.js"></script>
+<script src="/shared/auth-form.js"></script>
 <style>
-/* ── LOGIN OVERLAY ── */
-.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
-.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
-.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
-.login-error{margin-bottom:12px;color:#ef5350;font-size:0.8rem}
-
 /* ── NAV PILL (DRIVER) — matches roles.js pillColor #ffb74d ── */
 .nav-pill-driver{background:#2e2010;color:#ffb74d}
 
@@ -49,20 +43,7 @@
 
 <!-- LOGIN OVERLAY -->
 <div class="login-overlay hidden" id="loginOverlay">
-  <div class="login-box">
-    <div class="login-title">Sign in to Circul</div>
-    <div class="login-sub">Driver access</div>
-    <div class="login-error" id="loginError"></div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label">Phone number</label>
-      <input class="form-input" id="loginPhone" type="tel" placeholder="0244 000 000" autocomplete="tel">
-    </div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label">4-digit PIN</label>
-      <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" inputmode="numeric" onkeydown="if(event.key==='Enter')handleDriverLogin()">
-    </div>
-    <button class="form-submit" id="loginBtn" onclick="handleDriverLogin()">Sign in</button>
-  </div>
+  <div class="login-box" id="loginContainer"></div>
 </div>
 
 <!-- NAV -->
@@ -204,9 +185,7 @@ function showDashboard() {
   loadDashboard();
 }
 
-function handleDriverLogin() {
-  var phone = document.getElementById('loginPhone').value.trim();
-  var pin = document.getElementById('loginPin').value.trim();
+function handleDriverLogin(phone, pin) {
   if (!phone || !pin) return;
   var btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';
@@ -397,7 +376,13 @@ function openDelivery(id) {
 }
 
 /* ── init ── */
-document.addEventListener('DOMContentLoaded', checkAuth);
+document.addEventListener('DOMContentLoaded', function () {
+  CirculAuthForm.renderPhonePinLoginForm('#loginContainer', {
+    role: 'driver',
+    onSubmit: handleDriverLogin
+  });
+  checkAuth();
+});
 </script>
 </body>
 </html>

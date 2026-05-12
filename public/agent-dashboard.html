@@ -6,14 +6,8 @@
 <title>Agent Dashboard — Circul</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
+<script src="/shared/auth-form.js"></script>
 <style>
-/* ── LOGIN OVERLAY ── */
-.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
-.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
-.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
-.login-error{margin-bottom:12px}
-
 /* ── TOAST ── */
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#000;padding:12px 20px;border-radius:var(--r-md);font-weight:600;font-size:0.85rem;z-index:1000;opacity:0;transition:opacity 0.3s}
 #toast.show{opacity:1}
@@ -26,20 +20,7 @@
 
 <!-- LOGIN OVERLAY -->
 <div class="login-overlay hidden" id="loginOverlay">
-  <div class="login-box">
-    <div class="login-title">Sign in to Circul</div>
-    <div class="login-sub">Agent access</div>
-    <div class="login-error" id="loginError"></div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label">Phone number</label>
-      <input class="form-input" id="loginPhone" type="tel" placeholder="0244 000 000">
-    </div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label">4-digit PIN</label>
-      <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')handleAgentLogin()">
-    </div>
-    <button class="form-submit" id="loginBtn" onclick="handleAgentLogin()">Sign in</button>
-  </div>
+  <div class="login-box" id="loginContainer"></div>
 </div>
 
 <!-- NAV -->
@@ -318,14 +299,12 @@ function submitAgentPinChange() {
     });
 }
 
-function handleAgentLogin() {
-  var phone = document.getElementById('loginPhone').value.trim();
-  var pin = document.getElementById('loginPin').value.trim();
+function handleAgentLogin(phone, pin) {
   if (!phone || !pin) return;
   var btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';
   var errEl = document.getElementById('loginError');
-  errEl.classList.add('hidden');
+  errEl.classList.remove('visible');
   fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, pin: pin, type: 'phone' }) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -341,10 +320,10 @@ function handleAgentLogin() {
         showDashboard();
       } else {
         errEl.textContent = data.message || 'Invalid phone or PIN';
-        errEl.classList.remove('hidden');
+        errEl.classList.add('visible');
       }
     })
-    .catch(function() { errEl.textContent = 'Connection error.'; errEl.classList.remove('hidden'); })
+    .catch(function() { errEl.textContent = 'Connection error.'; errEl.classList.add('visible'); })
     .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
 }
 
@@ -664,6 +643,10 @@ function populateCityDropdowns() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  CirculAuthForm.renderPhonePinLoginForm('#loginContainer', {
+    role: 'agent',
+    onSubmit: handleAgentLogin
+  });
   populateCityDropdowns();
   checkAuth();
 });

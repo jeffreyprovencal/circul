@@ -6,15 +6,10 @@
 <title>Aggregator Dashboard — Circul</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
+<script src="/shared/auth-form.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
-/* ── LOGIN OVERLAY ── */
-.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
-.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
-.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
-.login-error{margin-bottom:12px}
 /* ── INCOMING / REVIEW PANELS ── */
 .incoming-item{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:8px}
 .incoming-item-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -101,20 +96,7 @@
 
 <!-- LOGIN OVERLAY -->
 <div class="login-overlay hidden" id="loginOverlay">
-  <div class="login-box">
-    <div class="login-title">Sign in to Circul</div>
-    <div class="login-sub">Aggregator access</div>
-    <div class="login-error" id="loginError"></div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label">Phone number</label>
-      <input class="form-input" id="loginPhone" type="tel" placeholder="0244 000 000">
-    </div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label class="form-label">4-digit PIN</label>
-      <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••">
-    </div>
-    <button class="form-submit" id="loginBtn" onclick="handleLogin(event)">Sign in</button>
-  </div>
+  <div class="login-box" id="loginContainer"></div>
 </div>
 
 <!-- DASHBOARD -->
@@ -992,10 +974,7 @@ function showDashboard() {
     refreshTimer = setInterval(loadAll, 30000);
 }
 
-function handleLogin(e) {
-    if (e) e.preventDefault();
-    var phone = document.getElementById('loginPhone').value.trim();
-    var pin = document.getElementById('loginPin').value.trim();
+function handleAggregatorLogin(phone, pin) {
     if (!phone || !pin) return;
     var btn = document.getElementById('loginBtn');
     btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
@@ -3425,6 +3404,10 @@ function exportToCSV(containerId, filenameBase) {
   URL.revokeObjectURL(link.href);
 }
 
+CirculAuthForm.renderPhonePinLoginForm('#loginContainer', {
+  role: 'aggregator',
+  onSubmit: handleAggregatorLogin
+});
 checkAuth();
 
 
