@@ -1354,10 +1354,11 @@ const TESTS = [
 
   // ─── Case 10: driver rates aggregator (ASCII rating UI, no UCS-2 star) ─────
   // beforeHook creates a confirmed delivery (driver_confirmed_at recent) so
-  // the pending-rating intercept fires. Driver dials in, selects "Rate now",
-  // picks the transaction, picks "4. 5 stars". Server returns ASCII text
-  // ("Your 5 star rating has been recorded"). customAssertions asserts NO
-  // UCS-2 star glyph appeared in any response (Phase 9 ASCII discipline).
+  // the pending-rating soft prompt fires. Driver dials in, picks "2. Rate now"
+  // from the soft prompt, picks the transaction, picks "4. 5 stars". Server
+  // returns ASCII text ("Your 5 star rating has been recorded").
+  // customAssertions asserts NO UCS-2 star glyph appeared in any response
+  // (Phase 9 ASCII discipline).
   {
     name: 'driver-rates-aggregator-ascii-no-star',
     phoneNumber: '0900003001',
@@ -1401,8 +1402,8 @@ const TESTS = [
     },
     steps: [
       { input: '',     match: /Enter 4-digit PIN/ },
-      { input: '5555', match: /CON Rate your last\ndelivery\?\n1\. Rate now\n0\. Skip/ },
-      { input: '1',    match: /CON Rate a transaction:[\s\S]*1\. 100kg PET/ },
+      { input: '5555', match: /CON 1 pending rating\n1\. Main menu\n2\. Rate now\n0\. Exit/ },
+      { input: '2',    match: /CON Rate a transaction:[\s\S]*1\. 100kg PET/ },
       { input: '1',    match: /CON Rate [\s\S]*1\. 2 stars\n2\. 3 stars\n3\. 4 stars\n4\. 5 stars/ },
       { input: '4',    match: /END Thank you!\nYour 5 star rating/ },
     ],
@@ -1428,6 +1429,69 @@ const TESTS = [
       if (r.rows[0].rating !== 5) throw new Error('expected 5 stars, got ' + r.rows[0].rating);
       if (r.rows[0].rated_type !== 'aggregator') {
         throw new Error('expected rated_type=aggregator, got ' + r.rows[0].rated_type);
+      }
+    },
+  },
+
+  // ─── Case 11: driver soft-prompt → "Main menu" path (no rating inserted) ───
+  // Same fixture as case 10 (one rateable pending_transaction), but the driver
+  // picks "1. Main menu" from the soft prompt instead of "2. Rate now".
+  // Asserts: (a) the soft prompt appears post-PIN, (b) picking '1' falls
+  // through to the regular main menu, (c) no rating row is inserted. Guards
+  // against regression of the depth-math refactor in handleDriverUssd that
+  // introduces `menuParts` to consume the soft-prompt slot.
+  {
+    name: 'driver-pending-rating-then-main-menu',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status)
+         SELECT d.id, a.id, 'active'
+         FROM drivers d, aggregators a
+         WHERE d.phone = $1 AND a.phone = $2
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM ratings WHERE rater_type='driver'
+         AND rater_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `INSERT INTO pending_transactions
+           (transaction_type, status, aggregator_id, driver_id, material_type,
+            gross_weight_kg, accepted_weight_kg, price_per_kg, total_price,
+            driver_fee_ghs, driver_confirmed_at)
+         SELECT 'aggregator_sale', 'confirmed', a.id, d.id, 'PET', 100, 95, 0, 0, 50, NOW()
+         FROM aggregators a, drivers d
+         WHERE a.phone = $1 AND d.phone = $2`,
+        [TEST_AGGREGATOR_PHONE, TEST_DRIVER_PHONE]
+      );
+    },
+    steps: [
+      { input: '',     match: /Enter 4-digit PIN/ },
+      { input: '5555', match: /CON 1 pending rating\n1\. Main menu\n2\. Rate now\n0\. Exit/ },
+      { input: '1',    match: /CON Hi TestDriver!/ },
+    ],
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT COUNT(*) AS n FROM ratings
+         WHERE rater_type = 'driver'
+           AND rater_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      if (parseInt(r.rows[0].n, 10) !== 0) {
+        throw new Error('Expected 0 ratings after Main menu path, got ' + r.rows[0].n);
       }
     },
   },

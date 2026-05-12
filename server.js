@@ -6053,32 +6053,49 @@ async function handleDriverUssd(parts, driver) {
   const m = gate.menuParts;
   const depth = m.length;
 
-  // ── Pending-rating intercept (after PIN, before main menu) ──
-  // If the driver has unrated recent deliveries, surface the rating prompt
-  // before the main menu. While pending, all sub-flows route through this
-  // intercept until the driver rates or skips. Mirrors the roster-invite
-  // intercept pattern above (acknowledge before reaching menu).
+  // ── Pending-rating soft prompt (after PIN, before main menu) ──
+  // If the driver has unrated recent deliveries, surface a soft prompt
+  // offering three options: continue to main menu, rate now, or exit.
+  // Unlike a hard intercept, "Main menu" lets the driver reach their
+  // menu without first rating — eliminates the skip-loop wart where
+  // skipping just re-surfaced the same prompt on next dial-in (per
+  // project_circul_post_driver_audit_followups.md Item 4).
+  //
+  // Race-condition note: under USSD stateless replay, depth math here
+  // assumes hasPendingRating is stable across a 3-step sequence (dial →
+  // '1' → menu choice). In v0 drivers can only rate their own deliveries,
+  // so the pending rating can't transition to 'rated' by another actor
+  // mid-session. If the driver self-rates between turns of the same
+  // session they wouldn't be picking "Main menu" anyway.
   const pendingRatings = await getPendingRatings(pool, 'driver', driver.id, 1);
-  if (pendingRatings.length) {
+  const hasPendingRating = pendingRatings.length > 0;
+  let menuParts = m;
+  if (hasPendingRating) {
     if (depth === 0) {
-      return 'CON Rate your last\ndelivery?\n1. Rate now\n0. Skip';
+      return 'CON 1 pending rating\n1. Main menu\n2. Rate now\n0. Exit';
     }
-    if (m[0] === '0') return 'END Maybe next time.\nDial back to access\nyour menu.';
-    if (m[0] === '1') return await handleUssdRating(m.slice(1), 'driver', driver.id);
-    return 'END Invalid option.\nDial again to retry.';
+    if (m[0] === '0') return `END Thank you, ${driver.first_name}!`;
+    if (m[0] === '2') return await handleUssdRating(m.slice(1), 'driver', driver.id);
+    if (m[0] === '1') {
+      // Driver chose "Main menu" — consume the '1' so the main-menu
+      // logic below sees a fresh state with no rating-intercept slot.
+      menuParts = m.slice(1);
+    } else {
+      return 'END Invalid option.\nDial again to retry.';
+    }
   }
 
   // ── Main menu ──
-  if (depth === 0) {
+  if (menuParts.length === 0) {
     const availableCount = await countAvailableWork(driver);
     const pendingCount = await countPendingDeliveries(driver.id);
     return `CON Hi ${driver.first_name}!\n1. Available work (${availableCount})\n2. Pending deliveries (${pendingCount})\n3. My earnings\n4. More\n0. Exit`;
   }
-  if (m[0] === '0') return `END Thank you, ${driver.first_name}!`;
-  if (m[0] === '1') return await handleDriverAvailableWork(m.slice(1), driver);
-  if (m[0] === '2') return await handleDriverConfirmDelivery(m.slice(1), driver);
-  if (m[0] === '3') return await handleDriverEarnings(m.slice(1), driver);
-  if (m[0] === '4') return await handleDriverMore(m.slice(1), driver);
+  if (menuParts[0] === '0') return `END Thank you, ${driver.first_name}!`;
+  if (menuParts[0] === '1') return await handleDriverAvailableWork(menuParts.slice(1), driver);
+  if (menuParts[0] === '2') return await handleDriverConfirmDelivery(menuParts.slice(1), driver);
+  if (menuParts[0] === '3') return await handleDriverEarnings(menuParts.slice(1), driver);
+  if (menuParts[0] === '4') return await handleDriverMore(menuParts.slice(1), driver);
 
   return 'END Invalid option.\nDial again to retry.';
 }
