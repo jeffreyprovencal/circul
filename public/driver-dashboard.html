@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driver Dashboard — Circul</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<script src="/shared/roles.js"></script>
+<script src="/shared/format.js"></script>
+<style>
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:40px;width:380px;max-width:95vw}
+.login-title{font-size:1.3rem;font-weight:700;margin-bottom:6px}
+.login-sub{font-size:0.85rem;color:var(--text-2);margin-bottom:24px}
+.login-error{margin-bottom:12px;color:#ef5350;font-size:0.8rem}
+
+/* ── NAV PILL (DRIVER) — matches roles.js pillColor #ffb74d ── */
+.nav-pill-driver{background:#2e2010;color:#ffb74d}
+
+/* ── TILES ROW (4 cards, responsive) ── */
+.driver-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:var(--gap)}
+.driver-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 18px}
+.driver-tile-label{font-size:0.65rem;font-weight:600;letter-spacing:0.08em;color:var(--text-2);text-transform:uppercase;margin-bottom:6px}
+.driver-tile-value{font-size:1.4rem;font-weight:700}
+.driver-tile-sub{font-size:0.78rem;color:var(--text-3);margin-top:4px}
+.driver-tile-amber .driver-tile-value{color:#ffb74d}
+.driver-tile-active .driver-tile-value{color:#64b5f6}
+
+/* ── Table row hover for clickable rows ── */
+.driver-row-link{cursor:pointer}
+.driver-row-link:hover td{background:rgba(255,183,77,0.05)}
+
+/* ── Mobile responsive — stack tiles, scroll tables ── */
+@media (max-width:768px){
+  .driver-tiles{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:480px){
+  .driver-tiles{grid-template-columns:1fr}
+}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-md);padding:12px 24px;font-size:0.85rem;color:var(--text-1);z-index:300;opacity:0;transition:opacity 0.3s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay hidden" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-title">Sign in to Circul</div>
+    <div class="login-sub">Driver access</div>
+    <div class="login-error" id="loginError"></div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Phone number</label>
+      <input class="form-input" id="loginPhone" type="tel" placeholder="0244 000 000" autocomplete="tel">
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">4-digit PIN</label>
+      <input class="form-input" id="loginPin" type="password" maxlength="4" placeholder="••••" inputmode="numeric" onkeydown="if(event.key==='Enter')handleDriverLogin()">
+    </div>
+    <button class="form-submit" id="loginBtn" onclick="handleDriverLogin()">Sign in</button>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <span class="nav-spacer"></span>
+  <div class="nav-right">
+    <span class="nav-pill nav-pill-driver">DRIVER</span>
+    <span class="nav-name" id="navName">—</span>
+    <span class="nav-id" id="driverCode"></span>
+    <a class="nav-link" href="/">Home</a>
+    <button class="nav-logout" onclick="signOut()">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- HERO — header drops the rating display; aggregator-rates-driver
+       deferred to v1, so showing "0 ratings" or fake data would be misleading. -->
+  <div class="hero">
+    <div class="hero-info">
+      <div class="hero-name" id="driverHero">—</div>
+      <div class="hero-meta">
+        <span id="driverPhone"></span>
+        <span class="sep hidden" id="metaSep1">·</span>
+        <span id="driverRegion"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 TILES — Earned this week / Earned this month / Awaiting payment / Active jobs -->
+  <div class="driver-tiles">
+    <div class="driver-tile">
+      <div class="driver-tile-label">Earned this week</div>
+      <div class="driver-tile-value" id="tileWeekGhs">—</div>
+      <div class="driver-tile-sub" id="tileWeekSub">—</div>
+    </div>
+    <div class="driver-tile">
+      <div class="driver-tile-label">Earned this month</div>
+      <div class="driver-tile-value" id="tileMonthGhs">—</div>
+      <div class="driver-tile-sub" id="tileMonthSub">—</div>
+    </div>
+    <div class="driver-tile driver-tile-amber">
+      <div class="driver-tile-label">Awaiting payment</div>
+      <div class="driver-tile-value" id="tileOwedGhs">—</div>
+      <div class="driver-tile-sub" id="tileOwedSub">—</div>
+    </div>
+    <div class="driver-tile driver-tile-active">
+      <div class="driver-tile-label">Active jobs</div>
+      <div class="driver-tile-value" id="tileActiveCount">—</div>
+      <div class="driver-tile-sub">in progress</div>
+    </div>
+  </div>
+
+  <!-- RECENT DELIVERIES -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Recent deliveries</div>
+        <div class="section-sub">Your last 10 confirmed deliveries · click a row for details</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th>
+          <th>Material</th>
+          <th>Pickup</th>
+          <th>From</th>
+          <th class="num">Pickup kg</th>
+          <th class="num">Accepted kg</th>
+          <th class="num">Fee</th>
+          <th>Payment</th>
+        </tr></thead>
+        <tbody id="recentBody"><tr><td colspan="8" class="placeholder-cell">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MY AGGREGATORS -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">My aggregators</div>
+        <div class="section-sub">Aggregators you work with · stats per relationship</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Aggregator</th>
+          <th>Joined</th>
+          <th class="num">Deliveries</th>
+          <th class="num">Avg fee</th>
+          <th>Their rating of me</th>
+        </tr></thead>
+        <tbody id="aggsBody"><tr><td colspan="5" class="placeholder-cell">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="form-help-text" style="font-size:0.75rem;color:var(--text-3);margin-top:10px">
+      Aggregator ratings of drivers coming in v1.
+    </p>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   CIRCUL — DRIVER DASHBOARD
+   ═══════════════════════════════════════════════ */
+
+const API = '/api';
+let _driverState = {};
+
+/* ── auth ── */
+function checkAuth() {
+  var saved = localStorage.getItem('circul_user');
+  if (saved) {
+    try {
+      _driverState = JSON.parse(saved);
+      var t = localStorage.getItem('circul_token');
+      if (t && !_driverState.token) _driverState.token = t;
+      if (_driverState.role !== 'driver') {
+        var route = CirculRoles.ROLE_ROUTES[_driverState.role];
+        if (route) { window.location.href = route; return; }
+      }
+      showDashboard();
+      return;
+    } catch (e) { localStorage.removeItem('circul_user'); }
+  }
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  loadDashboard();
+}
+
+function handleDriverLogin() {
+  var phone = document.getElementById('loginPhone').value.trim();
+  var pin = document.getElementById('loginPin').value.trim();
+  if (!phone || !pin) return;
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  var errEl = document.getElementById('loginError');
+  errEl.classList.remove('visible');
+  fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, pin: pin }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        var user = data.user || {};
+        _driverState = user;
+        if (data.token) { _driverState.token = data.token; localStorage.setItem('circul_token', data.token); }
+        localStorage.setItem('circul_user', JSON.stringify(_driverState));
+        if (user.role !== 'driver') {
+          var route = CirculRoles.ROLE_ROUTES[user.role];
+          if (route) { window.location.href = route; return; }
+        }
+        showDashboard();
+      } else {
+        errEl.textContent = data.message || 'Invalid phone or PIN';
+        errEl.classList.add('visible');
+      }
+    })
+    .catch(function() {
+      errEl.textContent = 'Connection error. Please try again.';
+      errEl.classList.add('visible');
+    })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Sign in'; });
+}
+
+function signOut() {
+  _driverState = {};
+  localStorage.removeItem('circul_user');
+  localStorage.removeItem('circul_token');
+  window.location.href = '/login';
+}
+
+/* ── helpers ── */
+function apiFetch(path, opts) {
+  opts = opts || {};
+  var token = (_driverState && _driverState.token) || localStorage.getItem('circul_token') || '';
+  var headers = Object.assign({ 'Content-Type':'application/json' }, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  var fetchOpts = Object.assign({}, opts, { headers: headers });
+  return fetch(API + path, fetchOpts).then(function(r) {
+    if (r.status === 401) {
+      localStorage.removeItem('circul_token');
+      localStorage.removeItem('circul_user');
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function showToast(msg, duration) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, duration || 3000);
+}
+
+function truncate(s, n) {
+  s = String(s == null ? '' : s);
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+function matPill(mat) {
+  if (!mat) return '—';
+  var m = String(mat).toUpperCase();
+  var cls = m === 'PET' ? 'pill-pet' : m === 'HDPE' ? 'pill-hdpe' : m === 'LDPE' ? 'pill-ldpe' : 'pill-pp';
+  return '<span class="pill ' + cls + '">' + esc(m) + '</span>';
+}
+
+function paymentPill(status) {
+  if (status === 'paid')    return '<span class="pill pill-paid">paid</span>';
+  return '<span class="pill pill-pending">pending</span>';
+}
+
+/* ── load dashboard ── */
+function loadDashboard() {
+  apiFetch('/driver/dashboard')
+    .then(function(data) {
+      if (!data || !data.success) {
+        showToast('Could not load dashboard');
+        return;
+      }
+      renderHeader(data.driver);
+      renderTiles(data.tiles);
+      renderRecent(data.recent_deliveries || []);
+      renderAggs(data.my_aggregators || []);
+    })
+    .catch(function(err) {
+      console.error('Dashboard load failed:', err);
+      ['recentBody','aggsBody'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.innerHTML = '<tr><td colspan="8" class="placeholder-cell">Could not load.</td></tr>';
+      });
+    });
+}
+
+function renderHeader(driver) {
+  if (!driver) return;
+  var firstName = driver.first_name || (driver.name ? String(driver.name).split(' ')[0] : '—');
+  // Header drops the rating signal: aggregator-rates-driver deferred to v1.
+  // No misleading "0 ratings" — just omit the signal until v1.
+  document.getElementById('driverHero').textContent = 'Hi ' + firstName;
+  document.getElementById('navName').textContent = firstName;
+  document.getElementById('driverCode').textContent = driver.code || '';
+  document.getElementById('driverPhone').textContent = driver.phone || '';
+  var region = driver.region || driver.city || '';
+  if (region) {
+    document.getElementById('driverRegion').textContent = region;
+    document.getElementById('metaSep1').classList.remove('hidden');
+  }
+}
+
+function renderTiles(tiles) {
+  tiles = tiles || {};
+  var w = tiles.earned_this_week  || {};
+  var m = tiles.earned_this_month || {};
+  var o = tiles.awaiting_payment  || {};
+  var a = tiles.active_jobs       || {};
+  document.getElementById('tileWeekGhs').textContent  = CirculFormat.fmtGHS(w.ghs);
+  document.getElementById('tileWeekSub').textContent  = (w.deliveries || 0) + ' deliveries';
+  document.getElementById('tileMonthGhs').textContent = CirculFormat.fmtGHS(m.ghs);
+  document.getElementById('tileMonthSub').textContent = (m.deliveries || 0) + ' deliveries';
+  document.getElementById('tileOwedGhs').textContent  = CirculFormat.fmtGHS(o.ghs);
+  document.getElementById('tileOwedSub').textContent  = (o.deliveries || 0) + ' deliveries';
+  document.getElementById('tileActiveCount').textContent = String(a.count || 0);
+}
+
+function renderRecent(rows) {
+  var body = document.getElementById('recentBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="8"><div class="empty">No deliveries logged yet. Pickups will show here once you confirm one.</div></td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r) {
+    var pickup = r.pickup_location ? esc(truncate(r.pickup_location, 24)) : '—';
+    var from   = r.aggregator_name ? esc(truncate(r.aggregator_name, 24)) : '—';
+    var grossKg    = r.gross_weight_kg    != null ? parseFloat(r.gross_weight_kg).toFixed(1)    : '—';
+    var acceptedKg = r.accepted_weight_kg != null ? parseFloat(r.accepted_weight_kg).toFixed(1) : '—';
+    return '<tr class="driver-row-link" onclick="openDelivery(' + r.id + ')">'
+         + '<td>' + esc(CirculFormat.fmtDateLong(r.confirmed_at)) + '</td>'
+         + '<td>' + matPill(r.material_type) + '</td>'
+         + '<td>' + pickup + '</td>'
+         + '<td>' + from + '</td>'
+         + '<td class="num">' + grossKg + '</td>'
+         + '<td class="num">' + acceptedKg + '</td>'
+         + '<td class="num">' + esc(CirculFormat.fmtGHS(r.driver_fee_ghs)) + '</td>'
+         + '<td>' + paymentPill(r.payment_status) + '</td>'
+         + '</tr>';
+  }).join('');
+}
+
+function renderAggs(rows) {
+  var body = document.getElementById('aggsBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="5"><div class="empty">No aggregators yet. Wait for an invite or accept marketplace jobs to build your roster.</div></td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r) {
+    var name = r.aggregator_name ? esc(truncate(r.aggregator_name, 24)) : '—';
+    var joined = r.joined_at ? esc(CirculFormat.fmtDateLong(r.joined_at)) : '—';
+    var deliveries = parseInt(r.deliveries_count, 10) || 0;
+    var avgFee = CirculFormat.fmtGHS(r.avg_fee_ghs);
+    // "Their rating of me" — em-dash for all rows in v0; v1 footer note above.
+    return '<tr>'
+         + '<td>' + name + '</td>'
+         + '<td>' + joined + '</td>'
+         + '<td class="num">' + deliveries + '</td>'
+         + '<td class="num">' + esc(avgFee) + '</td>'
+         + '<td>—</td>'
+         + '</tr>';
+  }).join('');
+}
+
+function openDelivery(id) {
+  window.location.href = '/driver-delivery.html?id=' + encodeURIComponent(id);
+}
+
+/* ── init ── */
+document.addEventListener('DOMContentLoaded', checkAuth);
+</script>
+</body>
+</html>

@@ -93,6 +93,26 @@ const receiptUpload = multer({
   }
 });
 
+// Driver delivery photo uploads → public/uploads/delivery-photos/<txn-id>/
+const photoUpload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const dir = path.join(__dirname, 'public', 'uploads', 'delivery-photos', String(req.params.id || 'temp'));
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+      const ext = (path.extname(file.originalname || '.jpg') || '.jpg').toLowerCase();
+      cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
+    }
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB max per photo
+  fileFilter: function (req, file, cb) {
+    const ok = /^image\/(jpe?g|png|webp|heic)$/i.test(file.mimetype);
+    cb(ok ? null : new Error('Only JPG, PNG, WEBP, or HEIC images allowed'), ok);
+  }
+});
+
 if (!process.env.DATABASE_URL) {
   console.error('ERROR: DATABASE_URL environment variable is required');
   process.exit(1);
@@ -2274,6 +2294,760 @@ app.get('/api/aggregator/reports/buyers-list', requireAuth, async (req, res) => 
 });
 
 // ============================================
+// DRIVER MARKETPLACE — Phase 7 of driver actor MVP v0
+// ============================================
+//
+// Aggregator-side endpoints for marketplace listings + race-safe award of
+// driver counter-offers. Driver-side acceptance lives in Phase 5
+// (driverAcceptListing, server.js:~5740).
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+// Lazy listing expiry — flips open listings past their TTL to status='expired'
+// in a single atomic UPDATE. Idempotent. Safe under concurrent reads (per-row
+// UPDATE is atomic). For each newly-expired listing, fires a fire-and-forget
+// SMS to the aggregator. Called opportunistically by aggregator GET endpoints
+// and driver-side queries — no background cron needed for v0.
+async function expireStaleListings(client) {
+  const conn = client || pool;
+  let res;
+  try {
+    res = await conn.query(
+      `UPDATE dispatch_listings
+         SET status='expired'
+       WHERE status='open' AND expires_at < NOW()
+       RETURNING id, aggregator_id`
+    );
+  } catch (e) {
+    console.warn('[expireStaleListings] update failed:', e.message);
+    return 0;
+  }
+  if (!res.rows.length) return 0;
+  const aggIds = [...new Set(res.rows.map(function (r) { return r.aggregator_id; }))];
+  let aggMap = {};
+  try {
+    const aggLookup = await conn.query(
+      `SELECT id, phone FROM aggregators WHERE id = ANY($1)`,
+      [aggIds]
+    );
+    aggLookup.rows.forEach(function (a) { aggMap[a.id] = a.phone; });
+  } catch (e) {
+    console.warn('[expireStaleListings] aggregator lookup failed:', e.message);
+    return res.rows.length;
+  }
+  res.rows.forEach(function (row) {
+    const phone = aggMap[row.aggregator_id];
+    if (!phone) return;
+    notify(EVENTS.DRIVER_LISTING_EXPIRED, phone, { listing_id: row.id })
+      .catch(function (e) { console.warn('[expireStaleListings] notify failed for listing ' + row.id + ':', e.message); });
+  });
+  return res.rows.length;
+}
+
+// Marketplace broadcast — fan-out a new listing's SMS to relevant drivers.
+// Recipients = drivers in this aggregator's active roster UNION drivers in the
+// same region (deduplicated). Capped at 100 per broadcast (Ghana driver pool
+// is small in v0; future scale needs queueing — flagged in audit followups).
+// Promise.allSettled so one failed phone doesn't kill the batch. The notify()
+// helper already enforces SMS_DAILY_CAP per phone (silenced rejects in here).
+async function broadcastListingToDrivers(listingId, aggregatorId, region, listing, aggregatorName, destinationLabel) {
+  let recipientsRes;
+  try {
+    recipientsRes = await pool.query(
+      `SELECT DISTINCT d.id, d.phone, d.first_name
+         FROM drivers d
+    LEFT JOIN driver_aggregator_relationships dar
+           ON dar.driver_id = d.id
+          AND dar.aggregator_id = $1
+          AND dar.status = 'active'
+        WHERE d.is_active = true
+          AND (dar.id IS NOT NULL OR d.region = $2)
+        LIMIT 100`,
+      [aggregatorId, region]
+    );
+  } catch (e) {
+    console.warn('[broadcastListingToDrivers] recipients query failed:', e.message);
+    return;
+  }
+  if (!recipientsRes.rows.length) {
+    console.log('[broadcast] listing ' + listingId + ': 0 recipients');
+    return;
+  }
+  const aggShort = (aggregatorName || 'Aggregator').slice(0, 14).trim();
+  const originShort = (listing.pickup_location || '').slice(0, 14).trim();
+  const destShort = (destinationLabel || listing.destination_buyer_kind || 'buyer').slice(0, 14).trim();
+  const results = await Promise.allSettled(
+    recipientsRes.rows.map(function (driver) {
+      return notify(EVENTS.DRIVER_MARKETPLACE_LISTING, driver.phone, {
+        weight: Math.round(parseFloat(listing.gross_weight_kg)),
+        material: listing.material_type,
+        origin: originShort,
+        destination: destShort,
+        fee: Math.round(parseFloat(listing.proposed_fee_ghs)),
+        aggregator_name: aggShort
+      });
+    })
+  );
+  const sent = results.filter(function (r) { return r.status === 'fulfilled'; }).length;
+  const failed = results.length - sent;
+  console.log('[broadcast] listing ' + listingId + ': ' + sent + '/' + results.length + ' sent, ' + failed + ' failed');
+}
+
+// Validate destination buyer exists in the right table. Returns the buyer's
+// display name or null if not found. Cross-tier lookup pattern matches
+// existing buyers-list endpoint at ~line 2225.
+async function lookupBuyerName(buyerKind, buyerId) {
+  const tableMap = { processor: 'processors', recycler: 'recyclers', converter: 'converters' };
+  const table = tableMap[buyerKind];
+  if (!table) return null;
+  try {
+    const r = await pool.query(
+      'SELECT COALESCE(company, name) AS name FROM ' + table + ' WHERE id=$1 AND is_active=true LIMIT 1',
+      [buyerId]
+    );
+    return r.rows.length ? r.rows[0].name : null;
+  } catch (e) {
+    console.warn('[lookupBuyerName] failed:', e.message);
+    return null;
+  }
+}
+
+// ── Step 7.1: POST /api/aggregator/dispatch-listings ─────────────────
+// Creates an open marketplace listing, returns 200 immediately, then fires
+// the marketplace-broadcast SMS fan-out asynchronously (does not block).
+app.post('/api/aggregator/dispatch-listings', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const {
+      material_type, weight_kg, pickup_location,
+      destination_buyer_kind, destination_buyer_id,
+      proposed_fee_ghs, region, rejected_disposition
+    } = req.body || {};
+
+    // ── Body validation — fail loud on any malformed field ──
+    if (!material_type || !VALID_MATERIALS.includes(material_type)) {
+      return res.status(400).json({ success: false, error: 'invalid_material', message: 'material_type must be one of: ' + VALID_MATERIALS.join(', ') });
+    }
+    const wkg = parseFloat(weight_kg);
+    if (!isFinite(wkg) || wkg < 1 || wkg > 5000) {
+      return res.status(400).json({ success: false, error: 'invalid_weight', message: 'weight_kg must be 1-5000' });
+    }
+    if (!pickup_location || typeof pickup_location !== 'string' || pickup_location.trim().length < 1 || pickup_location.length > 80) {
+      return res.status(400).json({ success: false, error: 'invalid_pickup_location', message: 'pickup_location must be 1-80 chars' });
+    }
+    if (!['processor', 'recycler', 'converter'].includes(destination_buyer_kind)) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_kind' });
+    }
+    const dbid = parseInt(destination_buyer_id, 10);
+    if (!Number.isInteger(dbid) || dbid < 1) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_id' });
+    }
+    const buyerName = await lookupBuyerName(destination_buyer_kind, dbid);
+    if (!buyerName) {
+      return res.status(400).json({ success: false, error: 'unknown_destination_buyer' });
+    }
+    const fee = parseFloat(proposed_fee_ghs);
+    if (!isFinite(fee) || fee < 1 || fee > 10000) {
+      return res.status(400).json({ success: false, error: 'invalid_fee', message: 'proposed_fee_ghs must be 1-10000' });
+    }
+    if (!region || !CirculRoles.GHANA_REGIONS.includes(region)) {
+      return res.status(400).json({ success: false, error: 'invalid_region' });
+    }
+    const disposition = rejected_disposition || 'leave_at_buyer';
+    if (!['leave_at_buyer', 'bring_back', 'sell_as_scrap'].includes(disposition)) {
+      return res.status(400).json({ success: false, error: 'invalid_disposition' });
+    }
+
+    // ── INSERT and respond immediately ──
+    const insRes = await pool.query(
+      `INSERT INTO dispatch_listings (
+         aggregator_id, pickup_location, destination_buyer_kind, destination_buyer_id,
+         material_type, gross_weight_kg, proposed_fee_ghs, region,
+         rejected_disposition, status, expires_at, created_at
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $8,
+         $9, 'open', NOW() + INTERVAL '24 hours', NOW()
+       ) RETURNING id, expires_at`,
+      [aggId, pickup_location.trim(), destination_buyer_kind, dbid,
+       material_type, wkg, fee, region,
+       disposition]
+    );
+    const listingId = insRes.rows[0].id;
+    const expiresAt = insRes.rows[0].expires_at;
+
+    res.json({ success: true, listing_id: listingId, expires_at: expiresAt });
+
+    // ── Async broadcast fire-and-forget ──
+    const aggLookup = await pool.query(`SELECT name FROM aggregators WHERE id=$1`, [aggId]);
+    const aggName = aggLookup.rows.length ? aggLookup.rows[0].name : 'Aggregator';
+    broadcastListingToDrivers(
+      listingId, aggId, region,
+      { pickup_location: pickup_location.trim(), destination_buyer_kind, gross_weight_kg: wkg, material_type, proposed_fee_ghs: fee },
+      aggName, buyerName
+    ).catch(function (e) {
+      console.error('[broadcast] listing ' + listingId + ' failed:', e.message);
+    });
+  } catch (err) {
+    console.error('POST /api/aggregator/dispatch-listings error:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/aggregator/dispatch-listings ────────────────────────────
+// Returns this aggregator's listings. Calls expireStaleListings() first
+// to flip past-TTL listings to 'expired' (lazy expiry — no cron in v0).
+app.get('/api/aggregator/dispatch-listings', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    await expireStaleListings(pool);
+    const r = await pool.query(
+      `SELECT dl.id, dl.material_type, dl.gross_weight_kg, dl.proposed_fee_ghs,
+              dl.pickup_location, dl.destination_buyer_kind, dl.destination_buyer_id,
+              dl.region, dl.rejected_disposition, dl.status,
+              dl.awarded_to_driver_id, dl.expires_at, dl.created_at, dl.pending_transaction_id,
+              (SELECT COUNT(*) FROM driver_offers WHERE listing_id = dl.id AND status='pending')::int AS pending_offer_count
+         FROM dispatch_listings dl
+        WHERE dl.aggregator_id = $1
+        ORDER BY dl.created_at DESC
+        LIMIT 100`,
+      [aggId]
+    );
+    res.json({ success: true, listings: r.rows });
+  } catch (err) {
+    console.error('GET /api/aggregator/dispatch-listings error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── Step 7.2: POST /api/aggregator/dispatch-listings/:id/award/:offerId ──
+// Aggregator awards a specific driver_offer (counter or accept-as-is).
+// Race-safe: SELECT...FOR UPDATE on both listing AND offer inside a txn.
+// Notifications fire only AFTER COMMIT (rollback would otherwise misinform
+// drivers). Mirrors Phase 5's driverAcceptListing pattern.
+app.post('/api/aggregator/dispatch-listings/:id/award/:offerId', requireAuth, async (req, res) => {
+  if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+  const aggId = req.user.id;
+  const listingId = parseInt(req.params.id, 10);
+  const offerId = parseInt(req.params.offerId, 10);
+  if (!Number.isInteger(listingId) || !Number.isInteger(offerId)) {
+    return res.status(400).json({ success: false, error: 'invalid_ids' });
+  }
+
+  const client = await pool.connect();
+  let lockedFee, ptId, awardedDriverId, listing;
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock listing
+    const listingRes = await client.query(
+      `SELECT id, aggregator_id, material_type, gross_weight_kg, proposed_fee_ghs,
+              pickup_location, destination_buyer_kind, destination_buyer_id,
+              rejected_disposition, status, region
+         FROM dispatch_listings WHERE id=$1 FOR UPDATE`,
+      [listingId]
+    );
+    if (!listingRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'listing_not_found' });
+    }
+    listing = listingRes.rows[0];
+    if (listing.aggregator_id !== aggId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, error: 'not_your_listing' });
+    }
+    if (listing.status !== 'open') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: 'listing_not_open', current_status: listing.status });
+    }
+
+    // 2. Lock offer
+    const offerRes = await client.query(
+      `SELECT id, driver_id, offer_type, counter_fee_ghs, status
+         FROM driver_offers WHERE id=$1 AND listing_id=$2 FOR UPDATE`,
+      [offerId, listingId]
+    );
+    if (!offerRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'offer_not_found' });
+    }
+    const offer = offerRes.rows[0];
+    if (offer.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: 'offer_not_pending', current_status: offer.status });
+    }
+    awardedDriverId = offer.driver_id;
+    lockedFee = offer.offer_type === 'counter'
+      ? parseFloat(offer.counter_fee_ghs)
+      : parseFloat(listing.proposed_fee_ghs);
+
+    // 3. Mark offers (this one accepted, others rejected)
+    await client.query(`UPDATE driver_offers SET status='accepted' WHERE id=$1`, [offerId]);
+    await client.query(
+      `UPDATE driver_offers SET status='rejected'
+        WHERE listing_id=$1 AND id != $2 AND status='pending'`,
+      [listingId, offerId]
+    );
+
+    // 4. Mark listing awarded
+    await client.query(
+      `UPDATE dispatch_listings SET status='awarded', awarded_to_driver_id=$2 WHERE id=$1`,
+      [listingId, awardedDriverId]
+    );
+
+    // 5. Create pending_transactions row — mirror Phase 5's INSERT shape.
+    // price_per_kg and total_price are OMITTED (not NULL) so the table's
+    // NOT NULL DEFAULT 0 fires. Buyer-side accept fills in real numbers later.
+    const ptIns = await client.query(
+      `INSERT INTO pending_transactions (
+         transaction_type, status, aggregator_id, driver_id,
+         material_type, gross_weight_kg,
+         driver_fee_ghs, rejected_disposition, created_at
+       ) VALUES (
+         'aggregator_sale', 'pending', $1, $2,
+         $3, $4,
+         $5, COALESCE($6, 'leave_at_buyer'), NOW()
+       ) RETURNING id`,
+      [listing.aggregator_id, awardedDriverId,
+       listing.material_type, listing.gross_weight_kg,
+       lockedFee, listing.rejected_disposition]
+    );
+    ptId = ptIns.rows[0].id;
+
+    // 6. Link listing to pt row (Phase 5's pattern)
+    await client.query(
+      `UPDATE dispatch_listings SET pending_transaction_id=$2 WHERE id=$1`,
+      [listingId, ptId]
+    );
+
+    // 7. Activity log
+    await client.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'awarded_by_aggregator',
+               'Aggregator awarded counter-offer GHS ' || $3 || ' for ' || $4 || 'kg ' || $5,
+               $6, 'pending_transaction')`,
+      [awardedDriverId, aggId, lockedFee, Math.round(parseFloat(listing.gross_weight_kg)), listing.material_type, ptId]
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('POST /api/aggregator/dispatch-listings/:id/award/:offerId error:', err);
+    client.release();
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+  client.release();
+
+  // 8. Fire notifications AFTER commit — best effort, don't fail the response.
+  try {
+    const driverRow = await pool.query(`SELECT phone, first_name FROM drivers WHERE id=$1 LIMIT 1`, [awardedDriverId]);
+    const aggRow = await pool.query(`SELECT name FROM aggregators WHERE id=$1 LIMIT 1`, [aggId]);
+    if (driverRow.rows.length) {
+      const buyerName = await lookupBuyerName(listing.destination_buyer_kind, listing.destination_buyer_id);
+      const aggShort = (aggRow.rows.length ? aggRow.rows[0].name : 'Aggregator').slice(0, 14).trim();
+      const destShort = (buyerName || listing.destination_buyer_kind || 'buyer').slice(0, 14).trim();
+      await notify(EVENTS.DRIVER_DISPATCH_LOCKED, driverRow.rows[0].phone, {
+        first_name: driverRow.rows[0].first_name,
+        weight: Math.round(parseFloat(listing.gross_weight_kg)),
+        material: listing.material_type,
+        destination: destShort,
+        fee: Math.round(lockedFee),
+        aggregator_name: aggShort
+      });
+    }
+  } catch (e) { console.warn('[notify] DRIVER_DISPATCH_LOCKED (post-award) failed:', e.message); }
+
+  return res.json({ success: true, pending_transaction_id: ptId, locked_fee_ghs: lockedFee, awarded_driver_id: awardedDriverId });
+});
+
+// ── Step 8.1 helper: sendDirectInviteSms ──────────────────────────────
+// Fires ONE direct-invite SMS to the targeted driver (vs the marketplace
+// fan-out broadcastListingToDrivers). Resolves destination via the same
+// lookupBuyerName helper Phase 7 uses, applies .slice(0, 14).trim() for
+// width safety on aggregator and destination names.
+async function sendDirectInviteSms(listingId, aggregatorId, driverId, listing, aggregatorName, destinationLabel) {
+  let driverRow;
+  try {
+    const r = await pool.query(`SELECT phone, first_name FROM drivers WHERE id=$1 LIMIT 1`, [driverId]);
+    if (!r.rows.length) {
+      console.warn('[direct-invite] driver ' + driverId + ' not found for listing ' + listingId);
+      return;
+    }
+    driverRow = r.rows[0];
+  } catch (e) {
+    console.warn('[sendDirectInviteSms] driver lookup failed:', e.message);
+    return;
+  }
+  const aggShort = (aggregatorName || 'Aggregator').slice(0, 14).trim();
+  const destShort = (destinationLabel || listing.destination_buyer_kind || 'buyer').slice(0, 14).trim();
+  try {
+    await notify(EVENTS.DRIVER_DIRECT_INVITE, driverRow.phone, {
+      aggregator_name: aggShort,
+      weight: Math.round(parseFloat(listing.gross_weight_kg)),
+      material: listing.material_type,
+      destination: destShort,
+      fee: Math.round(parseFloat(listing.proposed_fee_ghs))
+    });
+    console.log('[direct-invite] listing ' + listingId + ' SMS sent to driver ' + driverId);
+  } catch (e) {
+    console.warn('[direct-invite] notify failed for listing ' + listingId + ':', e.message);
+  }
+}
+
+// ── Step 8.1: POST /api/aggregator/drivers/:driverId/dispatch ─────────
+// Direct invite — aggregator targets a specific driver from their roster.
+// Uses _DIRECT_ region sentinel and 4h TTL (vs marketplace 24h). Roster
+// verification is mandatory: aggregator can only direct-invite drivers
+// they have an active relationship with. Mirrors Phase 7.1 validation
+// minus region (which is fixed to _DIRECT_).
+app.post('/api/aggregator/drivers/:driverId/dispatch', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.hasRole('aggregator')) return res.status(403).json({ success: false, message: 'Aggregator access only' });
+    const aggId = req.user.id;
+    const driverId = parseInt(req.params.driverId, 10);
+    if (!Number.isInteger(driverId) || driverId < 1) {
+      return res.status(400).json({ success: false, error: 'invalid_driver_id' });
+    }
+
+    // ── Roster verification — aggregator must have active relationship ──
+    const rel = await pool.query(
+      `SELECT id FROM driver_aggregator_relationships
+        WHERE aggregator_id=$1 AND driver_id=$2 AND status='active' LIMIT 1`,
+      [aggId, driverId]
+    );
+    if (!rel.rows.length) {
+      return res.status(403).json({ success: false, error: 'driver_not_in_your_roster' });
+    }
+
+    const {
+      material_type, weight_kg, pickup_location,
+      destination_buyer_kind, destination_buyer_id,
+      proposed_fee_ghs, rejected_disposition
+    } = req.body || {};
+
+    // ── Body validation — same shape as Phase 7.1 minus region ──
+    if (!material_type || !VALID_MATERIALS.includes(material_type)) {
+      return res.status(400).json({ success: false, error: 'invalid_material', message: 'material_type must be one of: ' + VALID_MATERIALS.join(', ') });
+    }
+    const wkg = parseFloat(weight_kg);
+    if (!isFinite(wkg) || wkg < 1 || wkg > 5000) {
+      return res.status(400).json({ success: false, error: 'invalid_weight', message: 'weight_kg must be 1-5000' });
+    }
+    if (!pickup_location || typeof pickup_location !== 'string' || pickup_location.trim().length < 1 || pickup_location.length > 80) {
+      return res.status(400).json({ success: false, error: 'invalid_pickup_location', message: 'pickup_location must be 1-80 chars' });
+    }
+    if (!['processor', 'recycler', 'converter'].includes(destination_buyer_kind)) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_kind' });
+    }
+    const dbid = parseInt(destination_buyer_id, 10);
+    if (!Number.isInteger(dbid) || dbid < 1) {
+      return res.status(400).json({ success: false, error: 'invalid_destination_buyer_id' });
+    }
+    const buyerName = await lookupBuyerName(destination_buyer_kind, dbid);
+    if (!buyerName) {
+      return res.status(400).json({ success: false, error: 'unknown_destination_buyer' });
+    }
+    const fee = parseFloat(proposed_fee_ghs);
+    if (!isFinite(fee) || fee < 1 || fee > 10000) {
+      return res.status(400).json({ success: false, error: 'invalid_fee', message: 'proposed_fee_ghs must be 1-10000' });
+    }
+    const disposition = rejected_disposition || 'leave_at_buyer';
+    if (!['leave_at_buyer', 'bring_back', 'sell_as_scrap'].includes(disposition)) {
+      return res.status(400).json({ success: false, error: 'invalid_disposition' });
+    }
+
+    // ── INSERT — region='_DIRECT_', awarded_to_driver_id pre-set, 4h TTL ──
+    const insRes = await pool.query(
+      `INSERT INTO dispatch_listings (
+         aggregator_id, pickup_location, destination_buyer_kind, destination_buyer_id,
+         material_type, gross_weight_kg, proposed_fee_ghs, region,
+         rejected_disposition, status, awarded_to_driver_id, expires_at, created_at
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, '_DIRECT_',
+         $8, 'open', $9, NOW() + INTERVAL '4 hours', NOW()
+       ) RETURNING id, expires_at`,
+      [aggId, pickup_location.trim(), destination_buyer_kind, dbid,
+       material_type, wkg, fee,
+       disposition, driverId]
+    );
+    const listingId = insRes.rows[0].id;
+    const expiresAt = insRes.rows[0].expires_at;
+
+    res.json({ success: true, listing_id: listingId, expires_at: expiresAt });
+
+    // ── Async direct-invite SMS — single recipient, fire-and-forget ──
+    const aggLookup = await pool.query(`SELECT name FROM aggregators WHERE id=$1`, [aggId]);
+    const aggName = aggLookup.rows.length ? aggLookup.rows[0].name : 'Aggregator';
+    sendDirectInviteSms(
+      listingId, aggId, driverId,
+      { pickup_location: pickup_location.trim(), destination_buyer_kind, gross_weight_kg: wkg, material_type, proposed_fee_ghs: fee },
+      aggName, buyerName
+    ).catch(function (e) {
+      console.error('[direct-invite] listing ' + listingId + ' SMS failed:', e.message);
+    });
+  } catch (err) {
+    console.error('POST /api/aggregator/drivers/:driverId/dispatch error:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// AGGREGATOR — MY DRIVERS + TRUST ANALYTICS + PAYMENTS (Phase 11)
+// ============================================
+
+// GET /api/aggregator/drivers — active roster with per-driver stats.
+// One LATERAL JOIN query (faster than N+1). avg_rating returns null in v0
+// (aggregator-rates-driver deferred to v1 per Phase 9).
+app.get('/api/aggregator/drivers', requireAuth, async (req, res) => {
+  if (req.user.role !== 'aggregator') {
+    return res.status(403).json({ success: false, message: 'Aggregators only' });
+  }
+  const aggId = req.user.id;
+  try {
+    const result = await pool.query(
+      `SELECT
+         d.id,
+         d.first_name,
+         d.last_name,
+         d.phone,
+         d.city,
+         dar.created_at AS joined_at,
+         dar.status AS relationship_status,
+         COALESCE(stats.deliveries_count, 0) AS deliveries_count,
+         COALESCE(stats.total_kg, 0) AS total_kg,
+         COALESCE(stats.owed_ghs, 0) AS owed_ghs,
+         COALESCE(stats.paid_ghs, 0) AS paid_ghs,
+         stats.avg_delta_pct AS avg_total_delta_pct
+       FROM driver_aggregator_relationships dar
+       JOIN drivers d ON d.id = dar.driver_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(*) FILTER (WHERE pt.driver_confirmed_at IS NOT NULL) AS deliveries_count,
+           COALESCE(SUM(pt.accepted_weight_kg) FILTER (WHERE pt.driver_confirmed_at IS NOT NULL), 0) AS total_kg,
+           COALESCE(SUM(pt.driver_fee_ghs) FILTER (WHERE pt.driver_fee_paid_at IS NULL AND pt.driver_confirmed_at IS NOT NULL), 0) AS owed_ghs,
+           COALESCE(SUM(pt.driver_fee_ghs) FILTER (WHERE pt.driver_fee_paid_at IS NOT NULL), 0) AS paid_ghs,
+           AVG(((pt.gross_weight_kg - pt.accepted_weight_kg) / NULLIF(pt.gross_weight_kg, 0)) * 100)
+             FILTER (WHERE pt.accepted_weight_kg IS NOT NULL) AS avg_delta_pct
+         FROM pending_transactions pt
+         WHERE pt.driver_id = d.id AND pt.aggregator_id = $1
+       ) stats ON true
+       WHERE dar.aggregator_id = $1 AND dar.status = 'active'
+       ORDER BY stats.deliveries_count DESC NULLS LAST, d.first_name ASC`,
+      [aggId]
+    );
+
+    const drivers = result.rows.map(function (r) {
+      return Object.assign({}, r, {
+        code: CirculRoles.circulCode('driver', r.id),
+        // v0: aggregator-rates-driver deferred to v1, render '—' on web side.
+        avg_rating: null,
+        // Normalise types — pg returns NUMERIC as string; cast for client convenience.
+        deliveries_count: parseInt(r.deliveries_count, 10) || 0,
+        total_kg: parseFloat(r.total_kg) || 0,
+        owed_ghs: parseFloat(r.owed_ghs) || 0,
+        paid_ghs: parseFloat(r.paid_ghs) || 0,
+        avg_total_delta_pct: r.avg_total_delta_pct != null ? parseFloat(r.avg_total_delta_pct) : null
+      });
+    });
+
+    res.json({ success: true, drivers: drivers });
+  } catch (err) {
+    console.error('GET /api/aggregator/drivers error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/aggregator/trust-signals — rolling 30-day delta + weighbridge-slip
+// counts per destination buyer. GROUP BY the (kind, id) PAIR — NOT id alone —
+// or processor_id=42 and recycler_id=42 collide. Trust label derived in JS.
+app.get('/api/aggregator/trust-signals', requireAuth, async (req, res) => {
+  if (req.user.role !== 'aggregator') {
+    return res.status(403).json({ success: false, message: 'Aggregators only' });
+  }
+  const aggId = req.user.id;
+  try {
+    // pending_transactions doesn't have destination_buyer_kind/_id columns
+    // directly — derive from processor_id/converter_id/recycler_id FKs.
+    // Subquery wraps the derivation so GROUP BY can reference the aliases.
+    // photo_urls is TEXT[] (per migration 1774500000000); detect non-empty via
+    // array_length to avoid JSONB-only operators.
+    const result = await pool.query(
+      `SELECT destination_buyer_kind, destination_buyer_id,
+              COUNT(*) AS deliveries,
+              AVG(((gross_weight_kg - accepted_weight_kg) / NULLIF(gross_weight_kg, 0)) * 100) AS avg_total_delta_pct,
+              COUNT(*) FILTER (WHERE COALESCE(array_length(photo_urls, 1), 0) > 0) AS weighbridge_slips
+       FROM (
+         SELECT
+           CASE
+             WHEN processor_id IS NOT NULL THEN 'processor'
+             WHEN converter_id IS NOT NULL THEN 'converter'
+             WHEN recycler_id  IS NOT NULL THEN 'recycler'
+           END AS destination_buyer_kind,
+           COALESCE(processor_id, converter_id, recycler_id) AS destination_buyer_id,
+           gross_weight_kg, accepted_weight_kg, photo_urls
+         FROM pending_transactions
+         WHERE aggregator_id = $1
+           AND driver_confirmed_at >= NOW() - INTERVAL '30 days'
+           AND accepted_weight_kg IS NOT NULL
+           AND COALESCE(processor_id, converter_id, recycler_id) IS NOT NULL
+       ) pt
+       GROUP BY destination_buyer_kind, destination_buyer_id
+       ORDER BY deliveries DESC`,
+      [aggId]
+    );
+
+    // Resolve buyer names + compute trust label.
+    // lookupBuyerName returns null on miss — fall back to 'Unknown'.
+    const rows = await Promise.all(result.rows.map(async function (r) {
+      const buyer_name = (await lookupBuyerName(r.destination_buyer_kind, r.destination_buyer_id)) || 'Unknown';
+      const deliveries = parseInt(r.deliveries, 10) || 0;
+      const delta = r.avg_total_delta_pct != null ? parseFloat(r.avg_total_delta_pct) : null;
+      let trust;
+      if (deliveries < 5)        trust = 'insufficient';
+      else if (delta == null)    trust = 'insufficient';
+      else if (delta < 3)        trust = 'consistent';
+      else if (delta <= 7)       trust = 'monitor';
+      else                       trust = 'flag';
+      return {
+        destination_buyer_kind: r.destination_buyer_kind,
+        destination_buyer_id:   r.destination_buyer_id,
+        buyer_name:             buyer_name,
+        deliveries:             deliveries,
+        avg_total_delta_pct:    delta,
+        weighbridge_slips:      parseInt(r.weighbridge_slips, 10) || 0,
+        trust:                  trust
+      };
+    }));
+
+    res.json({ success: true, rows: rows });
+  } catch (err) {
+    console.error('GET /api/aggregator/trust-signals error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/aggregator/drivers/:driverId/payments — aggregator marks a driver
+// fee as paid for a specific delivery. Race-safe + idempotent:
+//   * SELECT FOR UPDATE locks the pending_transactions row
+//   * Reject if already paid (idempotency)
+//   * Dual-row write: UPDATE pending_transactions AND UPDATE transactions
+//     (mirrors collector receipt-confirm pattern at server.js:686-744)
+//   * DRIVER_PAYMENT_RECORDED SMS fires AFTER COMMIT so rollback won't
+//     mislead the driver.
+app.post('/api/aggregator/drivers/:driverId/payments', requireAuth, async (req, res) => {
+  if (req.user.role !== 'aggregator') {
+    return res.status(403).json({ success: false, message: 'Aggregators only' });
+  }
+  const aggId = req.user.id;
+  const driverId = parseInt(req.params.driverId, 10);
+  if (!Number.isFinite(driverId)) {
+    return res.status(400).json({ success: false, message: 'invalid_driver_id' });
+  }
+  const { pending_transaction_id, paid_method } = req.body || {};
+  if (!pending_transaction_id || !paid_method) {
+    return res.status(400).json({ success: false, message: 'pending_transaction_id and paid_method required' });
+  }
+  if (!['cash', 'momo', 'bank'].includes(paid_method)) {
+    return res.status(400).json({ success: false, message: 'paid_method must be one of: cash, momo, bank' });
+  }
+
+  const client = await pool.connect();
+  let lockedPt = null;
+  let didCommit = false;
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock + verify ownership + idempotency
+    const ptRes = await client.query(
+      `SELECT id, transaction_id, aggregator_id, driver_id, driver_fee_ghs,
+              driver_fee_paid_at, material_type
+       FROM pending_transactions
+       WHERE id = $1 FOR UPDATE`,
+      [pending_transaction_id]
+    );
+    if (!ptRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'transaction_not_found' });
+    }
+    const pt = ptRes.rows[0];
+    if (pt.aggregator_id !== aggId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'not_your_transaction' });
+    }
+    if (pt.driver_id !== driverId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'driver_mismatch' });
+    }
+    if (pt.driver_fee_paid_at) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'already_paid', paid_at: pt.driver_fee_paid_at });
+    }
+
+    // 2. Dual-row write — keep pending_transactions and transactions in sync.
+    //    transactions.id is the FINALISED row; pt.transaction_id is the back
+    //    reference. Some deliveries may have no transactions row yet (the
+    //    aggregator-sale hasn't completed) — skip that UPDATE if so.
+    await client.query(
+      `UPDATE pending_transactions
+       SET driver_fee_paid_at = NOW(), driver_fee_paid_method = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [paid_method, pending_transaction_id]
+    );
+    if (pt.transaction_id) {
+      await client.query(
+        `UPDATE transactions
+         SET driver_fee_paid_at = NOW(), driver_fee_paid_method = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [paid_method, pt.transaction_id]
+      );
+    }
+
+    await client.query('COMMIT');
+    didCommit = true;
+    lockedPt = pt;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('POST /api/aggregator/drivers/:driverId/payments error:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
+  }
+
+  if (!didCommit) return; // safety net
+
+  // 3. Post-commit: DRIVER_PAYMENT_RECORDED SMS to driver. Lifetime is computed
+  //    AFTER the update so it includes this payment — matches the template intent.
+  try {
+    const [driverRes, aggNameRes, lifetimeRes] = await Promise.all([
+      pool.query('SELECT phone, first_name FROM drivers WHERE id = $1', [driverId]),
+      pool.query('SELECT name FROM aggregators WHERE id = $1', [aggId]),
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs), 0) AS lifetime
+         FROM pending_transactions
+         WHERE driver_id = $1 AND driver_fee_paid_at IS NOT NULL`,
+        [driverId]
+      )
+    ]);
+    if (driverRes.rows.length) {
+      // .slice(0, 14).trim() — Phase 8 codification: SMS template name caps
+      // keep aggregator_name within GSM-7 character budget for 160-char limit.
+      const aggName = ((aggNameRes.rows[0] && aggNameRes.rows[0].name) || '').slice(0, 14).trim();
+      notify(EVENTS.DRIVER_PAYMENT_RECORDED, driverRes.rows[0].phone, {
+        aggregator_name: aggName,
+        amount: parseFloat(lockedPt.driver_fee_ghs || 0).toFixed(0),
+        ref: pending_transaction_id,
+        lifetime: parseFloat(lifetimeRes.rows[0].lifetime || 0).toFixed(0)
+      }).catch(function (e) { console.warn('[notify] DRIVER_PAYMENT_RECORDED failed:', e.message); });
+    }
+  } catch (e) {
+    console.warn('[payment-recorded] post-commit notification lookup failed:', e.message);
+  }
+
+  res.json({ success: true, paid_at: new Date().toISOString() });
+});
+
+// ============================================
 // PROCESSORS
 // ============================================
 
@@ -3208,15 +3982,23 @@ async function handleAggregatorRegistrationCode(parts, requestRow) {
 async function handleUnregisteredUssd(parts, phone) {
   const level = parts.length;
 
-  // Welcome — role split (collector vs aggregator vs exit)
-  // ussd-lint-allow: known existing violation, post-pilot sweep
-  if (level === 0) return 'CON Welcome to Circul\nThe operating system for\nGhana\'s waste workers.\n\nSell. Track. Get paid.\n\nRegister as:\n1. Collector\n2. Aggregator\n0. Exit';
+  // Welcome — role-picker (driver actor MVP v0). 6 lines: 2 header + 4 items + 0 back.
+  // Items count (4 + 0) fits the Yam cap; line count exceeds the lint default cap by
+  // design — the header context "What's your role?" makes the menu legible. Sweep
+  // candidate post-pilot if mobile rendering shows truncation issues.
+  // ussd-lint-allow: intentional 6-line role-picker welcome
+  if (level === 0) return 'CON Welcome to Circul!\nWhat\'s your role?\n1. Collector\n2. Aggregator\n3. Driver\n0. Other';
 
-  if (parts[0] === '0') return 'END Thank you for using Circul.';
+  if (parts[0] === '0') return 'END Visit\ncircul.polsia.app\nto learn more or\nsign up online.';
 
   // Aggregator path — hand off to request handler (Phase 4)
   if (parts[0] === '2') {
     return await handleAggregatorRegistrationRequest(parts.slice(1), phone);
+  }
+
+  // Driver path — driver actor MVP v0
+  if (parts[0] === '3') {
+    return await handleDriverSelfRegister(parts.slice(1), phone);
   }
 
   // Collector path
@@ -3265,6 +4047,92 @@ async function handleUnregisteredUssd(parts, phone) {
       }
     }
     return 'END Invalid option.\nDial again to retry.';
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Driver self-register (Phase 2 of driver actor MVP v0) ──
+// Mirrors collector self-register at handleUnregisteredUssd parts[0]==='1' branch.
+// Uses the canonical paginated city picker (PR-#86) — never the deprecated
+// 4-city map pattern.
+async function handleDriverSelfRegister(parts, phone) {
+  const level = parts.length;
+
+  if (level === 0) return 'CON Register as driver.\nEnter your first name:';
+  if (level === 1) return 'CON Enter your last name:';
+
+  const firstName = parts[0].trim();
+  const lastName = parts[1].trim();
+  if (!lastName) return 'END Last name required.\nDial again to retry.';
+
+  // parts.slice(2) is the city-picker input — variable length due to pagination.
+  // Mirrors collector self-register at handleUnregisteredUssd:3232.
+  const pickerParts = parts.slice(2);
+  if (pickerParts.length === 0) return renderCityPickerScreen([]).screen;
+  if (pickerParts[0] === '0') return 'END Cancelled.';
+
+  const sel = parsePaginatedSelection(pickerParts);
+  if (sel.remaining.length === 0) {
+    // All parts so far are page-advance markers — show the next page
+    return renderCityPickerScreen(pickerParts).screen;
+  }
+
+  const cityData = resolveCityFromPaginatedParts(pickerParts);
+  if (!cityData) return 'END Invalid city.\nDial again to retry.';
+
+  // After city pick: PIN, PIN-confirm, confirm-screen, commit.
+  // City consumed (sel.page + 1) parts.
+  const cityPartsLen = sel.page + 1;
+  const afterCityDepth = level - 2 - cityPartsLen;
+
+  if (afterCityDepth === 0) return 'CON Set 4-digit PIN\nfor next time:';
+
+  const pinRaw = parts[2 + cityPartsLen];
+  if (!/^\d{4}$/.test(pinRaw)) return 'END PIN must be 4 digits.\nDial again to retry.';
+
+  if (afterCityDepth === 1) return 'CON Confirm 4-digit PIN:';
+
+  if (parts[2 + cityPartsLen + 1] !== pinRaw) return 'END PINs do not match.\nDial again to retry.';
+
+  if (afterCityDepth === 2) {
+    const normalized = normalizeGhanaPhone(phone);
+    const displayPhone = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+    return `CON Register driver:\n${firstName} ${lastName}\n${displayPhone}\n${cityData.city}\n1. Confirm\n0. Cancel`;
+  }
+
+  if (afterCityDepth === 3) {
+    const choice = parts[level - 1];
+    if (choice === '0') return 'END Cancelled.';
+    if (choice !== '1') return 'END Invalid option.\nDial again to retry.';
+
+    try {
+      const hashedPin = await hashPassword(pinRaw);
+      const normalized = normalizeGhanaPhone(phone);
+      const phoneToStore = normalized && normalized.startsWith('+233') ? '0' + normalized.slice(4) : phone;
+      const result = await pool.query(
+        `INSERT INTO drivers (first_name, last_name, phone, pin, city, region)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [firstName, lastName, phoneToStore, hashedPin, cityData.city, cityData.region]
+      );
+      const driverId = result.rows[0].id;
+      const driverCode = 'DRV-' + String(driverId).padStart(4, '0');
+      await pool.query(
+        `INSERT INTO driver_activity (driver_id, action_type, description) VALUES ($1, 'self_registered', 'Driver self-registered via USSD')`,
+        [driverId]
+      );
+      try {
+        await notify(EVENTS.DRIVER_WELCOME, phoneToStore, {
+          first_name: firstName,
+          nnn: String(driverId).padStart(4, '0'),
+          city: cityData.city
+        });
+      } catch (e) { console.warn('[NOTIFY] driver_welcome failed:', e.message); }
+      return `END Welcome, ${firstName}!\nCode: ${driverCode}\n\nAggregators in your\nregion can now find you.\nDial *920*54# to see\navailable work.`;
+    } catch (err) {
+      if (err.code === '23505') return 'END This phone number is\nalready registered.\nDial again with PIN.';
+      throw err;
+    }
   }
 
   return 'END Invalid option.\nDial again to retry.';
@@ -3409,7 +4277,7 @@ async function handleForgotPinUssd(parts, resetRow) {
 //   m=[pin, confirm] (matches)            → G3 success bridge — UPDATE happens here
 //   m=[pin, confirm, '1']                 → continue to main menu (menuParts = m.slice(3))
 //   m=[pin, confirm, '0']                 → END
-const ALLOWED_USER_TABLES_FOR_GATE = ['collectors', 'aggregators', 'agents'];
+const ALLOWED_USER_TABLES_FOR_GATE = ['collectors', 'aggregators', 'agents', 'drivers'];
 async function gateForceChangePin(m, user, userTable) {
   if (!ALLOWED_USER_TABLES_FOR_GATE.includes(userTable)) {
     throw new Error('gateForceChangePin: invalid userTable: ' + userTable);
@@ -3565,22 +4433,25 @@ async function handleUssdRating(menuParts, role, userId) {
       return 'END Invalid choice.\nDial again to retry.';
     }
     const txn = pending[idx];
-    const peer = (txn.peer_name || 'Unknown').slice(0, 20);
-    return 'CON Rate ' + parseFloat(txn.gross_weight_kg).toFixed(0) + 'kg '
-      + txn.material_type + '\nfrom ' + peer + ':\n'
-      + '1. \u2605\n2. \u2605\u2605\n3. \u2605\u2605\u2605\n4. \u2605\u2605\u2605\u2605\n5. \u2605\u2605\u2605\u2605\u2605\n0. Cancel';
+    const peer = (txn.peer_name || 'Unknown').slice(0, 18).trim();
+    // ASCII-only labels \u2014 no Unicode star (forces UCS-2 encoding on Yam phones).
+    // 1-star is dropped from USSD entry (rare in practice; web UI keeps 1-5).
+    // Choice 1-4 maps to stars 2-5 in depth-2 handler.
+    return 'CON Rate ' + peer + ':\n'
+      + '1. 2 stars\n2. 3 stars\n3. 4 stars\n4. 5 stars\n0. Skip';
   }
 
   if (depth === 2) {
-    if (menuParts[1] === '0') return 'END Cancelled.';
+    if (menuParts[1] === '0') return 'END Skipped.';
     const idx = parseInt(menuParts[0]) - 1;
-    const stars = parseInt(menuParts[1]);
+    const choice = parseInt(menuParts[1]);
     if (isNaN(idx) || idx < 0 || idx >= pending.length) {
       return 'END Invalid choice.\nDial again to retry.';
     }
-    if (isNaN(stars) || stars < 1 || stars > 5) {
+    if (isNaN(choice) || choice < 1 || choice > 4) {
       return 'END Invalid rating.\nDial again to retry.';
     }
+    const stars = choice + 1;  // 1->2, 2->3, 3->4, 4->5
     const txn = pending[idx];
     try {
       const dup = await pool.query(
@@ -3604,7 +4475,7 @@ async function handleUssdRating(menuParts, role, userId) {
       console.error('[USSD rating] save failed:', e.message);
       return 'END Could not save rating.\nPlease try again later.';
     }
-    return 'END Thank you!\nYour ' + stars + '\u2605 rating\nhas been recorded.';
+    return 'END Thank you!\nYour ' + stars + ' star rating\nhas been recorded.';
   }
 
   return 'END Invalid option.\nDial again to retry.';
@@ -3680,7 +4551,7 @@ async function handleRegisteredUssd(parts, collector) {
       ]);
       const c = confirmed.rows[0], p = pending.rows[0], r = rating.rows[0];
       // ussd-lint-allow: post-pilot sweep
-      return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GHS ${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
+      return `CON My Stats\n${parseFloat(c.month_kg).toFixed(1)}kg this month\n${parseFloat(c.ytd_kg).toFixed(1)}kg YTD / GHS ${parseFloat(c.total_earned).toFixed(0)}\nRating: ${parseFloat(r.avg) > 0 ? parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${c.total_txns} done, ${p.count} pending\n\n1. Rate a transaction\n0. Back`;
     }
     if (m[1] === '0') return `END Goodbye, ${collector.first_name}!`;
     if (m[1] === '1') return await handleUssdRating(m.slice(2), 'collector', collector.id);
@@ -3719,7 +4590,7 @@ async function handleRegisteredUssd(parts, collector) {
       if (!aggs.rows.length) return `END No aggregators buying\n${material} near ${city}.\n\nDial again to retry.`;
       let msg = 'CON Select aggregator:\n';
       aggs.rows.forEach(function(a, i) {
-        var ratingStr = parseFloat(a.rating) > 0 ? ' ★' + parseFloat(a.rating).toFixed(1) : '';
+        var ratingStr = parseFloat(a.rating) > 0 ? ' ' + parseFloat(a.rating).toFixed(1) + '/5' : '';
         msg += (i + 1) + '. ' + a.name + '\n   ' + a.city + ratingStr + ' GHS ' + parseFloat(a.price_per_kg_ghs).toFixed(2) + '/kg\n';
       });
       msg += '0. Cancel';
@@ -3861,10 +4732,11 @@ async function handleAggregatorUssd(parts, aggregator) {
   // ── Register sub-menu (Collector / Agent) ──
   if (m[0] === '1') {
     const sub = m.slice(1);
-    if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n0. Back';
+    if (sub.length === 0) return 'CON Register:\n1. Collector\n2. Agent\n3. Driver\n0. Back';
     if (sub[0] === '0') return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
     if (sub[0] === '1') return await handleAggregatorRegister(sub.slice(1), aggregator, null);
     if (sub[0] === '2') return await handleAggregatorRegisterAgent(sub.slice(1), aggregator);
+    if (sub[0] === '3') return await handleAggregatorInviteDriver(sub.slice(1), aggregator);
     return 'END Invalid option.\nDial again to retry.';
   }
 
@@ -3929,7 +4801,7 @@ async function handleAggregatorUssd(parts, aggregator) {
         ]);
         const v = volume.rows[0], u = unpaid.rows[0], r = rating.rows[0], cc = collCount.rows[0], pc = pendingCount.rows[0];
         // ussd-lint-allow: post-pilot sweep
-        return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GHS ${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GHS ${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? '\u2605' + parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
+        return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GHS ${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GHS ${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
       }
       if (m[2] === '0') return `END Thank you, ${aggregator.name}!`;
       if (m[2] === '1') return await handleUssdRating(m.slice(3), 'aggregator', aggregator.id);
@@ -4178,6 +5050,63 @@ async function handleAggregatorRegisterAgent(m, aggregator) {
         throw err;
       }
     }
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Aggregator invites a driver to their roster (Phase 3 of driver actor MVP v0) ──
+//
+// Mirrors handleAggregatorRegisterAgent shape but the action is creating an
+// invite_pending row in driver_aggregator_relationships, NOT creating an account.
+// Driver claims the invite via Phase 4 main-menu intercept.
+//
+// If the phone has no registered driver, send a register-prompt SMS instead via
+// the driver_register_prompt template. Every outbound SMS in this codebase goes
+// through notify(EVENTS.X, phone, data) — there is no other SMS pathway.
+async function handleAggregatorInviteDriver(m, aggregator) {
+  const depth = m.length;
+
+  if (depth === 0) return 'CON Enter driver\'s\nphone number:';
+  const phone = m[0];
+
+  if (depth === 1) {
+    const phoneVariants = getPhoneVariants(normalizeGhanaPhone(phone));
+    const driver = await pool.query(
+      `SELECT id, first_name, last_name FROM drivers WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+      [phoneVariants]
+    );
+
+    // Driver exists: create invite_pending relationship and send roster-invite SMS
+    if (driver.rows.length) {
+      const d = driver.rows[0];
+      const existing = await pool.query(
+        `SELECT id, status FROM driver_aggregator_relationships WHERE driver_id=$1 AND aggregator_id=$2`,
+        [d.id, aggregator.id]
+      );
+      if (existing.rows.length && existing.rows[0].status === 'active') {
+        return `END ${d.first_name} ${d.last_name} is\nalready in your roster.`;
+      }
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status, invite_initiated_by, invite_expires_at)
+         VALUES ($1, $2, 'invite_pending', 'aggregator', NOW() + INTERVAL '7 days')
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='invite_pending', invite_expires_at=NOW() + INTERVAL '7 days'`,
+        [d.id, aggregator.id]
+      );
+      try {
+        const phoneNorm = normalizeGhanaPhone(phone);
+        await notify(EVENTS.DRIVER_ROSTER_INVITE, phoneNorm, { aggregator_name: aggregator.name });
+      } catch (e) { console.warn('[NOTIFY] driver_roster_invite failed:', e.message); }
+      return `END Invitation sent\nto ${phone}.\n\nYou will be notified\nwhen they accept.`;
+    }
+
+    // Driver doesn't exist: send register-first prompt SMS via the canonical
+    // notify pathway. The platform has no other SMS dispatch function.
+    try {
+      const phoneNorm = normalizeGhanaPhone(phone);
+      await notify(EVENTS.DRIVER_REGISTER_PROMPT, phoneNorm, { aggregator_name: aggregator.name });
+    } catch (e) { console.warn('[NOTIFY] driver_register_prompt failed:', e.message); }
+    return `END No registered driver\nat ${phone}.\nWe sent them an SMS\nwith instructions.`;
   }
 
   return 'END Invalid option.\nDial again to retry.';
@@ -5023,6 +5952,778 @@ async function handleAgentUssd(parts, agent) {
   }
 
   return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Driver USSD entry point (Phase 4 of driver actor MVP v0) ──
+//
+// Mirrors handleAgentUssd shape: PIN auth + 3-attempt lockout + force-change-PIN
+// gate + main menu. Adds a roster-invite intercept (similar to the existing
+// aggregator-registration intercept) — when there's any pending invite, the
+// claim screen takes precedence over the welcome / PIN screen.
+//
+// Phase 5 (next) implements the menu branches; for now they call handlers that
+// will be added when their phase lands.
+async function handleDriverUssd(parts, driver) {
+  // ── Pre-PIN: roster-invite intercept ──
+  // If the driver has a pending roster invite, surface that BEFORE asking for
+  // PIN. Lets the driver accept/decline the relationship without authenticating.
+  // Pattern mirrors the aggregator-registration-code intercept (activeAggReg).
+  if (parts.length === 0) {
+    const pendingInvite = await pool.query(
+      `SELECT dar.id, agg.name AS aggregator_name
+       FROM driver_aggregator_relationships dar
+       JOIN aggregators agg ON agg.id = dar.aggregator_id
+       WHERE dar.driver_id = $1 AND dar.status = 'invite_pending'
+         AND (dar.invite_expires_at IS NULL OR dar.invite_expires_at > NOW())
+       ORDER BY dar.created_at ASC LIMIT 1`,
+      [driver.id]
+    );
+    if (pendingInvite.rows.length) {
+      return `CON Pending invite:\n${pendingInvite.rows[0].aggregator_name} wants\nyou in their roster.\n1. Accept\n2. Decline`;
+    }
+    return `CON Circul Driver\nWelcome back, ${driver.first_name}!\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+  }
+
+  // ── Forgot PIN entry point ──
+  if (parts[0] === '0') {
+    return await requestPinReset(parts.slice(1), { user_type: 'driver', user_id: driver.id, phone: driver.phone, name: driver.first_name });
+  }
+
+  // ── Roster-invite claim path (intercepts main menu while invite_pending) ──
+  const pendingInvite = await pool.query(
+    `SELECT dar.id, dar.aggregator_id, agg.name AS aggregator_name
+     FROM driver_aggregator_relationships dar
+     JOIN aggregators agg ON agg.id = dar.aggregator_id
+     WHERE dar.driver_id = $1 AND dar.status = 'invite_pending'
+       AND (dar.invite_expires_at IS NULL OR dar.invite_expires_at > NOW())
+     ORDER BY dar.created_at ASC LIMIT 1`,
+    [driver.id]
+  );
+  if (pendingInvite.rows.length) {
+    if (parts[0] === '1') {
+      // Accept invite
+      await pool.query(
+        `UPDATE driver_aggregator_relationships SET status='active', claimed_at=NOW() WHERE id=$1`,
+        [pendingInvite.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description)
+         VALUES ($1, $2, 'roster_joined', 'Driver accepted roster invite')`,
+        [driver.id, pendingInvite.rows[0].aggregator_id]
+      );
+      return `END Joined ${pendingInvite.rows[0].aggregator_name}!\nYou will see their\ndispatch listings and\nget notified of new\nwork.`;
+    }
+    if (parts[0] === '2') {
+      // Decline invite
+      await pool.query(
+        `UPDATE driver_aggregator_relationships SET status='ended', ended_at=NOW() WHERE id=$1`,
+        [pendingInvite.rows[0].id]
+      );
+      return 'END Declined.';
+    }
+    return `CON Pending invite:\n${pendingInvite.rows[0].aggregator_name} wants\nyou in their roster.\n1. Accept\n2. Decline`;
+  }
+
+  // ── PIN validation with retry (max 3 attempts) — mirrors handleAgentUssd ──
+  let pinIndex = -1;
+  for (let i = 0; i < Math.min(parts.length, 3); i++) {
+    if (await verifyPassword(parts[i], driver.pin)) {
+      pinIndex = i;
+      break;
+    }
+  }
+  if (pinIndex === -1) {
+    const attempts = parts.length;
+    if (attempts >= 3) {
+      await pool.query(
+        `INSERT INTO user_lockouts (user_type, user_id, phone, locked_until, reason)
+         VALUES ($1, $2, $3, NOW() + INTERVAL '30 minutes', 'wrong_pin_x3')`,
+        ['driver', driver.id, driver.phone]
+      );
+      return 'END Too many wrong PINs.\n\nAccount locked for 30 min.\nAfter lockout, dial\n*920*54# and select\n"0. Forgot PIN" to reset.';
+    }
+    const remaining = 3 - attempts;
+    return `CON Wrong PIN. ${remaining} attempt${remaining > 1 ? 's' : ''} left.\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+  }
+
+  // ── Force-change-PIN gate (universal) ──
+  const m_raw = parts.slice(pinIndex + 1);
+  const gate = await gateForceChangePin(m_raw, driver, 'drivers');
+  if (gate.needsGate) return gate.response;
+  const m = gate.menuParts;
+  const depth = m.length;
+
+  // ── Pending-rating intercept (after PIN, before main menu) ──
+  // If the driver has unrated recent deliveries, surface the rating prompt
+  // before the main menu. While pending, all sub-flows route through this
+  // intercept until the driver rates or skips. Mirrors the roster-invite
+  // intercept pattern above (acknowledge before reaching menu).
+  const pendingRatings = await getPendingRatings(pool, 'driver', driver.id, 1);
+  if (pendingRatings.length) {
+    if (depth === 0) {
+      return 'CON Rate your last\ndelivery?\n1. Rate now\n0. Skip';
+    }
+    if (m[0] === '0') return 'END Maybe next time.\nDial back to access\nyour menu.';
+    if (m[0] === '1') return await handleUssdRating(m.slice(1), 'driver', driver.id);
+    return 'END Invalid option.\nDial again to retry.';
+  }
+
+  // ── Main menu ──
+  if (depth === 0) {
+    const availableCount = await countAvailableWork(driver);
+    const pendingCount = await countPendingDeliveries(driver.id);
+    return `CON Hi ${driver.first_name}!\n1. Available work (${availableCount})\n2. Pending deliveries (${pendingCount})\n3. My earnings\n4. More\n0. Exit`;
+  }
+  if (m[0] === '0') return `END Thank you, ${driver.first_name}!`;
+  if (m[0] === '1') return await handleDriverAvailableWork(m.slice(1), driver);
+  if (m[0] === '2') return await handleDriverConfirmDelivery(m.slice(1), driver);
+  if (m[0] === '3') return await handleDriverEarnings(m.slice(1), driver);
+  if (m[0] === '4') return await handleDriverMore(m.slice(1), driver);
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Driver helpers (Phase 4 of driver actor MVP v0) ──
+// countActiveAggregators — used by older mockup welcome line; kept for Phase 11
+//   web view "My aggregators" count and any future SMS templates.
+// countAvailableWork — drives the "(N)" suffix on the main-menu "Available work"
+//   item. Counts open marketplace listings in driver's region + open direct
+//   invites awarded to this driver.
+// countPendingDeliveries — drives the "(N)" suffix on "Pending deliveries".
+//   Counts pending_transactions where driver_id matches and the driver hasn't
+//   yet confirmed delivery (driver_confirmed_at IS NULL).
+async function countActiveAggregators(driverId) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM driver_aggregator_relationships WHERE driver_id=$1 AND status='active'`,
+    [driverId]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+async function countAvailableWork(driver) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM dispatch_listings
+     WHERE status='open' AND (region=$1 OR (region='_DIRECT_' AND awarded_to_driver_id=$2))
+       AND expires_at > NOW()`,
+    [driver.region, driver.id]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+async function countPendingDeliveries(driverId) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM pending_transactions
+     WHERE driver_id=$1 AND driver_confirmed_at IS NULL AND status IN ('pending', 'confirmed')`,
+    [driverId]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+// ── Driver confirm-delivery flow (Phase 6) ──
+//
+// State machine for handleDriverConfirmDelivery(m, driver):
+//   m=[]                                 → list pending deliveries (max 3 + 0 back)
+//   m=['N']                              → prompt for accepted weight (kg)
+//   m=['N','<kg>']                       → confirm screen OR anomaly check
+//   m=['N','<kg>','1']                   → commit (normal) OR anomaly "yes"
+//   m=['N','<kg>','0']                   → cancel (normal) OR anomaly "re-enter"
+//   m=['N','<kg>','1','1']               → commit (after anomaly accept)
+//   m=['N','<kg>','1','0']               → cancel (after anomaly accept)
+//
+// Anomaly check fires when accepted < 30% of pickup OR accepted > pickup —
+// catches typos like "35" instead of "305" before they're committed. State is
+// re-derived from m on every call (no persistence between turns).
+//
+// Status semantics: pt.status flips to 'arrived' on commit (matches the
+// existing arrival-recorded status used by converter-arrival at line 7699,
+// which is in dashboard filter sets for processor/converter delivery views).
+// Driver-side commit only updates pt; transactions row may not exist yet
+// (created downstream when aggregator marks the buyer-side confirmed).
+async function handleDriverConfirmDelivery(m, driver) {
+  const list = await pool.query(
+    `SELECT pt.id, pt.gross_weight_kg, pt.material_type, pt.driver_fee_ghs,
+            pt.aggregator_id,
+            agg.name AS aggregator_name
+     FROM pending_transactions pt
+     JOIN aggregators agg ON agg.id = pt.aggregator_id
+     WHERE pt.driver_id=$1 AND pt.driver_confirmed_at IS NULL
+       AND pt.status IN ('pending', 'confirmed')
+     ORDER BY pt.created_at ASC LIMIT 3`,
+    [driver.id]
+  );
+  const depth = m.length;
+
+  if (depth === 0) {
+    if (!list.rows.length) return 'END No pending deliveries.\nDial again later.';
+    let msg = 'CON Confirm delivery:';
+    list.rows.forEach(function (r, i) {
+      const kg = Math.round(parseFloat(r.gross_weight_kg));
+      msg += '\n' + (i + 1) + '. ' + kg + 'kg ' + r.material_type;
+    });
+    msg += '\n0. Back';
+    return msg;
+  }
+
+  if (m[0] === '0') return 'END Cancelled.';
+  const idx = parseInt(m[0], 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= list.rows.length) {
+    return 'END Invalid choice.\nDial again to retry.';
+  }
+  const txn = list.rows[idx];
+  const pickup = Math.round(parseFloat(txn.gross_weight_kg));
+
+  if (depth === 1) {
+    return 'CON Pickup: ' + pickup + 'kg ' + txn.material_type
+         + '\nAccepted weight\n(kg) at buyer scale:';
+  }
+
+  const accepted = parseFloat(m[1]);
+  if (!isFinite(accepted) || accepted <= 0) {
+    return 'END Invalid amount.\nDial again to retry.';
+  }
+  const isAnomalous = (accepted < 0.3 * pickup) || (accepted > pickup);
+  const acc = Math.round(accepted);
+  const rejected = Math.max(0, pickup - acc);
+
+  // Render the normal confirm screen — same shape used after anomaly accept.
+  const confirmScreen = 'CON Pickup: ' + pickup + 'kg'
+                      + '\nAccepted: ' + acc + 'kg'
+                      + '\nRejected: ' + rejected + 'kg'
+                      + '\n1. Confirm\n0. Cancel';
+
+  if (depth === 2) {
+    if (isAnomalous) {
+      return 'CON Unusual entry.'
+           + '\nYou entered: ' + acc + 'kg'
+           + '\nPickup was: ' + pickup + 'kg'
+           + '\n1. Yes, correct\n0. Re-enter';
+    }
+    return confirmScreen;
+  }
+
+  // depth >= 3 — branch on anomaly path vs normal path
+  if (isAnomalous) {
+    if (m[2] === '0') return 'END Re-enter.\nDial again to retry.';
+    if (m[2] !== '1') return 'END Invalid option.\nDial again to retry.';
+    if (depth === 3) return confirmScreen;
+    if (m[3] === '0') return 'END Cancelled.';
+    if (m[3] !== '1') return 'END Invalid option.\nDial again to retry.';
+    return await driverCommitDelivery(driver, txn, acc, pickup);
+  }
+
+  // Normal path
+  if (m[2] === '0') return 'END Cancelled.';
+  if (m[2] !== '1') return 'END Invalid option.\nDial again to retry.';
+  return await driverCommitDelivery(driver, txn, acc, pickup);
+}
+
+// driverCommitDelivery — write the accepted weight + driver_confirmed_at.
+// Writes to pending_transactions always; writes to transactions if
+// pt.transaction_id is set (txn row may not exist yet for driver-only flows).
+// Returns the success END for the driver USSD screen.
+async function driverCommitDelivery(driver, txn, accepted, pickup) {
+  const fee = txn.driver_fee_ghs ? Math.round(parseFloat(txn.driver_fee_ghs)) : 0;
+  const aggShort = (txn.aggregator_name || 'Aggregator').slice(0, 14);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const upd = await client.query(
+      `UPDATE pending_transactions
+         SET status = 'arrived',
+             accepted_weight_kg = $1,
+             driver_confirmed_at = NOW(),
+             updated_at = NOW()
+       WHERE id = $2 AND driver_id = $3 AND driver_confirmed_at IS NULL
+       RETURNING transaction_id`,
+      [accepted, txn.id, driver.id]
+    );
+    if (!upd.rows.length) {
+      await client.query('ROLLBACK');
+      return 'END Already confirmed.\nDial again to see\npending deliveries.';
+    }
+    const txId = upd.rows[0].transaction_id;
+    if (txId) {
+      // Mirror the accepted-weight + driver-confirmed flag onto the
+      // immutable transactions row so downstream payment / reconciliation
+      // queries see the same numbers.
+      await client.query(
+        `UPDATE transactions
+           SET accepted_weight_kg = $1,
+               driver_confirmed_at = NOW()
+         WHERE id = $2`,
+        [accepted, txId]
+      );
+    }
+    await client.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'delivery_confirmed',
+               'Driver confirmed ' || $3 || 'kg accepted (pickup ' || $4 || 'kg)',
+               $5, 'pending_transaction')`,
+      [driver.id, txn.aggregator_id, accepted, pickup, txn.id]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[DRIVER CONFIRM] commit failed:', err);
+    return 'END System error.\nTry again later.';
+  } finally {
+    client.release();
+  }
+  return 'END Confirmed!\n' + accepted + 'kg accepted'
+       + '\nTrip fee: GHS ' + fee
+       + '\n' + aggShort + ' notified.';
+}
+
+// ── Driver earnings (Phase 6) ──
+//
+// Weekly view: deliveries / total kg / GHS earned / paid+owed split.
+// Empty state when no deliveries logged in the 7-day window. Currency uses
+// integer GHS (no decimals) to keep the screen tight.
+async function handleDriverEarnings(m, driver) {
+  const stats = await pool.query(
+    `SELECT COUNT(*)::int AS deliveries,
+            COALESCE(SUM(gross_weight_kg), 0)::numeric AS total_kg,
+            COALESCE(SUM(driver_fee_ghs), 0)::numeric AS earned,
+            COALESCE(SUM(CASE WHEN driver_fee_paid_at IS NOT NULL
+                              THEN driver_fee_ghs ELSE 0 END), 0)::numeric AS paid
+     FROM pending_transactions
+     WHERE driver_id=$1
+       AND driver_confirmed_at >= NOW() - INTERVAL '7 days'`,
+    [driver.id]
+  );
+  const s = stats.rows[0];
+  const deliveries = parseInt(s.deliveries, 10);
+  if (deliveries === 0) {
+    return 'END This week:\n0 deliveries logged.\nPickups will show here.';
+  }
+  const totalKg = Math.round(parseFloat(s.total_kg));
+  const earned = Math.round(parseFloat(s.earned));
+  const paid = Math.round(parseFloat(s.paid));
+  const owed = Math.max(0, earned - paid);
+  return 'END This week:'
+       + '\n' + deliveries + ' deliveries, ' + totalKg + 'kg'
+       + '\nEarned: GHS ' + earned
+       + '\nPaid ' + paid + ' / Owed ' + owed;
+}
+
+// ── Driver "More" submenu (Phase 6) ──
+async function handleDriverMore(m, driver) {
+  if (m.length === 0) {
+    return 'CON More options'
+         + '\n1. Recent deliveries'
+         + '\n2. My ratings'
+         + '\n3. My aggregators'
+         + '\n0. Back';
+  }
+  if (m[0] === '0') return 'END Cancelled.';
+  if (m[0] === '1') return await handleDriverRecentDeliveries(m.slice(1), driver);
+  if (m[0] === '2') return await handleDriverRatings(m.slice(1), driver);
+  if (m[0] === '3') return await handleDriverAggregators(m.slice(1), driver);
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// Last 3 confirmed deliveries — short DD/MM date, kg, fee on one row each.
+async function handleDriverRecentDeliveries(m, driver) {
+  const r = await pool.query(
+    `SELECT driver_confirmed_at, accepted_weight_kg, gross_weight_kg, driver_fee_ghs
+     FROM pending_transactions
+     WHERE driver_id = $1 AND driver_confirmed_at IS NOT NULL
+     ORDER BY driver_confirmed_at DESC LIMIT 3`,
+    [driver.id]
+  );
+  if (!r.rows.length) {
+    return 'END No confirmed\ndeliveries yet.\nDial again later.';
+  }
+  let msg = 'END Last ' + r.rows.length + ' deliveries:';
+  r.rows.forEach(function (row) {
+    const d = new Date(row.driver_confirmed_at);
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const kg = Math.round(parseFloat(row.accepted_weight_kg || row.gross_weight_kg));
+    const fee = row.driver_fee_ghs ? Math.round(parseFloat(row.driver_fee_ghs)) : 0;
+    msg += '\n' + dd + '/' + mm + ': ' + kg + 'kg, GHS' + fee;
+  });
+  return msg;
+}
+
+// Driver's own rating: avg + count summary across all peer-types.
+async function handleDriverRatings(m, driver) {
+  const r = await pool.query(
+    `SELECT COUNT(*)::int AS n,
+            COALESCE(AVG(rating)::NUMERIC(3,1), 0) AS avg
+     FROM ratings
+     WHERE rated_type='driver' AND rated_id=$1`,
+    [driver.id]
+  );
+  const n = parseInt(r.rows[0].n, 10);
+  if (n === 0) {
+    return 'END No ratings yet.\nRatings appear after\nyour first delivery.';
+  }
+  const avg = parseFloat(r.rows[0].avg).toFixed(1);
+  return 'END Your rating:'
+       + '\n' + avg + ' stars from ' + n
+       + '\nratings.'
+       + '\nKeep up the good work!';
+}
+
+// Active aggregator relationships — name only, max 3 + overflow line.
+async function handleDriverAggregators(m, driver) {
+  const r = await pool.query(
+    `SELECT agg.name
+     FROM driver_aggregator_relationships dar
+     JOIN aggregators agg ON agg.id = dar.aggregator_id
+     WHERE dar.driver_id = $1 AND dar.status = 'active'
+     ORDER BY dar.claimed_at DESC NULLS LAST, dar.created_at DESC`,
+    [driver.id]
+  );
+  if (!r.rows.length) {
+    return 'END No aggregators yet.\nWait for an invite or\naccept marketplace work.';
+  }
+  const top = r.rows.slice(0, 3);
+  let msg = 'END Your aggregators:';
+  top.forEach(function (row, i) {
+    const name = (row.name || 'Aggregator').slice(0, 20);
+    msg += '\n' + (i + 1) + '. ' + name;
+  });
+  if (r.rows.length > 3) {
+    msg += '\n+' + (r.rows.length - 3) + ' more';
+  }
+  return msg;
+}
+
+// ── Driver dispatch flows (Phase 5 of driver actor MVP v0) ──
+//
+// State machine for handleDriverAvailableWork(m, driver):
+//   m=[]                       → list available work (4+0 cap)
+//   m=['N']                    → show listing N detail (accept/counter/skip)
+//   m=['N','1']                → accept proposed → cap check
+//                                  count >= 3: hard block END
+//                                  count == 2: soft warning CON
+//                                  count <  2: commit → success END
+//   m=['N','1','1']            → "accept anyway" past soft warning → commit
+//   m=['N','1','0']            → skip after warning → END
+//   m=['N','2']                → counter-offer prompt
+//   m=['N','2','<num>']        → counter confirm screen
+//   m=['N','2','<num>','1']    → send counter → END
+//   m=['N','2','<num>','0']    → cancel counter → END
+//   m=['N','0']                → skip listing → END
+//
+// Soft cap = 2, hard cap = 3 (per project_circul_drivers_actor_mvp.md).
+//
+// First-accept-wins: between the listing query (depth 0) and the commit, the
+// listing might be awarded to a different driver. We check listing.status='open'
+// inside the transaction at commit time and return "Already taken" if not.
+
+async function getDriverActiveCount(driverId) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM pending_transactions
+     WHERE driver_id=$1 AND status IN ('pending', 'confirmed') AND driver_confirmed_at IS NULL`,
+    [driverId]
+  );
+  return parseInt(r.rows[0].n, 10);
+}
+
+// Load up to 4 listings for the driver: direct invites first, then marketplace
+// listings in driver's region (oldest first). Returns rows in display order.
+// Calls expireStaleListings opportunistically (Phase 7.3 lazy expiry — no
+// background cron in v0; reads keep stale listings out of result sets).
+async function loadDriverAvailableWork(driver) {
+  await expireStaleListings(pool);
+  const r = await pool.query(
+    `SELECT dl.id, dl.aggregator_id, dl.material_type, dl.gross_weight_kg,
+            dl.proposed_fee_ghs, dl.pickup_location, dl.region,
+            dl.destination_buyer_kind, dl.destination_buyer_id,
+            dl.awarded_to_driver_id,
+            agg.name AS aggregator_name
+     FROM dispatch_listings dl
+     JOIN aggregators agg ON agg.id = dl.aggregator_id
+     WHERE dl.status = 'open'
+       AND dl.expires_at > NOW()
+       AND ((dl.region = $1)
+         OR (dl.region = '_DIRECT_' AND dl.awarded_to_driver_id = $2))
+     ORDER BY (dl.region = '_DIRECT_') DESC, dl.created_at ASC
+     LIMIT 4`,
+    [driver.region, driver.id]
+  );
+  return r.rows;
+}
+
+async function handleDriverAvailableWork(m, driver) {
+  const depth = m.length;
+
+  // depth 0: render the list (or empty state)
+  if (depth === 0) {
+    const listings = await loadDriverAvailableWork(driver);
+    if (listings.length === 0) {
+      return 'END No work available.\nDial again later.';
+    }
+    let menu = 'CON Available:';
+    listings.forEach(function (l, i) {
+      const isDirect = l.region === '_DIRECT_';
+      const tag = isDirect ? '* ' : '';
+      const kg = Math.round(parseFloat(l.gross_weight_kg));
+      const fee = Math.round(parseFloat(l.proposed_fee_ghs));
+      menu += '\n' + (i + 1) + '. ' + tag + kg + 'kg ' + l.material_type + ' GHS ' + fee;
+    });
+    menu += '\n0. Back';
+    return menu;
+  }
+
+  // depth 1+: m[0] = picked index OR '0' for back
+  if (m[0] === '0') return 'END Cancelled.';
+
+  const listings = await loadDriverAvailableWork(driver);
+  const idx = parseInt(m[0], 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= listings.length) {
+    return 'END Invalid choice.\nDial again to retry.';
+  }
+  const listing = listings[idx];
+
+  // depth 1: show listing detail
+  if (depth === 1) {
+    const kg = Math.round(parseFloat(listing.gross_weight_kg));
+    const fee = Math.round(parseFloat(listing.proposed_fee_ghs));
+    const dest = listing.destination_buyer_kind ? listing.destination_buyer_kind : 'buyer';
+    // Direct invites render "0. Decline" (aggregator targeted this driver, gets SMS).
+    // Marketplace listings render "0. Skip" (silent per v0 design — driver is one of many).
+    const skipLabel = listing.region === '_DIRECT_' ? '0. Decline' : '0. Skip';
+    return 'CON ' + kg + 'kg ' + listing.material_type + '\n'
+         + listing.pickup_location + ' to ' + dest + '\n'
+         + 'Trip fee: GHS ' + fee + '\n'
+         + '1. Accept GHS ' + fee + '\n'
+         + '2. Counter\n'
+         + skipLabel;
+  }
+
+  // depth 2+: branch on m[1]
+  // m[1]==='0' is Decline for direct invites (fires DRIVER_OFFER_DECLINED) or
+  // Skip for marketplace listings (silent per v0 design).
+  if (m[1] === '0') {
+    if (listing.region === '_DIRECT_') {
+      try {
+        const agg = await pool.query(`SELECT phone FROM aggregators WHERE id=$1 LIMIT 1`, [listing.aggregator_id]);
+        if (agg.rows.length) {
+          await notify(EVENTS.DRIVER_OFFER_DECLINED, agg.rows[0].phone, {
+            driver_first_name: driver.first_name,
+            weight: Math.round(parseFloat(listing.gross_weight_kg)),
+            material: listing.material_type
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] driver_offer_declined failed:', e.message); }
+      return 'END Declined.';
+    }
+    return 'END Skipped.';
+  }
+
+  // ── Accept-as-is path ──
+  if (m[1] === '1') {
+    return await driverAcceptListing(m.slice(2), driver, listing);
+  }
+
+  // ── Counter-offer path ──
+  if (m[1] === '2') {
+    return await driverCounterListing(m.slice(2), driver, listing);
+  }
+
+  return 'END Invalid option.\nDial again to retry.';
+}
+
+// driverAcceptListing — handles cap check (soft + hard) and commit.
+//   restParts = []           → run cap check
+//                                count >= 3: hard block END
+//                                count == 2: soft warning CON
+//                                count <  2: commit
+//   restParts = ['1']        → "accept anyway" past soft warning → commit
+//   restParts = ['0']        → skip after soft warning → END
+async function driverAcceptListing(restParts, driver, listing) {
+  const active = await getDriverActiveCount(driver.id);
+
+  // Hard cap — also notify aggregator if this was a direct invite.
+  if (active >= 3) {
+    if (listing.region === '_DIRECT_') {
+      try {
+        const agg = await pool.query(`SELECT phone FROM aggregators WHERE id=$1 LIMIT 1`, [listing.aggregator_id]);
+        if (agg.rows.length) {
+          await notify(EVENTS.DRIVER_AT_CAPACITY, agg.rows[0].phone, {
+            driver_first_name: driver.first_name
+          });
+        }
+      } catch (e) { console.warn('[NOTIFY] driver_at_capacity failed:', e.message); }
+    }
+    return 'END Maximum 3 active jobs reached.\n\nComplete a delivery\nbefore accepting more.';
+  }
+
+  // Soft cap — show warning unless user has already confirmed "accept anyway".
+  if (active >= 2 && restParts.length === 0) {
+    return 'CON You have 2 active\njobs already.\n1. Accept anyway\n0. Skip';
+  }
+  if (active >= 2 && restParts[0] === '0') return 'END Cancelled.';
+  // active >= 2 && restParts[0] === '1' falls through to commit
+
+  // ── Commit ──
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // First-accept-wins: re-check listing.status under lock.
+    const cur = await client.query(
+      `SELECT status FROM dispatch_listings WHERE id=$1 FOR UPDATE`,
+      [listing.id]
+    );
+    if (!cur.rows.length || cur.rows[0].status !== 'open') {
+      await client.query('ROLLBACK');
+      return 'END Already taken.\nDial again to see\nother work.';
+    }
+
+    // Insert driver_offers row (status='accepted').
+    await client.query(
+      `INSERT INTO driver_offers (listing_id, driver_id, offer_type, status)
+       VALUES ($1, $2, 'accept_proposed', 'accepted')
+       ON CONFLICT (listing_id, driver_id) DO UPDATE SET offer_type='accept_proposed', status='accepted'`,
+      [listing.id, driver.id]
+    );
+
+    // Mark listing awarded.
+    await client.query(
+      `UPDATE dispatch_listings SET status='awarded', awarded_to_driver_id=$2 WHERE id=$1`,
+      [listing.id, driver.id]
+    );
+
+    // Reject all OTHER pending offers on this listing.
+    await client.query(
+      `UPDATE driver_offers SET status='rejected'
+       WHERE listing_id=$1 AND driver_id != $2 AND status='pending'`,
+      [listing.id, driver.id]
+    );
+
+    // Create pending_transactions row from the listing. price_per_kg and
+    // total_price are intentionally OMITTED from the column list (not passed
+    // as NULL): the table defines them as NOT NULL DEFAULT 0, so omission
+    // lets the default fire. Buyer-side accept (later in the flow) fills in
+    // the real numbers. Passing NULL explicitly here overrides the default
+    // and trips the NOT NULL constraint — a Phase 1 schema gap to be cleaned
+    // up post-demo (drop NOT NULL on both columns for cleaner semantics).
+    const ptIns = await client.query(
+      `INSERT INTO pending_transactions (
+         transaction_type, status, aggregator_id, driver_id,
+         material_type, gross_weight_kg,
+         driver_fee_ghs, rejected_disposition, created_at
+       ) VALUES (
+         'aggregator_sale', 'pending', $1, $2,
+         $3, $4,
+         $5, COALESCE($6, 'leave_at_buyer'), NOW()
+       ) RETURNING id`,
+      [
+        listing.aggregator_id, driver.id,
+        listing.material_type, listing.gross_weight_kg,
+        listing.proposed_fee_ghs, null
+      ]
+    );
+    const ptId = ptIns.rows[0].id;
+
+    // Link listing to the pt row for trace.
+    await client.query(
+      `UPDATE dispatch_listings SET pending_transaction_id=$2 WHERE id=$1`,
+      [listing.id, ptId]
+    );
+
+    // Activity log.
+    await client.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'dispatch_accepted',
+               'Driver accepted dispatch GHS ' || $3 || ' for ' || $4 || 'kg ' || $5,
+               $6, 'pending_transaction')`,
+      [driver.id, listing.aggregator_id, listing.proposed_fee_ghs, Math.round(parseFloat(listing.gross_weight_kg)), listing.material_type, ptId]
+    );
+
+    await client.query('COMMIT');
+
+    // Notifications — best-effort, don't fail commit on SMS error.
+    try {
+      const agg = await pool.query(`SELECT phone, name FROM aggregators WHERE id=$1 LIMIT 1`, [listing.aggregator_id]);
+      if (agg.rows.length) {
+        const aggName = agg.rows[0].name || 'aggregator';
+        const dest = listing.destination_buyer_kind || 'buyer';
+        const kg = Math.round(parseFloat(listing.gross_weight_kg));
+        const fee = Math.round(parseFloat(listing.proposed_fee_ghs));
+        // Driver gets the dispatch-locked confirmation.
+        await notify(EVENTS.DRIVER_DISPATCH_LOCKED, driver.phone, {
+          first_name: driver.first_name,
+          weight: kg,
+          material: listing.material_type,
+          destination: dest,
+          fee: fee,
+          aggregator_name: aggName
+        });
+        // Aggregator gets the offer-accepted notification.
+        await notify(EVENTS.DRIVER_OFFER_ACCEPTED, agg.rows[0].phone, {
+          driver_first_name: driver.first_name,
+          weight: kg,
+          material: listing.material_type,
+          fee: fee,
+          origin: listing.pickup_location,
+          destination: dest
+        });
+      }
+    } catch (e) { console.warn('[NOTIFY] dispatch-locked / offer-accepted failed:', e.message); }
+
+    const feeRound = Math.round(parseFloat(listing.proposed_fee_ghs));
+    return 'END Dispatch locked.\nTrip fee: GHS ' + feeRound + '.\nWe SMSed details.';
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[DRIVER ACCEPT] commit failed:', err);
+    return 'END System error.\nTry again later.';
+  } finally {
+    client.release();
+  }
+}
+
+// driverCounterListing — counter-offer flow.
+//   restParts = []           → prompt for numeric counter
+//   restParts = ['<num>']    → confirm screen
+//   restParts = ['<num>','1']→ send counter → END
+//   restParts = ['<num>','0']→ cancel → END
+async function driverCounterListing(restParts, driver, listing) {
+  if (restParts.length === 0) {
+    return 'CON Your counter (GHS):';
+  }
+
+  const counterRaw = restParts[0];
+  const counter = parseFloat(counterRaw);
+  if (!isFinite(counter) || counter <= 0) {
+    return 'END Invalid amount.\nDial again to retry.';
+  }
+
+  if (restParts.length === 1) {
+    const kg = Math.round(parseFloat(listing.gross_weight_kg));
+    return 'CON Counter GHS ' + Math.round(counter) + '\nfor ' + kg + 'kg ' + listing.material_type + '\n1. Send\n0. Cancel';
+  }
+
+  if (restParts[1] === '0') return 'END Cancelled.';
+  if (restParts[1] !== '1') return 'END Invalid option.\nDial again to retry.';
+
+  // Send counter — insert driver_offers row (status='pending', offer_type='counter')
+  try {
+    await pool.query(
+      `INSERT INTO driver_offers (listing_id, driver_id, offer_type, counter_fee_ghs, status)
+       VALUES ($1, $2, 'counter', $3, 'pending')
+       ON CONFLICT (listing_id, driver_id) DO UPDATE
+         SET offer_type='counter', counter_fee_ghs=$3, status='pending'`,
+      [listing.id, driver.id, counter]
+    );
+    await pool.query(
+      `INSERT INTO driver_activity (driver_id, aggregator_id, action_type, description, related_id, related_type)
+       VALUES ($1, $2, 'counter_offered',
+               'Driver countered with GHS ' || $3 || ' for ' || $4 || 'kg ' || $5,
+               $6, 'dispatch_listing')`,
+      [driver.id, listing.aggregator_id, counter, Math.round(parseFloat(listing.gross_weight_kg)), listing.material_type, listing.id]
+    );
+  } catch (err) {
+    console.error('[DRIVER COUNTER] insert failed:', err);
+    return 'END System error.\nTry again later.';
+  }
+
+  return 'END Counter sent.\nWe will notify you\nwhen they decide.';
 }
 
 async function handleAgentCollection(m, agent) {
@@ -6201,7 +7902,7 @@ app.post('/api/ussd', async (req, res) => {
   const { sessionId, serviceCode, phoneNumber, text } = req.body;
   const phone = normalizeGhanaPhone(phoneNumber);
   const parts = text ? text.split('*') : [];
-  let response = '', collectorId = null, aggregatorId = null, agentId = null;
+  let response = '', collectorId = null, aggregatorId = null, agentId = null, driverId = null;
   try {
     const phoneVariants = getPhoneVariants(phone);
 
@@ -6272,8 +7973,19 @@ app.post('/api/ussd', async (req, res) => {
               agentId = agentResult.rows[0].id;
               response = await handleAgentUssd(parts, agentResult.rows[0]);
             } else {
-              // 4. Unregistered — collector self-registration or aggregator request
-              response = await handleUnregisteredUssd(parts, phone);
+              // 4. Check drivers (phone+PIN auth, multi-aggregator via roster)
+              const driverResult = await pool.query(
+                `SELECT id, first_name, last_name, phone, pin, city, region, must_change_pin
+                 FROM drivers WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+                [phoneVariants]
+              );
+              if (driverResult.rows.length) {
+                driverId = driverResult.rows[0].id;
+                response = await handleDriverUssd(parts, driverResult.rows[0]);
+              } else {
+                // 5. Unregistered — collector / aggregator / driver self-register
+                response = await handleUnregisteredUssd(parts, phone);
+              }
             }
           }
         }
@@ -6285,15 +7997,16 @@ app.post('/api/ussd', async (req, res) => {
   // Log session with role-specific ID
   try {
     await pool.query(
-      `INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, aggregator_id, agent_id, text_input, response)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO ussd_sessions (session_id, phone, service_code, collector_id, aggregator_id, agent_id, driver_id, text_input, response)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (session_id) DO UPDATE SET
          text_input = EXCLUDED.text_input,
          response = EXCLUDED.response,
          collector_id  = COALESCE(ussd_sessions.collector_id,  EXCLUDED.collector_id),
          aggregator_id = COALESCE(ussd_sessions.aggregator_id, EXCLUDED.aggregator_id),
-         agent_id      = COALESCE(ussd_sessions.agent_id,      EXCLUDED.agent_id)`,
-      [sessionId, phone, serviceCode, collectorId, aggregatorId, agentId, text||'', response]
+         agent_id      = COALESCE(ussd_sessions.agent_id,      EXCLUDED.agent_id),
+         driver_id     = COALESCE(ussd_sessions.driver_id,     EXCLUDED.driver_id)`,
+      [sessionId, phone, serviceCode, collectorId, aggregatorId, agentId, driverId, text||'', response]
     );
   } catch (logErr) { console.error('[USSD] Log error:', logErr); }
 
@@ -7498,6 +9211,28 @@ app.post('/api/auth/login', async (req, res) => {
                     must_change_pin: ag.must_change_pin }
           });
         }
+      }
+
+      // 4. Drivers (standalone actors — phone+PIN, mirrors collector pattern)
+      const driverResult = await pool.query(
+        `SELECT id, first_name, last_name, phone, pin, city, region, must_change_pin
+         FROM drivers WHERE phone=ANY($1) AND is_active=true LIMIT 1`, [phoneVariants]
+      );
+      if (driverResult.rows.length && await verifyPassword(pin.trim(), driverResult.rows[0].pin)) {
+        clearLoginAttempts(phone.trim());
+        const d = driverResult.rows[0];
+        const name = ((d.first_name||'') + (d.last_name ? ' '+d.last_name : '')).trim();
+        const token = generateToken({ type: 'driver', id: d.id, phone: d.phone, role: 'driver' }, AUTH_SECRET);
+        return res.json({
+          success: true, role: 'driver', roles: null, token,
+          user: {
+            id: d.id, name, first_name: d.first_name, last_name: d.last_name,
+            phone: d.phone, role: 'driver',
+            code: CirculRoles.circulCode('driver', d.id),
+            city: d.city, region: d.region,
+            must_change_pin: !!d.must_change_pin
+          }
+        });
       }
 
       recordFailedLogin(phone.trim());
@@ -9218,6 +10953,272 @@ app.post('/api/agent/register-collector', requireAuth, async (req, res) => {
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ success: false, message: 'Phone number already registered' });
     console.error(err); res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// DRIVER WEB ENDPOINTS (Phase 10)
+// ============================================
+// Auth model: requireAuth + req.user.role === 'driver' check inside each
+// handler — no driver-specific middleware. Mirrors the rest of the platform.
+
+// Driver dashboard — single endpoint returns tiles + recent deliveries +
+// my aggregators in one round-trip. No separate ratings endpoint in v0
+// (aggregator-rates-driver deferred to v1).
+app.get('/api/driver/dashboard', requireAuth, async (req, res) => {
+  if (req.user.role !== 'driver') return res.status(403).json({ success: false, message: 'Access denied' });
+  const driverId = req.user.id;
+  try {
+    const now = new Date();
+    // ISO week start (Monday 00:00 local) — simple weekly window
+    const dayIdx = (now.getDay() + 6) % 7; // 0=Mon..6=Sun
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayIdx).toISOString();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const [driverRow, weekAgg, monthAgg, owedAgg, activeJobs, recentRows, aggRows] = await Promise.all([
+      // Driver profile
+      pool.query(
+        `SELECT id, first_name, last_name, phone, city, region
+         FROM drivers WHERE id=$1`, [driverId]
+      ),
+      // Tile 1: earned this week (driver_fee_ghs on confirmed deliveries this week)
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs),0) AS ghs, COUNT(*) AS deliveries
+         FROM pending_transactions
+         WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           AND driver_confirmed_at >= $2`, [driverId, weekStart]
+      ),
+      // Tile 2: earned this month
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs),0) AS ghs, COUNT(*) AS deliveries
+         FROM pending_transactions
+         WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           AND driver_confirmed_at >= $2`, [driverId, monthStart]
+      ),
+      // Tile 3: awaiting payment (confirmed deliveries with no driver_fee_paid_at)
+      pool.query(
+        `SELECT COALESCE(SUM(driver_fee_ghs),0) AS ghs, COUNT(*) AS deliveries
+         FROM pending_transactions
+         WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           AND driver_fee_paid_at IS NULL`, [driverId]
+      ),
+      // Tile 4: active jobs — dispatch_listings awarded to me, not yet confirmed
+      pool.query(
+        `SELECT COUNT(*) AS count
+         FROM dispatch_listings dl
+         LEFT JOIN pending_transactions pt ON pt.id = dl.pending_transaction_id
+         WHERE dl.awarded_to_driver_id=$1
+           AND dl.status='awarded'
+           AND (pt.driver_confirmed_at IS NULL OR dl.pending_transaction_id IS NULL)`,
+        [driverId]
+      ),
+      // Recent deliveries: last 10 confirmed, descending date.
+      // LEFT JOIN dispatch_listings for pickup_location (nullable — older
+      // pending_transactions may not have a dispatch_listings row).
+      pool.query(
+        `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.accepted_weight_kg,
+                pt.driver_fee_ghs, pt.driver_fee_paid_at, pt.driver_confirmed_at,
+                pt.aggregator_id, a.name AS aggregator_name,
+                pt.processor_id, p.company AS processor_company, p.name AS processor_name,
+                pt.converter_id, c.company AS converter_company, c.name AS converter_name,
+                pt.recycler_id, r.company AS recycler_company, r.name AS recycler_name,
+                dl.pickup_location
+         FROM pending_transactions pt
+         LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+         LEFT JOIN processors p  ON p.id = pt.processor_id
+         LEFT JOIN converters c  ON c.id = pt.converter_id
+         LEFT JOIN recyclers  r  ON r.id = pt.recycler_id
+         LEFT JOIN dispatch_listings dl ON dl.pending_transaction_id = pt.id
+         WHERE pt.driver_id=$1 AND pt.driver_confirmed_at IS NOT NULL
+         ORDER BY pt.driver_confirmed_at DESC
+         LIMIT 10`, [driverId]
+      ),
+      // My aggregators: active relationships + denormalised stats
+      pool.query(
+        `SELECT
+           dar.aggregator_id,
+           dar.claimed_at,
+           dar.created_at AS rel_created_at,
+           a.name AS aggregator_name,
+           COALESCE(stats.deliveries_count, 0) AS deliveries_count,
+           COALESCE(stats.total_kg, 0)        AS total_kg,
+           COALESCE(stats.avg_fee_ghs, 0)     AS avg_fee_ghs
+         FROM driver_aggregator_relationships dar
+         JOIN aggregators a ON a.id = dar.aggregator_id
+         LEFT JOIN (
+           SELECT aggregator_id,
+                  COUNT(*)                   AS deliveries_count,
+                  SUM(COALESCE(accepted_weight_kg, gross_weight_kg)) AS total_kg,
+                  AVG(driver_fee_ghs)        AS avg_fee_ghs
+           FROM pending_transactions
+           WHERE driver_id=$1 AND driver_confirmed_at IS NOT NULL
+           GROUP BY aggregator_id
+         ) stats ON stats.aggregator_id = dar.aggregator_id
+         WHERE dar.driver_id=$1 AND dar.status='active'
+         ORDER BY dar.claimed_at DESC NULLS LAST, dar.created_at DESC`,
+        [driverId]
+      )
+    ]);
+
+    if (!driverRow.rows.length) return res.status(404).json({ success: false, message: 'Driver not found' });
+    const drv = driverRow.rows[0];
+
+    const recent = recentRows.rows.map(function (r) {
+      const destName =
+        r.processor_id ? (r.processor_company || r.processor_name)
+        : r.converter_id ? (r.converter_company || r.converter_name)
+        : r.recycler_id ? (r.recycler_company  || r.recycler_name)
+        : null;
+      return {
+        id: r.id,
+        material_type: r.material_type,
+        gross_weight_kg: r.gross_weight_kg != null ? parseFloat(r.gross_weight_kg) : null,
+        accepted_weight_kg: r.accepted_weight_kg != null ? parseFloat(r.accepted_weight_kg) : null,
+        driver_fee_ghs: r.driver_fee_ghs != null ? parseFloat(r.driver_fee_ghs) : 0,
+        payment_status: r.driver_fee_paid_at ? 'paid' : 'pending',
+        confirmed_at: r.driver_confirmed_at,
+        pickup_location: r.pickup_location || null,
+        aggregator_id: r.aggregator_id,
+        aggregator_name: r.aggregator_name || null,
+        destination_name: destName
+      };
+    });
+
+    res.json({
+      success: true,
+      driver: {
+        id: drv.id,
+        code: CirculRoles.circulCode('driver', drv.id),
+        first_name: drv.first_name,
+        last_name: drv.last_name,
+        phone: drv.phone,
+        city: drv.city || null,
+        region: drv.region || null
+      },
+      tiles: {
+        earned_this_week:  { ghs: parseFloat(weekAgg.rows[0].ghs)  || 0, deliveries: parseInt(weekAgg.rows[0].deliveries, 10)  || 0 },
+        earned_this_month: { ghs: parseFloat(monthAgg.rows[0].ghs) || 0, deliveries: parseInt(monthAgg.rows[0].deliveries, 10) || 0 },
+        awaiting_payment:  { ghs: parseFloat(owedAgg.rows[0].ghs)  || 0, deliveries: parseInt(owedAgg.rows[0].deliveries, 10)  || 0 },
+        active_jobs:       { count: parseInt(activeJobs.rows[0].count, 10) || 0 }
+      },
+      recent_deliveries: recent,
+      my_aggregators: aggRows.rows.map(function (r) {
+        return {
+          aggregator_id: r.aggregator_id,
+          aggregator_name: r.aggregator_name,
+          joined_at: r.claimed_at || r.rel_created_at,
+          deliveries_count: parseInt(r.deliveries_count, 10) || 0,
+          total_kg: parseFloat(r.total_kg) || 0,
+          avg_fee_ghs: parseFloat(r.avg_fee_ghs) || 0
+        };
+      })
+    });
+  } catch (err) {
+    console.error('Driver dashboard error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Driver delivery detail — single delivery + photo URLs.
+// Verifies the txn belongs to this driver before returning.
+app.get('/api/driver/deliveries/:id', requireAuth, async (req, res) => {
+  if (req.user.role !== 'driver') return res.status(403).json({ success: false, message: 'Access denied' });
+  const txnId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(txnId)) return res.status(400).json({ success: false, message: 'Invalid id' });
+  try {
+    const result = await pool.query(
+      `SELECT pt.id, pt.material_type, pt.gross_weight_kg, pt.accepted_weight_kg,
+              pt.driver_id, pt.driver_fee_ghs, pt.driver_fee_paid_at, pt.driver_fee_paid_method,
+              pt.driver_confirmed_at, pt.rejected_disposition, pt.photo_urls,
+              pt.aggregator_id, a.name AS aggregator_name,
+              pt.processor_id, p.company AS processor_company, p.name AS processor_name,
+              pt.converter_id, c.company AS converter_company, c.name AS converter_name,
+              pt.recycler_id,  r.company AS recycler_company,  r.name AS recycler_name,
+              dl.pickup_location
+       FROM pending_transactions pt
+       LEFT JOIN aggregators a ON a.id = pt.aggregator_id
+       LEFT JOIN processors  p ON p.id = pt.processor_id
+       LEFT JOIN converters  c ON c.id = pt.converter_id
+       LEFT JOIN recyclers   r ON r.id = pt.recycler_id
+       LEFT JOIN dispatch_listings dl ON dl.pending_transaction_id = pt.id
+       WHERE pt.id=$1`, [txnId]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Delivery not found' });
+    const row = result.rows[0];
+    if (row.driver_id !== req.user.id) return res.status(403).json({ success: false, message: 'Not your delivery' });
+
+    const destName =
+      row.processor_id ? (row.processor_company || row.processor_name)
+      : row.converter_id ? (row.converter_company || row.converter_name)
+      : row.recycler_id ? (row.recycler_company  || row.recycler_name)
+      : null;
+
+    res.json({
+      success: true,
+      delivery: {
+        id: row.id,
+        material_type: row.material_type,
+        gross_weight_kg: row.gross_weight_kg != null ? parseFloat(row.gross_weight_kg) : null,
+        accepted_weight_kg: row.accepted_weight_kg != null ? parseFloat(row.accepted_weight_kg) : null,
+        driver_fee_ghs: row.driver_fee_ghs != null ? parseFloat(row.driver_fee_ghs) : 0,
+        payment_status: row.driver_fee_paid_at ? 'paid' : 'pending',
+        paid_method: row.driver_fee_paid_method || null,
+        confirmed_at: row.driver_confirmed_at,
+        rejected_disposition: row.rejected_disposition || null,
+        photo_urls: Array.isArray(row.photo_urls) ? row.photo_urls : [],
+        pickup_location: row.pickup_location || null,
+        aggregator_id: row.aggregator_id,
+        aggregator_name: row.aggregator_name || null,
+        destination_name: destName
+      }
+    });
+  } catch (err) {
+    console.error('Driver delivery detail error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Driver photo upload — file upload, append URL to photo_urls JSONB.
+// Driver must own the delivery. multer 8MB cap + image-only mime gate (Step 10.1).
+app.post('/api/driver/deliveries/:id/photos', requireAuth, photoUpload.single('photo'), async (req, res) => {
+  if (req.user.role !== 'driver') return res.status(403).json({ success: false, message: 'Access denied' });
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+  const txnId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(txnId)) return res.status(400).json({ success: false, message: 'Invalid id' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Race-safe append: SELECT FOR UPDATE so concurrent uploads serialise.
+    const own = await client.query(
+      `SELECT driver_id, photo_urls FROM pending_transactions WHERE id=$1 FOR UPDATE`,
+      [txnId]
+    );
+    if (!own.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Delivery not found' });
+    }
+    if (own.rows[0].driver_id !== req.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Not your delivery' });
+    }
+
+    const publicUrl = '/uploads/delivery-photos/' + txnId + '/' + req.file.filename;
+    const existing = Array.isArray(own.rows[0].photo_urls) ? own.rows[0].photo_urls : [];
+    const nextUrls = existing.concat([publicUrl]);
+
+    await client.query(
+      `UPDATE pending_transactions SET photo_urls=$1::text[], updated_at=NOW() WHERE id=$2`,
+      [nextUrls, txnId]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, url: publicUrl, photo_urls: nextUrls });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Driver photo upload error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 

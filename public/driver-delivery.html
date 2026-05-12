@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delivery — Circul Driver</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<script src="/shared/roles.js"></script>
+<script src="/shared/format.js"></script>
+<style>
+/* Nav pill matches dashboard */
+.nav-pill-driver{background:#2e2010;color:#ffb74d}
+
+.back-link{display:inline-block;font-size:0.85rem;color:var(--text-2);margin-bottom:14px;text-decoration:none}
+.back-link:hover{color:var(--text-1)}
+
+.kv-grid{display:grid;grid-template-columns:max-content 1fr;gap:8px 18px;font-size:0.88rem}
+.kv-grid .k{color:var(--text-3)}
+.kv-grid .v{color:var(--text-1)}
+.delta-warn{color:#ffb74d}
+
+.photo-grid{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;margin-bottom:8px}
+.photo-thumb{width:140px;height:100px;background:var(--border);border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:0.74rem}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-add{width:140px;height:100px;background:#0a150e;border:2px dashed var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:0.82rem;cursor:pointer;font-weight:600}
+.photo-add input{display:none}
+
+@media (max-width:520px){
+  .kv-grid{grid-template-columns:1fr}
+  .kv-grid .k{margin-top:6px}
+  .photo-thumb,.photo-add{width:calc(50% - 6px)}
+}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);border-radius:var(--r-md);padding:12px 24px;font-size:0.85rem;color:var(--text-1);z-index:300;opacity:0;transition:opacity 0.3s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+  <span class="nav-spacer"></span>
+  <div class="nav-right">
+    <span class="nav-pill nav-pill-driver">DRIVER</span>
+    <span class="nav-name" id="navName">—</span>
+    <span class="nav-id" id="driverCode"></span>
+    <a class="nav-link" href="/driver-dashboard.html">Dashboard</a>
+    <button class="nav-logout" onclick="signOut()">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+  <a class="back-link" href="/driver-dashboard.html">&larr; Back to dashboard</a>
+
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title" id="dvyTitle">Delivery</div>
+        <div class="section-sub" id="dvySub">—</div>
+      </div>
+    </div>
+
+    <div class="kv-grid" id="dvyKV">
+      <div class="k">Date</div>             <div class="v" id="dvyDate">—</div>
+      <div class="k">From</div>             <div class="v" id="dvyFrom">—</div>
+      <div class="k">To</div>               <div class="v" id="dvyTo">—</div>
+      <div class="k">Material</div>         <div class="v" id="dvyMaterial">—</div>
+      <div class="k">Pickup weight</div>    <div class="v" id="dvyPickup">—</div>
+      <div class="k">Accepted weight</div>  <div class="v" id="dvyAccepted">—</div>
+      <div class="k">Rejected (computed)</div><div class="v delta-warn" id="dvyRejected">—</div>
+      <div class="k">Trip fee</div>         <div class="v" id="dvyFee">—</div>
+      <div class="k">Payment</div>          <div class="v" id="dvyPayment">—</div>
+      <div class="k">Disposition</div>      <div class="v" id="dvyDisposition">—</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Photos <span class="section-sub" id="photoCountSub" style="margin-left:6px"></span></div>
+        <div class="section-sub">Suggested: weighbridge slip, rejected portion, pickup/delivery state · JPG/PNG/WEBP/HEIC up to 8 MB</div>
+      </div>
+    </div>
+    <div class="photo-grid" id="photoGrid">
+      <div style="color:var(--text-3);font-size:0.82rem">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   CIRCUL — DRIVER DELIVERY DETAIL
+   ═══════════════════════════════════════════════ */
+
+const API = '/api';
+let _driverState = {};
+let _delivery = null;
+
+function getQueryId() {
+  var m = window.location.search.match(/[?&]id=(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/* ── auth gate ── */
+function checkAuth() {
+  var saved = localStorage.getItem('circul_user');
+  if (!saved) { window.location.href = '/driver-dashboard.html'; return; }
+  try {
+    _driverState = JSON.parse(saved);
+    var t = localStorage.getItem('circul_token');
+    if (t && !_driverState.token) _driverState.token = t;
+    if (_driverState.role !== 'driver') {
+      var route = CirculRoles.ROLE_ROUTES[_driverState.role];
+      window.location.href = route || '/driver-dashboard.html';
+      return;
+    }
+  } catch (e) {
+    localStorage.removeItem('circul_user');
+    window.location.href = '/driver-dashboard.html';
+    return;
+  }
+  loadDelivery();
+}
+
+function signOut() {
+  _driverState = {};
+  localStorage.removeItem('circul_user');
+  localStorage.removeItem('circul_token');
+  window.location.href = '/login';
+}
+
+/* ── helpers ── */
+function apiFetch(path, opts) {
+  opts = opts || {};
+  var token = (_driverState && _driverState.token) || localStorage.getItem('circul_token') || '';
+  var headers = Object.assign({}, opts.headers || {});
+  // Don't force Content-Type if body is FormData — fetch sets boundary
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  var fetchOpts = Object.assign({}, opts, { headers: headers });
+  return fetch(API + path, fetchOpts).then(function(r) {
+    if (r.status === 401) {
+      localStorage.removeItem('circul_token');
+      localStorage.removeItem('circul_user');
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+    if (!r.ok) {
+      return r.json().catch(function() { return { message: 'Error ' + r.status }; })
+              .then(function(j) { throw new Error(j.message || ('Error ' + r.status)); });
+    }
+    return r.json();
+  });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function showToast(msg, duration) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, duration || 3000);
+}
+
+function truncate(s, n) {
+  s = String(s == null ? '' : s);
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+function matPill(mat) {
+  if (!mat) return '—';
+  var m = String(mat).toUpperCase();
+  var cls = m === 'PET' ? 'pill-pet' : m === 'HDPE' ? 'pill-hdpe' : m === 'LDPE' ? 'pill-ldpe' : 'pill-pp';
+  return '<span class="pill ' + cls + '">' + esc(m) + '</span>';
+}
+
+function paymentPill(status) {
+  if (status === 'paid')    return '<span class="pill pill-paid">paid</span>';
+  return '<span class="pill pill-pending">pending</span>';
+}
+
+function dispositionLabel(d) {
+  if (d === 'bring_back')    return 'Bring back';
+  if (d === 'sell_as_scrap') return 'Sell as scrap';
+  return 'Leave at buyer';
+}
+
+/* ── load + render ── */
+function loadDelivery() {
+  var id = getQueryId();
+  if (!id) { showToast('Missing delivery id'); return; }
+
+  // Populate nav from cached state
+  var first = _driverState.first_name || (_driverState.name ? String(_driverState.name).split(' ')[0] : '—');
+  document.getElementById('navName').textContent = first;
+  document.getElementById('driverCode').textContent = _driverState.code || '';
+
+  apiFetch('/driver/deliveries/' + id)
+    .then(function(data) {
+      if (!data || !data.success || !data.delivery) {
+        showToast('Delivery not found');
+        return;
+      }
+      _delivery = data.delivery;
+      render(_delivery);
+    })
+    .catch(function(err) {
+      console.error('Load delivery failed:', err);
+      showToast(err.message || 'Could not load delivery');
+    });
+}
+
+function render(d) {
+  document.getElementById('dvyTitle').textContent = 'Delivery #' + d.id;
+  document.getElementById('dvySub').textContent =
+    CirculFormat.fmtDateLong(d.confirmed_at) + ' · ' + (d.material_type || '—');
+
+  document.getElementById('dvyDate').textContent = CirculFormat.fmtDateLong(d.confirmed_at);
+
+  var fromText = d.aggregator_name ? truncate(d.aggregator_name, 24) : '—';
+  if (d.pickup_location) fromText += ' (' + truncate(d.pickup_location, 24) + ')';
+  document.getElementById('dvyFrom').textContent = fromText;
+
+  document.getElementById('dvyTo').textContent = d.destination_name ? truncate(d.destination_name, 24) : '—';
+  document.getElementById('dvyMaterial').innerHTML = matPill(d.material_type);
+
+  var grossKg    = d.gross_weight_kg    != null ? parseFloat(d.gross_weight_kg).toFixed(1)    + ' kg' : '—';
+  var acceptedKg = d.accepted_weight_kg != null ? parseFloat(d.accepted_weight_kg).toFixed(1) + ' kg' : '—';
+  document.getElementById('dvyPickup').textContent = grossKg;
+  document.getElementById('dvyAccepted').textContent = acceptedKg;
+
+  var rejectedEl = document.getElementById('dvyRejected');
+  if (d.gross_weight_kg != null && d.accepted_weight_kg != null) {
+    var rej = Math.max(0, parseFloat(d.gross_weight_kg) - parseFloat(d.accepted_weight_kg));
+    rejectedEl.textContent = rej.toFixed(1) + ' kg';
+  } else {
+    rejectedEl.textContent = '—';
+  }
+
+  document.getElementById('dvyFee').textContent = CirculFormat.fmtGHS(d.driver_fee_ghs);
+  document.getElementById('dvyPayment').innerHTML = paymentPill(d.payment_status);
+  document.getElementById('dvyDisposition').textContent = dispositionLabel(d.rejected_disposition);
+
+  renderPhotos(Array.isArray(d.photo_urls) ? d.photo_urls : []);
+}
+
+function renderPhotos(urls) {
+  var grid = document.getElementById('photoGrid');
+  var html = urls.map(function(u) {
+    return '<div class="photo-thumb"><img src="' + esc(u) + '" alt="delivery photo"></div>';
+  }).join('');
+  html += '<label class="photo-add">'
+       +    '+ Add photo'
+       +    '<input type="file" accept="image/jpeg,image/png,image/webp,image/heic" onchange="uploadPhoto(this)">'
+       +  '</label>';
+  grid.innerHTML = html;
+  var countEl = document.getElementById('photoCountSub');
+  countEl.textContent = urls.length
+    ? urls.length + ' attached'
+    : 'No photos yet';
+}
+
+function uploadPhoto(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  if (!_delivery) { showToast('Delivery not loaded'); return; }
+  if (file.size > 8 * 1024 * 1024) {
+    showToast('File too large (max 8 MB)');
+    input.value = '';
+    return;
+  }
+  var form = new FormData();
+  form.append('photo', file);
+  showToast('Uploading…', 1500);
+  apiFetch('/driver/deliveries/' + _delivery.id + '/photos', { method: 'POST', body: form })
+    .then(function(data) {
+      if (!data || !data.success) {
+        showToast(data && data.message || 'Upload failed');
+        return;
+      }
+      _delivery.photo_urls = Array.isArray(data.photo_urls) ? data.photo_urls : (_delivery.photo_urls || []).concat([data.url]);
+      renderPhotos(_delivery.photo_urls);
+      showToast('Photo added');
+    })
+    .catch(function(err) {
+      console.error('Upload failed:', err);
+      showToast(err.message || 'Upload failed');
+    })
+    .finally(function() { input.value = ''; });
+}
+
+/* ── init ── */
+document.addEventListener('DOMContentLoaded', checkAuth);
+</script>
+</body>
+</html>

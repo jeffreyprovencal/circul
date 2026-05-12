@@ -31,6 +31,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const TEST_COLLECTOR_PREFIX  = '+233900000';
 const TEST_AGGREGATOR_PREFIX = '+233900001';
 const TEST_AGENT_PREFIX      = '+233900002';
+// Phase 12: driver test prefix. Cleanup, seed + 10 new driver cases scoped here.
+const TEST_DRIVER_PREFIX     = '+233900003';
 const TEST_SESSION_PREFIX    = 'test-ussd-';
 
 // Pre-seeded test accounts (phones used by the test cases below).
@@ -40,6 +42,10 @@ const TEST_AGGREGATOR_PHONE  = '+233900001001'; // dialed as 0900001001
 const TEST_AGGREGATOR_PIN    = '2222';
 const TEST_AGENT_PHONE       = '+233900002001'; // dialed as 0900002001
 const TEST_AGENT_PIN         = '3333';
+// Phase 12: pre-seeded test driver. Cases 3-10 rely on this fixture existing
+// (independent of Cases 1-2 which self-register at *003011 / *003012).
+const TEST_DRIVER_PHONE      = '+233900003001'; // dialed as 0900003001
+const TEST_DRIVER_PIN        = '5555';
 const TEST_GATE_PHONE        = '+233900000098'; // dialed as 0900000098, must_change_pin=true
 const TEST_AGG_GATE_PHONE    = '+233900001098'; // dialed as 0900001098, must_change_pin=true
 const TEST_AGENT_GATE_PHONE  = '+233900002098'; // dialed as 0900002098, must_change_pin=true
@@ -141,17 +147,41 @@ async function runStep(step, history, sessionId, phoneNumber) {
 }
 
 async function runTest(t) {
+  // Phase 12: beforeHook lets driver test cases seed minimal fixture state
+  // (e.g., open dispatch_listings, pending_transactions awaiting confirmation)
+  // without chaining off prior test side-effects.
+  if (typeof t.beforeHook === 'function') {
+    try {
+      await t.beforeHook();
+    } catch (e) {
+      return { name: t.name, ok: false, reason: 'before-hook failed: ' + e.message };
+    }
+  }
   const sessionId = TEST_SESSION_PREFIX + Math.random().toString(36).slice(2, 10);
   const history = [];
+  const recordedResponses = [];
   for (let i = 0; i < t.steps.length; i++) {
     const r = await runStep(t.steps[i], history, sessionId, t.phoneNumber);
     if (!r.ok) return { name: t.name, ok: false, stepIndex: i, reason: r.reason };
+    recordedResponses.push(r.response);
   }
-  if (typeof t.after === 'function') {
+  // Both `after` (legacy name) and `afterHook` (Phase 12 naming) supported.
+  const after = t.afterHook || t.after;
+  if (typeof after === 'function') {
     try {
-      await t.after();
+      await after();
     } catch (e) {
       return { name: t.name, ok: false, reason: 'after-hook failed: ' + e.message };
+    }
+  }
+  // Phase 12: customAssertions runs over the full set of response bodies.
+  // Used by the driver-rates-aggregator test to assert no UCS-2 star glyph
+  // appeared in any rating screen (Phase 9 ASCII-rating discipline).
+  if (typeof t.customAssertions === 'function') {
+    try {
+      await t.customAssertions(recordedResponses);
+    } catch (e) {
+      return { name: t.name, ok: false, reason: 'custom-assertion failed: ' + e.message };
     }
   }
   return { name: t.name, ok: true };
@@ -164,9 +194,13 @@ async function runTest(t) {
 const COLLECTOR_LIKES   = ['+233900000%', '0900000%'];
 const AGGREGATOR_LIKES  = ['+233900001%', '0900001%'];
 const AGENT_LIKES       = ['+233900002%', '0900002%'];
+// Phase 12: driver test phone band, e.g. +233900003001..099 / 0900003001..099.
+const DRIVER_LIKES      = [TEST_DRIVER_PREFIX + '%', '0900003%'];
 // Some inline-register flows use a 0900099xxx phone for "unknown collector"
-// scenarios; sweep those too.
-const ANY_TEST_LIKES    = ['+233900%', '0900%'];
+// scenarios; sweep those too. ANY_TEST_LIKES already matches the driver band
+// via the +233900% / 0900% wildcards — Phase 12 appends the explicit driver
+// prefix as well for grep-discoverability and to satisfy the STOP gate.
+const ANY_TEST_LIKES    = ['+233900%', '0900%', TEST_DRIVER_PREFIX + '%'];
 
 async function safeDelete(label, fn) {
   try { await fn(); }
@@ -215,6 +249,67 @@ async function cleanupTestData() {
       [ANY_TEST_LIKES]
     )
   );
+  // ── Phase 12: driver-feature cleanup (children first per FK constraints) ──
+  // driver_offers → dispatch_listings → driver_activity → driver_aggregator_relationships → drivers.
+  // pending_transactions cleanup not needed here: existing aggregators/collectors
+  // deletes cascade via the aggregator_id / collector_id FKs (ON DELETE SET NULL
+  // for some, no FK for others — driver-linked rows are scoped by aggregator_id
+  // in the same test phone band, so they get swept transitively).
+  await safeDelete('driver_offers', () =>
+    pool.query(
+      `DELETE FROM driver_offers
+       WHERE driver_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1))
+          OR listing_id IN (SELECT id FROM dispatch_listings
+                            WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1)))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  await safeDelete('dispatch_listings', () =>
+    pool.query(
+      `DELETE FROM dispatch_listings
+       WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1))
+          OR awarded_to_driver_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  await safeDelete('driver_activity', () =>
+    pool.query(
+      `DELETE FROM driver_activity
+       WHERE driver_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1))
+          OR aggregator_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  await safeDelete('driver_aggregator_relationships', () =>
+    pool.query(
+      `DELETE FROM driver_aggregator_relationships
+       WHERE driver_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1))
+          OR aggregator_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  // Also sweep pending_transactions linked to test drivers (driver_id FK).
+  // pending_transactions doesn't ON DELETE SET NULL the driver_id, so without
+  // this the next run would silently retain stale ratings/cap counts.
+  await safeDelete('pending_transactions_driver', () =>
+    pool.query(
+      `DELETE FROM pending_transactions
+       WHERE driver_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  // transactions.driver_id FK has no ON DELETE clause (defaults to NO ACTION)
+  // — nullify before deleting drivers to avoid FK violations.
+  await safeDelete('transactions_driver_nullify', () =>
+    pool.query(
+      `UPDATE transactions SET driver_id = NULL
+       WHERE driver_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  await safeDelete('drivers', () =>
+    pool.query(`DELETE FROM drivers WHERE phone LIKE ANY($1)`, [ANY_TEST_LIKES])
+  );
   await safeDelete('agents', () =>
     pool.query(`DELETE FROM agents WHERE phone LIKE ANY($1)`, [ANY_TEST_LIKES])
   );
@@ -226,6 +321,16 @@ async function cleanupTestData() {
   );
   await safeDelete('collectors', () =>
     pool.query(`DELETE FROM collectors WHERE phone LIKE ANY($1)`, [ANY_TEST_LIKES])
+  );
+  // Phase 12: ratings rows from driver/rate-aggregator coverage. Done LAST so
+  // safeDelete on parties doesn't FK-block; ratings has no incoming FKs.
+  await safeDelete('ratings', () =>
+    pool.query(
+      `DELETE FROM ratings
+       WHERE (rater_type='driver' AND rater_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1)))
+          OR (rated_type='driver' AND rated_id IN (SELECT id FROM drivers WHERE phone LIKE ANY($1)))`,
+      [ANY_TEST_LIKES]
+    )
   );
 }
 
@@ -279,6 +384,18 @@ async function seedTestAccounts() {
      FROM aggregators WHERE phone = $3
      ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=true`,
     [TEST_AGENT_GATE_PHONE, gatePin, TEST_AGGREGATOR_PHONE]
+  );
+
+  // ── Phase 12: pre-seeded test driver ─────────────────────────────────────────
+  // Cases 3-10 need a stable driver at TEST_DRIVER_PHONE (PIN 5555, Accra/
+  // Greater Accra). Cases 1-2 self-register at *003011 / *003012 to avoid
+  // colliding with this seed.
+  const drvPin = await hashPin(TEST_DRIVER_PIN);
+  await pool.query(
+    `INSERT INTO drivers (first_name, last_name, phone, pin, city, region, is_active, must_change_pin)
+     VALUES ('TestDriver', 'Probe', $1, $2, 'Accra', 'Greater Accra', true, false)
+     ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=false`,
+    [TEST_DRIVER_PHONE, drvPin]
   );
 
   // ── Marketplace fixtures (display_name regression coverage) ─────────────────
@@ -377,7 +494,8 @@ const TESTS = [
     steps: [
       { input: '',     match: /CON Circul Aggregator/ },
       { input: '2222', match: /CON 1\. Register/ },
-      { input: '1',    match: /CON Register:\n1\. Collector\n2\. Agent\n0\. Back/ },
+      // Driver MVP v0 (PR feat/drivers-mvp-v0): submenu now includes 3. Driver
+      { input: '1',    match: /CON Register:\n1\. Collector\n2\. Agent\n3\. Driver\n0\. Back/ },
     ],
   },
   {
@@ -800,6 +918,518 @@ const TESTS = [
       { input: '4',    match: /CON My offers:/ },
       { input: '1',    match: /CON Offer from Test Offer Co:\n500kg PET\nGHS 2\.20\/kg = GHS 1100\.00\n1\. Accept\n2\. Decline\n0\. Back/ },
     ],
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Phase 12 — driver actor MVP v0 (10 new cases)
+  //
+  // Cases 1-2 self-register at unique phones (*003011 / *003012) to avoid
+  // colliding with the seedTestAccounts TEST_DRIVER_PHONE (*003001) that
+  // Cases 3-10 rely on.
+  //
+  // Case #11 "Aggregator rates driver" is INTENTIONALLY OMITTED from v0 —
+  // Phase 9 deferred aggregator-rates-driver to v1 (no USSD menu surface;
+  // ratedKind UNION complexity in getPendingRatings).
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // ─── Case 1: driver self-register (Accra path, page 0 entry 1) ─────────────
+  {
+    name: 'driver-self-register-accra',
+    phoneNumber: '0900003011',
+    beforeHook: async () => {
+      // Defensive: in case of partial prior run, drop any driver at this phone.
+      await pool.query(`DELETE FROM drivers WHERE phone = $1 OR phone = $2`,
+        ['+233900003011', '0900003011']);
+    },
+    steps: [
+      { input: '',          match: /What's your role\?[\s\S]*3\. Driver/ },
+      { input: '3',          match: /Enter your first name/ },
+      { input: 'Kojo',       match: /Enter your last name/ },
+      { input: 'Asante',     match: /Select city|1\. Accra/ },
+      { input: '1',          match: /Set 4-digit PIN/ },
+      { input: '5555',       match: /Confirm 4-digit PIN/ },
+      { input: '5555',       match: /CON Register driver:[\s\S]*Kojo Asante[\s\S]*Accra[\s\S]*1\. Confirm/ },
+      { input: '1',          match: /END Welcome, Kojo!\nCode: DRV-/ },
+    ],
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT first_name, city, region FROM drivers WHERE phone IN ($1, $2) ORDER BY id DESC LIMIT 1`,
+        ['+233900003011', '0900003011']
+      );
+      if (!r.rows.length) throw new Error('driver row not inserted at 0900003011');
+      if (r.rows[0].city !== 'Accra') throw new Error('city != Accra, got ' + r.rows[0].city);
+      if (r.rows[0].region !== 'Greater Accra') throw new Error('region != Greater Accra, got ' + r.rows[0].region);
+    },
+  },
+
+  // ─── Case 2: driver self-register (Sefwi Wiawso, paginated picker) ─────────
+  // Sefwi Wiawso is the 16th capital, position 1 on page 5 (3-per-page layout).
+  // Path: 5 page-advances ('4' each) then '1' on the last page. Same logic as
+  // the existing register-collector-pick-sefwi-wiawso-western-north test —
+  // confirms the picker works for self-register too.
+  {
+    name: 'driver-self-register-sefwi-wiawso',
+    phoneNumber: '0900003012',
+    beforeHook: async () => {
+      await pool.query(`DELETE FROM drivers WHERE phone = $1 OR phone = $2`,
+        ['+233900003012', '0900003012']);
+    },
+    steps: [
+      { input: '',          match: /What's your role/ },
+      { input: '3',          match: /Enter your first name/ },
+      { input: 'Yaw',        match: /Enter your last name/ },
+      { input: 'Mensah',     match: /Select city/ },              // page 0
+      { input: '4',          match: /Select city/ },               // page 1
+      { input: '4',          match: /Select city/ },               // page 2
+      { input: '4',          match: /Select city/ },               // page 3
+      { input: '4',          match: /Select city/ },               // page 4
+      { input: '4',          match: /1\. Sefwi Wiawso/ },           // page 5 (only entry)
+      { input: '1',          match: /Set 4-digit PIN/ },
+      { input: '5555',       match: /Confirm 4-digit PIN/ },
+      { input: '5555',       match: /CON Register driver:[\s\S]*Sefwi Wiawso/ },
+      { input: '1',          match: /END Welcome, Yaw!\nCode: DRV-/ },
+    ],
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT city, region FROM drivers WHERE phone IN ($1, $2) ORDER BY id DESC LIMIT 1`,
+        ['+233900003012', '0900003012']
+      );
+      if (!r.rows.length) throw new Error('driver row not inserted at 0900003012');
+      if (r.rows[0].city !== 'Sefwi Wiawso') {
+        throw new Error('expected Sefwi Wiawso, got ' + r.rows[0].city);
+      }
+      if (r.rows[0].region !== 'Western North') {
+        throw new Error('expected Western North, got ' + r.rows[0].region);
+      }
+    },
+  },
+
+  // ─── Case 3: aggregator invites unregistered driver → register-prompt path ──
+  // Aggregator path: 2222 → 1 (Register submenu) → 3 (Driver) → enter phone of
+  // an unknown driver. End screen tells aggregator "No registered driver" and
+  // server fires DRIVER_REGISTER_PROMPT SMS to the unknown number.
+  {
+    name: 'aggregator-invites-driver-unregistered',
+    phoneNumber: '0900001001',
+    steps: [
+      { input: '',           match: /CON Circul Aggregator/ },
+      { input: '2222',       match: /CON 1\. Register/ },
+      { input: '1',          match: /CON Register:\n1\. Collector\n2\. Agent\n3\. Driver/ },
+      { input: '3',          match: /Enter driver's\nphone number/ },
+      { input: '0900003999', match: /END No registered driver/ },
+    ],
+  },
+
+  // ─── Case 4: aggregator invites registered driver → invite_pending row ─────
+  // Driver TEST_DRIVER_PHONE exists (from seedTestAccounts). After this case,
+  // a driver_aggregator_relationships row exists with status='invite_pending'.
+  // The beforeHook scrubs any prior invite/active row so the test is
+  // independently runnable (insert path, not upsert-back-to-pending path).
+  {
+    name: 'aggregator-invites-registered-driver-creates-invite-pending',
+    phoneNumber: '0900001001',
+    beforeHook: async () => {
+      await pool.query(
+        `DELETE FROM driver_aggregator_relationships
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)
+           AND aggregator_id IN (SELECT id FROM aggregators WHERE phone = $2)`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+    },
+    steps: [
+      { input: '',           match: /CON Circul Aggregator/ },
+      { input: '2222',       match: /CON 1\. Register/ },
+      { input: '1',          match: /3\. Driver/ },
+      { input: '3',          match: /Enter driver's\nphone number/ },
+      { input: '0900003001', match: /END Invitation sent/ },
+    ],
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT status FROM driver_aggregator_relationships
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)
+           AND aggregator_id IN (SELECT id FROM aggregators WHERE phone = $2)`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      if (!r.rows.length || r.rows[0].status !== 'invite_pending') {
+        throw new Error('expected invite_pending, got ' + (r.rows.length ? r.rows[0].status : 'no row'));
+      }
+    },
+  },
+
+  // ─── Case 5: driver available work — empty state ───────────────────────────
+  // Driver dials in. beforeHook upserts an active relationship (so no
+  // invite-intercept fires) and clears dispatch_listings + pending_transactions
+  // so the main menu shows "Available work (0)".
+  {
+    name: 'driver-available-work-empty',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status)
+         SELECT d.id, a.id, 'active'
+         FROM drivers d, aggregators a
+         WHERE d.phone = $1 AND a.phone = $2
+         ON CONFLICT (driver_id, aggregator_id)
+         DO UPDATE SET status='active', claimed_at=NOW()`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      // No listings, no pending_transactions for this driver.
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+    },
+    steps: [
+      { input: '',     match: /CON Circul Driver/ },
+      { input: '5555', match: /Available work \(0\)/ },
+    ],
+  },
+
+  // ─── Case 6: driver accepts marketplace listing (accept-as-is path) ────────
+  // beforeHook creates an open marketplace listing in driver's region
+  // (Greater Accra). Driver dials in, picks "Available work", picks the
+  // listing, accepts at the proposed fee. Driver-offers row inserted with
+  // offer_type='accept_proposed'.
+  {
+    name: 'driver-accepts-marketplace-listing',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      // Active relationship + zero existing pending so cap is well under 2.
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status)
+         SELECT d.id, a.id, 'active'
+         FROM drivers d, aggregators a
+         WHERE d.phone = $1 AND a.phone = $2
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+      // Open Greater Accra listing, 200kg PET, GHS 80 fee, 24h TTL.
+      await pool.query(
+        `INSERT INTO dispatch_listings
+           (aggregator_id, pickup_location, material_type, gross_weight_kg,
+            proposed_fee_ghs, region, status, expires_at)
+         SELECT a.id, 'Madina', 'PET', 200, 80, 'Greater Accra', 'open',
+                NOW() + INTERVAL '24 hours'
+         FROM aggregators a WHERE a.phone = $1`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+    },
+    steps: [
+      { input: '',     match: /CON Circul Driver/ },
+      { input: '5555', match: /Available work \(1\)/ },
+      { input: '1',    match: /CON Available:[\s\S]*200kg PET GHS 80/ },
+      { input: '1',    match: /CON 200kg PET[\s\S]*1\. Accept GHS 80/ },
+      { input: '1',    match: /END/ },
+    ],
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT do_.offer_type, do_.status
+         FROM driver_offers do_
+         JOIN drivers d ON d.id = do_.driver_id
+         WHERE d.phone = $1
+         ORDER BY do_.created_at DESC LIMIT 1`,
+        [TEST_DRIVER_PHONE]
+      );
+      if (!r.rows.length) throw new Error('no driver_offers row after accept');
+      if (r.rows[0].offer_type !== 'accept_proposed') {
+        throw new Error('expected accept_proposed, got ' + r.rows[0].offer_type);
+      }
+    },
+  },
+
+  // ─── Case 7: driver counter-offers marketplace listing ─────────────────────
+  // beforeHook creates the same fixture as Case 6 (fresh listing). Driver
+  // picks "Counter", enters GHS 120, sends. Inserts a driver_offers row with
+  // offer_type='counter' and counter_fee_ghs=120.
+  {
+    name: 'driver-counter-offers-marketplace-listing',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status)
+         SELECT d.id, a.id, 'active'
+         FROM drivers d, aggregators a
+         WHERE d.phone = $1 AND a.phone = $2
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      // Order matters: dispatch_listings.pending_transaction_id FK points at
+      // pending_transactions.id with NO ON DELETE action, so listings must die
+      // first. driver_offers.listing_id has ON DELETE CASCADE, so dispatch_listings
+      // DELETE sweeps any old offers automatically.
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM driver_offers
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `INSERT INTO dispatch_listings
+           (aggregator_id, pickup_location, material_type, gross_weight_kg,
+            proposed_fee_ghs, region, status, expires_at)
+         SELECT a.id, 'Madina', 'PET', 200, 80, 'Greater Accra', 'open',
+                NOW() + INTERVAL '24 hours'
+         FROM aggregators a WHERE a.phone = $1`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+    },
+    steps: [
+      { input: '',     match: /CON Circul Driver/ },
+      { input: '5555', match: /Available work \(1\)/ },
+      { input: '1',    match: /CON Available:[\s\S]*200kg PET GHS 80/ },
+      { input: '1',    match: /2\. Counter/ },
+      { input: '2',    match: /CON Your counter \(GHS\):/ },
+      { input: '120',  match: /CON Counter GHS 120\n[\s\S]*1\. Send/ },
+      { input: '1',    match: /END Counter sent/ },
+    ],
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT do_.offer_type, do_.counter_fee_ghs
+         FROM driver_offers do_
+         JOIN drivers d ON d.id = do_.driver_id
+         WHERE d.phone = $1
+         ORDER BY do_.created_at DESC LIMIT 1`,
+        [TEST_DRIVER_PHONE]
+      );
+      if (!r.rows.length) throw new Error('no driver_offers row after counter');
+      if (r.rows[0].offer_type !== 'counter') throw new Error('expected counter, got ' + r.rows[0].offer_type);
+      if (parseFloat(r.rows[0].counter_fee_ghs) !== 120) {
+        throw new Error('expected counter_fee_ghs=120, got ' + r.rows[0].counter_fee_ghs);
+      }
+    },
+  },
+
+  // ─── Case 8: driver hits hard cap (3 active jobs) ──────────────────────────
+  // beforeHook seeds 3 active pending_transactions for the driver (status
+  // 'confirmed', driver_confirmed_at NULL) AND an open marketplace listing.
+  // Driver tries to accept → server returns "Maximum 3 active jobs reached".
+  {
+    name: 'driver-hits-hard-cap',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status)
+         SELECT d.id, a.id, 'active'
+         FROM drivers d, aggregators a
+         WHERE d.phone = $1 AND a.phone = $2
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      // Clear prior state — dispatch_listings BEFORE pending_transactions per FK.
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      // 3 active pending_transactions
+      for (let i = 0; i < 3; i++) {
+        await pool.query(
+          `INSERT INTO pending_transactions
+             (transaction_type, status, aggregator_id, driver_id, material_type,
+              gross_weight_kg, price_per_kg, total_price, driver_fee_ghs)
+           SELECT 'aggregator_sale', 'confirmed', a.id, d.id, 'PET', 100, 0, 0, 50
+           FROM aggregators a, drivers d
+           WHERE a.phone = $1 AND d.phone = $2`,
+          [TEST_AGGREGATOR_PHONE, TEST_DRIVER_PHONE]
+        );
+      }
+      // 4th — the listing we'll try to accept
+      await pool.query(
+        `INSERT INTO dispatch_listings
+           (aggregator_id, pickup_location, material_type, gross_weight_kg,
+            proposed_fee_ghs, region, status, expires_at)
+         SELECT a.id, 'Madina', 'PET', 150, 60, 'Greater Accra', 'open',
+                NOW() + INTERVAL '24 hours'
+         FROM aggregators a WHERE a.phone = $1`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+    },
+    steps: [
+      { input: '',     match: /CON Circul Driver/ },
+      { input: '5555', match: /Available work \(1\)/ },
+      { input: '1',    match: /CON Available:[\s\S]*150kg PET GHS 60/ },
+      { input: '1',    match: /1\. Accept GHS 60/ },
+      { input: '1',    match: /END Maximum 3 active jobs reached/ },
+    ],
+  },
+
+  // ─── Case 9: driver confirms delivery (single accepted weight) ─────────────
+  // beforeHook creates 1 pending_transaction with driver_id + gross 100kg +
+  // status='confirmed' + driver_confirmed_at NULL. Driver picks "Pending
+  // deliveries", picks the row, enters accepted=95kg (within anomaly band),
+  // confirms. driver_confirmed_at and accepted_weight_kg are written.
+  {
+    name: 'driver-confirms-delivery-single-weight',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status)
+         SELECT d.id, a.id, 'active'
+         FROM drivers d, aggregators a
+         WHERE d.phone = $1 AND a.phone = $2
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      // dispatch_listings BEFORE pending_transactions per FK
+      // (dispatch_listings.pending_transaction_id has no ON DELETE action).
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      // Clean ratings so rating-intercept doesn't fire on the post-confirm dial.
+      await pool.query(
+        `DELETE FROM ratings WHERE rater_type='driver'
+         AND rater_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `INSERT INTO pending_transactions
+           (transaction_type, status, aggregator_id, driver_id, material_type,
+            gross_weight_kg, price_per_kg, total_price, driver_fee_ghs)
+         SELECT 'aggregator_sale', 'confirmed', a.id, d.id, 'PET', 100, 0, 0, 50
+         FROM aggregators a, drivers d
+         WHERE a.phone = $1 AND d.phone = $2`,
+        [TEST_AGGREGATOR_PHONE, TEST_DRIVER_PHONE]
+      );
+    },
+    steps: [
+      { input: '',     match: /CON Circul Driver/ },
+      { input: '5555', match: /Pending deliveries \(1\)/ },
+      { input: '2',    match: /CON Confirm delivery:[\s\S]*1\. 100kg PET/ },
+      { input: '1',    match: /Accepted weight/ },
+      { input: '95',   match: /CON Pickup: 100kg\nAccepted: 95kg\nRejected: 5kg\n1\. Confirm/ },
+      { input: '1',    match: /END/ },
+    ],
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT accepted_weight_kg, driver_confirmed_at
+         FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)
+         ORDER BY created_at DESC LIMIT 1`,
+        [TEST_DRIVER_PHONE]
+      );
+      if (!r.rows.length) throw new Error('no pending row found');
+      if (!r.rows[0].driver_confirmed_at) throw new Error('driver_confirmed_at not set');
+      if (parseFloat(r.rows[0].accepted_weight_kg) !== 95) {
+        throw new Error('accepted_weight_kg expected 95, got ' + r.rows[0].accepted_weight_kg);
+      }
+    },
+  },
+
+  // ─── Case 10: driver rates aggregator (ASCII rating UI, no UCS-2 star) ─────
+  // beforeHook creates a confirmed delivery (driver_confirmed_at recent) so
+  // the pending-rating intercept fires. Driver dials in, selects "Rate now",
+  // picks the transaction, picks "4. 5 stars". Server returns ASCII text
+  // ("Your 5 star rating has been recorded"). customAssertions asserts NO
+  // UCS-2 star glyph appeared in any response (Phase 9 ASCII discipline).
+  {
+    name: 'driver-rates-aggregator-ascii-no-star',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      await pool.query(
+        `INSERT INTO driver_aggregator_relationships (driver_id, aggregator_id, status)
+         SELECT d.id, a.id, 'active'
+         FROM drivers d, aggregators a
+         WHERE d.phone = $1 AND a.phone = $2
+         ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
+        [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      // Clear prior pending + ratings to leave exactly one rateable row.
+      // dispatch_listings BEFORE pending_transactions per FK.
+      await pool.query(
+        `DELETE FROM ratings WHERE rater_type='driver'
+         AND rater_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
+      );
+      // Confirmed delivery, recent driver_confirmed_at — eligible for rating.
+      await pool.query(
+        `INSERT INTO pending_transactions
+           (transaction_type, status, aggregator_id, driver_id, material_type,
+            gross_weight_kg, accepted_weight_kg, price_per_kg, total_price,
+            driver_fee_ghs, driver_confirmed_at)
+         SELECT 'aggregator_sale', 'confirmed', a.id, d.id, 'PET', 100, 95, 0, 0, 50, NOW()
+         FROM aggregators a, drivers d
+         WHERE a.phone = $1 AND d.phone = $2`,
+        [TEST_AGGREGATOR_PHONE, TEST_DRIVER_PHONE]
+      );
+    },
+    steps: [
+      { input: '',     match: /Enter 4-digit PIN/ },
+      { input: '5555', match: /CON Rate your last\ndelivery\?\n1\. Rate now\n0\. Skip/ },
+      { input: '1',    match: /CON Rate a transaction:[\s\S]*1\. 100kg PET/ },
+      { input: '1',    match: /CON Rate [\s\S]*1\. 2 stars\n2\. 3 stars\n3\. 4 stars\n4\. 5 stars/ },
+      { input: '4',    match: /END Thank you!\nYour 5 star rating/ },
+    ],
+    // Explicit negative assertion: no UCS-2 star glyph appeared in any response.
+    // Per Phase 9, the platform-wide rating UI is ASCII-only — the star glyph
+    // U+2605 forces UCS-2 encoding and truncates Yam-phone screens.
+    customAssertions: (recordedResponses) => {
+      const star = '★';
+      const joined = recordedResponses.join('');
+      if (joined.indexOf(star) !== -1) {
+        throw new Error('UCS-2 star glyph found in rating screen - Phase 9 regression');
+      }
+    },
+    afterHook: async () => {
+      const r = await pool.query(
+        `SELECT rating, rated_type FROM ratings
+         WHERE rater_type = 'driver'
+           AND rater_id IN (SELECT id FROM drivers WHERE phone = $1)
+         ORDER BY id DESC LIMIT 1`,
+        [TEST_DRIVER_PHONE]
+      );
+      if (!r.rows.length) throw new Error('rating row not inserted');
+      if (r.rows[0].rating !== 5) throw new Error('expected 5 stars, got ' + r.rows[0].rating);
+      if (r.rows[0].rated_type !== 'aggregator') {
+        throw new Error('expected rated_type=aggregator, got ' + r.rows[0].rated_type);
+      }
+    },
   },
 ];
 
