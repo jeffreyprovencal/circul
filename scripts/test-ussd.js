@@ -350,8 +350,8 @@ async function seedTestAccounts() {
   );
 
   await pool.query(
-    `INSERT INTO aggregators (name, phone, pin, city, region, is_active, must_change_pin)
-     VALUES ('TestAgg Probe', $1, $2, 'Accra', 'Greater Accra', true, false)
+    `INSERT INTO aggregators (name, first_name, last_name, phone, pin, city, region, is_active, must_change_pin)
+     VALUES ('TestAgg Probe', 'TestAgg', 'Probe', $1, $2, 'Accra', 'Greater Accra', true, false)
      ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=false`,
     [TEST_AGGREGATOR_PHONE, aggPin]
   );
@@ -372,8 +372,8 @@ async function seedTestAccounts() {
   );
 
   await pool.query(
-    `INSERT INTO aggregators (name, phone, pin, city, region, is_active, must_change_pin)
-     VALUES ('AggGateTest Probe', $1, $2, 'Accra', 'Greater Accra', true, true)
+    `INSERT INTO aggregators (name, first_name, last_name, phone, pin, city, region, is_active, must_change_pin)
+     VALUES ('AggGateTest Probe', 'AggGateTest', 'Probe', $1, $2, 'Accra', 'Greater Accra', true, true)
      ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=true`,
     [TEST_AGG_GATE_PHONE, gatePin]
   );
@@ -402,8 +402,8 @@ async function seedTestAccounts() {
   // Buy-request aggregator with a known display_name. Drives the collector
   // "match interest" screen so we can assert the bounded buyer_name renders.
   const buyAggIns = await pool.query(
-    `INSERT INTO aggregators (name, display_name, phone, pin, city, region, is_active, must_change_pin)
-     VALUES ('Test Buy Co Aggregator', 'Test Buy Co', $1, $2, 'Accra', 'Greater Accra', true, false)
+    `INSERT INTO aggregators (name, first_name, last_name, display_name, phone, pin, city, region, is_active, must_change_pin)
+     VALUES ('Test Buy Co Aggregator', 'Test', 'Buy Co Aggregator', 'Test Buy Co', $1, $2, 'Accra', 'Greater Accra', true, false)
      ON CONFLICT (phone) DO UPDATE SET display_name='Test Buy Co', is_active=true, must_change_pin=false
      RETURNING id`,
     [TEST_BUY_AGG_PHONE, aggPin]
@@ -465,7 +465,7 @@ const TESTS = [
     name: 'aggregator-login-happy-path',
     phoneNumber: '0900001001',
     steps: [
-      { input: '',     match: /CON Circul Aggregator/ },
+      { input: '',     match: /CON Circul Aggregator\nWelcome back, TestAgg!/ },
       { input: '2222', match: /CON 1\. Register\n2\. Log Transaction/ },
     ],
   },

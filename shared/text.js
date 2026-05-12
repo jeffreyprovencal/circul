@@ -10,4 +10,20 @@ function deriveDisplayName(name, max = 24) {
   return name.slice(0, max - 1) + '…';
 }
 
-module.exports = { deriveDisplayName };
+// Naive first-space split. Mirrors the backfill in
+// migrations/1779100000000_add_aggregator_first_last_name.sql so write-time
+// INSERTs stay consistent with what the backfill produced for pre-migration
+// rows. Single-word names get a null last_name.
+function splitFirstName(fullName) {
+  if (!fullName) return null;
+  return fullName.trim().split(/\s+/)[0] || null;
+}
+
+function splitLastName(fullName) {
+  if (!fullName) return null;
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 1) return null;
+  return parts.slice(1).join(' ');
+}
+
+module.exports = { deriveDisplayName, splitFirstName, splitLastName };

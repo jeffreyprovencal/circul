@@ -7,7 +7,7 @@ const multer = require('multer');
 const CirculRoles = require('./shared/roles');
 const { EVENTS, notify, notifyAdmin } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
-const { deriveDisplayName } = require('./shared/text');
+const { deriveDisplayName, splitFirstName, splitLastName } = require('./shared/text');
 const { getPendingRatings, createRating } = require('./shared/ratings');
 const {
   resolveParties,
@@ -3933,10 +3933,10 @@ async function handleAggregatorRegistrationCode(parts, requestRow) {
   try {
     await client.query('BEGIN');
     const aggInsert = await client.query(
-      `INSERT INTO aggregators (name, display_name, company, phone, pin, city, region, country, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+      `INSERT INTO aggregators (name, first_name, last_name, display_name, company, phone, pin, city, region, country, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
        RETURNING id`,
-      [aggName, deriveDisplayName(aggName), requestRow.company, requestRow.phone, hashedPin, requestRow.city, requestRow.region, requestRow.country || 'Ghana']
+      [aggName, splitFirstName(aggName), splitLastName(aggName), deriveDisplayName(aggName), requestRow.company, requestRow.phone, hashedPin, requestRow.city, requestRow.region, requestRow.country || 'Ghana']
     );
     aggregatorId = aggInsert.rows[0].id;
     await client.query(
@@ -4687,7 +4687,7 @@ async function handleRegisteredUssd(parts, collector) {
 }
 
 async function handleAggregatorUssd(parts, aggregator) {
-  if (parts.length === 0) return `CON Circul Aggregator\nWelcome back, ${aggregator.name}!\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
+  if (parts.length === 0) return `CON Circul Aggregator\nWelcome back, ${aggregator.first_name || aggregator.name}!\n\nEnter 4-digit PIN:\n0. Forgot PIN`;
 
   // ── Forgot PIN entry point ──
   if (parts[0] === '0') {
@@ -4727,7 +4727,7 @@ async function handleAggregatorUssd(parts, aggregator) {
   if (depth === 0) return 'CON 1. Register\n2. Log Transaction\n3. Pending Drop-offs\n4. More\n0. Exit';
 
   // ── Exit ──
-  if (m[0] === '0') return `END Thank you, ${aggregator.name}!`;
+  if (m[0] === '0') return `END Thank you, ${aggregator.first_name || aggregator.name}!`;
 
   // ── Register sub-menu (Collector / Agent) ──
   if (m[0] === '1') {
@@ -4803,7 +4803,7 @@ async function handleAggregatorUssd(parts, aggregator) {
         // ussd-lint-allow: post-pilot sweep
         return `CON My Stats\n${parseFloat(v.month_kg).toFixed(0)}kg mo / ${parseFloat(v.ytd_kg).toFixed(0)}kg YTD\nRev: GHS ${parseFloat(v.revenue).toFixed(0)}\nUnpaid: GHS ${parseFloat(u.value).toFixed(0)} (${u.count})\nRating: ${parseFloat(r.avg) > 0 ? parseFloat(r.avg).toFixed(1) + ' (' + r.count + ')' : 'none'}\n${cc.count} collectors, ${pc.count} pending\n\n1. Rate a transaction\n0. Back`;
       }
-      if (m[2] === '0') return `END Thank you, ${aggregator.name}!`;
+      if (m[2] === '0') return `END Thank you, ${aggregator.first_name || aggregator.name}!`;
       if (m[2] === '1') return await handleUssdRating(m.slice(3), 'aggregator', aggregator.id);
       return 'END Invalid option.\nDial again to retry.';
     }
@@ -7953,7 +7953,7 @@ app.post('/api/ussd', async (req, res) => {
         } else {
           // 2. Check aggregators
           const aggResult = await pool.query(
-            `SELECT id, name, company, phone, pin, city, region, must_change_pin FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
+            `SELECT id, name, first_name, last_name, company, phone, pin, city, region, must_change_pin FROM aggregators WHERE phone=ANY($1) AND is_active=true LIMIT 1`,
             [phoneVariants]
           );
           if (aggResult.rows.length) {
@@ -10477,8 +10477,8 @@ app.post('/api/auth/register', async (req, res) => {
     } else if (role === 'aggregator') {
       const { name, company } = req.body;
       await pool.query(
-        `INSERT INTO aggregators (name, display_name, company, phone, pin, is_active) VALUES ($1, $2, $3, $4, $5, true)`,
-        [name, deriveDisplayName(name), company, phone, hashedPin]
+        `INSERT INTO aggregators (name, first_name, last_name, display_name, company, phone, pin, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+        [name, splitFirstName(name), splitLastName(name), deriveDisplayName(name), company, phone, hashedPin]
       );
     } else {
       return res.status(400).json({ success: false, message: 'Invalid role for self-registration' });
