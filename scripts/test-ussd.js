@@ -1169,6 +1169,15 @@ const TESTS = [
          ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
         [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
       );
+      // Order matters: dispatch_listings.pending_transaction_id FK points at
+      // pending_transactions.id with NO ON DELETE action, so listings must die
+      // first. driver_offers.listing_id has ON DELETE CASCADE, so dispatch_listings
+      // DELETE sweeps any old offers automatically.
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
+      );
       await pool.query(
         `DELETE FROM pending_transactions
          WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
@@ -1178,11 +1187,6 @@ const TESTS = [
         `DELETE FROM driver_offers
          WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
         [TEST_DRIVER_PHONE]
-      );
-      await pool.query(
-        `DELETE FROM dispatch_listings
-         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
-        [TEST_AGGREGATOR_PHONE]
       );
       await pool.query(
         `INSERT INTO dispatch_listings
@@ -1236,16 +1240,16 @@ const TESTS = [
          ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
         [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
       );
-      // Clear prior state
-      await pool.query(
-        `DELETE FROM pending_transactions
-         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
-        [TEST_DRIVER_PHONE]
-      );
+      // Clear prior state — dispatch_listings BEFORE pending_transactions per FK.
       await pool.query(
         `DELETE FROM dispatch_listings
          WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
         [TEST_AGGREGATOR_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM pending_transactions
+         WHERE driver_id IN (SELECT id FROM drivers WHERE phone = $1)`,
+        [TEST_DRIVER_PHONE]
       );
       // 3 active pending_transactions
       for (let i = 0; i < 3; i++) {
@@ -1295,6 +1299,13 @@ const TESTS = [
          WHERE d.phone = $1 AND a.phone = $2
          ON CONFLICT (driver_id, aggregator_id) DO UPDATE SET status='active', claimed_at=NOW()`,
         [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+      // dispatch_listings BEFORE pending_transactions per FK
+      // (dispatch_listings.pending_transaction_id has no ON DELETE action).
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
       );
       await pool.query(
         `DELETE FROM pending_transactions
@@ -1360,10 +1371,16 @@ const TESTS = [
         [TEST_DRIVER_PHONE, TEST_AGGREGATOR_PHONE]
       );
       // Clear prior pending + ratings to leave exactly one rateable row.
+      // dispatch_listings BEFORE pending_transactions per FK.
       await pool.query(
         `DELETE FROM ratings WHERE rater_type='driver'
          AND rater_id IN (SELECT id FROM drivers WHERE phone = $1)`,
         [TEST_DRIVER_PHONE]
+      );
+      await pool.query(
+        `DELETE FROM dispatch_listings
+         WHERE aggregator_id IN (SELECT id FROM aggregators WHERE phone = $1)`,
+        [TEST_AGGREGATOR_PHONE]
       );
       await pool.query(
         `DELETE FROM pending_transactions

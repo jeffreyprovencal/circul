@@ -2596,15 +2596,17 @@ app.post('/api/aggregator/dispatch-listings/:id/award/:offerId', requireAuth, as
       [listingId, awardedDriverId]
     );
 
-    // 5. Create pending_transactions row — mirror Phase 5's INSERT shape
+    // 5. Create pending_transactions row — mirror Phase 5's INSERT shape.
+    // price_per_kg and total_price are OMITTED (not NULL) so the table's
+    // NOT NULL DEFAULT 0 fires. Buyer-side accept fills in real numbers later.
     const ptIns = await client.query(
       `INSERT INTO pending_transactions (
          transaction_type, status, aggregator_id, driver_id,
-         material_type, gross_weight_kg, price_per_kg, total_price,
+         material_type, gross_weight_kg,
          driver_fee_ghs, rejected_disposition, created_at
        ) VALUES (
          'aggregator_sale', 'pending', $1, $2,
-         $3, $4, NULL, NULL,
+         $3, $4,
          $5, COALESCE($6, 'leave_at_buyer'), NOW()
        ) RETURNING id`,
       [listing.aggregator_id, awardedDriverId,
@@ -4275,7 +4277,7 @@ async function handleForgotPinUssd(parts, resetRow) {
 //   m=[pin, confirm] (matches)            → G3 success bridge — UPDATE happens here
 //   m=[pin, confirm, '1']                 → continue to main menu (menuParts = m.slice(3))
 //   m=[pin, confirm, '0']                 → END
-const ALLOWED_USER_TABLES_FOR_GATE = ['collectors', 'aggregators', 'agents'];
+const ALLOWED_USER_TABLES_FOR_GATE = ['collectors', 'aggregators', 'agents', 'drivers'];
 async function gateForceChangePin(m, user, userTable) {
   if (!ALLOWED_USER_TABLES_FOR_GATE.includes(userTable)) {
     throw new Error('gateForceChangePin: invalid userTable: ' + userTable);
@@ -6594,15 +6596,21 @@ async function driverAcceptListing(restParts, driver, listing) {
       [listing.id, driver.id]
     );
 
-    // Create pending_transactions row from the listing.
+    // Create pending_transactions row from the listing. price_per_kg and
+    // total_price are intentionally OMITTED from the column list (not passed
+    // as NULL): the table defines them as NOT NULL DEFAULT 0, so omission
+    // lets the default fire. Buyer-side accept (later in the flow) fills in
+    // the real numbers. Passing NULL explicitly here overrides the default
+    // and trips the NOT NULL constraint — a Phase 1 schema gap to be cleaned
+    // up post-demo (drop NOT NULL on both columns for cleaner semantics).
     const ptIns = await client.query(
       `INSERT INTO pending_transactions (
          transaction_type, status, aggregator_id, driver_id,
-         material_type, gross_weight_kg, price_per_kg, total_price,
+         material_type, gross_weight_kg,
          driver_fee_ghs, rejected_disposition, created_at
        ) VALUES (
          'aggregator_sale', 'pending', $1, $2,
-         $3, $4, NULL, NULL,
+         $3, $4,
          $5, COALESCE($6, 'leave_at_buyer'), NOW()
        ) RETURNING id`,
       [
