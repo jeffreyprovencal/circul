@@ -143,6 +143,39 @@ function httpJson(method, urlPath, payload, token) {
   });
 }
 
+// Phase 5b: HTTP helper that returns the raw response body as a Buffer + the
+// response headers, used for binary downloads (PDF, XLSX) where JSON-parse
+// would corrupt bytes. Mirrors httpJson's signature.
+function httpRaw(method, urlPath, payload, token) {
+  const url = new URL(BASE + urlPath);
+  const lib = url.protocol === 'https:' ? https : http;
+  const body = payload == null ? null : JSON.stringify(payload);
+  const headers = {};
+  if (body != null) {
+    headers['Content-Type'] = 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(body);
+  }
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return new Promise((resolve, reject) => {
+    const req = lib.request({
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + (url.search || ''),
+      method: method,
+      headers: headers
+    }, res => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) });
+      });
+    });
+    req.on('error', reject);
+    if (body != null) req.write(body);
+    req.end();
+  });
+}
+
 function postUssd({ sessionId, phoneNumber, serviceCode = '*920*54#', text }) {
   const url = new URL(BASE + '/api/ussd');
   const lib = url.protocol === 'https:' ? https : http;
@@ -1852,6 +1885,196 @@ const TESTS = [
       { input: '0000', match: /CON 1\. Log Drop-off[\s\S]*5\. Programs/ },
       { input: '5',    match: /END Your programs:[\s\S]*TestPartner/ },
     ],
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 5b: Brand-aligned PDF + Excel reports — 5 new test cases
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Each test is order-independent: beforeHook scrubs tags + transactions
+  // for the test partner / collector before setting up the precise state it
+  // needs. Binary response bodies inspected via httpRaw (Buffer-safe).
+
+  // ─── HTTP: PDF empty state ──────────────────────────────────────────────
+  // Partner has zero active tags → PDF should still render (~empty-state
+  // block visible) and content-type + size sanity-check.
+  {
+    name: 'impact-partner-report-pdf-empty',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      // Scrub all tags for test partner so the window is provably empty
+      await pool.query(
+        `DELETE FROM impact_partner_actor_tags
+         WHERE impact_partner_id IN (SELECT id FROM impact_partners WHERE email=$1)`,
+        [TEST_IP_EMAIL]
+      );
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const r = await httpRaw('GET', '/api/impact-partner/report.pdf?period=ytd', null, login.body.token);
+      if (r.status !== 200) throw new Error('PDF empty HTTP ' + r.status + ' body=' + r.body.toString('utf8').slice(0, 200));
+      const ct = r.headers['content-type'] || '';
+      if (!ct.startsWith('application/pdf')) throw new Error('expected pdf content-type, got ' + ct);
+      if (r.body.length < 1000) throw new Error('PDF empty body too small: ' + r.body.length + ' bytes');
+      // PDF magic number sanity
+      if (r.body.slice(0, 4).toString() !== '%PDF') throw new Error('body does not start with %PDF magic');
+    },
+  },
+
+  // ─── HTTP: PDF populated ────────────────────────────────────────────────
+  // Seeded tag + transaction → PDF size > 5000 bytes (header band + hero +
+  // table + methodology + footer all rendering means the byte budget grows).
+  {
+    name: 'impact-partner-report-pdf-populated',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      const ip = await pool.query(`SELECT id FROM impact_partners WHERE email=$1`, [TEST_IP_EMAIL]);
+      const col = await pool.query(`SELECT id FROM collectors  WHERE phone=$1`, [TEST_COLLECTOR_PHONE]);
+      const agg = await pool.query(`SELECT id FROM aggregators WHERE phone=$1`, [TEST_AGGREGATOR_PHONE]);
+      if (!ip.rows.length || !col.rows.length || !agg.rows.length) throw new Error('fixtures missing');
+      // Clean slate then re-seed deterministic state
+      await pool.query(
+        `DELETE FROM impact_partner_actor_tags
+         WHERE impact_partner_id = $1`, [ip.rows[0].id]
+      );
+      await pool.query(
+        `DELETE FROM transactions WHERE collector_id = $1 AND aggregator_id = $2 AND price_per_kg = 0`,
+        [col.rows[0].id, agg.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO impact_partner_actor_tags (impact_partner_id, actor_type, actor_id)
+         VALUES ($1, 'collector', $2)
+         ON CONFLICT (impact_partner_id, actor_type, actor_id) DO UPDATE
+           SET deactivated_at = NULL, deactivation_reason = NULL, active_since = NOW()`,
+        [ip.rows[0].id, col.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO transactions
+           (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
+            price_per_kg, total_price, transaction_date)
+         VALUES ($1, $2, 'PET', 55, 55, 0, 0, NOW())`,
+        [col.rows[0].id, agg.rows[0].id]
+      );
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const r = await httpRaw('GET', '/api/impact-partner/report.pdf?period=ytd', null, login.body.token);
+      if (r.status !== 200) throw new Error('PDF populated HTTP ' + r.status);
+      const ct = r.headers['content-type'] || '';
+      if (!ct.startsWith('application/pdf')) throw new Error('expected pdf content-type, got ' + ct);
+      if (r.body.length < 5000) throw new Error('PDF populated body too small: ' + r.body.length + ' bytes');
+      if (r.body.slice(0, 4).toString() !== '%PDF') throw new Error('body does not start with %PDF magic');
+    },
+    afterHook: async () => {
+      // Sweep the seed transaction so the next run starts clean
+      await pool.query(
+        `DELETE FROM transactions
+         WHERE collector_id IN (SELECT id FROM collectors WHERE phone = $1)
+           AND aggregator_id IN (SELECT id FROM aggregators WHERE phone = $2)
+           AND price_per_kg = 0`,
+        [TEST_COLLECTOR_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+    },
+  },
+
+  // ─── HTTP: Excel empty state ────────────────────────────────────────────
+  {
+    name: 'impact-partner-report-xlsx-empty',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      await pool.query(
+        `DELETE FROM impact_partner_actor_tags
+         WHERE impact_partner_id IN (SELECT id FROM impact_partners WHERE email=$1)`,
+        [TEST_IP_EMAIL]
+      );
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const r = await httpRaw('GET', '/api/impact-partner/report.xlsx?period=ytd', null, login.body.token);
+      if (r.status !== 200) throw new Error('XLSX empty HTTP ' + r.status);
+      const ct = r.headers['content-type'] || '';
+      if (!ct.includes('spreadsheetml')) throw new Error('expected xlsx content-type, got ' + ct);
+      if (r.body.length < 1000) throw new Error('XLSX empty body too small: ' + r.body.length + ' bytes');
+      // XLSX is a zip — first two bytes "PK"
+      if (r.body[0] !== 0x50 || r.body[1] !== 0x4b) throw new Error('body does not start with PK zip magic');
+    },
+  },
+
+  // ─── HTTP: Excel populated ──────────────────────────────────────────────
+  {
+    name: 'impact-partner-report-xlsx-populated',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      const ip = await pool.query(`SELECT id FROM impact_partners WHERE email=$1`, [TEST_IP_EMAIL]);
+      const col = await pool.query(`SELECT id FROM collectors  WHERE phone=$1`, [TEST_COLLECTOR_PHONE]);
+      const agg = await pool.query(`SELECT id FROM aggregators WHERE phone=$1`, [TEST_AGGREGATOR_PHONE]);
+      await pool.query(
+        `DELETE FROM impact_partner_actor_tags WHERE impact_partner_id = $1`, [ip.rows[0].id]
+      );
+      await pool.query(
+        `DELETE FROM transactions WHERE collector_id = $1 AND aggregator_id = $2 AND price_per_kg = 0`,
+        [col.rows[0].id, agg.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO impact_partner_actor_tags (impact_partner_id, actor_type, actor_id)
+         VALUES ($1, 'collector', $2)
+         ON CONFLICT (impact_partner_id, actor_type, actor_id) DO UPDATE
+           SET deactivated_at = NULL, deactivation_reason = NULL, active_since = NOW()`,
+        [ip.rows[0].id, col.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO transactions
+           (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
+            price_per_kg, total_price, transaction_date)
+         VALUES ($1, $2, 'HDPE', 28, 28, 0, 0, NOW())`,
+        [col.rows[0].id, agg.rows[0].id]
+      );
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const r = await httpRaw('GET', '/api/impact-partner/report.xlsx?period=ytd', null, login.body.token);
+      if (r.status !== 200) throw new Error('XLSX populated HTTP ' + r.status);
+      const ct = r.headers['content-type'] || '';
+      if (!ct.includes('spreadsheetml')) throw new Error('expected xlsx content-type, got ' + ct);
+      if (r.body.length < 5000) throw new Error('XLSX populated body too small: ' + r.body.length + ' bytes');
+      if (r.body[0] !== 0x50 || r.body[1] !== 0x4b) throw new Error('body does not start with PK zip magic');
+    },
+    afterHook: async () => {
+      await pool.query(
+        `DELETE FROM transactions
+         WHERE collector_id IN (SELECT id FROM collectors WHERE phone = $1)
+           AND aggregator_id IN (SELECT id FROM aggregators WHERE phone = $2)
+           AND price_per_kg = 0`,
+        [TEST_COLLECTOR_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+    },
+  },
+
+  // ─── HTTP: filename slug pattern verified on Content-Disposition ────────
+  // Hits both .pdf and .xlsx endpoints; asserts the header matches
+  // circul-impact-report-{slug}-{period}-{YYYY-MM-DD}.{ext}
+  {
+    name: 'impact-partner-report-filename',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      // TEST_IP_NAME = 'TestPartner' → slug 'testpartner'
+      const expectPdf  = /attachment; filename="circul-impact-report-testpartner-ytd-\d{4}-\d{2}-\d{2}\.pdf"/;
+      const expectXlsx = /attachment; filename="circul-impact-report-testpartner-mtd-\d{4}-\d{2}-\d{2}\.xlsx"/;
+      const pdf  = await httpRaw('GET', '/api/impact-partner/report.pdf?period=ytd',  null, login.body.token);
+      const xlsx = await httpRaw('GET', '/api/impact-partner/report.xlsx?period=mtd', null, login.body.token);
+      const cdPdf  = pdf.headers['content-disposition']  || '';
+      const cdXlsx = xlsx.headers['content-disposition'] || '';
+      if (!expectPdf.test(cdPdf))   throw new Error('PDF filename mismatch · got: ' + cdPdf);
+      if (!expectXlsx.test(cdXlsx)) throw new Error('XLSX filename mismatch · got: ' + cdXlsx);
+    },
   },
 ];
 

@@ -9374,6 +9374,9 @@ function requireImpactPartner(req, res, next) {
 async function computeImpactAttribution(partnerId, startDate, endDate, filters) {
   filters = filters || {};
   const params = [partnerId, startDate, endDate];
+  // extraWhere applies INSIDE source_txns WHERE — only filters that reference
+  // base-table columns belong here. actor_type filter references the
+  // first_tagged_tier alias and must be applied on the OUTER SELECT below.
   let extraWhere = '';
   if (filters.material) {
     params.push(filters.material);
@@ -9383,9 +9386,10 @@ async function computeImpactAttribution(partnerId, startDate, endDate, filters) 
     params.push(filters.region);
     extraWhere += ' AND COALESCE(c.region, a.region) = $' + params.length;
   }
-  if (filters.actor_type === 'collector' || filters.actor_type === 'aggregator') {
-    extraWhere += " AND first_tagged_tier = '" + filters.actor_type + "'";
-  }
+  const outerActorTypeFilter =
+    (filters.actor_type === 'collector' || filters.actor_type === 'aggregator')
+      ? " HAVING first_tagged_tier = '" + filters.actor_type + "'"
+      : '';
   const sql = `
     WITH tagged AS (
       SELECT actor_type, actor_id
@@ -9398,17 +9402,29 @@ async function computeImpactAttribution(partnerId, startDate, endDate, filters) 
         t.gross_weight_kg,
         t.material_type,
         t.transaction_date,
-        t.collector_id,
-        t.aggregator_id,
-        c.region AS collector_region,
-        a.region AS aggregator_region,
         CASE
           WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id)
             THEN 'collector'
           WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id)
             THEN 'aggregator'
           ELSE NULL
-        END AS first_tagged_tier
+        END AS first_tagged_tier,
+        -- Resolve the first-tagged actor id + region here so the outer GROUP BY
+        -- can reference flat columns. Phase 5b: pushing the CASE into the CTE
+        -- avoids the "must appear in GROUP BY" error that pure SELECT-side
+        -- CASE expressions produce on Postgres 13+.
+        CASE
+          WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id)
+            THEN t.collector_id
+          WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id)
+            THEN t.aggregator_id
+        END AS actor_id,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id)
+            THEN c.region
+          WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id)
+            THEN a.region
+        END AS region
       FROM transactions t
       LEFT JOIN collectors  c ON c.id = t.collector_id
       LEFT JOIN aggregators a ON a.id = t.aggregator_id
@@ -9422,13 +9438,19 @@ async function computeImpactAttribution(partnerId, startDate, endDate, filters) 
     )
     SELECT
       first_tagged_tier,
+      actor_id,
+      CASE first_tagged_tier
+        WHEN 'collector'  THEN 'COL-' || LPAD(actor_id::text, 4, '0')
+        WHEN 'aggregator' THEN 'AGG-' || LPAD(actor_id::text, 4, '0')
+      END AS actor_code,
+      region,
       material_type,
-      COALESCE(collector_region, aggregator_region) AS region,
       SUM(gross_weight_kg)::numeric(12,2) AS total_kg,
       COUNT(*)::int AS txn_count
     FROM source_txns
-    GROUP BY first_tagged_tier, material_type, COALESCE(collector_region, aggregator_region)
-    ORDER BY total_kg DESC
+    GROUP BY first_tagged_tier, actor_id, region, material_type
+    ${outerActorTypeFilter}
+    ORDER BY first_tagged_tier ASC, actor_id ASC, material_type ASC
   `;
   const r = await pool.query(sql, params);
   return r.rows;
@@ -9532,17 +9554,12 @@ app.get('/api/impact-partner/network', requireAuth, requireImpactPartner, async 
        ORDER BY t.active_since DESC`,
       [req.user.id]
     );
-    // Per-actor YTD kg via attribution helper (only collector + aggregator
-    // contribute kg in v0; driver/agent show 0).
-    const attribution = await computeImpactAttribution(req.user.id, startISO, endISO, {});
-    const kgByActorKey = {};
-    attribution.forEach(function (row) {
-      // Aggregate per tier+region — to attribute per-actor we'd re-query;
-      // for the network view, surface kg by tier. Per-actor kg = portion of
-      // tier kg held by this actor (computed below from raw txns).
-    });
     // Per-actor kg roll-up (only for collector + aggregator tiers — they're
-    // the source-of-entry tiers per attribution methodology).
+    // the source-of-entry tiers per attribution methodology). Phase 5b
+    // dropped a dead computeImpactAttribution() call here whose result was
+    // iterated with an empty body; the perActor query below is the actual
+    // per-actor data source feeding the My Network view.
+    const kgByActorKey = {};
     const perActor = await pool.query(
       `WITH tagged AS (
          SELECT actor_type, actor_id FROM impact_partner_actor_tags
@@ -9722,11 +9739,103 @@ app.get('/api/impact-partner/report', requireAuth, requireImpactPartner, async (
   }
 });
 
-// ── GET /api/impact-partner/report.pdf ──
+// ── Phase 5b report helpers — shared by PDF + Excel routes ─────────────────
 //
-// Branded PDF report. pdfkit → res. Uses default Helvetica (Plus Jakarta Sans
-// would require shipping a TTF; deferred). Brand-clean: Circul logo block,
-// big total number, breakdown table, methodology note + Powered by Circul.
+// partnerSlug: kebab-case-safe filename component from partner.name. The
+//   regex collapses anything non-alphanumeric (including the em-dash, apostrophes,
+//   the literal " " in "Test Partner") down to a single dash, then trims edges.
+function partnerSlug(name) {
+  return (name || 'partner')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'partner';
+}
+
+// formatHumanDate: "1 Jan 2026" style (day, abbreviated month, year). Used in
+// the PDF header period line + Excel subtitle row. Output reads natively to a
+// funder regardless of locale; we deliberately avoid en-US "Jan 1, 2026" to
+// keep the visual closer to the West-Africa norm.
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatHumanDate(iso) {
+  const d = new Date(iso);
+  return d.getUTCDate() + ' ' + MONTH_ABBR[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+}
+
+// reportPeriodLabel: human label for the dashboard / report header.
+function reportPeriodLabel(period) {
+  return period === 'mtd' ? 'Month to date'
+       : period === 'all' ? 'All time'
+       : 'Year to date';
+}
+
+// reportDisplayWindow: clamp end of YTD/MTD windows to "today" for the
+// human-facing range so MTD on 2026-05-13 renders as "1 May → 13 May", not
+// "1 May → 1 Jun". The SQL window stays unclamped — only display changes.
+function reportDisplayWindow(startISO, endISO) {
+  const today = new Date();
+  const todayISO = today.toISOString();
+  const displayEnd = endISO > todayISO ? todayISO : endISO;
+  return {
+    humanStart: formatHumanDate(startISO),
+    humanEnd: formatHumanDate(displayEnd)
+  };
+}
+
+// ytdNetworkContext: when the requested window has zero kg, the empty state
+// surfaces "your network has N tagged actors with X kg YTD" so the partner
+// can self-correct (switch period to YTD). Reuses computeImpactAttribution
+// over the YTD window. Cheap — only called on empty primary windows.
+async function ytdNetworkContext(partnerId) {
+  const [ytdStart, ytdEnd] = periodRange('ytd');
+  const ytdRows = await computeImpactAttribution(partnerId, ytdStart, ytdEnd, {});
+  const tagCount = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM impact_partner_actor_tags
+     WHERE impact_partner_id = $1 AND deactivated_at IS NULL`,
+    [partnerId]
+  );
+  const ytdTotalKg = ytdRows.reduce(function (s, r) { return s + parseFloat(r.total_kg); }, 0);
+  return {
+    ytdActorCount: parseInt(tagCount.rows[0].n, 10),
+    ytdTotalKg: ytdTotalKg
+  };
+}
+
+// methodologyRules: verbatim from mockup §7, used by Excel methodology sheet.
+// Each entry is { lead, body }; the lead renders bold deep-green via rich-text
+// in Excel and is concatenated normally in any plain-text rendering.
+const METHODOLOGY_RULES = [
+  {
+    lead: '1. First-tagged-touchpoint.',
+    body: ' A kilogram is attributed to an Impact Partner the first time it touches an actor that partner has tagged. The first tagged touchpoint earns the attribution; later touchpoints with the same or different partners do not earn it again.'
+  },
+  {
+    lead: '2. No double-counting across partners.',
+    body: ' One transaction = one Impact Partner credit. If two partners both tag actors in the same supply chain, the partner whose actor is upstream (closer to the source) earns the credit.'
+  },
+  {
+    lead: '3. v0 source-of-entry only.',
+    body: ' In this release, attribution counts only at the collector→aggregator handoff (where material enters the formal supply chain). Downstream-tagged actors (processors, recyclers, converters) do not add new kg in v0 — they will surface as program-context in a later release.'
+  },
+  {
+    lead: '4. Tag approval gate.',
+    body: ' Every tagged actor was reviewed and approved by Circul against documented proof of an active support relationship from the Impact Partner. Tags can be removed at any time by the partner.'
+  },
+  {
+    lead: '5. Window semantics.',
+    body: ' Year to date = 1 Jan of the current year through today. Month to date = 1st of the current month through today. All time = the full life of the platform.'
+  }
+];
+
+// ── GET /api/impact-partner/report.pdf (Phase 5b — brand-aligned) ──
+//
+// A4 portrait, 48pt margins, all text in Plus Jakarta Sans (registered from
+// public/fonts/). Layout per mockup §3 (populated) / §4 (empty state):
+//   1. Header band (Circul wordmark + partner block, deep-green underline)
+//   2. Hero card (total kg + secondary stats)
+//   3. By-material grid OR empty-state block (mutually exclusive)
+//   4. Breakdown table (when populated)
+//   5. Methodology box
+//   6. Footer
 app.get('/api/impact-partner/report.pdf', requireAuth, requireImpactPartner, async (req, res) => {
   try {
     const period = req.query.period || 'ytd';
@@ -9736,78 +9845,298 @@ app.get('/api/impact-partner/report.pdf', requireAuth, requireImpactPartner, asy
       region: req.query.region || null,
       actor_type: req.query.actor_type || null
     };
-    const [rows, partner] = await Promise.all([
+    const [rows, partnerRow] = await Promise.all([
       computeImpactAttribution(req.user.id, startISO, endISO, filters),
       pool.query(`SELECT name, company, contact_name FROM impact_partners WHERE id=$1`, [req.user.id])
     ]);
-    const partnerName = (partner.rows[0] && partner.rows[0].name) || 'Impact Partner';
-    const totalKg = rows.reduce(function (s, r) { return s + parseFloat(r.total_kg); }, 0);
-    const byMaterial = {};
-    rows.forEach(function (r) {
-      byMaterial[r.material_type] = (byMaterial[r.material_type] || 0) + parseFloat(r.total_kg);
-    });
-    const periodLabel = period === 'mtd' ? 'Month to date'
-                      : period === 'all' ? 'All time'
-                      : 'Year to date';
-    const periodHuman = startISO.slice(0, 10) + ' → ' + endISO.slice(0, 10);
+    const partner = partnerRow.rows[0] || { name: 'Impact Partner' };
+    const partnerName = partner.name || 'Impact Partner';
+    const contactName = partner.contact_name || partnerName;
 
+    const totalKg = rows.reduce(function (s, r) { return s + parseFloat(r.total_kg); }, 0);
+    const txnCount = rows.reduce(function (s, r) { return s + r.txn_count; }, 0);
+    const uniqueActors = new Set(rows.map(function (r) { return r.first_tagged_tier + ':' + r.actor_id; }));
+    const actorCount = uniqueActors.size;
+
+    // by-material aggregation, sorted by kg DESC; >4 distinct materials get
+    // collapsed into top-3 + "OTHER" so the 4-card grid never overflows.
+    const byMaterialMap = {};
+    rows.forEach(function (r) {
+      byMaterialMap[r.material_type] = (byMaterialMap[r.material_type] || 0) + parseFloat(r.total_kg);
+    });
+    let materialEntries = Object.keys(byMaterialMap)
+      .map(function (k) { return { name: k, kg: byMaterialMap[k] }; })
+      .sort(function (a, b) { return b.kg - a.kg; });
+    if (materialEntries.length > 4) {
+      const top3 = materialEntries.slice(0, 3);
+      const rest = materialEntries.slice(3).reduce(function (s, m) { return s + m.kg; }, 0);
+      materialEntries = top3.concat([{ name: 'OTHER', kg: rest }]);
+    }
+    const materialCount = Object.keys(byMaterialMap).length;
+
+    const periodLabel = reportPeriodLabel(period);
+    const display = reportDisplayWindow(startISO, endISO);
+    const generatedStamp = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+
+    // Empty-state YTD context — only fetched when this window is zero. Saves
+    // a round-trip on the populated path.
+    let emptyCtx = null;
+    if (totalKg === 0) emptyCtx = await ytdNetworkContext(req.user.id);
+
+    // Filename slug (Step 6)
+    const dateSlug = new Date().toISOString().slice(0, 10);
+    const filename = 'circul-impact-report-' + partnerSlug(partnerName) + '-' + period + '-' + dateSlug + '.pdf';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="circul-impact-report.pdf"');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+
+    // Plus Jakarta Sans registration — kills Unicode mangling on '→' and gives
+    // brand-aligned typography. Both faces ship from public/fonts/ (OFL).
     const doc = new PDFDocument({ size: 'A4', margin: 48 });
+    const fontDir = path.join(__dirname, 'public', 'fonts');
+    doc.registerFont('Body', path.join(fontDir, 'PlusJakartaSans-Regular.ttf'));
+    doc.registerFont('Bold', path.join(fontDir, 'PlusJakartaSans-Bold.ttf'));
+    doc.font('Body');
     doc.pipe(res);
 
-    // Header — Circul logo block + title
-    doc.fontSize(22).fillColor('#00e676').text('Circul', { continued: true });
-    doc.fillColor('#888').fontSize(14).text('  Impact Report', { align: 'left' });
-    doc.moveDown(0.3);
-    doc.fontSize(10).fillColor('#666').text(periodLabel + ' · ' + periodHuman);
-    doc.fillColor('#222').fontSize(13).text(partnerName, { align: 'left' });
-    doc.moveDown(1);
+    // ── Palette (matches mockup tokens) ──
+    const COLOR = {
+      accentDeep: '#00b25b',   // primary brand green for headlines + numbers
+      accentTint: '#e8f5e9',   // header-row + totals-row fill
+      heroBg:     '#f3faf5',
+      heroBorder: '#cce7d4',
+      text1:      '#0d1f14',
+      text2:      '#5a7566',
+      bandedRow:  '#fafcfb',
+      borderSoft: '#e8efe9',
+      matBg:      '#f7faf8',
+      matBorder:  '#e0e7e2',
+      amberText:  '#7a5d1a',
+      amberBg:    '#fdfaef',
+      amberBorder:'#e6c87f'
+    };
+    const pageWidth = doc.page.width;
+    const margin = doc.page.margins.left;
+    const contentX = margin;
+    const contentW = pageWidth - 2 * margin;
 
-    // Big total
-    doc.fontSize(11).fillColor('#666').text('TOTAL IMPACT (first-tagged-touchpoint attribution)');
-    doc.fontSize(42).fillColor('#00b25b').text(totalKg.toFixed(0) + ' kg');
-    doc.moveDown(0.6);
+    // ── 1. Header band ──
+    let y = margin;
+    doc.font('Bold').fontSize(22).fillColor(COLOR.accentDeep).text('Circul', contentX, y, { lineBreak: false });
+    doc.font('Body').fontSize(8).fillColor(COLOR.text2)
+       .text('IMPACT REPORT', contentX, y + 26, { characterSpacing: 1.4, lineBreak: false });
+    // Right block (right-aligned)
+    doc.font('Bold').fontSize(14).fillColor(COLOR.text1)
+       .text(partnerName, contentX, y, { width: contentW, align: 'right', lineBreak: false });
+    doc.font('Body').fontSize(10).fillColor(COLOR.text2)
+       .text('Prepared for ' + contactName, contentX, y + 18, { width: contentW, align: 'right', lineBreak: false });
+    doc.fontSize(9).fillColor(COLOR.text2)
+       .text(periodLabel + ' · ' + display.humanStart + ' → ' + display.humanEnd,
+             contentX, y + 32, { width: contentW, align: 'right', lineBreak: false });
+    y += 56;
+    // Header bottom border (deep green, 2pt)
+    doc.lineWidth(2).strokeColor(COLOR.accentDeep)
+       .moveTo(contentX, y).lineTo(contentX + contentW, y).stroke();
+    y += 14;
 
-    // By material breakdown
-    doc.fontSize(12).fillColor('#222').text('By material', { underline: true });
-    doc.moveDown(0.3);
-    doc.fontSize(11).fillColor('#222');
-    if (Object.keys(byMaterial).length === 0) {
-      doc.fillColor('#666').text('(no tagged-actor activity in this window)');
-    } else {
-      Object.keys(byMaterial).sort().forEach(function (mat) {
-        doc.text('  ' + mat + ': ' + byMaterial[mat].toFixed(0) + ' kg');
-      });
+    // ── 2. Hero card ──
+    const heroH = 96;
+    doc.roundedRect(contentX, y, contentW, heroH, 6)
+       .fillAndStroke(COLOR.heroBg, COLOR.heroBorder);
+    // Left block
+    const heroPadX = 22, heroPadY = 18;
+    doc.font('Bold').fontSize(8).fillColor(COLOR.text2)
+       .text('TOTAL IMPACT', contentX + heroPadX, y + heroPadY, { characterSpacing: 0.7, lineBreak: false });
+    const totalKgColor = totalKg > 0 ? COLOR.accentDeep : COLOR.amberText;
+    doc.font('Bold').fontSize(34).fillColor(totalKgColor)
+       .text(totalKg.toFixed(0) + ' kg', contentX + heroPadX, y + heroPadY + 12, { lineBreak: false });
+    const caption = totalKg > 0
+      ? 'across ' + actorCount + ' tagged actor' + (actorCount === 1 ? '' : 's') +
+        ' and ' + txnCount + ' transaction' + (txnCount === 1 ? '' : 's') +
+        ', first-tagged-touchpoint attribution'
+      : 'No tagged-actor transactions in this window';
+    doc.font('Body').fontSize(9).fillColor(totalKg > 0 ? COLOR.text1 : COLOR.amberText)
+       .text(caption, contentX + heroPadX, y + heroPadY + 54, { width: contentW - heroPadX - 200, lineBreak: false });
+
+    // Right block — three stat columns, right-aligned within the hero card
+    const statColW = 60;
+    const statGap = 14;
+    const statsTotalW = statColW * 3 + statGap * 2;
+    const statsX = contentX + contentW - heroPadX - statsTotalW;
+    const statsY = y + heroPadY + 14;
+    function renderStat(idx, label, val) {
+      const sx = statsX + idx * (statColW + statGap);
+      doc.font('Body').fontSize(7).fillColor(COLOR.text2)
+         .text(label.toUpperCase(), sx, statsY, { width: statColW, align: 'right', characterSpacing: 0.5, lineBreak: false });
+      doc.font('Bold').fontSize(13).fillColor(COLOR.text1)
+         .text(String(val), sx, statsY + 12, { width: statColW, align: 'right', lineBreak: false });
     }
-    doc.moveDown(1);
+    renderStat(0, 'Actors',    actorCount);
+    renderStat(1, 'Txns',      txnCount);
+    renderStat(2, 'Materials', materialCount > 0 ? materialCount : '—');
 
-    // Per tier + region table
-    doc.fontSize(12).fillColor('#222').text('Breakdown by tier × material × region', { underline: true });
-    doc.moveDown(0.3);
-    doc.fontSize(10).fillColor('#222');
-    if (rows.length === 0) {
-      doc.fillColor('#666').text('  (none)');
-    } else {
-      rows.slice(0, 30).forEach(function (r) {
-        const tier = (r.first_tagged_tier || '?').padEnd(11);
-        const mat = (r.material_type || '?').padEnd(6);
-        const reg = (r.region || 'n/a').padEnd(20);
-        doc.text('  ' + tier + ' ' + mat + ' ' + reg + ' ' + parseFloat(r.total_kg).toFixed(0).padStart(7) + ' kg  · ' + r.txn_count + ' txns');
-      });
-      if (rows.length > 30) {
-        doc.fillColor('#666').text('  + ' + (rows.length - 30) + ' more rows (export to Excel for full data)');
+    y += heroH + 14;
+
+    if (totalKg === 0) {
+      // ── 3. Empty-state block (mockup §4) ──
+      const emptyH = 130;
+      doc.roundedRect(contentX, y, contentW, emptyH, 6)
+         .lineWidth(1).fillAndStroke(COLOR.amberBg, COLOR.amberBorder);
+      const ex = contentX + 18, ey = y + 18;
+      doc.font('Bold').fontSize(11).fillColor(COLOR.amberText)
+         .text('No activity in this window', ex, ey, { lineBreak: false });
+      doc.font('Body').fontSize(10).fillColor(COLOR.amberText)
+         .text('No transactions from ' + partnerName + '-tagged actors occurred between ' +
+               display.humanStart + ' and ' + display.humanEnd + '.',
+               ex, ey + 18, { width: contentW - 36 });
+      // Inset white context box
+      const insetY = ey + 56;
+      const insetH = 50;
+      doc.roundedRect(ex, insetY, contentW - 36, insetH, 4)
+         .lineWidth(1).fillAndStroke('#ffffff', COLOR.borderSoft);
+      let insetMsg;
+      if (emptyCtx.ytdActorCount === 0) {
+        insetMsg = partnerName + ' has no tagged actors yet. Tag actors via the Impact Partner dashboard\'s My Network tab.';
+      } else {
+        const plural = emptyCtx.ytdActorCount === 1 ? '' : 's';
+        insetMsg = 'Your network has ' + emptyCtx.ytdActorCount + ' tagged actor' + plural +
+                   ' with ' + emptyCtx.ytdTotalKg.toFixed(0) + ' kg attributed year-to-date. ' +
+                   'To see this activity, regenerate the report with the period set to Year to date.';
       }
-    }
-    doc.moveDown(1.5);
+      doc.font('Body').fontSize(9).fillColor(COLOR.text2)
+         .text(insetMsg, ex + 12, insetY + 12, { width: contentW - 60 });
+      y += emptyH + 14;
+    } else {
+      // ── 3. By-material grid (4 cards, equal width) ──
+      doc.font('Bold').fontSize(9).fillColor(COLOR.text2)
+         .text('BY MATERIAL', contentX, y, { characterSpacing: 0.7, lineBreak: false });
+      y += 14;
+      const cardGap = 8;
+      const cardW = (contentW - cardGap * 3) / 4;
+      const cardH = 56;
+      for (let i = 0; i < 4; i++) {
+        const cx = contentX + i * (cardW + cardGap);
+        doc.roundedRect(cx, y, cardW, cardH, 5)
+           .lineWidth(1).fillAndStroke(COLOR.matBg, COLOR.matBorder);
+        const m = materialEntries[i];
+        if (m) {
+          const pct = totalKg > 0 ? (m.kg / totalKg * 100) : 0;
+          doc.font('Body').fontSize(8).fillColor(COLOR.text2)
+             .text(m.name.toUpperCase(), cx + 10, y + 10, { width: cardW - 20, characterSpacing: 0.4, lineBreak: false });
+          doc.font('Bold').fontSize(13).fillColor(COLOR.accentDeep)
+             .text(m.kg.toFixed(0) + ' kg', cx + 10, y + 24, { width: cardW - 20, lineBreak: false });
+          doc.font('Body').fontSize(7).fillColor(COLOR.text2)
+             .text(pct.toFixed(0) + '%', cx + 10, y + 40, { width: cardW - 20, lineBreak: false });
+        }
+      }
+      y += cardH + 18;
 
-    // Methodology + footer
-    doc.fontSize(8).fillColor('#888');
-    doc.text('Attribution methodology: first-tagged-touchpoint, no double-counting. v0 counts only at source-of-entry (collector→aggregator). Downstream-tagged actors do not add new kg in v0. Full methodology: circul.app/methodology/impact-attribution-v1');
-    doc.moveDown(0.5);
-    doc.text('Generated ' + new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC');
-    doc.moveDown(0.4);
-    doc.fontSize(9).fillColor('#00b25b').text('Powered by Circul', { align: 'center' });
+      // ── 4. Breakdown table ──
+      doc.font('Bold').fontSize(9).fillColor(COLOR.text2)
+         .text('BREAKDOWN BY TIER × ACTOR × REGION × MATERIAL', contentX, y, { characterSpacing: 0.7, lineBreak: false });
+      y += 14;
+
+      // Column layout (sums to contentW = 499pt with 48pt margins)
+      const COLS = [
+        { w: 70,  align: 'left',  key: 'tier'     },
+        { w: 78,  align: 'left',  key: 'actor'    },
+        { w: 130, align: 'left',  key: 'region'   },
+        { w: 75,  align: 'left',  key: 'material' },
+        { w: 80,  align: 'right', key: 'kg'       },
+        { w: 66,  align: 'right', key: 'txns'     }
+      ];
+      const colX = COLS.reduce(function (acc, c) {
+        const next = acc.slice();
+        next.push((next[next.length - 1] || contentX) + (acc.length === 0 ? 0 : COLS[acc.length - 1].w));
+        return next;
+      }, [contentX]);
+
+      // Header row
+      const headerH = 22;
+      doc.rect(contentX, y, contentW, headerH).fillColor(COLOR.accentTint).fill();
+      const headerLabels = { tier: 'TIER', actor: 'ACTOR ID', region: 'REGION', material: 'MATERIAL', kg: 'KG', txns: 'TXNS' };
+      COLS.forEach(function (c, i) {
+        doc.font('Bold').fontSize(8).fillColor(COLOR.text1)
+           .text(headerLabels[c.key], colX[i] + 7, y + 7, { width: c.w - 14, align: c.align, characterSpacing: 0.4, lineBreak: false });
+      });
+      // 1.5pt deep-green bottom border on header
+      doc.lineWidth(1.5).strokeColor(COLOR.accentDeep)
+         .moveTo(contentX, y + headerH).lineTo(contentX + contentW, y + headerH).stroke();
+      y += headerH;
+
+      // Data rows (banded — even rows shaded)
+      const rowH = 18;
+      const maxRows = 24;  // page-1 cap; partners with >24 actor×material combos use Excel for full data
+      const dataRows = rows.slice(0, maxRows);
+      dataRows.forEach(function (r, idx) {
+        if (idx % 2 === 1) {
+          doc.rect(contentX, y, contentW, rowH).fillColor(COLOR.bandedRow).fill();
+        }
+        const cells = {
+          tier:     (r.first_tagged_tier || '?').toUpperCase(),
+          actor:    r.actor_code || '?',
+          region:   r.region || '—',
+          material: r.material_type || '?',
+          kg:       parseFloat(r.total_kg).toFixed(0),
+          txns:     String(r.txn_count)
+        };
+        COLS.forEach(function (c, i) {
+          if (c.key === 'tier') {
+            doc.font('Bold').fontSize(7.5).fillColor(COLOR.accentDeep);
+          } else {
+            doc.font('Body').fontSize(9).fillColor(COLOR.text1);
+          }
+          doc.text(cells[c.key], colX[i] + 7, y + 5, { width: c.w - 14, align: c.align, lineBreak: false });
+        });
+        // Row underline
+        doc.lineWidth(0.5).strokeColor(COLOR.borderSoft)
+           .moveTo(contentX, y + rowH).lineTo(contentX + contentW, y + rowH).stroke();
+        y += rowH;
+      });
+      if (rows.length > maxRows) {
+        doc.font('Body').fontSize(8).fillColor(COLOR.text2)
+           .text('+ ' + (rows.length - maxRows) + ' more rows — see Excel export for the full table',
+                 contentX + 7, y + 5, { width: contentW - 14, lineBreak: false });
+        y += rowH;
+      }
+
+      // Totals row
+      doc.rect(contentX, y, contentW, rowH).fillColor(COLOR.accentTint).fill();
+      doc.lineWidth(1.5).strokeColor(COLOR.accentDeep)
+         .moveTo(contentX, y).lineTo(contentX + contentW, y).stroke();
+      // Label spans cols 1-4
+      const labelW = COLS[0].w + COLS[1].w + COLS[2].w + COLS[3].w;
+      doc.font('Bold').fontSize(9).fillColor(COLOR.text1)
+         .text('Total', contentX + 7, y + 5, { width: labelW - 14, lineBreak: false });
+      doc.text(totalKg.toFixed(0), colX[4] + 7, y + 5, { width: COLS[4].w - 14, align: 'right', lineBreak: false });
+      doc.text(String(txnCount), colX[5] + 7, y + 5, { width: COLS[5].w - 14, align: 'right', lineBreak: false });
+      y += rowH + 14;
+    }
+
+    // ── 5. Methodology box ──
+    const methH = 56;
+    doc.roundedRect(contentX, y, contentW, methH, 5)
+       .lineWidth(1).fillAndStroke(COLOR.heroBg, COLOR.heroBorder);
+    const mx = contentX + 14, my = y + 12;
+    doc.font('Bold').fontSize(8).fillColor(COLOR.accentDeep)
+       .text('ATTRIBUTION METHODOLOGY · V1', mx, my, { characterSpacing: 0.5, lineBreak: false });
+    doc.font('Body').fontSize(8.5).fillColor(COLOR.text1)
+       .text('First-tagged-touchpoint, no double-counting. v0 counts only at source-of-entry (collector→aggregator); downstream-tagged actors do not add new kg. Full methodology: ',
+             mx, my + 12, { width: contentW - 28, continued: true });
+    doc.fillColor(COLOR.accentDeep)
+       .text('circul.app/methodology/impact-attribution-v1', {
+         link: 'https://circul.app/methodology/impact-attribution-v1',
+         underline: true,
+         continued: false
+       });
+    y += methH + 12;
+
+    // ── 6. Footer ──
+    doc.lineWidth(1).strokeColor(COLOR.borderSoft)
+       .moveTo(contentX, y).lineTo(contentX + contentW, y).stroke();
+    y += 6;
+    doc.font('Body').fontSize(8).fillColor(COLOR.text2)
+       .text('Generated ' + generatedStamp, contentX, y, { width: contentW / 2, align: 'left', lineBreak: false });
+    doc.text('Powered by Circul · Page 1 of 1', contentX + contentW / 2, y, { width: contentW / 2, align: 'right', lineBreak: false });
 
     doc.end();
   } catch (err) {
@@ -9816,7 +10145,12 @@ app.get('/api/impact-partner/report.pdf', requireAuth, requireImpactPartner, asy
   }
 });
 
-// ── GET /api/impact-partner/report.xlsx ──
+// ── GET /api/impact-partner/report.xlsx (Phase 5b — brand-aligned) ──
+//
+// Two sheets: "Impact" (data) + "Methodology" (rules + URL). Mockup §5 / §6
+// / §7. Calibri rendering (Excel default; no font shipping needed); we
+// control color/size only. Title row uses deep-green text on white — NOT
+// the loud neon-green fill Phase 5 shipped.
 app.get('/api/impact-partner/report.xlsx', requireAuth, requireImpactPartner, async (req, res) => {
   try {
     const period = req.query.period || 'ytd';
@@ -9826,50 +10160,228 @@ app.get('/api/impact-partner/report.xlsx', requireAuth, requireImpactPartner, as
       region: req.query.region || null,
       actor_type: req.query.actor_type || null
     };
-    const [rows, partner] = await Promise.all([
+    const [rows, partnerRow] = await Promise.all([
       computeImpactAttribution(req.user.id, startISO, endISO, filters),
-      pool.query(`SELECT name FROM impact_partners WHERE id=$1`, [req.user.id])
+      pool.query(`SELECT name, contact_name FROM impact_partners WHERE id=$1`, [req.user.id])
     ]);
-    const partnerName = (partner.rows[0] && partner.rows[0].name) || 'Impact Partner';
+    const partner = partnerRow.rows[0] || { name: 'Impact Partner' };
+    const partnerName = partner.name || 'Impact Partner';
+    const contactName = partner.contact_name || partnerName;
+
+    const totalKg = rows.reduce(function (s, r) { return s + parseFloat(r.total_kg); }, 0);
+    const txnCount = rows.reduce(function (s, r) { return s + r.txn_count; }, 0);
+
+    const periodLabel = reportPeriodLabel(period);
+    const display = reportDisplayWindow(startISO, endISO);
+    const generatedStamp = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+
+    let emptyCtx = null;
+    if (totalKg === 0) emptyCtx = await ytdNetworkContext(req.user.id);
+
+    // ARGB colors (exceljs requires FF-prefixed alpha)
+    const ARGB = {
+      accentDeep: 'FF00B25B',
+      accentTint: 'FFE8F5E9',
+      banded:     'FFFAFAFA',
+      footnote:   'FF888888',
+      amberBg:    'FFFDFAEF',
+      amberText:  'FF7A5D1A',
+      amberBorder:'FFE6C87F',
+      borderSoft: 'FFD0D7DE',
+      text1:      'FF0D1F14',
+      text2:      'FF5A7566'
+    };
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Circul';
     wb.created = new Date();
-    const ws = wb.addWorksheet('Impact');
 
-    // Title row
-    ws.mergeCells('A1:E1');
-    ws.getCell('A1').value = 'Circul Impact Report — ' + partnerName + ' — ' + period + ' (' + startISO.slice(0,10) + ' → ' + endISO.slice(0,10) + ')';
-    ws.getCell('A1').font = { bold: true, color: { argb: 'FF000000' }, size: 13 };
-    ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00E676' } };
-    ws.getCell('A1').alignment = { vertical: 'middle', horizontal: 'left' };
+    // ───── Sheet 1: Impact ─────
+    const ws = wb.addWorksheet('Impact');
+    // Column widths per mockup §5
+    [18, 14, 22, 14, 14, 10].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+
+    // Row 1 — title
+    ws.mergeCells('A1:F1');
+    const t1 = ws.getCell('A1');
+    t1.value = 'Circul Impact Report — ' + partnerName;
+    t1.font = { bold: true, size: 16, color: { argb: ARGB.accentDeep } };
+    t1.alignment = { vertical: 'middle', horizontal: 'left' };
     ws.getRow(1).height = 26;
 
-    // Header row
-    ws.addRow([]);
-    const hdr = ws.addRow(['Tier', 'Material', 'Region', 'Total kg', 'Txn count']);
-    hdr.font = { bold: true };
+    // Row 2 — subtitle
+    ws.mergeCells('A2:F2');
+    const t2 = ws.getCell('A2');
+    t2.value = 'Prepared for ' + contactName + ' · ' + periodLabel +
+               ' (' + display.humanStart + ' → ' + display.humanEnd + ') · Generated ' + generatedStamp;
+    t2.font = { italic: true, size: 10, color: { argb: ARGB.footnote } };
+    t2.alignment = { vertical: 'middle', horizontal: 'left' };
+    ws.getRow(2).height = 18;
 
-    rows.forEach(function (r) {
-      ws.addRow([
-        r.first_tagged_tier,
-        r.material_type,
-        r.region || 'n/a',
-        parseFloat(r.total_kg),
-        r.txn_count
-      ]);
+    // Row 3 — blank breathing room
+    ws.getRow(3).height = 6;
+
+    // Row 4 — header row, frozen
+    const headerLabels = ['TIER', 'ACTOR ID', 'REGION', 'MATERIAL', 'KG', 'TXNS'];
+    headerLabels.forEach(function (label, i) {
+      const cell = ws.getRow(4).getCell(i + 1);
+      cell.value = label;
+      cell.font = { bold: true, size: 10, color: { argb: ARGB.text1 } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.accentTint } };
+      cell.border = { bottom: { style: 'medium', color: { argb: ARGB.accentDeep } } };
+      cell.alignment = { vertical: 'middle', horizontal: (i >= 4) ? 'right' : 'left' };
+    });
+    ws.getRow(4).height = 20;
+    ws.views = [{ state: 'frozen', ySplit: 4 }];
+
+    if (totalKg === 0) {
+      // ── Empty state — single merged amber row instead of data + totals ──
+      ws.mergeCells('A5:F5');
+      const emptyCell = ws.getCell('A5');
+      let msg;
+      if (!emptyCtx || emptyCtx.ytdActorCount === 0) {
+        msg = partnerName + ' has no tagged actors yet. Tag actors via the Impact Partner dashboard My Network tab.';
+      } else {
+        const plural = emptyCtx.ytdActorCount === 1 ? '' : 's';
+        msg = 'No tagged-actor activity in this window. Your network has ' + emptyCtx.ytdActorCount +
+              ' tagged actor' + plural + ' with ' + emptyCtx.ytdTotalKg.toFixed(0) +
+              ' kg attributed year-to-date — regenerate with period = Year to date to see this data.';
+      }
+      emptyCell.value = msg;
+      emptyCell.font = { italic: true, size: 10, color: { argb: ARGB.amberText } };
+      emptyCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.amberBg } };
+      emptyCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      emptyCell.border = { bottom: { style: 'thin', color: { argb: ARGB.amberBorder } } };
+      ws.getRow(5).height = 28;
+
+      // Row 6 — blank
+      ws.getRow(6).height = 6;
+
+      // Row 7 — footnote
+      ws.mergeCells('A7:F7');
+      const fn = ws.getCell('A7');
+      fn.value = 'Attribution: first-tagged-touchpoint, no double-counting (v0 source-of-entry only). See sheet 2 for the full methodology, or circul.app/methodology/impact-attribution-v1.';
+      fn.font = { italic: true, size: 9, color: { argb: ARGB.footnote } };
+      fn.border = { top: { style: 'thin', color: { argb: ARGB.borderSoft } } };
+      fn.alignment = { vertical: 'middle', horizontal: 'left' };
+    } else {
+      // ── Data rows (5+) ──
+      let r = 5;
+      rows.forEach(function (row, idx) {
+        const banded = (idx % 2 === 1);
+        const cells = [
+          (row.first_tagged_tier || '').toUpperCase(),
+          row.actor_code || '',
+          row.region || '—',
+          row.material_type || '',
+          parseFloat(row.total_kg),
+          row.txn_count
+        ];
+        cells.forEach(function (v, i) {
+          const c = ws.getRow(r).getCell(i + 1);
+          c.value = v;
+          if (i === 0) {
+            c.font = { bold: true, size: 9, color: { argb: ARGB.accentDeep } };
+          } else {
+            c.font = { size: 10, color: { argb: ARGB.text1 } };
+          }
+          if (banded) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.banded } };
+          c.alignment = { vertical: 'middle', horizontal: (i === 4 || i === 5) ? 'right' : 'left' };
+          if (i === 4) c.numFmt = '#,##0" kg"';
+          if (i === 5) c.numFmt = '#,##0';
+        });
+        ws.getRow(r).height = 18;
+        r++;
+      });
+
+      // Totals row
+      ws.mergeCells('A' + r + ':D' + r);
+      const tlabel = ws.getCell('A' + r);
+      tlabel.value = 'Total';
+      tlabel.font = { bold: true, size: 11, color: { argb: ARGB.text1 } };
+      tlabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.accentTint } };
+      tlabel.border = {
+        top:    { style: 'medium', color: { argb: ARGB.accentDeep } },
+        bottom: { style: 'medium', color: { argb: ARGB.accentDeep } }
+      };
+      tlabel.alignment = { vertical: 'middle', horizontal: 'left' };
+      // E + F totals
+      [
+        { col: 5, val: totalKg,   fmt: '#,##0" kg"' },
+        { col: 6, val: txnCount,  fmt: '#,##0' }
+      ].forEach(function (t) {
+        const c = ws.getRow(r).getCell(t.col);
+        c.value = t.val;
+        c.font = { bold: true, size: 11, color: { argb: ARGB.text1 } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.accentTint } };
+        c.border = {
+          top:    { style: 'medium', color: { argb: ARGB.accentDeep } },
+          bottom: { style: 'medium', color: { argb: ARGB.accentDeep } }
+        };
+        c.alignment = { vertical: 'middle', horizontal: 'right' };
+        c.numFmt = t.fmt;
+      });
+      ws.getRow(r).height = 22;
+      r++;
+
+      // Blank
+      ws.getRow(r).height = 6;
+      r++;
+
+      // Footnote
+      ws.mergeCells('A' + r + ':F' + r);
+      const fn = ws.getCell('A' + r);
+      fn.value = 'Attribution: first-tagged-touchpoint, no double-counting (v0 source-of-entry only). See sheet 2 for the full methodology, or circul.app/methodology/impact-attribution-v1.';
+      fn.font = { italic: true, size: 9, color: { argb: ARGB.footnote } };
+      fn.border = { top: { style: 'thin', color: { argb: ARGB.borderSoft } } };
+      fn.alignment = { vertical: 'middle', horizontal: 'left' };
+      ws.getRow(r).height = 20;
+    }
+
+    // ───── Sheet 2: Methodology ─────
+    const ws2 = wb.addWorksheet('Methodology');
+    ws2.getColumn(1).width = 4;
+    ws2.getColumn(2).width = 120;
+
+    // Row 1 — heading
+    const mh = ws2.getCell('B1');
+    mh.value = 'Attribution methodology · v1';
+    mh.font = { bold: true, size: 14, color: { argb: ARGB.accentDeep } };
+    mh.border = { bottom: { style: 'medium', color: { argb: ARGB.accentDeep } } };
+    ws2.getRow(1).height = 28;
+
+    // Rows 2–6 — five rules with rich-text leads
+    METHODOLOGY_RULES.forEach(function (rule, i) {
+      const rowNum = 2 + i;
+      const cell = ws2.getCell('B' + rowNum);
+      cell.value = {
+        richText: [
+          { text: rule.lead, font: { bold: true, color: { argb: ARGB.accentDeep }, size: 10 } },
+          { text: rule.body, font: { color: { argb: ARGB.text1 }, size: 10 } }
+        ]
+      };
+      cell.alignment = { vertical: 'top', wrapText: true };
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FFF0F0F0' } } };
+      ws2.getRow(rowNum).height = 36;
     });
 
-    // Auto-size columns
-    [12, 12, 24, 14, 12].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+    // Row 7 — full methodology URL
+    const urlRow = 7;
+    const urlCell = ws2.getCell('B' + urlRow);
+    urlCell.value = {
+      text: 'Full methodology, including edge cases and roadmap: circul.app/methodology/impact-attribution-v1',
+      hyperlink: 'https://circul.app/methodology/impact-attribution-v1'
+    };
+    urlCell.font = { size: 10, color: { argb: ARGB.accentDeep }, underline: true };
+    urlCell.border = { top: { style: 'thin', color: { argb: ARGB.borderSoft } } };
+    urlCell.alignment = { vertical: 'top' };
+    ws2.getRow(urlRow).height = 24;
 
-    // Footer
-    const lastRow = ws.lastRow ? ws.lastRow.number : 4;
-    ws.getCell('A' + (lastRow + 2)).value = 'Attribution: first-tagged-touchpoint, no double-counting (v0 source-of-entry only). circul.app/methodology/impact-attribution-v1';
-    ws.getCell('A' + (lastRow + 2)).font = { italic: true, color: { argb: 'FF888888' } };
-
+    // ── Filename + headers ──
+    const dateSlug = new Date().toISOString().slice(0, 10);
+    const filename = 'circul-impact-report-' + partnerSlug(partnerName) + '-' + period + '-' + dateSlug + '.xlsx';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="circul-impact-report.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
     await wb.xlsx.write(res);
     res.end();
   } catch (err) {

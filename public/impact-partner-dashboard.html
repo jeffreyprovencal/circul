@@ -269,8 +269,8 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text-1);f
         </div>
         <div class="section-card-body">
           <div class="filter-row" id="periodPills">
-            <div class="filter-pill active" data-period="mtd">Month to date</div>
-            <div class="filter-pill" data-period="ytd">YTD</div>
+            <div class="filter-pill" data-period="mtd">Month to date</div>
+            <div class="filter-pill active" data-period="ytd">YTD</div>
             <div class="filter-pill" data-period="all">All time</div>
           </div>
           <div class="filter-row" id="materialPills">
@@ -326,7 +326,7 @@ let state = {
   token: localStorage.getItem(TOKEN_KEY) || '',
   partner: null,
   pendingUntagTagId: null,
-  reportFilters: { period: 'mtd', material: '', region: '', actor_type: '' }
+  reportFilters: { period: 'ytd', material: '', region: '', actor_type: '' }
 };
 
 function api(path, opts) {

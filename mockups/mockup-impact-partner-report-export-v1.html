@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impact Partner Reports — PDF + Excel polish v1</title>
+<style>
+:root{
+  --bg:#0a1a0f;--surface:#0d1f14;--surface-2:#11331f;--border:#1a3a24;
+  --accent:#00e676;--accent-deep:#00b25b;--accent-tint:#e8f5e9;
+  --text-1:#e0f2e9;--text-2:#8fa89a;--text-3:#5a7566;
+  --red:#ef5350;--amber:#ffd54f;--blue:#64b5f6;--purple:#b39ddb;
+  --font:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);padding:24px;line-height:1.5}
+h1{font-size:1.5rem;color:var(--accent);margin-bottom:4px}
+h2{font-size:1.05rem;color:var(--accent);margin:0 0 8px}
+h3{font-size:0.9rem;color:var(--text-1);margin:16px 0 8px}
+.subtitle{font-size:0.85rem;color:var(--text-2);margin-bottom:24px;max-width:1100px;line-height:1.65}
+.section{margin-bottom:48px;max-width:1400px;scroll-margin-top:20px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.section-desc{font-size:0.82rem;color:var(--text-2);margin-bottom:20px;max-width:1100px;line-height:1.65}
+.flow{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.flow-label{font-size:0.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;font-weight:600}
+
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:40px;max-width:1100px}
+.toc h3{margin-top:0;color:var(--accent);font-size:0.9rem}
+.toc ol{margin:8px 0 0 22px;font-size:0.82rem;line-height:1.85;color:var(--text-2)}
+.toc ol a{color:var(--text-1);text-decoration:none;border-bottom:1px dotted var(--border)}
+.toc ol a:hover{color:var(--accent);border-color:var(--accent)}
+
+.box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:0.85rem;color:var(--text-1);line-height:1.65;max-width:1100px}
+.box h3{margin-top:0;color:var(--text-1)}
+.box code{background:#0a150e;padding:1px 6px;border-radius:3px;color:var(--amber);font-size:0.78rem}
+.box ul{margin:8px 0 0 22px}
+.box li{margin-bottom:6px}
+.box.verified{border-left:3px solid var(--accent)}
+.box.assumed{border-left:3px solid var(--amber)}
+.box.broken{border-left:3px solid var(--red);background:#1f0d0d}
+.box.decision{border-left:3px solid var(--blue);background:#0a1a2a}
+.box .label-row{display:flex;gap:10px;align-items:baseline;margin-bottom:8px}
+.box .label-row .tag{font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;padding:2px 7px;border-radius:3px}
+.box .label-row .tag.broken{background:var(--red);color:#fff}
+.box .label-row .tag.decision{background:var(--blue);color:#000}
+.box .label-row .tag.verified{background:var(--accent);color:#000}
+.box .label-row .tag.assumed{background:var(--amber);color:#000}
+
+/* ───────── PDF preview ─────────
+   A4 portrait — 210mm × 297mm. At ~2.7px/mm preview, that's roughly 567px × 800px.
+   We render at 600px wide for legibility. */
+.pdf{width:600px;background:#fff;color:#0d1f14;border:2px solid var(--border);border-radius:6px;flex-shrink:0;font-family:var(--font);overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+.pdf-page{padding:34px 38px;min-height:850px}
+
+.pdf-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--accent-deep);padding-bottom:12px;margin-bottom:14px}
+.pdf-head .left .wordmark{font-size:1.25rem;font-weight:800;color:var(--accent-deep);letter-spacing:-0.02em;line-height:1}
+.pdf-head .left .doctype{font-size:0.62rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.16em;margin-top:6px;font-weight:600}
+.pdf-head .right{text-align:right}
+.pdf-head .right .partner{font-size:1rem;font-weight:700;color:#0d1f14;line-height:1.15}
+.pdf-head .right .contact{font-size:0.72rem;color:#5a7566;margin-top:2px}
+.pdf-head .right .period{font-size:0.7rem;color:#5a7566;margin-top:6px;font-variant-numeric:tabular-nums}
+
+.pdf-hero{background:#f3faf5;border:1px solid #cce7d4;border-radius:6px;padding:20px 22px;margin:6px 0 18px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px}
+.pdf-hero .total-block{flex:1}
+.pdf-hero .total-label{font-size:0.66rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:4px}
+.pdf-hero .total{font-size:2.6rem;font-weight:800;color:var(--accent-deep);line-height:1;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.pdf-hero .total-caption{font-size:0.72rem;color:#0d1f14;margin-top:6px;line-height:1.4}
+.pdf-hero .secondary{display:flex;gap:18px;text-align:right}
+.pdf-hero .secondary div{min-width:60px}
+.pdf-hero .secondary .label{font-size:0.6rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;font-weight:700}
+.pdf-hero .secondary .val{font-size:1.1rem;color:#0d1f14;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+
+.pdf-sub{font-size:0.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin:18px 0 8px}
+
+.pdf-bymat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.pdf-bymat .mat{background:#f7faf8;border:1px solid #e0e7e2;border-radius:5px;padding:10px 12px}
+.pdf-bymat .mat .name{font-size:0.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;font-weight:600}
+.pdf-bymat .mat .val{font-size:1.05rem;font-weight:700;color:var(--accent-deep);margin-top:3px;font-variant-numeric:tabular-nums}
+.pdf-bymat .mat .pct{font-size:0.65rem;color:var(--text-3);margin-top:2px}
+
+.pdf-table{width:100%;border-collapse:collapse;font-size:0.72rem;margin-top:2px;table-layout:auto}
+.pdf-table thead th{background:var(--accent-tint);color:#0d1f14;text-align:left;padding:7px 8px;font-size:0.62rem;text-transform:uppercase;font-weight:700;letter-spacing:0.04em;border-bottom:1.5px solid var(--accent-deep)}
+.pdf-table thead th.num{text-align:right}
+.pdf-table td{padding:7px 8px;border-bottom:1px solid #e8efe9;color:#0d1f14}
+.pdf-table tbody tr:nth-child(even){background:#fafcfb}
+.pdf-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.pdf-table td.tier{font-weight:600;color:var(--accent-deep);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.04em}
+.pdf-table tr.totals td{font-weight:800;background:var(--accent-tint);border-top:1.5px solid var(--accent-deep);border-bottom:none;color:#0d1f14}
+
+.pdf-empty{background:#fdfaef;border:1px dashed #e6c87f;border-radius:6px;padding:18px 20px;margin:18px 0;color:#7a5d1a}
+.pdf-empty .heading{font-size:0.88rem;font-weight:700;color:#7a5d1a;margin-bottom:6px}
+.pdf-empty p{font-size:0.78rem;line-height:1.55;color:#7a5d1a}
+.pdf-empty .ctx{font-size:0.72rem;color:#5a7566;background:#fff;padding:8px 12px;border-radius:4px;margin-top:10px;border:1px solid #e8efe9}
+
+.pdf-methodology{background:#f3faf5;border:1px solid #cce7d4;border-radius:5px;padding:12px 14px;margin-top:22px}
+.pdf-methodology .heading{font-size:0.7rem;font-weight:700;color:var(--accent-deep);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.pdf-methodology p{font-size:0.7rem;color:#0d1f14;line-height:1.5}
+.pdf-methodology a{color:var(--accent-deep);text-decoration:underline}
+
+.pdf-foot{display:flex;justify-content:space-between;font-size:0.62rem;color:var(--text-3);margin-top:22px;padding-top:10px;border-top:1px solid #e8efe9}
+
+/* ───────── Excel preview ─────────
+   We render an HTML grid styled like Excel (Calibri-ish, thin grid lines, frozen header).
+   Two sheets — tabs at bottom mimic Excel UI. */
+.xlsx{width:920px;background:#fff;border:2px solid var(--border);border-radius:6px;flex-shrink:0;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.5);font-family:'Calibri','Segoe UI',sans-serif;color:#000}
+.xlsx-chrome{background:#f3f3f3;padding:8px 12px;border-bottom:1px solid #d0d7de;font-size:0.7rem;color:#444;display:flex;justify-content:space-between;align-items:center}
+.xlsx-chrome .filename{font-weight:600;color:#0d1f14}
+.xlsx-chrome .file-info{color:#666}
+.xlsx-grid{width:100%;border-collapse:collapse;font-size:0.74rem;table-layout:fixed}
+.xlsx-grid .row-num{width:34px;background:#f3f3f3;color:#666;text-align:center;font-size:0.66rem;border-right:1px solid #d0d7de;border-bottom:1px solid #e0e0e0;font-weight:normal}
+.xlsx-grid .col-letter{background:#f3f3f3;color:#666;text-align:center;font-size:0.66rem;border-bottom:1px solid #d0d7de;border-right:1px solid #e0e0e0;font-weight:normal;padding:3px 0}
+.xlsx-grid td{border-right:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0;padding:5px 8px;vertical-align:middle;background:#fff}
+.xlsx-grid td.empty{background:#fff}
+.xlsx-grid td.title-cell{background:#fff;color:var(--accent-deep);font-weight:800;font-size:1rem;padding:10px 12px;border-bottom:2px solid var(--accent-deep)}
+.xlsx-grid td.subtitle-cell{background:#fff;color:#5a7566;font-style:italic;font-size:0.72rem;padding:6px 12px;font-weight:normal}
+.xlsx-grid td.header-cell{background:#e8f5e9;color:#0d1f14;font-weight:700;font-size:0.72rem;border-bottom:1.5px solid var(--accent-deep);text-transform:uppercase;letter-spacing:0.03em}
+.xlsx-grid td.data-cell{font-size:0.78rem}
+.xlsx-grid td.data-cell.num{text-align:right;font-variant-numeric:tabular-nums}
+.xlsx-grid td.data-cell.tier{font-weight:600;color:var(--accent-deep);text-transform:uppercase;font-size:0.68rem;letter-spacing:0.04em}
+.xlsx-grid tr.banded td.data-cell{background:#fafafa}
+.xlsx-grid td.totals-cell{background:#e8f5e9;font-weight:800;font-size:0.82rem;border-top:1.5px solid var(--accent-deep);border-bottom:1.5px solid var(--accent-deep)}
+.xlsx-grid td.totals-cell.num{text-align:right;font-variant-numeric:tabular-nums}
+.xlsx-grid td.footnote-cell{background:#fff;color:#5a7566;font-style:italic;font-size:0.7rem;padding:8px 12px;border-top:1px solid #d0d7de;border-bottom:none}
+.xlsx-grid td.empty-state-cell{background:#fdfaef;color:#7a5d1a;font-style:italic;font-size:0.78rem;text-align:center;padding:14px 12px;border-bottom:1px solid #e6c87f}
+.xlsx-grid td.meth-heading{background:#fff;color:var(--accent-deep);font-weight:800;font-size:0.95rem;padding:10px 12px;border-bottom:2px solid var(--accent-deep)}
+.xlsx-grid td.meth-rule{background:#fff;color:#0d1f14;font-size:0.74rem;padding:8px 12px;line-height:1.5;border-bottom:1px solid #f0f0f0}
+.xlsx-grid td.meth-rule strong{color:var(--accent-deep)}
+.xlsx-tabs{background:#f3f3f3;border-top:1px solid #d0d7de;padding:0 12px;display:flex;gap:0;font-size:0.7rem}
+.xlsx-tabs .tab{padding:8px 16px;color:#666;cursor:default;border-right:1px solid #d0d7de;background:#f3f3f3}
+.xlsx-tabs .tab.active{background:#fff;color:#0d1f14;font-weight:600;border-top:2px solid var(--accent-deep);margin-top:-1px}
+
+.flow-pair{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;margin-bottom:32px}
+
+.note-strip{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:6px;padding:10px 14px;font-size:0.78rem;color:var(--text-1);max-width:600px;line-height:1.55;margin-top:10px}
+
+.diff-table{width:100%;max-width:1100px;border-collapse:collapse;font-size:0.8rem;margin-top:10px}
+.diff-table th,.diff-table td{padding:9px 12px;border:1px solid var(--border);text-align:left;vertical-align:top}
+.diff-table th{background:var(--border);color:var(--text-2);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.03em}
+.diff-table td{color:var(--text-1)}
+.diff-table .left-col{color:var(--text-2);font-weight:600;width:24%}
+.diff-table code{background:#0a150e;padding:1px 5px;border-radius:3px;color:var(--amber);font-size:0.74rem}
+.diff-table .bad{color:#ff8a80}
+.diff-table .good{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<h1>Impact Partner Reports — PDF + Excel polish v1</h1>
+<p class="subtitle">Mockup for Phase 5b. The PDF + Excel reports that WORK (Vivien Luk) downloads from the Impact Partner dashboard's Reports tab. Phase 5 shipped working endpoints with raw output; this mockup specifies the visual + UX upgrade before any code changes. Demo data is the locked WORK persona roster (Naa Adjeley Lamptey, Yaa Boateng, Kweku Mensah, Ama Owusu, Kwame Asante).</p>
+
+<div class="toc">
+<h3>Contents</h3>
+<ol>
+  <li><a href="#current">Current state — what's broken (2026-05-13 PDF + Excel)</a></li>
+  <li><a href="#scope">Phase 5b scope</a></li>
+  <li><a href="#pdf-populated">PDF — populated (YTD, real data)</a></li>
+  <li><a href="#pdf-empty">PDF — empty state (MTD, no activity in window)</a></li>
+  <li><a href="#xlsx-populated">Excel — populated (YTD, real data, sheet 1)</a></li>
+  <li><a href="#xlsx-empty">Excel — empty state (MTD)</a></li>
+  <li><a href="#xlsx-methodology">Excel — sheet 2: Methodology</a></li>
+  <li><a href="#decisions">Locked decisions (D1–D4)</a></li>
+  <li><a href="#impl">Implementation surface area (for the Claude Code spec)</a></li>
+  <li><a href="#parked">Parked — Viv's downstream-tier tagging ask (v0.5)</a></li>
+</ol>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §1 CURRENT STATE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="current">
+<div class="section-title">1. Current state — what's broken (2026-05-13)</div>
+
+<div class="box broken">
+<div class="label-row"><span class="tag broken">Broken</span><h3 style="margin:0">Three independent issues stacked</h3></div>
+<ol style="margin-left:22px;line-height:1.85">
+  <li><strong>Wrong default period.</strong> Reports tab defaults to <code>period: 'mtd'</code>. Today is 2026-05-13 → MTD window = May 1 → Jun 1. Kwame's tagged transaction is pre-May seed data, so the window correctly contains 0 kg. Home tab shows 65 kg YTD because Home is YTD. <span class="bad">→ default mismatched to user mental model.</span></li>
+  <li><strong>PDF Unicode mangling.</strong> pdfkit's default Helvetica is WinAnsi-encoded. <code>→</code> renders as <code>!'</code>. <code>·</code> survives by coincidence. Header reads "<code>Month to date · 2026-05-01 !' 2026-06-01</code>". Methodology footnote reads "<code>(collector!'aggregator)</code>".</li>
+  <li><strong>Both files are unstyled.</strong> PDF is default-Helvetica with <code>padEnd</code>/<code>padStart</code> faking a table — reads like console output. Excel has a neon <code>#00E676</code> title bar, no number formats, no banding, no borders, no totals row, footnote stranded in A5. Neither file has a real empty state — Excel has a blank row 4, PDF gives a one-line apology without telling Vivien her network has 65 kg YTD she could see by changing the period.</li>
+</ol>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §2 SCOPE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="scope">
+<div class="section-title">2. Phase 5b scope</div>
+<p class="section-desc">Six changes, one PR, one Polsia deploy. Smoke + lint baselines preserved.</p>
+
+<table class="diff-table">
+<thead>
+  <tr><th style="width:24%">Change</th><th>What</th><th>Why</th></tr>
+</thead>
+<tbody>
+  <tr><td class="left-col">2.1 Default period → YTD</td><td><code>impact-partner-dashboard.html</code> line 329: <code>reportFilters: { period: 'ytd', ... }</code></td><td>YTD is the only window an impact partner cares about; MTD is a filter, not a starting point.</td></tr>
+  <tr><td class="left-col">2.2 Ship brand font</td><td>Add <code>public/fonts/PlusJakartaSans-Regular.ttf</code> + <code>PlusJakartaSans-Bold.ttf</code> (Google Fonts, OFL/Apache-2). <code>doc.registerFont()</code> both in PDF generator.</td><td>Kills <code>!'</code> Unicode mangling AND aligns PDF with the web brand (Plus Jakarta Sans is already <code>--font</code> in shared.css). Cost: ~150 KB.</td></tr>
+  <tr><td class="left-col">2.3 PDF redesign</td><td>Header band, hero metric card with secondary metrics, real table (alternating rows + borders + right-aligned numbers + tier-pill column), methodology box, page footer. See §3.</td><td>Document is the demo deliverable — must look like a real impact report, not a stdout dump.</td></tr>
+  <tr><td class="left-col">2.4 Excel redesign</td><td>Title row 16pt <code>#00b25b</code> text on white (not neon fill). Subtitle row. Frozen header row with <code>#e8f5e9</code> fill + borders. Banded data rows. Number format <code>#,##0" kg"</code>. Totals row. Merged footnote. Second sheet "Methodology". See §5, §7.</td><td>Excel is the partner's record-keeping copy — must be presentable + auditable.</td></tr>
+  <tr><td class="left-col">2.5 Empty state</td><td>Both formats: explicit, polite "no activity in this window — your network has <em>N</em> tagged actor(s) with <em>X</em> kg YTD; switch period to YTD" copy. Pulls from the same <code>/network</code> endpoint already used by the dashboard.</td><td>Vivien picks MTD by mistake → she sees actionable guidance, not a broken-looking stub.</td></tr>
+  <tr><td class="left-col">2.6 Filename suffix</td><td><code>circul-impact-report-{partner-slug}-{period}-{YYYY-MM-DD}.{pdf,xlsx}</code></td><td>Saved-to-disk hygiene. Vivien downloads 4 reports across the pilot — she shouldn't have 4 files named identically.</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §3 PDF — POPULATED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="pdf-populated">
+<div class="section-title">3. PDF — populated (YTD, real WORK demo data)</div>
+<p class="section-desc">A4 portrait. Plus Jakarta Sans. Renders Vivien's actual tagged network YTD: 5 actors across 3 regions, 4 materials, 248 kg total. Hero metric anchored top-left, secondary metrics (actor count, txn count, materials, regions) anchored top-right, breakdown table fills the middle, methodology box + footer anchor the bottom.</p>
+
+<div class="flow-pair">
+  <div>
+    <div class="flow-label">PDF · A4 portrait · Page 1 of 1</div>
+    <div class="pdf">
+      <div class="pdf-page">
+
+        <!-- header -->
+        <div class="pdf-head">
+          <div class="left">
+            <div class="wordmark">Circul</div>
+            <div class="doctype">Impact Report</div>
+          </div>
+          <div class="right">
+            <div class="partner">WORK</div>
+            <div class="contact">Prepared for Vivien Luk</div>
+            <div class="period">Year to date · 1 Jan 2026 → 13 May 2026</div>
+          </div>
+        </div>
+
+        <!-- hero -->
+        <div class="pdf-hero">
+          <div class="total-block">
+            <div class="total-label">Total impact</div>
+            <div class="total">248 kg</div>
+            <div class="total-caption">across 5 tagged actors and 12 transactions, first-tagged-touchpoint attribution</div>
+          </div>
+          <div class="secondary">
+            <div><div class="label">Actors</div><div class="val">5</div></div>
+            <div><div class="label">Txns</div><div class="val">12</div></div>
+            <div><div class="label">Materials</div><div class="val">4</div></div>
+          </div>
+        </div>
+
+        <!-- by material -->
+        <div class="pdf-sub">By material</div>
+        <div class="pdf-bymat" style="grid-template-columns:repeat(4,1fr)">
+          <div class="mat"><div class="name">PET</div><div class="val">174 kg</div><div class="pct">70%</div></div>
+          <div class="mat"><div class="name">HDPE</div><div class="val">44 kg</div><div class="pct">18%</div></div>
+          <div class="mat"><div class="name">PP</div><div class="val">14 kg</div><div class="pct">6%</div></div>
+          <div class="mat"><div class="name">LDPE</div><div class="val">16 kg</div><div class="pct">6%</div></div>
+        </div>
+
+        <!-- breakdown table — sorted: tier, actor_id, material -->
+        <div class="pdf-sub">Breakdown by tier × actor × region × material</div>
+        <table class="pdf-table">
+          <thead>
+            <tr>
+              <th>Tier</th>
+              <th>Actor ID</th>
+              <th>Region</th>
+              <th>Material</th>
+              <th class="num">Kg</th>
+              <th class="num">Txns</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="tier">Collector</td><td>COL-0042</td><td>Greater Accra</td><td>HDPE</td><td class="num">28</td><td class="num">1</td></tr>
+            <tr><td class="tier">Collector</td><td>COL-0042</td><td>Greater Accra</td><td>PET</td><td class="num">55</td><td class="num">2</td></tr>
+            <tr><td class="tier">Collector</td><td>COL-0089</td><td>Greater Accra</td><td>LDPE</td><td class="num">16</td><td class="num">1</td></tr>
+            <tr><td class="tier">Collector</td><td>COL-0089</td><td>Greater Accra</td><td>PET</td><td class="num">22</td><td class="num">1</td></tr>
+            <tr><td class="tier">Collector</td><td>COL-0091</td><td>Greater Accra</td><td>PET</td><td class="num">65</td><td class="num">3</td></tr>
+            <tr><td class="tier">Collector</td><td>COL-0103</td><td>Greater Accra</td><td>PET</td><td class="num">32</td><td class="num">2</td></tr>
+            <tr><td class="tier">Collector</td><td>COL-0103</td><td>Greater Accra</td><td>PP</td><td class="num">14</td><td class="num">1</td></tr>
+            <tr><td class="tier">Collector</td><td>COL-0117</td><td>Greater Accra</td><td>HDPE</td><td class="num">16</td><td class="num">1</td></tr>
+            <tr class="totals"><td colspan="4">Total</td><td class="num">248</td><td class="num">12</td></tr>
+          </tbody>
+        </table>
+
+        <!-- methodology -->
+        <div class="pdf-methodology">
+          <div class="heading">Attribution methodology · v1</div>
+          <p>First-tagged-touchpoint, no double-counting. v0 counts only at source-of-entry (collector→aggregator); downstream-tagged actors do not add new kg. Full methodology: <a href="#">circul.app/methodology/impact-attribution-v1</a></p>
+        </div>
+
+        <!-- footer -->
+        <div class="pdf-foot">
+          <div>Generated 2026-05-13 15:11 UTC</div>
+          <div>Powered by Circul · Page 1 of 1</div>
+        </div>
+
+      </div>
+    </div>
+    <div class="note-strip">Hero metric is the centerpiece — the partner's funder (e.g. Coke) wants to see one number first, then how it was earned. Secondary metrics (actors, txns, materials) sit on the right of the hero so they read as supporting context, not competing headlines.</div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §4 PDF — EMPTY -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="pdf-empty">
+<div class="section-title">4. PDF — empty state (MTD, no activity in window)</div>
+<p class="section-desc">Same chrome, but the body becomes an explicit empty-state block that tells Vivien why the window is empty and how to fix it. Critical because the current Phase 5 output gives the impression of a broken system when the user merely picked a window with no activity.</p>
+
+<div class="flow-pair">
+  <div>
+    <div class="flow-label">PDF · A4 portrait · Page 1 of 1 · empty-state body</div>
+    <div class="pdf">
+      <div class="pdf-page">
+
+        <div class="pdf-head">
+          <div class="left">
+            <div class="wordmark">Circul</div>
+            <div class="doctype">Impact Report</div>
+          </div>
+          <div class="right">
+            <div class="partner">WORK</div>
+            <div class="contact">Prepared for Vivien Luk</div>
+            <div class="period">Month to date · 1 May 2026 → 13 May 2026</div>
+          </div>
+        </div>
+
+        <div class="pdf-hero">
+          <div class="total-block">
+            <div class="total-label">Total impact</div>
+            <div class="total" style="color:#7a5d1a">0 kg</div>
+            <div class="total-caption">No tagged-actor transactions in this window</div>
+          </div>
+          <div class="secondary">
+            <div><div class="label">Actors</div><div class="val">5</div></div>
+            <div><div class="label">Txns</div><div class="val">0</div></div>
+            <div><div class="label">Materials</div><div class="val">—</div></div>
+          </div>
+        </div>
+
+        <div class="pdf-empty">
+          <div class="heading">No activity in this window</div>
+          <p>No transactions from WORK-tagged actors occurred between 1 May and 13 May 2026.</p>
+          <div class="ctx">
+            Your network has <strong>5 tagged actors</strong> with <strong>248 kg</strong> attributed year-to-date. To see this activity, regenerate the report with the period set to <strong>Year to date</strong>.
+          </div>
+        </div>
+
+        <div class="pdf-methodology">
+          <div class="heading">Attribution methodology · v1</div>
+          <p>First-tagged-touchpoint, no double-counting. v0 counts only at source-of-entry (collector→aggregator); downstream-tagged actors do not add new kg. Full methodology: <a href="#">circul.app/methodology/impact-attribution-v1</a></p>
+        </div>
+
+        <div class="pdf-foot">
+          <div>Generated 2026-05-13 15:11 UTC</div>
+          <div>Powered by Circul · Page 1 of 1</div>
+        </div>
+
+      </div>
+    </div>
+    <div class="note-strip">The hero card still appears — just with 0 kg and a muted amber tint on the number to signal "this is an honest zero, not a broken zero". The amber tint comes from re-using the same accent we use for "warnings" on the dashboard (<code>--warning: #ffb74d</code>) so the visual vocabulary is consistent.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §5 EXCEL — POPULATED -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="xlsx-populated">
+<div class="section-title">5. Excel — populated (YTD, sheet 1 of 2)</div>
+<p class="section-desc">Calibri-rendered (Excel's default — no font shipping needed). Title row uses <code>#00b25b</code> deep-green text on white, not the loud neon fill. Subtitle metadata. Frozen header row with <code>#e8f5e9</code> tint and 1.5px deep-green underline. Banded data rows. <code>Total kg</code> formatted as <code>#,##0" kg"</code>. Totals row at bottom with same accent treatment as the header. Merged footnote across columns A–F.</p>
+
+<div class="flow-pair">
+  <div>
+    <div class="flow-label">Excel · sheet 1 of 2: "Impact" · YTD populated</div>
+    <div class="xlsx">
+      <div class="xlsx-chrome">
+        <div class="filename">circul-impact-report-work-ytd-2026-05-13.xlsx</div>
+        <div class="file-info">2 sheets · Sheet 1 of 2</div>
+      </div>
+      <table class="xlsx-grid">
+        <colgroup>
+          <col style="width:34px"><col style="width:130px"><col style="width:120px"><col style="width:170px"><col style="width:110px"><col style="width:110px"><col style="width:110px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="col-letter"></th>
+            <th class="col-letter">A</th>
+            <th class="col-letter">B</th>
+            <th class="col-letter">C</th>
+            <th class="col-letter">D</th>
+            <th class="col-letter">E</th>
+            <th class="col-letter">F</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="row-num">1</td>
+            <td class="title-cell" colspan="6">Circul Impact Report — WORK</td>
+          </tr>
+          <tr>
+            <td class="row-num">2</td>
+            <td class="subtitle-cell" colspan="6">Prepared for Vivien Luk · Year to date (1 Jan 2026 → 13 May 2026) · Generated 2026-05-13 15:11 UTC</td>
+          </tr>
+          <tr>
+            <td class="row-num">3</td>
+            <td class="empty" colspan="6"></td>
+          </tr>
+          <tr>
+            <td class="row-num">4</td>
+            <td class="header-cell">Tier</td>
+            <td class="header-cell">Actor ID</td>
+            <td class="header-cell">Region</td>
+            <td class="header-cell">Material</td>
+            <td class="header-cell" style="text-align:right">Kg</td>
+            <td class="header-cell" style="text-align:right">Txns</td>
+          </tr>
+          <tr>
+            <td class="row-num">5</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0042</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">HDPE</td>
+            <td class="data-cell num">28 kg</td>
+            <td class="data-cell num">1</td>
+          </tr>
+          <tr class="banded">
+            <td class="row-num">6</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0042</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">PET</td>
+            <td class="data-cell num">55 kg</td>
+            <td class="data-cell num">2</td>
+          </tr>
+          <tr>
+            <td class="row-num">7</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0089</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">LDPE</td>
+            <td class="data-cell num">16 kg</td>
+            <td class="data-cell num">1</td>
+          </tr>
+          <tr class="banded">
+            <td class="row-num">8</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0089</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">PET</td>
+            <td class="data-cell num">22 kg</td>
+            <td class="data-cell num">1</td>
+          </tr>
+          <tr>
+            <td class="row-num">9</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0091</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">PET</td>
+            <td class="data-cell num">65 kg</td>
+            <td class="data-cell num">3</td>
+          </tr>
+          <tr class="banded">
+            <td class="row-num">10</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0103</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">PET</td>
+            <td class="data-cell num">32 kg</td>
+            <td class="data-cell num">2</td>
+          </tr>
+          <tr>
+            <td class="row-num">11</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0103</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">PP</td>
+            <td class="data-cell num">14 kg</td>
+            <td class="data-cell num">1</td>
+          </tr>
+          <tr class="banded">
+            <td class="row-num">12</td>
+            <td class="data-cell tier">Collector</td>
+            <td class="data-cell">COL-0117</td>
+            <td class="data-cell">Greater Accra</td>
+            <td class="data-cell">HDPE</td>
+            <td class="data-cell num">16 kg</td>
+            <td class="data-cell num">1</td>
+          </tr>
+          <tr>
+            <td class="row-num">13</td>
+            <td class="totals-cell" colspan="4">Total</td>
+            <td class="totals-cell num">248 kg</td>
+            <td class="totals-cell num">12</td>
+          </tr>
+          <tr>
+            <td class="row-num">14</td>
+            <td class="empty" colspan="6"></td>
+          </tr>
+          <tr>
+            <td class="row-num">15</td>
+            <td class="footnote-cell" colspan="6">Attribution: first-tagged-touchpoint, no double-counting (v0 source-of-entry only). See sheet 2 for the full methodology, or circul.app/methodology/impact-attribution-v1.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="xlsx-tabs">
+        <div class="tab active">Impact</div>
+        <div class="tab">Methodology</div>
+      </div>
+    </div>
+    <div class="note-strip">PDF and Excel render the same rows row-for-row. <strong>Actor ID</strong> column (<code>COL-XXXX</code> / <code>AGG-XXXX</code> / <code>DRV-XXXX</code>) replaces names — funder corroborates against aggregator reports via the shared ID schema, and we preserve actor privacy if the partner forwards the file downstream. Names remain on the dashboard My Network tab.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §6 EXCEL — EMPTY -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="xlsx-empty">
+<div class="section-title">6. Excel — empty state (MTD, no activity in window)</div>
+<p class="section-desc">Same chrome. Where data rows would be, a single merged amber cell explaining the empty state with actionable guidance. Totals row hidden when zero. Footnote remains.</p>
+
+<div class="flow-pair">
+  <div>
+    <div class="flow-label">Excel · sheet 1 · empty-state body</div>
+    <div class="xlsx">
+      <div class="xlsx-chrome">
+        <div class="filename">circul-impact-report-work-mtd-2026-05-13.xlsx</div>
+        <div class="file-info">2 sheets · Sheet 1 of 2</div>
+      </div>
+      <table class="xlsx-grid">
+        <colgroup>
+          <col style="width:34px"><col style="width:130px"><col style="width:120px"><col style="width:170px"><col style="width:110px"><col style="width:110px"><col style="width:110px">
+        </colgroup>
+        <tbody>
+          <tr>
+            <td class="row-num">1</td>
+            <td class="title-cell" colspan="6">Circul Impact Report — WORK</td>
+          </tr>
+          <tr>
+            <td class="row-num">2</td>
+            <td class="subtitle-cell" colspan="6">Prepared for Vivien Luk · Month to date (1 May 2026 → 13 May 2026) · Generated 2026-05-13 15:11 UTC</td>
+          </tr>
+          <tr>
+            <td class="row-num">3</td>
+            <td class="empty" colspan="6"></td>
+          </tr>
+          <tr>
+            <td class="row-num">4</td>
+            <td class="header-cell">Tier</td>
+            <td class="header-cell">Actor ID</td>
+            <td class="header-cell">Region</td>
+            <td class="header-cell">Material</td>
+            <td class="header-cell" style="text-align:right">Kg</td>
+            <td class="header-cell" style="text-align:right">Txns</td>
+          </tr>
+          <tr>
+            <td class="row-num">5</td>
+            <td class="empty-state-cell" colspan="6">No tagged-actor activity in this window. Your network has 5 tagged actors with 248 kg attributed year-to-date — regenerate with period = Year to date to see this data.</td>
+          </tr>
+          <tr>
+            <td class="row-num">6</td>
+            <td class="empty" colspan="6"></td>
+          </tr>
+          <tr>
+            <td class="row-num">7</td>
+            <td class="footnote-cell" colspan="6">Attribution: first-tagged-touchpoint, no double-counting (v0 source-of-entry only). See sheet 2 for the full methodology, or circul.app/methodology/impact-attribution-v1.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="xlsx-tabs">
+        <div class="tab active">Impact</div>
+        <div class="tab">Methodology</div>
+      </div>
+    </div>
+    <div class="note-strip">Same amber-tinted background as the PDF empty state. Network counts are pulled from the same <code>/api/impact-partner/network</code> endpoint already serving the dashboard — no new SQL.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §7 EXCEL — METHODOLOGY -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="xlsx-methodology">
+<div class="section-title">7. Excel — sheet 2: Methodology</div>
+<p class="section-desc">Plain-language attribution rules. Lives inside the workbook so the file is self-contained — funder reviewers don't need to click out to a URL.</p>
+
+<div class="flow-pair">
+  <div>
+    <div class="flow-label">Excel · sheet 2 of 2: "Methodology"</div>
+    <div class="xlsx">
+      <div class="xlsx-chrome">
+        <div class="filename">circul-impact-report-work-ytd-2026-05-13.xlsx</div>
+        <div class="file-info">2 sheets · Sheet 2 of 2</div>
+      </div>
+      <table class="xlsx-grid">
+        <colgroup>
+          <col style="width:34px"><col style="width:880px">
+        </colgroup>
+        <tbody>
+          <tr>
+            <td class="row-num">1</td>
+            <td class="meth-heading">Attribution methodology · v1</td>
+          </tr>
+          <tr>
+            <td class="row-num">2</td>
+            <td class="meth-rule"><strong>1. First-tagged-touchpoint.</strong> A kilogram is attributed to an Impact Partner the first time it touches an actor that partner has tagged. The first tagged touchpoint earns the attribution; later touchpoints with the same or different partners do not earn it again.</td>
+          </tr>
+          <tr>
+            <td class="row-num">3</td>
+            <td class="meth-rule"><strong>2. No double-counting across partners.</strong> One transaction = one Impact Partner credit. If two partners both tag actors in the same supply chain, the partner whose actor is upstream (closer to the source) earns the credit.</td>
+          </tr>
+          <tr>
+            <td class="row-num">4</td>
+            <td class="meth-rule"><strong>3. v0 source-of-entry only.</strong> In this release, attribution counts only at the collector→aggregator handoff (where material enters the formal supply chain). Downstream-tagged actors (processors, recyclers, converters) do not add new kg in v0 — they will surface as program-context in a later release.</td>
+          </tr>
+          <tr>
+            <td class="row-num">5</td>
+            <td class="meth-rule"><strong>4. Tag approval gate.</strong> Every tagged actor was reviewed and approved by Circul against documented proof of an active support relationship from the Impact Partner. Tags can be removed at any time by the partner.</td>
+          </tr>
+          <tr>
+            <td class="row-num">6</td>
+            <td class="meth-rule"><strong>5. Window semantics.</strong> Year to date = 1 Jan of the current year through today. Month to date = 1st of the current month through today. All time = the full life of the platform.</td>
+          </tr>
+          <tr>
+            <td class="row-num">7</td>
+            <td class="meth-rule" style="border-top:1px solid #d0d7de;color:#5a7566">Full methodology, including edge cases and roadmap: <a href="#" style="color:var(--accent-deep)">circul.app/methodology/impact-attribution-v1</a></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="xlsx-tabs">
+        <div class="tab">Impact</div>
+        <div class="tab active">Methodology</div>
+      </div>
+    </div>
+    <div class="note-strip">Five rules covers v1. If the methodology page grows past 7 rules we'd split it again, but five is plenty for the funder-facing audience.</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §8 OPEN DECISIONS -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="decisions">
+<div class="section-title">8. Locked decisions (D1–D4)</div>
+<p class="section-desc">All four decided 2026-05-13. Mockup §3–§7 reflect the locked state.</p>
+
+<div class="box verified">
+<div class="label-row"><span class="tag verified">Locked</span><h3 style="margin:0">D1 — IDs only in PDF and Excel, no names anywhere in exports</h3></div>
+<p>Both formats render actor identity as the platform-standard ID code (<code>COL-XXXX</code> / <code>AGG-XXXX</code> / <code>AGT-XXXX</code> / <code>DRV-XXXX</code>). Names remain on the dashboard My Network tab only.</p>
+<p style="margin-top:8px"><strong>Reasoning:</strong> One rule platform-wide ("identifiers on the page, names on the screen") — matches the existing aggregator-report hard rule, no per-export anonymization decision. Cross-corroboration with aggregator reports happens via the shared ID schema, not via names. Names add re-identification surface area without paying for it. Option to relax later via opt-in Reports-tab toggle stays open.</p>
+</div>
+
+<div class="box verified">
+<div class="label-row"><span class="tag verified">Locked</span><h3 style="margin:0">D2 — Plus Jakarta Sans TTF committed to repo</h3></div>
+<p>Add <code>public/fonts/PlusJakartaSans-Regular.ttf</code> + <code>PlusJakartaSans-Bold.ttf</code> (~150 KB total, OFL 1.1) to <code>jeffreyprovencal/circul</code>. Deterministic builds; no Google Fonts dependency at Polsia deploy time.</p>
+</div>
+
+<div class="box verified">
+<div class="label-row"><span class="tag verified">Locked</span><h3 style="margin:0">D3 — Region column kept; PDF + Excel are row-for-row identical</h3></div>
+<p>Both tables: <code>Tier · Actor ID · Region · Material · Kg · Txns</code> (6 cols), sorted <code>tier ASC, actor_id ASC, material ASC</code>. Stable attributes (tier, actor, region) on the left; varying attributes (material, kg, txns) on the right. Each actor's rows cluster contiguously — reader scans left columns for groupings, right columns for activity. PDF and Excel are row-for-row identical; Excel adds filter/sort affordances Excel users expect.</p>
+</div>
+
+<div class="box verified">
+<div class="label-row"><span class="tag verified">Locked</span><h3 style="margin:0">D4 — Hero caption includes actor count + transaction count</h3></div>
+<p>PDF hero reads: "<em>248 kg across 5 tagged actors and 12 transactions, first-tagged-touchpoint attribution</em>". Network footprint is funder-helpful context (Coke wants to see how many actors a partner supports), and we're already disclosing it indirectly via row counts in Excel — making it explicit in the PDF caption is cleaner than fake-coyness.</p>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §9 IMPLEMENTATION SURFACE -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="impl">
+<div class="section-title">9. Implementation surface area</div>
+<p class="section-desc">Once mockup approved, this is the surface Claude Code touches. Listed so Jojo can confirm the blast radius before I draft the spec.</p>
+
+<table class="diff-table">
+<thead><tr><th>File</th><th>Change</th></tr></thead>
+<tbody>
+  <tr><td class="left-col"><code>public/impact-partner-dashboard.html</code></td><td>L329: <code>reportFilters: { period: 'mtd' ... }</code> → <code>'ytd'</code>. Active pill default flips correspondingly in the period filter row markup.</td></tr>
+  <tr><td class="left-col"><code>public/fonts/PlusJakartaSans-Regular.ttf</code> (new)</td><td>~74 KB binary, OFL 1.1. Plus matching <code>-Bold.ttf</code>.</td></tr>
+  <tr><td class="left-col"><code>server.js</code> <code>/api/impact-partner/report.pdf</code> (9730–9817)</td><td>Full rewrite of the pdfkit body — register fonts, header band, hero card, by-material grid, real table with tier-pill + alternating rows, totals row, empty-state block, methodology box, page footer.</td></tr>
+  <tr><td class="left-col"><code>server.js</code> <code>/api/impact-partner/report.xlsx</code> (9820–9879)</td><td>Full rewrite — title row 16pt deep-green-on-white, subtitle row, frozen header row with tint+borders, banded data rows, number-format on Kg column, totals row, merged footnote, second Methodology sheet, network-counts fetch for empty state.</td></tr>
+  <tr><td class="left-col"><code>server.js</code> <code>computeImpactAttribution</code> (line 9374)</td><td>Extend SELECT to expose <code>actor_id</code> + computed <code>actor_code</code> (<code>'COL-' || LPAD(actor_id::text, 4, '0')</code> for collectors, <code>'AGG-' || ...</code> for aggregators). Roll-up <code>GROUP BY first_tagged_tier, actor_id, COALESCE(c.region, a.region), material_type</code>. <code>ORDER BY first_tagged_tier ASC, actor_id ASC, material_type ASC</code> (replaces current <code>ORDER BY total_kg DESC</code>). <strong>Names not included</strong> per D1.</td></tr>
+  <tr><td class="left-col"><code>scripts/test-ussd.js</code></td><td>No change (USSD-only test surface).</td></tr>
+  <tr><td class="left-col">Smoke pass</td><td>Add 2–3 lightweight tests: PDF route returns Content-Type <code>application/pdf</code> + non-empty body; xlsx route returns the xlsx mime + non-empty body; empty-state path returns 200 not 500.</td></tr>
+  <tr><td class="left-col">Lint pass</td><td>Preserve 0 errors / 35 warnings baseline.</td></tr>
+</tbody>
+</table>
+
+<div class="box verified" style="margin-top:18px">
+<div class="label-row"><span class="tag verified">Verified</span><h3 style="margin:0">Assumptions checked against repo</h3></div>
+<ul>
+  <li><code>shared.css</code> uses <code>--font: 'Plus Jakarta Sans'</code> — confirmed line 5.</li>
+  <li>pdfkit + exceljs already in <code>package.json</code> + <code>require()</code>'d at top of <code>server.js</code> — confirmed line 7–8.</li>
+  <li><code>periodRange()</code> in <code>server.js</code> line 9438 — three windows: <code>mtd</code>, <code>ytd</code> (default for /report endpoint), <code>all</code>.</li>
+  <li><code>state.reportFilters.period: 'mtd'</code> in dashboard line 329 — confirmed default mismatch source.</li>
+  <li><code>mockup-aggregator-report-export.html</code> exists as the style precedent (770px PDF preview, white-on-dark wrapper).</li>
+  <li><code>'COL-' || LPAD(c.id::text, 4, '0')</code> ID format used in 12+ existing query sites (server.js 451, 474, 535, 957, 1853, 1915, 2006, 2039, 2134, 2138, 2212).</li>
+  <li><strong>Region in v0 = actor's home region</strong>, not transaction location. <code>transactions</code> table has <code>lat</code>/<code>lng</code> columns (migration 1774500000000 line 137) but they're nullable and never populated — USSD doesn't capture GPS. Report region is computed as <code>COALESCE(c.region, a.region)</code> (server.js line 9384/9426/9430). One actor = one region. Demo data corrected to all-Greater Accra to match the locked persona roster (Naa Adjeley/Accra, Yaa Boateng/Madina, Kweku Mensah/Tema all sit in Greater Accra).</li>
+  <li>Demo persona roster locked: Naa Adjeley Lamptey, Yaa Boateng, Kweku Mensah, Ama Owusu, Kwame Asante.</li>
+</ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- §10 PARKED — DOWNSTREAM TIER TAGGING -->
+<!-- ═══════════════════════════════════════ -->
+
+<div class="section" id="parked">
+<div class="section-title">10. Parked — Viv's downstream-tier tagging ask (v0.5, not 5b)</div>
+<p class="section-desc">Surfaced 2026-05-13 by Vivien Luk. Captured here + in memory so the request doesn't get lost between Phase 5b and v0.5 scope-setting. <strong>Out of scope for Phase 5b — does not block the report-polish PR.</strong></p>
+
+<div class="box assumed">
+<div class="label-row"><span class="tag assumed">Parked</span><h3 style="margin:0">The ask</h3></div>
+<p>Vivien wants WORK's tagged network to cover every tier they engage with — not just collector / aggregator / agent / driver, but also <strong>processor, recycler, converter, brand</strong>. She wants to express "WORK supports this entity" across the whole supply chain, not just the entry tiers.</p>
+</div>
+
+<div class="box verified">
+<div class="label-row"><span class="tag verified">v0 truth</span><h3 style="margin:0">Where this lands against current methodology</h3></div>
+<ul>
+  <li><strong>Tag flow</strong> (<code>server.js</code> line 9622) currently allowlists <code>collector</code> / <code>aggregator</code> / <code>agent</code> / <code>driver</code>. Adding processor/recycler/converter is a 1-line allowlist extension + existing actor-lookup tables already exist.</li>
+  <li><strong>Brand tier</strong> doesn't exist on Circul yet — separately parked in <code>project_circul_brand_tier_recovery_credits.md</code>. Cannot tag what isn't modelled.</li>
+  <li><strong>Attribution v1 methodology</strong> already covers this case explicitly: "<em>Downstream-tagged actors do not add new kg in v0.</em>" So a WORK-tagged processor would appear in My Network for transparency, but earn 0 kg attribution — kg attribution stays anchored to source-of-entry (collector→aggregator) per the no-double-counting rule.</li>
+</ul>
+</div>
+
+<div class="box decision">
+<div class="label-row"><span class="tag decision">v0.5 design Q</span><h3 style="margin:0">Open question for v0.5 scope-setting</h3></div>
+<p>If we surface a processor in WORK's network with 0 kg attribution, how do we communicate that without it looking like a broken UI? Options when we get there: (a) split My Network into "Attribution-earning" + "Supported (no attribution)" lists; (b) per-tier badge "v0 source-of-entry only" on downstream rows; (c) different methodology version that does pass-through attribution for downstream-tagged actors (would require re-thinking double-counting). <strong>Not a Phase 5b decision.</strong></p>
+</div>
+
+<div class="box verified">
+<div class="label-row"><span class="tag verified">Logged</span><h3 style="margin:0">Memory + tracking</h3></div>
+<ul>
+  <li>Memory file: <code>project_circul_impact_partner_v05_downstream_tagging.md</code> (created 2026-05-13)</li>
+  <li>Indexed in <code>MEMORY.md</code> under <strong>Circul Project — Future / Parked</strong></li>
+  <li>Surface to Vivien at v0.5 scope-setting meeting along with brand-tier readiness check</li>
+</ul>
+</div>
+</div>
+
+</body>
+</html>
