@@ -2,10 +2,18 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');                        // Phase 5c — diagnostic endpoint
 const crypto = require('crypto');
 const multer = require('multer');
-const PDFDocument = require('pdfkit');           // Phase 5 — Impact Partner PDF export
 const ExcelJS = require('exceljs');              // Phase 5 — Impact Partner Excel export
+const puppeteer = require('puppeteer-core');     // Phase 5c — Chromium-based PDF
+const Handlebars = require('handlebars');        // Phase 5c — PDF template engine
+// @sparticuz/chromium ships a slim ~50MB Chromium binary for Linux/Render.
+// On macOS dev we shell out to system Chrome at /Applications/... (see
+// launchChromium() helper). The require is gated so we don't try to load the
+// Linux-only binary on dev macs.
+const isLinux = process.platform === 'linux';
+const sparticuzChromium = isLinux ? require('@sparticuz/chromium') : null;
 const CirculRoles = require('./shared/roles');
 const { EVENTS, notify, notifyAdmin } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
@@ -75,6 +83,29 @@ function handleInsufficientSource(res, err) {
 }
 const app = express();
 const port = process.env.PORT || 3000;
+
+// ── Phase 5c: Impact Partner PDF template ──────────────────────────────────
+// Plus Jakarta fonts are base64-encoded into the rendered HTML's @font-face
+// data-URLs. That dodges Chromium's URL-resolution under setContent() — the
+// network layer doesn't see a font request at all, so timing is deterministic.
+// Read once at boot, cache in module scope.
+const FONT_DIR = path.join(__dirname, 'public', 'fonts');
+const FONT_REGULAR_B64 = fs.readFileSync(path.join(FONT_DIR, 'PlusJakartaSans-Regular.ttf')).toString('base64');
+const FONT_BOLD_B64    = fs.readFileSync(path.join(FONT_DIR, 'PlusJakartaSans-Bold.ttf')).toString('base64');
+
+// Handlebars helpers must be registered before the template compile.
+Handlebars.registerHelper('eq', (a, b) => a === b);
+Handlebars.registerHelper('plural', (n) => n === 1 ? '' : 's');
+Handlebars.registerHelper('pct', (n, total) => {
+  if (!total) return '0';
+  return Math.round((parseFloat(n) / parseFloat(total)) * 100).toString();
+});
+Handlebars.registerHelper('fixed', (n, digits) => {
+  return parseFloat(n).toFixed(typeof digits === 'number' ? digits : 0);
+});
+
+const IMPACT_TEMPLATE_PATH = path.join(__dirname, 'templates', 'impact-report.hbs');
+const impactReportTemplate = Handlebars.compile(fs.readFileSync(IMPACT_TEMPLATE_PATH, 'utf8'));
 
 // Expense receipt uploads → public/uploads/receipts/
 const receiptDir = path.join(__dirname, 'public', 'uploads', 'receipts');
@@ -9357,6 +9388,129 @@ function requireImpactPartner(req, res, next) {
   next();
 }
 
+// ── Phase 5c: Chromium launcher (platform-aware) ───────────────────────────
+//
+// Linux/Render path: @sparticuz/chromium ships a slim ~50MB Chromium binary
+// pre-tuned for serverless/managed-Node environments. Extracted to /tmp on
+// first launch after each instance restart (~1-2s cold cost); subsequent
+// launches in the same instance lifetime are warm.
+//
+// macOS dev path: shell out to system Chrome. @sparticuz/chromium's binary
+// is Linux-only; trying to use it on macOS produces an ELF/Mach-O mismatch.
+async function launchChromium() {
+  if (isLinux) {
+    return puppeteer.launch({
+      args: sparticuzChromium.args,
+      defaultViewport: sparticuzChromium.defaultViewport,
+      executablePath: await sparticuzChromium.executablePath(),
+      headless: sparticuzChromium.headless
+    });
+  }
+  const macChromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  if (!fs.existsSync(macChromePath)) {
+    throw new Error('Chrome not found at ' + macChromePath +
+      '. On macOS dev, install Chrome via `brew install --cask google-chrome` or download from google.com/chrome.');
+  }
+  return puppeteer.launch({
+    executablePath: macChromePath,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless: true
+  });
+}
+
+// ── Phase 5c: single-flight queue for PDF rendering ────────────────────────
+//
+// In-process mutex that serializes Chromium renders. Critical on small
+// Render instances (Starter 0.5 GB) where two concurrent renders would race
+// for memory and OOM. Concurrent /report.pdf requests queue and resolve in
+// order. Lock releases on both success and failure paths.
+//
+// fn is wrapped in Promise.resolve().then() so synchronous throws in fn are
+// converted to rejected promises (otherwise tail chain breaks and queued
+// callers wait forever).
+function makeSingleFlight() {
+  let tail = Promise.resolve();
+  return function run(fn) {
+    const my = tail.then(
+      () => Promise.resolve().then(fn),
+      () => Promise.resolve().then(fn)
+    );
+    tail = my.then(() => undefined, () => undefined);
+    return my;
+  };
+}
+const pdfSingleFlight = makeSingleFlight();
+
+// ── Phase 5c: view-model helpers for the impact-report.hbs template ────────
+function buildPeriodView(period, startISO, endISO) {
+  const labels = { mtd: 'Month to date', ytd: 'Year to date', all: 'All time' };
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const fmt = (iso) => {
+    const d = new Date(iso);
+    return d.getUTCDate() + ' ' + months[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+  };
+  // endISO is exclusive (next month/year start). Subtract 1ms to get the
+  // inclusive last day so the human label reads "→ 13 May 2026" not "→ 14".
+  // Also clamp to today so YTD/MTD don't render a future end date.
+  const todayISO = new Date().toISOString();
+  const effectiveEnd = endISO > todayISO ? todayISO : new Date(new Date(endISO).getTime() - 1).toISOString();
+  return {
+    label: labels[period] || 'Year to date',
+    allTime: period === 'all',
+    startHuman: fmt(startISO),
+    endHuman: fmt(effectiveEnd)
+  };
+}
+
+function buildByMaterial(rows) {
+  const tally = {};
+  rows.forEach(r => { tally[r.material_type] = (tally[r.material_type] || 0) + parseFloat(r.total_kg); });
+  const total = Object.values(tally).reduce((s, v) => s + v, 0);
+  return Object.entries(tally)
+    .sort(([,a],[,b]) => b - a)
+    .map(([name, kg]) => ({
+      name,
+      kg: kg.toFixed(0),
+      pct: total ? Math.round((kg / total) * 100) : 0
+    }));
+}
+
+function buildRowsView(rows) {
+  return rows.map(r => ({
+    firstTaggedTier: (r.first_tagged_tier || '').toUpperCase(),
+    actorCode: r.actor_code || '?',
+    region: r.region || '—',
+    materialType: r.material_type,
+    totalKg: r.total_kg,
+    txnCount: r.txn_count
+  }));
+}
+
+// YTD-context for the empty-state inset. Skipped when the current window is
+// already YTD (no useful additional context). When called, runs a separate
+// computeImpactAttribution over the YTD window to surface what the partner
+// *could* see by changing the period filter.
+async function buildYtdContextFor(partnerId, currentPeriod) {
+  if (currentPeriod === 'ytd') return { hasActors: false, actorCount: 0, totalKg: '0' };
+  const [ytdStart, ytdEnd] = periodRange('ytd');
+  const ytdRows = await computeImpactAttribution(partnerId, ytdStart, ytdEnd, {});
+  const totalKg = ytdRows.reduce((s, r) => s + parseFloat(r.total_kg), 0);
+  // Network-size context — count tagged actors via the tags table (independent
+  // of whether they've transacted this YTD). Distinguishes "network has 5
+  // people but no activity yet" from "network is empty".
+  const tagCount = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM impact_partner_actor_tags
+     WHERE impact_partner_id = $1 AND deactivated_at IS NULL`,
+    [partnerId]
+  );
+  const actorCount = parseInt(tagCount.rows[0].n, 10);
+  return {
+    hasActors: actorCount > 0,
+    actorCount,
+    totalKg: totalKg.toFixed(0)
+  };
+}
+
 // ── Attribution SQL helper ──
 //
 // Returns rows for kg attributed to partnerId between [startDate, endDate),
@@ -9464,7 +9618,10 @@ function periodRange(period) {
   const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
   const nextYear  = new Date(Date.UTC(now.getUTCFullYear() + 1, 0, 1));
   if (period === 'mtd') return [monthStart.toISOString(), nextMonth.toISOString()];
-  if (period === 'all') return ['1970-01-01T00:00:00Z', nextYear.toISOString()];
+  // Phase 5c: hardened start from epoch-leak (1970) to Circul launch year.
+  // Functional no-op (no pre-2026 data exists in Circul) but kills the
+  // misleading "data since 1970" code smell that read like a bug.
+  if (period === 'all') return ['2026-01-01T00:00:00Z', nextYear.toISOString()];
   // default 'ytd'
   return [yearStart.toISOString(), nextYear.toISOString()];
 }
@@ -9826,19 +9983,18 @@ const METHODOLOGY_RULES = [
   }
 ];
 
-// ── GET /api/impact-partner/report.pdf (Phase 5b — brand-aligned) ──
+// ── GET /api/impact-partner/report.pdf (Phase 5c — Chromium-rendered) ──
 //
-// A4 portrait, 48pt margins, all text in Plus Jakarta Sans (registered from
-// public/fonts/). Layout per mockup §3 (populated) / §4 (empty state):
-//   1. Header band (Circul wordmark + partner block, deep-green underline)
-//   2. Hero card (total kg + secondary stats)
-//   3. By-material grid OR empty-state block (mutually exclusive)
-//   4. Breakdown table (when populated)
-//   5. Methodology box
-//   6. Footer
+// Renders templates/impact-report.hbs to HTML via Handlebars, then converts
+// the rendered HTML to PDF via headless Chromium. The template carries the
+// mockup §3 / §4 CSS verbatim — byte-for-byte what a browser would render.
+// Replaces the Phase 5b pdfkit-based generator entirely (pdfkit removed).
+//
+// Concurrency: pdfSingleFlight serializes Chromium renders so two
+// simultaneous /report.pdf requests don't race for memory on small instances.
 app.get('/api/impact-partner/report.pdf', requireAuth, requireImpactPartner, async (req, res) => {
   try {
-    const period = req.query.period || 'ytd';
+    const period = ['mtd','ytd','all'].includes(req.query.period) ? req.query.period : 'ytd';
     const [startISO, endISO] = periodRange(period);
     const filters = {
       material: req.query.material || null,
@@ -9849,299 +10005,85 @@ app.get('/api/impact-partner/report.pdf', requireAuth, requireImpactPartner, asy
       computeImpactAttribution(req.user.id, startISO, endISO, filters),
       pool.query(`SELECT name, company, contact_name FROM impact_partners WHERE id=$1`, [req.user.id])
     ]);
-    const partner = partnerRow.rows[0] || { name: 'Impact Partner' };
-    const partnerName = partner.name || 'Impact Partner';
-    const contactName = partner.contact_name || partnerName;
-
-    const totalKg = rows.reduce(function (s, r) { return s + parseFloat(r.total_kg); }, 0);
-    const txnCount = rows.reduce(function (s, r) { return s + r.txn_count; }, 0);
-    const uniqueActors = new Set(rows.map(function (r) { return r.first_tagged_tier + ':' + r.actor_id; }));
-    const actorCount = uniqueActors.size;
-
-    // by-material aggregation, sorted by kg DESC; >4 distinct materials get
-    // collapsed into top-3 + "OTHER" so the 4-card grid never overflows.
-    const byMaterialMap = {};
-    rows.forEach(function (r) {
-      byMaterialMap[r.material_type] = (byMaterialMap[r.material_type] || 0) + parseFloat(r.total_kg);
-    });
-    let materialEntries = Object.keys(byMaterialMap)
-      .map(function (k) { return { name: k, kg: byMaterialMap[k] }; })
-      .sort(function (a, b) { return b.kg - a.kg; });
-    if (materialEntries.length > 4) {
-      const top3 = materialEntries.slice(0, 3);
-      const rest = materialEntries.slice(3).reduce(function (s, m) { return s + m.kg; }, 0);
-      materialEntries = top3.concat([{ name: 'OTHER', kg: rest }]);
-    }
-    const materialCount = Object.keys(byMaterialMap).length;
-
-    const periodLabel = reportPeriodLabel(period);
-    const display = reportDisplayWindow(startISO, endISO);
-    const generatedStamp = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
-
-    // Empty-state YTD context — only fetched when this window is zero. Saves
-    // a round-trip on the populated path.
-    let emptyCtx = null;
-    if (totalKg === 0) emptyCtx = await ytdNetworkContext(req.user.id);
-
-    // Filename slug (Step 6)
-    const dateSlug = new Date().toISOString().slice(0, 10);
-    const filename = 'circul-impact-report-' + partnerSlug(partnerName) + '-' + period + '-' + dateSlug + '.pdf';
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
-
-    // Plus Jakarta Sans registration — kills Unicode mangling on '→' and gives
-    // brand-aligned typography. Both faces ship from public/fonts/ (OFL).
-    const doc = new PDFDocument({ size: 'A4', margin: 48 });
-    const fontDir = path.join(__dirname, 'public', 'fonts');
-    doc.registerFont('Body', path.join(fontDir, 'PlusJakartaSans-Regular.ttf'));
-    doc.registerFont('Bold', path.join(fontDir, 'PlusJakartaSans-Bold.ttf'));
-    doc.font('Body');
-    doc.pipe(res);
-
-    // ── Palette (matches mockup tokens) ──
-    const COLOR = {
-      accentDeep: '#00b25b',   // primary brand green for headlines + numbers
-      accentTint: '#e8f5e9',   // header-row + totals-row fill
-      heroBg:     '#f3faf5',
-      heroBorder: '#cce7d4',
-      text1:      '#0d1f14',
-      text2:      '#5a7566',
-      bandedRow:  '#fafcfb',
-      borderSoft: '#e8efe9',
-      matBg:      '#f7faf8',
-      matBorder:  '#e0e7e2',
-      amberText:  '#7a5d1a',
-      amberBg:    '#fdfaef',
-      amberBorder:'#e6c87f'
+    const pRow = partnerRow.rows[0] || {};
+    const partner = {
+      name: pRow.name || 'Impact Partner',
+      contactName: pRow.contact_name || pRow.name || 'Impact Partner'
     };
-    const pageWidth = doc.page.width;
-    const margin = doc.page.margins.left;
-    const contentX = margin;
-    const contentW = pageWidth - 2 * margin;
+    const totalKg = rows.reduce((s, r) => s + parseFloat(r.total_kg), 0);
+    const txnCount = rows.reduce((s, r) => s + r.txn_count, 0);
+    const actorCount = new Set(rows.map(r => r.first_tagged_tier + ':' + r.actor_id)).size;
+    const materialCount = new Set(rows.map(r => r.material_type)).size;
+    const empty = totalKg === 0;
+    const ytdContext = empty ? await buildYtdContextFor(req.user.id, period) : null;
 
-    // ── 1. Header band ──
-    let y = margin;
-    doc.font('Bold').fontSize(22).fillColor(COLOR.accentDeep).text('Circul', contentX, y, { lineBreak: false });
-    doc.font('Body').fontSize(8).fillColor(COLOR.text2)
-       .text('IMPACT REPORT', contentX, y + 26, { characterSpacing: 1.4, lineBreak: false });
-    // Right block (right-aligned)
-    doc.font('Bold').fontSize(14).fillColor(COLOR.text1)
-       .text(partnerName, contentX, y, { width: contentW, align: 'right', lineBreak: false });
-    doc.font('Body').fontSize(10).fillColor(COLOR.text2)
-       .text('Prepared for ' + contactName, contentX, y + 18, { width: contentW, align: 'right', lineBreak: false });
-    doc.fontSize(9).fillColor(COLOR.text2)
-       .text(periodLabel + ' · ' + display.humanStart + ' → ' + display.humanEnd,
-             contentX, y + 32, { width: contentW, align: 'right', lineBreak: false });
-    y += 56;
-    // Header bottom border (deep green, 2pt)
-    doc.lineWidth(2).strokeColor(COLOR.accentDeep)
-       .moveTo(contentX, y).lineTo(contentX + contentW, y).stroke();
-    y += 14;
+    const view = {
+      partner,
+      period: buildPeriodView(period, startISO, endISO),
+      totals: { totalKg: totalKg.toFixed(0), txnCount, actorCount, materialCount },
+      byMaterial: empty ? [] : buildByMaterial(rows),
+      rows: empty ? [] : buildRowsView(rows),
+      empty,
+      ytdContext,
+      generatedStamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      fontRegularB64: FONT_REGULAR_B64,
+      fontBoldB64: FONT_BOLD_B64
+    };
+    const html = impactReportTemplate(view);
 
-    // ── 2. Hero card ──
-    const heroH = 96;
-    doc.roundedRect(contentX, y, contentW, heroH, 6)
-       .fillAndStroke(COLOR.heroBg, COLOR.heroBorder);
-    // Left block
-    const heroPadX = 22, heroPadY = 18;
-    doc.font('Bold').fontSize(8).fillColor(COLOR.text2)
-       .text('TOTAL IMPACT', contentX + heroPadX, y + heroPadY, { characterSpacing: 0.7, lineBreak: false });
-    const totalKgColor = totalKg > 0 ? COLOR.accentDeep : COLOR.amberText;
-    doc.font('Bold').fontSize(34).fillColor(totalKgColor)
-       .text(totalKg.toFixed(0) + ' kg', contentX + heroPadX, y + heroPadY + 12, { lineBreak: false });
-    const caption = totalKg > 0
-      ? 'across ' + actorCount + ' tagged actor' + (actorCount === 1 ? '' : 's') +
-        ' and ' + txnCount + ' transaction' + (txnCount === 1 ? '' : 's') +
-        ', first-tagged-touchpoint attribution'
-      : 'No tagged-actor transactions in this window';
-    doc.font('Body').fontSize(9).fillColor(totalKg > 0 ? COLOR.text1 : COLOR.amberText)
-       .text(caption, contentX + heroPadX, y + heroPadY + 54, { width: contentW - heroPadX - 200, lineBreak: false });
-
-    // Right block — three stat columns, right-aligned within the hero card
-    const statColW = 60;
-    const statGap = 14;
-    const statsTotalW = statColW * 3 + statGap * 2;
-    const statsX = contentX + contentW - heroPadX - statsTotalW;
-    const statsY = y + heroPadY + 14;
-    function renderStat(idx, label, val) {
-      const sx = statsX + idx * (statColW + statGap);
-      doc.font('Body').fontSize(7).fillColor(COLOR.text2)
-         .text(label.toUpperCase(), sx, statsY, { width: statColW, align: 'right', characterSpacing: 0.5, lineBreak: false });
-      doc.font('Bold').fontSize(13).fillColor(COLOR.text1)
-         .text(String(val), sx, statsY + 12, { width: statColW, align: 'right', lineBreak: false });
-    }
-    renderStat(0, 'Actors',    actorCount);
-    renderStat(1, 'Txns',      txnCount);
-    renderStat(2, 'Materials', materialCount > 0 ? materialCount : '—');
-
-    y += heroH + 14;
-
-    if (totalKg === 0) {
-      // ── 3. Empty-state block (mockup §4) ──
-      const emptyH = 130;
-      doc.roundedRect(contentX, y, contentW, emptyH, 6)
-         .lineWidth(1).fillAndStroke(COLOR.amberBg, COLOR.amberBorder);
-      const ex = contentX + 18, ey = y + 18;
-      doc.font('Bold').fontSize(11).fillColor(COLOR.amberText)
-         .text('No activity in this window', ex, ey, { lineBreak: false });
-      doc.font('Body').fontSize(10).fillColor(COLOR.amberText)
-         .text('No transactions from ' + partnerName + '-tagged actors occurred between ' +
-               display.humanStart + ' and ' + display.humanEnd + '.',
-               ex, ey + 18, { width: contentW - 36 });
-      // Inset white context box
-      const insetY = ey + 56;
-      const insetH = 50;
-      doc.roundedRect(ex, insetY, contentW - 36, insetH, 4)
-         .lineWidth(1).fillAndStroke('#ffffff', COLOR.borderSoft);
-      let insetMsg;
-      if (emptyCtx.ytdActorCount === 0) {
-        insetMsg = partnerName + ' has no tagged actors yet. Tag actors via the Impact Partner dashboard\'s My Network tab.';
-      } else {
-        const plural = emptyCtx.ytdActorCount === 1 ? '' : 's';
-        insetMsg = 'Your network has ' + emptyCtx.ytdActorCount + ' tagged actor' + plural +
-                   ' with ' + emptyCtx.ytdTotalKg.toFixed(0) + ' kg attributed year-to-date. ' +
-                   'To see this activity, regenerate the report with the period set to Year to date.';
-      }
-      doc.font('Body').fontSize(9).fillColor(COLOR.text2)
-         .text(insetMsg, ex + 12, insetY + 12, { width: contentW - 60 });
-      y += emptyH + 14;
-    } else {
-      // ── 3. By-material grid (4 cards, equal width) ──
-      doc.font('Bold').fontSize(9).fillColor(COLOR.text2)
-         .text('BY MATERIAL', contentX, y, { characterSpacing: 0.7, lineBreak: false });
-      y += 14;
-      const cardGap = 8;
-      const cardW = (contentW - cardGap * 3) / 4;
-      const cardH = 56;
-      for (let i = 0; i < 4; i++) {
-        const cx = contentX + i * (cardW + cardGap);
-        doc.roundedRect(cx, y, cardW, cardH, 5)
-           .lineWidth(1).fillAndStroke(COLOR.matBg, COLOR.matBorder);
-        const m = materialEntries[i];
-        if (m) {
-          const pct = totalKg > 0 ? (m.kg / totalKg * 100) : 0;
-          doc.font('Body').fontSize(8).fillColor(COLOR.text2)
-             .text(m.name.toUpperCase(), cx + 10, y + 10, { width: cardW - 20, characterSpacing: 0.4, lineBreak: false });
-          doc.font('Bold').fontSize(13).fillColor(COLOR.accentDeep)
-             .text(m.kg.toFixed(0) + ' kg', cx + 10, y + 24, { width: cardW - 20, lineBreak: false });
-          doc.font('Body').fontSize(7).fillColor(COLOR.text2)
-             .text(pct.toFixed(0) + '%', cx + 10, y + 40, { width: cardW - 20, lineBreak: false });
-        }
-      }
-      y += cardH + 18;
-
-      // ── 4. Breakdown table ──
-      doc.font('Bold').fontSize(9).fillColor(COLOR.text2)
-         .text('BREAKDOWN BY TIER × ACTOR × REGION × MATERIAL', contentX, y, { characterSpacing: 0.7, lineBreak: false });
-      y += 14;
-
-      // Column layout (sums to contentW = 499pt with 48pt margins)
-      const COLS = [
-        { w: 70,  align: 'left',  key: 'tier'     },
-        { w: 78,  align: 'left',  key: 'actor'    },
-        { w: 130, align: 'left',  key: 'region'   },
-        { w: 75,  align: 'left',  key: 'material' },
-        { w: 80,  align: 'right', key: 'kg'       },
-        { w: 66,  align: 'right', key: 'txns'     }
-      ];
-      const colX = COLS.reduce(function (acc, c) {
-        const next = acc.slice();
-        next.push((next[next.length - 1] || contentX) + (acc.length === 0 ? 0 : COLS[acc.length - 1].w));
-        return next;
-      }, [contentX]);
-
-      // Header row
-      const headerH = 22;
-      doc.rect(contentX, y, contentW, headerH).fillColor(COLOR.accentTint).fill();
-      const headerLabels = { tier: 'TIER', actor: 'ACTOR ID', region: 'REGION', material: 'MATERIAL', kg: 'KG', txns: 'TXNS' };
-      COLS.forEach(function (c, i) {
-        doc.font('Bold').fontSize(8).fillColor(COLOR.text1)
-           .text(headerLabels[c.key], colX[i] + 7, y + 7, { width: c.w - 14, align: c.align, characterSpacing: 0.4, lineBreak: false });
-      });
-      // 1.5pt deep-green bottom border on header
-      doc.lineWidth(1.5).strokeColor(COLOR.accentDeep)
-         .moveTo(contentX, y + headerH).lineTo(contentX + contentW, y + headerH).stroke();
-      y += headerH;
-
-      // Data rows (banded — even rows shaded)
-      const rowH = 18;
-      const maxRows = 24;  // page-1 cap; partners with >24 actor×material combos use Excel for full data
-      const dataRows = rows.slice(0, maxRows);
-      dataRows.forEach(function (r, idx) {
-        if (idx % 2 === 1) {
-          doc.rect(contentX, y, contentW, rowH).fillColor(COLOR.bandedRow).fill();
-        }
-        const cells = {
-          tier:     (r.first_tagged_tier || '?').toUpperCase(),
-          actor:    r.actor_code || '?',
-          region:   r.region || '—',
-          material: r.material_type || '?',
-          kg:       parseFloat(r.total_kg).toFixed(0),
-          txns:     String(r.txn_count)
-        };
-        COLS.forEach(function (c, i) {
-          if (c.key === 'tier') {
-            doc.font('Bold').fontSize(7.5).fillColor(COLOR.accentDeep);
-          } else {
-            doc.font('Body').fontSize(9).fillColor(COLOR.text1);
-          }
-          doc.text(cells[c.key], colX[i] + 7, y + 5, { width: c.w - 14, align: c.align, lineBreak: false });
+    // Single-flight: serialize Chromium renders so concurrent requests queue
+    // instead of fighting for memory. Lock releases on success AND failure.
+    const pdfBuffer = await pdfSingleFlight(async () => {
+      const browser = await launchChromium();
+      try {
+        const page = await browser.newPage();
+        // domcontentloaded over networkidle0: our HTML is fully self-contained
+        // (CSS inline, fonts inline as data URIs) — there are zero network
+        // requests. networkidle0 hangs the timeout in some Chromium builds
+        // because data-URI sub-resources confuse the idle detector. The real
+        // font-loaded signal comes from document.fonts.ready below.
+        await page.setContent(html, { waitUntil: 'domcontentloaded' });
+        // Base64-inlined fonts still need the FontFaceSet to finish parsing
+        // before we trigger pdf(). document.fonts.ready alone is unreliable
+        // for data-URI fonts that aren't "used" yet (Chromium lazy-loads them
+        // until first paint touches a styled element). Explicit document.fonts.load
+        // for both Regular (400) and Bold (700) forces the parse synchronously
+        // so the resulting PDF embeds both subsets — without this, Regular
+        // falls back to Helvetica and only Bold gets embedded.
+        await page.evaluate(async () => {
+          await Promise.all([
+            document.fonts.load("400 12px 'Plus Jakarta Sans'"),
+            document.fonts.load("700 12px 'Plus Jakarta Sans'")
+          ]);
+          await document.fonts.ready;
         });
-        // Row underline
-        doc.lineWidth(0.5).strokeColor(COLOR.borderSoft)
-           .moveTo(contentX, y + rowH).lineTo(contentX + contentW, y + rowH).stroke();
-        y += rowH;
-      });
-      if (rows.length > maxRows) {
-        doc.font('Body').fontSize(8).fillColor(COLOR.text2)
-           .text('+ ' + (rows.length - maxRows) + ' more rows — see Excel export for the full table',
-                 contentX + 7, y + 5, { width: contentW - 14, lineBreak: false });
-        y += rowH;
+        // preferCSSPageSize honors the @page rule in the template (A4,
+        // margin: 0). Do NOT pass format/margin here — they'd override CSS.
+        // printBackground is required to render the tinted hero/methodology
+        // backgrounds (Chrome strips them by default for print).
+        return await page.pdf({
+          preferCSSPageSize: true,
+          printBackground: true
+        });
+      } finally {
+        await browser.close();
       }
+    });
 
-      // Totals row
-      doc.rect(contentX, y, contentW, rowH).fillColor(COLOR.accentTint).fill();
-      doc.lineWidth(1.5).strokeColor(COLOR.accentDeep)
-         .moveTo(contentX, y).lineTo(contentX + contentW, y).stroke();
-      // Label spans cols 1-4
-      const labelW = COLS[0].w + COLS[1].w + COLS[2].w + COLS[3].w;
-      doc.font('Bold').fontSize(9).fillColor(COLOR.text1)
-         .text('Total', contentX + 7, y + 5, { width: labelW - 14, lineBreak: false });
-      doc.text(totalKg.toFixed(0), colX[4] + 7, y + 5, { width: COLS[4].w - 14, align: 'right', lineBreak: false });
-      doc.text(String(txnCount), colX[5] + 7, y + 5, { width: COLS[5].w - 14, align: 'right', lineBreak: false });
-      y += rowH + 14;
-    }
-
-    // ── 5. Methodology box ──
-    const methH = 56;
-    doc.roundedRect(contentX, y, contentW, methH, 5)
-       .lineWidth(1).fillAndStroke(COLOR.heroBg, COLOR.heroBorder);
-    const mx = contentX + 14, my = y + 12;
-    doc.font('Bold').fontSize(8).fillColor(COLOR.accentDeep)
-       .text('ATTRIBUTION METHODOLOGY · V1', mx, my, { characterSpacing: 0.5, lineBreak: false });
-    doc.font('Body').fontSize(8.5).fillColor(COLOR.text1)
-       .text('First-tagged-touchpoint, no double-counting. v0 counts only at source-of-entry (collector→aggregator); downstream-tagged actors do not add new kg. Full methodology: ',
-             mx, my + 12, { width: contentW - 28, continued: true });
-    doc.fillColor(COLOR.accentDeep)
-       .text('circul.app/methodology/impact-attribution-v1', {
-         link: 'https://circul.app/methodology/impact-attribution-v1',
-         underline: true,
-         continued: false
-       });
-    y += methH + 12;
-
-    // ── 6. Footer ──
-    doc.lineWidth(1).strokeColor(COLOR.borderSoft)
-       .moveTo(contentX, y).lineTo(contentX + contentW, y).stroke();
-    y += 6;
-    doc.font('Body').fontSize(8).fillColor(COLOR.text2)
-       .text('Generated ' + generatedStamp, contentX, y, { width: contentW / 2, align: 'left', lineBreak: false });
-    doc.text('Powered by Circul · Page 1 of 1', contentX + contentW / 2, y, { width: contentW / 2, align: 'right', lineBreak: false });
-
-    doc.end();
+    const dateSlug = new Date().toISOString().slice(0, 10);
+    const filename = 'circul-impact-report-' + partnerSlug(partner.name) + '-' + period + '-' + dateSlug + '.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    // puppeteer-core 24.x returns Uint8Array (not Buffer) from page.pdf().
+    // Express.send() treats Uint8Array as an object and JSON-stringifies it,
+    // producing a 700KB JSON file with byte indices as keys. Wrap in
+    // Buffer.from to force binary transport.
+    res.end(Buffer.from(pdfBuffer));
   } catch (err) {
     console.error('Impact partner /report.pdf error:', err);
-    if (!res.headersSent) res.status(500).json({ success: false, message: 'Server error' });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'PDF generation failed', detail: err.message });
+    }
   }
 });
 
@@ -10489,6 +10431,38 @@ app.post('/api/admin/impact-partner/tag-requests/:id/reject', requireAdmin, asyn
     console.error('Admin reject tag-request error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
+});
+
+// ── GET /api/_admin/diagnostics/runtime (Phase 5c) ──
+//
+// Reports the live Render-instance runtime profile so we can size decisions
+// against real numbers (e.g. relaxing the PDF single-flight lock if we
+// discover we have headroom for concurrent renders). Admin-only.
+app.get('/api/_admin/diagnostics/runtime', requireAdmin, (req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    process: {
+      memoryMB: {
+        rss: Math.round(mem.rss / 1024 / 1024),
+        heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+        external: Math.round(mem.external / 1024 / 1024)
+      },
+      uptime: process.uptime(),
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch
+    },
+    system: {
+      totalMemoryMB: Math.round(os.totalmem() / 1024 / 1024),
+      freeMemoryMB: Math.round(os.freemem() / 1024 / 1024),
+      cpus: os.cpus().length,
+      loadavg1m: os.loadavg()[0].toFixed(2),
+      loadavg5m: os.loadavg()[1].toFixed(2),
+      loadavg15m: os.loadavg()[2].toFixed(2),
+      uptime: os.uptime()
+    }
+  });
 });
 
 // ── GET /api/actors/programs ──

@@ -2076,6 +2076,96 @@ const TESTS = [
       if (!expectXlsx.test(cdXlsx)) throw new Error('XLSX filename mismatch · got: ' + cdXlsx);
     },
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 5c: Chromium-rendered PDF — 3 new test cases
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── HTTP: concurrent PDF renders queue correctly ───────────────────────
+  // Fires 3 parallel /report.pdf requests. The single-flight lock serializes
+  // them so all three succeed (200, %PDF magic, > 1KB) without OOMing.
+  // Wall-time is roughly 3× a single render, NOT 3× faster — the test asserts
+  // correctness, not parallelism.
+  {
+    name: 'impact-partner-pdf-puppeteer-concurrent',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const token = login.body.token;
+      const results = await Promise.all([
+        httpRaw('GET', '/api/impact-partner/report.pdf?period=ytd', null, token),
+        httpRaw('GET', '/api/impact-partner/report.pdf?period=ytd', null, token),
+        httpRaw('GET', '/api/impact-partner/report.pdf?period=ytd', null, token)
+      ]);
+      results.forEach((r, i) => {
+        if (r.status !== 200) throw new Error('concurrent #' + i + ' status ' + r.status);
+        if (r.body.length < 1000) throw new Error('concurrent #' + i + ' body too small: ' + r.body.length);
+        if (r.body.slice(0, 4).toString() !== '%PDF') throw new Error('concurrent #' + i + ' not %PDF');
+      });
+    },
+  },
+
+  // ─── HTTP: all-time period uses 2026-01-01 SQL window ───────────────────
+  // Verifies the periodRange('all') hardening — the JSON /report endpoint
+  // returns the start field, which must be 2026-01-01 (not 1970-01-01).
+  {
+    name: 'impact-partner-pdf-all-time-display',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const token = login.body.token;
+      const r = await httpJson('GET', '/api/impact-partner/report?period=all', null, token);
+      if (r.status !== 200) throw new Error('report HTTP ' + r.status);
+      if (!r.body.success) throw new Error('report not success');
+      if (!r.body.start || !r.body.start.startsWith('2026-01-01')) {
+        throw new Error('expected start=2026-01-01..., got ' + r.body.start);
+      }
+      // Also verify the PDF filename includes "-all-" as a smoke check on the
+      // route's period parsing.
+      const pdf = await httpRaw('GET', '/api/impact-partner/report.pdf?period=all', null, token);
+      const cd = pdf.headers['content-disposition'] || '';
+      if (!/circul-impact-report-testpartner-all-\d{4}-\d{2}-\d{2}\.pdf/.test(cd)) {
+        throw new Error('all-time filename mismatch: ' + cd);
+      }
+    },
+  },
+
+  // ─── HTTP: /api/_admin/diagnostics/runtime ──────────────────────────────
+  // Admin-only. Verifies JSON shape (process.memoryMB.rss, system.totalMemoryMB,
+  // system.cpus) AND verifies that an unauthenticated request is rejected.
+  {
+    name: 'impact-partner-diagnostics-runtime',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      // No auth → 401
+      const noAuth = await httpJson('GET', '/api/_admin/diagnostics/runtime');
+      if (noAuth.status !== 401) {
+        throw new Error('expected 401 without admin auth, got ' + noAuth.status);
+      }
+      // Admin login (same pattern as impact-partner-admin-approve)
+      const adminLogin = await httpJson('POST', '/api/admin/login', {
+        email: TEST_ADMIN_EMAIL, password: TEST_ADMIN_PASSWORD
+      });
+      if (!adminLogin.body.success) throw new Error('admin login failed: ' + JSON.stringify(adminLogin.body));
+      const r = await httpJson('GET', '/api/_admin/diagnostics/runtime', null, adminLogin.body.token);
+      if (r.status !== 200) throw new Error('diagnostics HTTP ' + r.status);
+      if (!r.body.process || !r.body.process.memoryMB) throw new Error('missing process.memoryMB');
+      if (typeof r.body.process.memoryMB.rss !== 'number') throw new Error('process.memoryMB.rss not a number');
+      if (!r.body.system || typeof r.body.system.totalMemoryMB !== 'number') {
+        throw new Error('missing system.totalMemoryMB');
+      }
+      if (typeof r.body.system.cpus !== 'number' || r.body.system.cpus < 1) {
+        throw new Error('system.cpus invalid: ' + r.body.system.cpus);
+      }
+    },
+  },
 ];
 
 // ── runner ────────────────────────────────────────────────────────────────────

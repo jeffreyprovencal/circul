@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+@page { size: A4; margin: 0; }
+
+/* Triple-stash (no HTML-escape) — the trailing '=' padding char on base64
+   strings must not be escaped to '&#x3D;' or the data URI becomes invalid
+   (net::ERR_INVALID_URL). The base64 alphabet is safe in a CSS string. */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('data:font/ttf;base64,{{{fontRegularB64}}}') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('data:font/ttf;base64,{{{fontBoldB64}}}') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+/* Token palette mirrors mockups/mockup-impact-partner-report-export-v1.html §3
+   color intent. --text-3 here is the muted gray-green the mockup uses for
+   labels + footers inside the white PDF page (the same #5a7566 the mockup
+   declares for --text-3 in its dark-theme root — same hex, different role). */
+:root {
+  --accent-deep: #00b25b;
+  --accent-tint: #e8f5e9;
+  --text-1: #0d1f14;
+  --text-3: #5a7566;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: var(--text-1);
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Page chrome ────────────────────────────────────────────────────────── */
+.pdf-page { padding: 9mm 10mm; }
+
+/* ── Header band ────────────────────────────────────────────────────────── */
+.pdf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid var(--accent-deep);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+.pdf-head .left .wordmark {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--accent-deep);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.pdf-head .left .doctype {
+  font-size: 0.62rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  margin-top: 6px;
+  font-weight: 600;
+}
+.pdf-head .right { text-align: right; }
+.pdf-head .right .partner {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.15;
+}
+.pdf-head .right .contact {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.pdf-head .right .period {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Hero card ──────────────────────────────────────────────────────────── */
+.pdf-hero {
+  background: #f3faf5;
+  border: 1px solid #cce7d4;
+  border-radius: 6px;
+  padding: 20px 22px;
+  margin: 6px 0 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+}
+.pdf-hero .total-block { flex: 1; }
+.pdf-hero .total-label {
+  font-size: 0.66rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.pdf-hero .total {
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: var(--accent-deep);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-hero .total.empty { color: #7a5d1a; }
+.pdf-hero .total-caption {
+  font-size: 0.72rem;
+  color: var(--text-1);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+.pdf-hero .secondary { display: flex; gap: 18px; text-align: right; }
+.pdf-hero .secondary div { min-width: 60px; }
+.pdf-hero .secondary .label {
+  font-size: 0.6rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.pdf-hero .secondary .val {
+  font-size: 1.1rem;
+  color: var(--text-1);
+  font-weight: 700;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Section sub-heading ────────────────────────────────────────────────── */
+.pdf-sub {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  margin: 18px 0 8px;
+}
+
+/* ── By-material grid (1-N cards, one column per material — no blanks) ──── */
+.pdf-bymat {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.pdf-bymat.n-1 { grid-template-columns: 1fr; }
+.pdf-bymat.n-2 { grid-template-columns: repeat(2, 1fr); }
+.pdf-bymat.n-3 { grid-template-columns: repeat(3, 1fr); }
+.pdf-bymat.n-4 { grid-template-columns: repeat(4, 1fr); }
+.pdf-bymat .mat {
+  background: #f7faf8;
+  border: 1px solid #e0e7e2;
+  border-radius: 5px;
+  padding: 10px 12px;
+}
+.pdf-bymat .mat .name {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.pdf-bymat .mat .val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent-deep);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-bymat .mat .pct {
+  font-size: 0.65rem;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* ── Breakdown table ────────────────────────────────────────────────────── */
+.pdf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  margin-top: 2px;
+  table-layout: auto;
+}
+.pdf-table thead th {
+  background: var(--accent-tint);
+  color: var(--text-1);
+  text-align: left;
+  padding: 7px 8px;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-bottom: 1.5px solid var(--accent-deep);
+}
+.pdf-table thead th.num { text-align: right; }
+.pdf-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #e8efe9;
+  color: var(--text-1);
+}
+.pdf-table tbody tr:nth-child(even) { background: #fafcfb; }
+.pdf-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-table td.tier {
+  font-weight: 600;
+  color: var(--accent-deep);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pdf-table tr.totals td {
+  font-weight: 800;
+  background: var(--accent-tint);
+  border-top: 1.5px solid var(--accent-deep);
+  border-bottom: none;
+  color: var(--text-1);
+}
+
+/* ── Empty state block ──────────────────────────────────────────────────── */
+.pdf-empty {
+  background: #fdfaef;
+  border: 1px dashed #e6c87f;
+  border-radius: 6px;
+  padding: 18px 20px;
+  margin: 18px 0;
+  color: #7a5d1a;
+}
+.pdf-empty .heading {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #7a5d1a;
+  margin-bottom: 6px;
+}
+.pdf-empty p {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #7a5d1a;
+}
+.pdf-empty .ctx {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 10px;
+  border: 1px solid #e8efe9;
+}
+
+/* ── Methodology box ────────────────────────────────────────────────────── */
+.pdf-methodology {
+  background: #f3faf5;
+  border: 1px solid #cce7d4;
+  border-radius: 5px;
+  padding: 12px 14px;
+  margin-top: 22px;
+}
+.pdf-methodology .heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent-deep);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.pdf-methodology p {
+  font-size: 0.7rem;
+  color: var(--text-1);
+  line-height: 1.5;
+}
+.pdf-methodology a {
+  color: var(--accent-deep);
+  text-decoration: underline;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.pdf-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  color: var(--text-3);
+  margin-top: 22px;
+  padding-top: 10px;
+  border-top: 1px solid #e8efe9;
+}
+</style>
+</head>
+<body>
+<div class="pdf-page">
+
+  <div class="pdf-head">
+    <div class="left">
+      <div class="wordmark">Circul</div>
+      <div class="doctype">Impact Report</div>
+    </div>
+    <div class="right">
+      <div class="partner">{{partner.name}}</div>
+      <div class="contact">Prepared for {{partner.contactName}}</div>
+      <div class="period">{{period.label}}{{#unless period.allTime}} &middot; {{period.startHuman}} &rarr; {{period.endHuman}}{{/unless}}</div>
+    </div>
+  </div>
+
+  <div class="pdf-hero">
+    <div class="total-block">
+      <div class="total-label">Total impact</div>
+      <div class="total{{#if empty}} empty{{/if}}">{{totals.totalKg}} kg</div>
+      <div class="total-caption">
+        {{#if empty}}
+          No tagged-actor transactions in this window
+        {{else}}
+          across {{totals.actorCount}} tagged actor{{plural totals.actorCount}} and {{totals.txnCount}} transaction{{plural totals.txnCount}}, first-tagged-touchpoint attribution
+        {{/if}}
+      </div>
+    </div>
+    <div class="secondary">
+      <div><div class="label">Actors</div><div class="val">{{totals.actorCount}}</div></div>
+      <div><div class="label">Txns</div><div class="val">{{totals.txnCount}}</div></div>
+      <div><div class="label">Materials</div><div class="val">{{#if empty}}&mdash;{{else}}{{totals.materialCount}}{{/if}}</div></div>
+    </div>
+  </div>
+
+  {{#if empty}}
+    <div class="pdf-empty">
+      <div class="heading">No activity in this window</div>
+      <p>No transactions from {{partner.name}}-tagged actors occurred between {{period.startHuman}} and {{period.endHuman}}.</p>
+      {{#if ytdContext.hasActors}}
+        <div class="ctx">
+          Your network has <strong>{{ytdContext.actorCount}} tagged actor{{plural ytdContext.actorCount}}</strong> with <strong>{{ytdContext.totalKg}} kg</strong> attributed year-to-date. To see this activity, regenerate the report with the period set to <strong>Year to date</strong>.
+        </div>
+      {{else}}
+        <div class="ctx">
+          {{partner.name}} has no tagged actors yet. Tag actors via the Impact Partner dashboard's My Network tab.
+        </div>
+      {{/if}}
+    </div>
+  {{else}}
+    <div class="pdf-sub">By material</div>
+    <div class="pdf-bymat n-{{byMaterial.length}}">
+      {{#each byMaterial}}
+        <div class="mat">
+          <div class="name">{{name}}</div>
+          <div class="val">{{kg}} kg</div>
+          <div class="pct">{{pct}}%</div>
+        </div>
+      {{/each}}
+    </div>
+
+    <div class="pdf-sub">Breakdown by tier &times; actor &times; region &times; material</div>
+    <table class="pdf-table">
+      <thead>
+        <tr>
+          <th>Tier</th><th>Actor ID</th><th>Region</th><th>Material</th>
+          <th class="num">Kg</th><th class="num">Txns</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each rows}}
+          <tr>
+            <td class="tier">{{firstTaggedTier}}</td>
+            <td>{{actorCode}}</td>
+            <td>{{region}}</td>
+            <td>{{materialType}}</td>
+            <td class="num">{{fixed totalKg 0}}</td>
+            <td class="num">{{txnCount}}</td>
+          </tr>
+        {{/each}}
+        <tr class="totals">
+          <td colspan="4">Total</td>
+          <td class="num">{{totals.totalKg}}</td>
+          <td class="num">{{totals.txnCount}}</td>
+        </tr>
+      </tbody>
+    </table>
+  {{/if}}
+
+  <div class="pdf-methodology">
+    <div class="heading">Attribution methodology &middot; v1</div>
+    <p>First-tagged-touchpoint, no double-counting. v0 counts only at source-of-entry (collector&rarr;aggregator); downstream-tagged actors do not add new kg. Full methodology: <a href="https://circul.app/methodology/impact-attribution-v1">circul.app/methodology/impact-attribution-v1</a></p>
+  </div>
+
+  <div class="pdf-foot">
+    <div>Generated {{generatedStamp}} UTC</div>
+    <div>Powered by Circul &middot; Page 1 of 1</div>
+  </div>
+
+</div>
+</body>
+</html>
