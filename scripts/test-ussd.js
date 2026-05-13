@@ -59,6 +59,15 @@ const TEST_UNREGISTERED      = '0900099999';    // not in any table
 const TEST_BUY_AGG_PHONE     = '+233900001050';
 const TEST_OFFER_PROC_EMAIL  = 'test-offer@circul-test.local';
 
+// Phase 5: Impact Partner test fixture. Email+password account exercised by
+// the impact-partner-* test cases. Admin fixture handles the approve/reject
+// endpoint coverage in impact-partner-admin-approve.
+const TEST_IP_EMAIL          = 'test-ip@circul-test.local';
+const TEST_IP_PASSWORD       = 'demo1234';
+const TEST_IP_NAME           = 'TestPartner';
+const TEST_ADMIN_EMAIL       = 'test-admin@circul-test.local';
+const TEST_ADMIN_PASSWORD    = 'demo1234';
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function arg(prefix) {
@@ -97,6 +106,41 @@ async function assertPromoted({ aggregator_phone, collector_phone, material, qty
   const txnRes = await pool.query(`SELECT id FROM transactions WHERE id = $1`, [pt.transaction_id]);
   if (!txnRes.rows.length) throw new Error(`[${label}] pending.transaction_id=${pt.transaction_id} but no transactions row exists`);
   return { pendingId: pt.id, txnId: pt.transaction_id, status: pt.status };
+}
+
+// Phase 5: generic HTTP helper for Impact Partner test cases that exercise
+// JSON endpoints rather than the USSD endpoint. Returns { status, body } where
+// body is the parsed JSON (or raw string if parse fails).
+function httpJson(method, urlPath, payload, token) {
+  const url = new URL(BASE + urlPath);
+  const lib = url.protocol === 'https:' ? https : http;
+  const body = payload == null ? null : JSON.stringify(payload);
+  const headers = { 'Accept': 'application/json' };
+  if (body != null) {
+    headers['Content-Type'] = 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(body);
+  }
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return new Promise((resolve, reject) => {
+    const req = lib.request({
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + (url.search || ''),
+      method: method,
+      headers: headers
+    }, res => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        let parsed;
+        try { parsed = JSON.parse(data); } catch (_) { parsed = data; }
+        resolve({ status: res.statusCode, body: parsed });
+      });
+    });
+    req.on('error', reject);
+    if (body != null) req.write(body);
+    req.end();
+  });
 }
 
 function postUssd({ sessionId, phoneNumber, serviceCode = '*920*54#', text }) {
@@ -288,6 +332,35 @@ async function cleanupTestData() {
       [ANY_TEST_LIKES]
     )
   );
+  // Phase 5: Impact Partner cleanup (child tables first per FK).
+  // tags → tag_requests → impact_partners. Sweep by test fixture email AND by
+  // any tags referencing test-phone-band actors (so admin-approve / untag
+  // tests can run independently without per-case afterHooks).
+  await safeDelete('impact_partner_actor_tags', () =>
+    pool.query(
+      `DELETE FROM impact_partner_actor_tags
+       WHERE impact_partner_id IN (SELECT id FROM impact_partners WHERE email LIKE 'test-%@circul-test.local')
+          OR (actor_type = 'collector'  AND actor_id IN (SELECT id FROM collectors  WHERE phone LIKE ANY($1)))
+          OR (actor_type = 'aggregator' AND actor_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1)))
+          OR (actor_type = 'driver'     AND actor_id IN (SELECT id FROM drivers     WHERE phone LIKE ANY($1)))
+          OR (actor_type = 'agent'      AND actor_id IN (SELECT id FROM agents      WHERE phone LIKE ANY($1)))`,
+      [ANY_TEST_LIKES]
+    )
+  );
+  await safeDelete('impact_partner_actor_tag_requests', () =>
+    pool.query(
+      `DELETE FROM impact_partner_actor_tag_requests
+       WHERE impact_partner_id IN (SELECT id FROM impact_partners WHERE email LIKE 'test-%@circul-test.local')`,
+      []
+    )
+  );
+  await safeDelete('impact_partners', () =>
+    pool.query(`DELETE FROM impact_partners WHERE email LIKE 'test-%@circul-test.local'`)
+  );
+  // Test admin user (Phase 5)
+  await safeDelete('admin_users', () =>
+    pool.query(`DELETE FROM admin_users WHERE email LIKE 'test-%@circul-test.local'`)
+  );
   // Also sweep pending_transactions linked to test drivers (driver_id FK).
   // pending_transactions doesn't ON DELETE SET NULL the driver_id, so without
   // this the next run would silently retain stale ratings/cap counts.
@@ -438,6 +511,22 @@ async function seedTestAccounts() {
     `INSERT INTO offers (listing_id, buyer_id, buyer_role, price_per_kg, quantity_kg, offered_by, status)
      VALUES ($1, $2, 'processor', 2.20, 500, 'processor', 'pending')`,
     [listingIns.rows[0].id, procId]
+  );
+
+  // ── Phase 5: Impact Partner test fixture + test admin ─────────────────────
+  const ipPwd = await hashPin(TEST_IP_PASSWORD);
+  await pool.query(
+    `INSERT INTO impact_partners (name, company, email, password_hash, contact_name, country, is_active)
+     VALUES ($1, $1, $2, $3, 'Test Contact', 'Ghana', true)
+     ON CONFLICT (email) DO UPDATE SET password_hash=EXCLUDED.password_hash, is_active=true`,
+    [TEST_IP_NAME, TEST_IP_EMAIL, ipPwd]
+  );
+  const adminPwd = await hashPin(TEST_ADMIN_PASSWORD);
+  await pool.query(
+    `INSERT INTO admin_users (email, password_hash, name, is_active)
+     VALUES ($1, $2, 'Test Admin', true)
+     ON CONFLICT (email) DO UPDATE SET password_hash=EXCLUDED.password_hash, is_active=true`,
+    [TEST_ADMIN_EMAIL, adminPwd]
   );
 }
 
@@ -1494,6 +1583,275 @@ const TESTS = [
         throw new Error('Expected 0 ratings after Main menu path, got ' + r.rows[0].n);
       }
     },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 5: Impact Partner — 8 new test cases
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // 6 HTTP-API tests + 2 USSD tests. The HTTP-API tests use steps=[] so the
+  // runner's USSD loop is a no-op; all assertions live in beforeHook (which
+  // throws on failure). Each test is self-contained — it logs in, performs
+  // its endpoint calls, and asserts side-effects.
+
+  // ─── HTTP: login happy path ─────────────────────────────────────────────
+  {
+    name: 'impact-partner-login-happy-path',
+    phoneNumber: '0900099991',  // unused; required by harness shape
+    steps: [],
+    beforeHook: async () => {
+      const r = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      if (r.status !== 200) throw new Error('login HTTP ' + r.status + ': ' + JSON.stringify(r.body));
+      if (!r.body.success) throw new Error('login not success: ' + JSON.stringify(r.body));
+      if (r.body.role !== 'impact_partner') throw new Error('expected role=impact_partner, got ' + r.body.role);
+      if (!r.body.token) throw new Error('no token in response');
+    },
+  },
+
+  // ─── HTTP: /network with no tags returns empty list ─────────────────────
+  {
+    name: 'impact-partner-network-empty',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const token = login.body.token;
+      const r = await httpJson('GET', '/api/impact-partner/network', null, token);
+      if (r.status !== 200) throw new Error('network HTTP ' + r.status);
+      if (!r.body.success) throw new Error('network not success');
+      if (!Array.isArray(r.body.network) || r.body.network.length !== 0) {
+        throw new Error('expected empty network array, got ' + JSON.stringify(r.body.network));
+      }
+    },
+  },
+
+  // ─── HTTP: submit tag request for existing collector ────────────────────
+  {
+    name: 'impact-partner-tag-request-existing',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const token = login.body.token;
+      const r = await httpJson('POST', '/api/impact-partner/tag-requests', {
+        phone: TEST_COLLECTOR_PHONE.replace('+233', '0'),
+        role: 'collector',
+        proof_text: 'Test fixture — collector enrolled in our program 2026-04-01.'
+      }, token);
+      if (r.status !== 200) throw new Error('tag-request HTTP ' + r.status + ': ' + JSON.stringify(r.body));
+      if (!r.body.success) throw new Error('tag-request not success: ' + JSON.stringify(r.body));
+      if (r.body.tag_request.status !== 'pending_review') {
+        throw new Error('expected pending_review, got ' + r.body.tag_request.status);
+      }
+      // Verify DB row
+      const row = await pool.query(
+        `SELECT status, mode FROM impact_partner_actor_tag_requests
+         WHERE impact_partner_id = (SELECT id FROM impact_partners WHERE email = $1)
+         ORDER BY id DESC LIMIT 1`,
+        [TEST_IP_EMAIL]
+      );
+      if (!row.rows.length) throw new Error('no tag-request row in DB');
+      if (row.rows[0].status !== 'pending_review') throw new Error('DB status not pending_review');
+      if (row.rows[0].mode !== 'existing') throw new Error('DB mode not existing');
+    },
+  },
+
+  // ─── HTTP: admin approve → impact_partner_actor_tags row inserted ───────
+  {
+    name: 'impact-partner-admin-approve',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      // Partner: submit a fresh tag request
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const submit = await httpJson('POST', '/api/impact-partner/tag-requests', {
+        phone: TEST_AGGREGATOR_PHONE.replace('+233', '0'),
+        role: 'aggregator',
+        proof_text: 'Test fixture aggregator partnership.'
+      }, login.body.token);
+      if (!submit.body.success) throw new Error('partner submit failed: ' + JSON.stringify(submit.body));
+      const reqId = submit.body.tag_request.id;
+      // Admin: login + approve
+      const adminLogin = await httpJson('POST', '/api/admin/login', {
+        email: TEST_ADMIN_EMAIL, password: TEST_ADMIN_PASSWORD
+      });
+      if (!adminLogin.body.success) throw new Error('admin login failed: ' + JSON.stringify(adminLogin.body));
+      const approve = await httpJson(
+        'POST', '/api/admin/impact-partner/tag-requests/' + reqId + '/approve',
+        null, adminLogin.body.token
+      );
+      if (approve.status !== 200 || !approve.body.success) {
+        throw new Error('approve failed: ' + JSON.stringify(approve.body));
+      }
+      // Verify tag row exists
+      const tagRow = await pool.query(
+        `SELECT id, deactivated_at FROM impact_partner_actor_tags
+         WHERE tag_request_id = $1`,
+        [reqId]
+      );
+      if (!tagRow.rows.length) throw new Error('no tag row inserted after approval');
+      if (tagRow.rows[0].deactivated_at !== null) throw new Error('tag was inserted but deactivated');
+    },
+  },
+
+  // ─── HTTP: untag sets deactivated_at ────────────────────────────────────
+  {
+    name: 'impact-partner-untag',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      // Seed: directly INSERT a tag for the test partner against the test collector
+      const ip = await pool.query(`SELECT id FROM impact_partners WHERE email=$1`, [TEST_IP_EMAIL]);
+      const col = await pool.query(`SELECT id FROM collectors WHERE phone=$1`, [TEST_COLLECTOR_PHONE]);
+      if (!ip.rows.length || !col.rows.length) throw new Error('fixture missing (IP or collector)');
+      const tag = await pool.query(
+        `INSERT INTO impact_partner_actor_tags (impact_partner_id, actor_type, actor_id)
+         VALUES ($1, 'collector', $2)
+         ON CONFLICT (impact_partner_id, actor_type, actor_id) DO UPDATE
+           SET deactivated_at = NULL, deactivation_reason = NULL, active_since = NOW()
+         RETURNING id`,
+        [ip.rows[0].id, col.rows[0].id]
+      );
+      const tagId = tag.rows[0].id;
+      // Partner: login + untag
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const del = await httpJson(
+        'DELETE', '/api/impact-partner/tags/' + tagId, { reason: 'Test untag' }, login.body.token
+      );
+      if (del.status !== 200 || !del.body.success) {
+        throw new Error('untag failed: ' + JSON.stringify(del.body));
+      }
+      const check = await pool.query(
+        `SELECT deactivated_at, deactivation_reason FROM impact_partner_actor_tags WHERE id=$1`,
+        [tagId]
+      );
+      if (!check.rows[0].deactivated_at) throw new Error('deactivated_at not set after untag');
+      if (check.rows[0].deactivation_reason !== 'Test untag') {
+        throw new Error('deactivation_reason mismatch: ' + check.rows[0].deactivation_reason);
+      }
+    },
+  },
+
+  // ─── HTTP: report shows kg for tagged actor's transactions ──────────────
+  //
+  // Seeds an active tag on TEST_COLLECTOR_PHONE + a transaction this YTD,
+  // then calls /api/impact-partner/report and verifies total_kg >= 50.
+  {
+    name: 'impact-partner-report-kg',
+    phoneNumber: '0900099991',
+    steps: [],
+    beforeHook: async () => {
+      // Seed tag
+      const ip = await pool.query(`SELECT id FROM impact_partners WHERE email=$1`, [TEST_IP_EMAIL]);
+      const col = await pool.query(`SELECT id FROM collectors  WHERE phone=$1`, [TEST_COLLECTOR_PHONE]);
+      const agg = await pool.query(`SELECT id FROM aggregators WHERE phone=$1`, [TEST_AGGREGATOR_PHONE]);
+      if (!ip.rows.length || !col.rows.length || !agg.rows.length) throw new Error('fixtures missing');
+      await pool.query(
+        `INSERT INTO impact_partner_actor_tags (impact_partner_id, actor_type, actor_id)
+         VALUES ($1, 'collector', $2)
+         ON CONFLICT (impact_partner_id, actor_type, actor_id) DO UPDATE
+           SET deactivated_at = NULL, deactivation_reason = NULL, active_since = NOW()`,
+        [ip.rows[0].id, col.rows[0].id]
+      );
+      // Seed transaction (50kg PET, dated now)
+      await pool.query(
+        `INSERT INTO transactions
+           (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg,
+            price_per_kg, total_price, transaction_date)
+         VALUES ($1, $2, 'PET', 50, 50, 0, 0, NOW())`,
+        [col.rows[0].id, agg.rows[0].id]
+      );
+      // Call report endpoint
+      const login = await httpJson('POST', '/api/auth/login', {
+        type: 'email', email: TEST_IP_EMAIL, password: TEST_IP_PASSWORD
+      });
+      const r = await httpJson('GET', '/api/impact-partner/report?period=ytd', null, login.body.token);
+      if (r.status !== 200 || !r.body.success) throw new Error('report failed: ' + JSON.stringify(r.body));
+      const totalKg = parseFloat(r.body.totals.total_kg);
+      if (totalKg < 50) {
+        throw new Error('expected total_kg >= 50, got ' + totalKg + ' · breakdown=' + JSON.stringify(r.body.by_material));
+      }
+      if (!r.body.by_material || !r.body.by_material.PET || parseFloat(r.body.by_material.PET) < 50) {
+        throw new Error('expected by_material.PET >= 50');
+      }
+    },
+    afterHook: async () => {
+      // Sweep the seed transactions so subsequent runs start clean.
+      await pool.query(
+        `DELETE FROM transactions
+         WHERE collector_id IN (SELECT id FROM collectors WHERE phone = $1)
+           AND aggregator_id IN (SELECT id FROM aggregators WHERE phone = $2)
+           AND price_per_kg = 0`,
+        [TEST_COLLECTOR_PHONE, TEST_AGGREGATOR_PHONE]
+      );
+    },
+  },
+
+  // ─── USSD: driver Programs view (More → 4. Programs) ────────────────────
+  //
+  // Driver dials, hits main menu (no pending rating since cleanup sweeps
+  // pending_transactions), picks 4 (More), then 4 (Programs). Asserts the
+  // END "Your programs:" screen renders the seeded TestPartner tag.
+  {
+    name: 'driver-programs-view',
+    phoneNumber: '0900003001',
+    beforeHook: async () => {
+      const ip = await pool.query(`SELECT id FROM impact_partners WHERE email=$1`, [TEST_IP_EMAIL]);
+      const drv = await pool.query(`SELECT id FROM drivers WHERE phone=$1`, [TEST_DRIVER_PHONE]);
+      if (!ip.rows.length || !drv.rows.length) throw new Error('fixtures missing');
+      // Ensure no pending rating intercept fires
+      await pool.query(
+        `DELETE FROM pending_transactions WHERE driver_id = $1`,
+        [drv.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO impact_partner_actor_tags (impact_partner_id, actor_type, actor_id)
+         VALUES ($1, 'driver', $2)
+         ON CONFLICT (impact_partner_id, actor_type, actor_id) DO UPDATE
+           SET deactivated_at = NULL, deactivation_reason = NULL, active_since = NOW()`,
+        [ip.rows[0].id, drv.rows[0].id]
+      );
+    },
+    steps: [
+      { input: '',     match: /Enter 4-digit PIN/ },
+      { input: '5555', match: /CON Hi TestDriver/ },
+      { input: '4',    match: /CON More options[\s\S]*4\. Programs/ },
+      { input: '4',    match: /END Your programs:[\s\S]*TestPartner/ },
+    ],
+  },
+
+  // ─── USSD: collector Programs view (main menu → 5) ──────────────────────
+  {
+    name: 'collector-programs-view',
+    phoneNumber: '0900000001',
+    beforeHook: async () => {
+      // Seed an active tag for the test collector.
+      const ip = await pool.query(`SELECT id FROM impact_partners WHERE email=$1`, [TEST_IP_EMAIL]);
+      const col = await pool.query(`SELECT id FROM collectors WHERE phone=$1`, [TEST_COLLECTOR_PHONE]);
+      if (!ip.rows.length || !col.rows.length) throw new Error('fixtures missing');
+      await pool.query(
+        `INSERT INTO impact_partner_actor_tags (impact_partner_id, actor_type, actor_id)
+         VALUES ($1, 'collector', $2)
+         ON CONFLICT (impact_partner_id, actor_type, actor_id) DO UPDATE
+           SET deactivated_at = NULL, deactivation_reason = NULL, active_since = NOW()`,
+        [ip.rows[0].id, col.rows[0].id]
+      );
+    },
+    steps: [
+      { input: '',     match: /CON Circul Collector/ },
+      { input: '0000', match: /CON 1\. Log Drop-off[\s\S]*5\. Programs/ },
+      { input: '5',    match: /END Your programs:[\s\S]*TestPartner/ },
+    ],
   },
 ];
 

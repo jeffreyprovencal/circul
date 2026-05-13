@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impact Attribution Methodology v1 · Circul</title>
+<link rel="stylesheet" href="/shared.css">
+<style>
+body { font-family: var(--font); background: var(--bg); color: var(--text-1); margin: 0; line-height: 1.6; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px; }
+header { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+.lead { color: var(--text-2); font-size: 0.9rem; margin: 0 0 36px; }
+h2 { font-size: 1.05rem; color: var(--accent); margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 0.92rem; margin: 24px 0 8px; color: var(--text-1); }
+p { color: var(--text-1); font-size: 0.92rem; margin: 0 0 16px; }
+ul { color: var(--text-1); font-size: 0.92rem; padding-left: 20px; margin: 0 0 16px; }
+li { margin-bottom: 8px; }
+code { background: var(--surface-alt); padding: 1px 6px; border-radius: 4px; font-size: 0.85rem; color: var(--accent); }
+.note { background: var(--surface); border-left: 3px solid var(--accent); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 16px 0; color: var(--text-2); font-size: 0.88rem; }
+footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--text-3); font-size: 0.78rem; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div style="width:34px;height:34px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#000;font-weight:900;font-size:14px">◎</div>
+  <div>
+    <h1>Impact Attribution Methodology — v1</h1>
+    <div style="font-size:0.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em">Effective 2026-05-13 · Circul</div>
+  </div>
+</header>
+
+<p class="lead">How Circul calculates the kg of recovered material attributed to an Impact Partner's tagged network. The same kg is never counted twice across the supply chain.</p>
+
+<h2>The rule, in one sentence</h2>
+<p><strong>First-tagged-touchpoint attribution.</strong> For each source-of-entry transaction (collector → aggregator), the kg is attributed once to the Impact Partner whose tagged actor is the upstream-most party in that transaction. If no tagged party is involved, the kg is not attributed to any partner.</p>
+
+<h2>What counts (v1)</h2>
+<ul>
+  <li>Source-of-entry transactions: a collector dropping material at an aggregator. This is the canonical "material entered Circul's tracked supply chain" event.</li>
+  <li>The kg attributes to the Impact Partner whose tag matches the collector. If the collector is not tagged but the aggregator is, the kg attributes to the partner via the aggregator.</li>
+  <li>Active tags only. A tag that was deactivated (untagged by the partner) at the time the transaction occurred is not counted. The <code>active_since</code> and <code>deactivated_at</code> timestamps on each tag bound the eligibility window.</li>
+</ul>
+
+<h2>What doesn't count (v1 — explicit scope cut)</h2>
+<ul>
+  <li><strong>Downstream-only tagged actors do not add new kg.</strong> If a partner has tagged a driver who delivers material to a processor, but neither the source collector nor the source aggregator is tagged, the kg from that transaction does not attribute to the partner. The driver and processor still appear in transaction listings (visibility), but they don't add new attribution.</li>
+  <li>Aggregator-to-buyer, processor-to-recycler, recycler-to-converter, and other downstream tier transactions do not contribute new attribution. They represent the same material moving further down the chain — counting them again would double-count.</li>
+  <li>Cancelled, voided, or pending-but-unconfirmed transactions don't count.</li>
+</ul>
+
+<div class="note">
+  <strong>Why the v1 scope cut?</strong> Counting downstream-tagged actors requires careful chain-of-custody math to avoid double-counting the same physical kg twice. Until we have real partner data and can see whether the loss is material, v1 stays conservative: only source-of-entry transactions contribute. A "full-chain" v2 methodology (where downstream tagged actors can claim a portion of kg they personally handled) is under consideration for when the data warrants it.
+</div>
+
+<h2>How "first-tagged" is decided</h2>
+<p>Within a single source-of-entry transaction, if both the collector and the aggregator are tagged by the same Impact Partner, the kg attributes to the <em>collector tier</em>. This is the upstream-most tier and represents the more direct funding relationship.</p>
+
+<p>Across partners: a kg never attributes to more than one partner. If a partner has tagged the collector AND a different partner has tagged the aggregator on the same transaction, the partner with the upstream tag (the collector) gets the attribution.</p>
+
+<h2>What partners see in reports</h2>
+<ul>
+  <li><strong>Total kg attributed</strong> — the headline number.</li>
+  <li><strong>By material</strong> (PET / HDPE / LDPE / PP / etc.) and <strong>by region</strong>.</li>
+  <li><strong>Breakdown by first-tagged tier</strong> — collectors vs. aggregators.</li>
+  <li><strong>Per-actor YTD kg</strong> in the My Network view — what each tagged actor contributed.</li>
+</ul>
+
+<h2>Data freshness</h2>
+<p>Reports are computed live from the transactions table at request time. Month-end snapshots are the canonical cadence for board / brand reporting; the current month is labeled "in progress" until it closes.</p>
+
+<h2>Audit + transparency</h2>
+<p>Every tag is approved by Circul against three criteria: real person, plausible proof, photo if provided. Every approval and rejection is logged with reviewer ID and timestamp. Tagged actors can see the partners that have tagged them via the "Programs supporting you" section on their dashboard and the "Programs" item in their USSD More menu.</p>
+
+<footer>
+  Powered by Circul · Methodology v1 · 2026-05-13
+</footer>
+
+</div>
+</body>
+</html>

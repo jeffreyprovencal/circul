@@ -239,6 +239,20 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
     </div>
   </div>
 
+  <!-- PENDING IMPACT-PARTNER TAG REQUESTS (Phase 5) -->
+  <div class="section" id="impactPartnerTagRequestsSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Pending Tag Requests <span style="color:var(--text-3);font-weight:400">(Impact Partner)</span></div>
+        <div class="section-sub">Review and approve actor tag requests submitted by Impact Partners (WORK, etc.). Approval inserts the tag into impact_partner_actor_tags.</div>
+      </div>
+      <button class="btn-small" onclick="loadImpactPartnerTagRequests()">Refresh</button>
+    </div>
+    <div id="impactPartnerTagRequestsBody" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);min-height:80px">
+      <div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>
+    </div>
+  </div>
+
   <!-- ACTIVE LOCKOUTS -->
   <div class="section" id="lockoutsSection">
     <div class="section-head">
@@ -1087,8 +1101,118 @@ tr.rejected{opacity:0.3;transition:opacity 0.4s}
       });
     }
 
+    // ── Impact Partner tag-request review queue (Phase 5) ──
+    function loadImpactPartnerTagRequests() {
+      var body = document.getElementById('impactPartnerTagRequestsBody');
+      body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">Loading…</div>';
+      adminFetch('/api/admin/impact-partner/tag-requests?status=pending_review').then(function(res) {
+        if (!res.ok) {
+          body.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem">Failed to load tag requests.</div>';
+          return;
+        }
+        var rows = (res.body.tag_requests || []);
+        if (!rows.length) {
+          body.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:0.82rem">No pending tag requests.</div>';
+          return;
+        }
+        body.innerHTML = rows.map(function(r) {
+          var ageMs = Date.now() - new Date(r.requested_at).getTime();
+          var ageMin = Math.floor(ageMs / 60000);
+          var ageStr = ageMin < 60 ? ageMin + ' min ago' : Math.floor(ageMin / 60) + ' hr ago';
+          var photoLine = r.proof_photo_url
+            ? '<div style="color:var(--text-3);font-size:0.72rem;margin-top:6px">Doc: <a href="' + esc(r.proof_photo_url) + '" target="_blank" style="color:var(--accent)">' + esc(r.proof_photo_url) + '</a></div>'
+            : '<div style="color:var(--text-3);font-size:0.72rem;margin-top:6px">No supporting document</div>';
+          return '<div style="padding:14px;border-bottom:1px solid var(--border)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+              '<div style="flex:1">' +
+                '<div style="font-weight:600">' + esc(r.partner_name) + ' → ' + esc(r.actor_phone) + ' (' + esc(r.actor_role) + ')</div>' +
+                '<div style="color:var(--text-3);font-size:0.72rem">' + (r.mode === 'new' ? 'New actor (Mode 2)' : 'Existing actor (Mode 1)') + ' · ' + ageStr + '</div>' +
+                '<div style="margin-top:8px;padding:8px 12px;background:#0a150e;border-left:2px solid var(--accent);font-size:0.8rem;line-height:1.45">' +
+                  '<strong style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3)">Proof:</strong> ' + esc(r.proof_text) +
+                '</div>' +
+                photoLine +
+              '</div>' +
+              '<div style="display:flex;gap:8px;flex-shrink:0">' +
+                '<button class="btn-primary" onclick="approveImpactPartnerTagRequest(' + r.id + ')" style="padding:6px 14px;font-size:0.72rem">Approve</button>' +
+                '<button class="btn-danger" onclick="openRejectImpactPartnerTagRequest(' + r.id + ',\'' + esc(r.partner_name).replace(/'/g, "\\'") + ' → ' + esc(r.actor_phone).replace(/'/g, "\\'") + '\')" style="padding:6px 12px;font-size:0.72rem">Reject</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      });
+    }
+
+    function approveImpactPartnerTagRequest(id) {
+      if (!confirm('Approve this tag request? The actor will be added to the partner\'s tagged network.')) return;
+      adminFetch('/api/admin/impact-partner/tag-requests/' + id + '/approve', { method: 'POST' }).then(function(res) {
+        if (!res.ok || !res.body.success) {
+          alert('Failed: ' + ((res.body && res.body.message) || 'unknown error'));
+          return;
+        }
+        showToast('Tag approved');
+        loadImpactPartnerTagRequests();
+      });
+    }
+
+    function openRejectImpactPartnerTagRequest(id, label) {
+      var existing = document.getElementById('rejectImpactPartnerTagModal');
+      if (existing) existing.remove();
+      var wrap = document.createElement('div');
+      wrap.id = 'rejectImpactPartnerTagModal';
+      wrap.className = 'modal-backdrop';
+      wrap.innerHTML =
+        '<div class="modal" style="max-width:520px">' +
+          '<div class="modal-header"><div class="modal-title">Reject tag request</div>' +
+            '<button class="modal-close" onclick="closeRejectImpactPartnerTagRequest()">✕</button></div>' +
+          '<div class="modal-body">' +
+            '<div class="hint" style="margin-bottom:8px">' + esc(label) + '</div>' +
+            '<label>Rejection category</label>' +
+            '<select id="ipTagRejectCategory" style="width:100%;padding:8px 12px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-size:0.82rem;font-family:var(--font);margin-bottom:12px">' +
+              '<option value="insufficient_proof_detail">Insufficient proof — needs more detail</option>' +
+              '<option value="insufficient_proof_document">Insufficient proof — supporting document required</option>' +
+              '<option value="not_verifiable">Actor not verifiable as real</option>' +
+              '<option value="duplicate">Duplicate of existing tagged actor</option>' +
+              '<option value="other">Other (use note below)</option>' +
+            '</select>' +
+            '<label>Note (optional, free-form)</label>' +
+            '<textarea id="ipTagRejectNote" rows="3" placeholder="Specific feedback for the partner. Visible in their Tag Requests view." style="width:100%;padding:8px 12px;background:#0a150e;border:1px solid var(--border);color:var(--text-1);border-radius:var(--r-sm);font-size:0.82rem;font-family:var(--font)"></textarea>' +
+            '<div id="ipTagRejectErr" class="error hidden"></div>' +
+            '<div class="action-row">' +
+              '<button class="btn-danger" onclick="submitRejectImpactPartnerTagRequest(' + id + ')">Confirm reject</button>' +
+              '<button class="btn-small" onclick="closeRejectImpactPartnerTagRequest()">Cancel</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(wrap);
+    }
+
+    function closeRejectImpactPartnerTagRequest() {
+      var el = document.getElementById('rejectImpactPartnerTagModal');
+      if (el) el.remove();
+    }
+
+    function submitRejectImpactPartnerTagRequest(id) {
+      var cat = document.getElementById('ipTagRejectCategory').value;
+      var note = (document.getElementById('ipTagRejectNote').value || '').trim();
+      var err = document.getElementById('ipTagRejectErr');
+      err.classList.add('hidden');
+      adminFetch('/api/admin/impact-partner/tag-requests/' + id + '/reject', {
+        method: 'POST', body: JSON.stringify({ category: cat, note: note })
+      }).then(function(res) {
+        if (!res.ok || !res.body.success) {
+          err.textContent = (res.body && res.body.message) || 'Failed to reject.';
+          err.classList.remove('hidden');
+          return;
+        }
+        closeRejectImpactPartnerTagRequest();
+        showToast('Tag request rejected');
+        loadImpactPartnerTagRequests();
+      });
+    }
+
     loadUserList('collectors');
     loadAggregatorRequests();
+    loadImpactPartnerTagRequests();
     loadLockouts();
     loadAuditLog();
 </script>

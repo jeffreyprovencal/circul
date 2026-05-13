@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impact Partner · Circul</title>
+<link rel="stylesheet" href="/shared.css">
+<style>
+/* Layout-specific styles for the Impact Partner dashboard. The mockup
+   mockups/mockup-impact-partner-feature-v1.html is the source of truth —
+   colors/spacing here match it 1:1. Selectors that already live in
+   public/shared.css (form-input, form-submit, nav-pill, btn, btn-primary,
+   login-overlay, login-box, nav-logo, nav-logo-icon) are reused; everything
+   below is mockup-only and stays scoped to this page. */
+:root{
+  --r-sm:8px;
+  --r-md:12px;
+  --gap:24px;
+  --warning:#ffb74d;
+  --danger:#ff6b6b;
+  --accent-muted:rgba(0,230,118,0.1);
+  --surface-2:#11331f;
+}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text-1);font-size:14px;line-height:1.5}
+.hidden{display:none !important}
+.dash{background:var(--bg);min-height:100vh}
+.dash-topbar{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px}
+.topbar-right{display:flex;align-items:center;gap:16px;font-size:0.85rem}
+.topbar-right .meta{color:var(--text-2)}
+.topbar-right .sep{color:var(--text-3)}
+.topbar-right a{color:var(--text-2);text-decoration:none}
+.dash-tabs{display:flex;gap:4px;padding:0 32px;background:var(--surface);border-bottom:1px solid var(--border)}
+.dash-tab{padding:14px 18px;font-size:0.85rem;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;font-weight:600}
+.dash-tab.active{color:var(--text-1);border-bottom-color:var(--accent)}
+.dash-body{padding:32px;max-width:1280px}
+
+.hero{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:32px}
+.hero-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:24px}
+.hero-card.primary{background:linear-gradient(135deg,var(--accent-muted) 0%,var(--surface) 100%);border-color:rgba(0,230,118,0.3)}
+.hero-card-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:8px}
+.hero-card.primary .hero-card-label{color:var(--accent)}
+.hero-card-value{font-size:2rem;font-weight:700;color:var(--text-1);letter-spacing:-0.02em}
+.hero-card-value .unit{font-size:1rem;color:var(--text-2);margin-left:8px}
+.hero-card-sub{font-size:0.78rem;color:var(--text-2);margin-top:6px}
+.hero-card-context{font-size:0.75rem;color:var(--text-2);margin-top:4px}
+.hero-card-breakdown{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.hero-card-breakdown-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hero-card-breakdown-row .count{font-size:0.95rem;font-weight:700;color:var(--text-1)}
+
+.section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:24px}
+.section-card-head{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--border)}
+.section-card-title{font-size:1rem;font-weight:700;margin:0}
+.section-card-actions{display:flex;gap:8px}
+.section-card-body{padding:16px 24px 24px}
+
+.btn-ghost{background:transparent}
+.btn-bad{color:var(--danger);border-color:rgba(255,107,107,0.3)}
+.btn-bad:hover{background:rgba(255,107,107,0.08);color:var(--danger);border-color:var(--danger)}
+
+.tbl{width:100%;border-collapse:collapse}
+.tbl th,.tbl td{text-align:left;padding:12px 8px;font-size:0.85rem;border-bottom:1px solid var(--border)}
+.tbl th{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2)}
+.tbl tbody tr:hover{background:var(--surface-alt)}
+.tbl-actor-name{font-weight:600}
+.tbl-actor-sub{font-size:0.75rem;color:var(--text-3)}
+.tbl-empty{text-align:center;padding:24px;color:var(--text-3);font-style:italic}
+
+.pill{display:inline-block;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 10px;border-radius:99px}
+.pill-active{background:var(--accent-muted);color:var(--accent)}
+.pill-pending{background:rgba(255,183,77,0.15);color:var(--warning)}
+.pill-rejected{background:rgba(255,107,107,0.12);color:var(--danger)}
+
+.form-stack{max-width:560px}
+.form-stack .form-group{margin-bottom:20px}
+.form-help{font-size:0.75rem;color:var(--text-3);margin-top:6px;line-height:1.55}
+.form-help code{background:var(--surface-alt);padding:1px 4px;border-radius:3px}
+.form-actions{display:flex;gap:12px;margin-top:24px}
+.form-error{color:var(--danger);font-size:0.8rem;margin-top:8px}
+.form-success{color:var(--accent);font-size:0.8rem;margin-top:8px}
+.match-box{background:var(--accent-muted);border:1px solid rgba(0,230,118,0.3);border-radius:var(--r-sm);padding:16px;margin-bottom:20px}
+.match-box .title{font-weight:700;font-size:0.85rem;margin-bottom:6px}
+.match-box .sub{font-size:0.78rem;color:var(--text-2)}
+.match-box.miss{background:rgba(255,107,107,0.08);border-color:rgba(255,107,107,0.3)}
+.match-box.miss .title{color:var(--danger)}
+.dropzone{background:var(--surface-alt);border:1px dashed var(--border);border-radius:var(--r-sm);padding:24px;text-align:center;color:var(--text-3);font-size:0.85rem}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:600}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:32px;width:480px;max-width:92vw}
+.modal h3{margin:0 0 8px;font-size:1.1rem}
+.modal p{color:var(--text-2);margin:0 0 24px;font-size:0.9rem}
+
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filter-pill{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 12px;font-size:0.8rem;cursor:pointer;color:var(--text-2)}
+.filter-pill.active{border-color:var(--accent);color:var(--accent)}
+.filter-pill:hover{color:var(--text-1)}
+.report-preview-card{background:var(--surface-alt);border-radius:var(--r-sm);padding:16px 20px;margin-bottom:12px;display:flex;justify-content:space-between}
+.report-preview-card .label{color:var(--text-2);font-size:0.85rem}
+.report-preview-card .value{font-weight:700}
+.export-row{display:flex;gap:12px;margin-top:16px}
+.methodology-link{font-size:0.75rem;color:var(--text-3);margin-top:16px}
+.methodology-link a{color:var(--text-2)}
+
+.dash-footer{padding:24px;text-align:center;font-size:0.78rem;color:var(--text-3);border-top:1px solid var(--border);background:var(--surface)}
+
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .hero { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- ── Login overlay ───────────────────────────────────────── -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2 style="margin:0 0 4px;font-size:1.3rem">Sign in to Circul</h2>
+    <p style="color:var(--text-2);margin:0 0 24px;font-size:0.85rem">Impact Partner access</p>
+    <form id="loginForm" onsubmit="return doLogin(event)">
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Email</label>
+        <input class="form-input" type="email" id="loginEmail" required autocomplete="email">
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Password</label>
+        <input class="form-input" type="password" id="loginPassword" required autocomplete="current-password">
+      </div>
+      <div id="loginError" class="form-error hidden"></div>
+      <button class="form-submit" type="submit">Sign in</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Main dashboard ─────────────────────────────────────── -->
+<div class="dash hidden" id="dashRoot">
+  <div class="dash-topbar">
+    <a class="nav-logo" href="/"><div class="nav-logo-icon">◎</div> Circul</a>
+    <div class="topbar-right">
+      <span class="nav-pill nav-pill-impact-partner">Impact Partner</span>
+      <span class="meta" id="partnerLabel">—</span>
+      <span class="sep">·</span>
+      <a href="#" onclick="doLogout();return false">Log out</a>
+    </div>
+  </div>
+  <div class="dash-tabs">
+    <div class="dash-tab active" data-tab="home"     onclick="switchTab('home')">Home</div>
+    <div class="dash-tab"        data-tab="network"  onclick="switchTab('network')">My Network</div>
+    <div class="dash-tab"        data-tab="requests" onclick="switchTab('requests')">Tag Requests</div>
+    <div class="dash-tab"        data-tab="reports"  onclick="switchTab('reports')">Reports</div>
+  </div>
+  <div class="dash-body">
+
+    <!-- HOME TAB -->
+    <div class="tab-pane" id="paneHome">
+      <div class="hero">
+        <div class="hero-card primary">
+          <div class="hero-card-label">Impact YTD</div>
+          <div class="hero-card-value"><span id="heroYtdKg">—</span><span class="unit">kg</span></div>
+          <div class="hero-card-context">first-tagged-touchpoint attribution</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-label">Impact this Month</div>
+          <div class="hero-card-value"><span id="heroMtdKg">—</span><span class="unit">kg</span></div>
+          <div class="hero-card-context" id="heroMtdContext">in progress</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-label">Tagged Actors</div>
+          <div class="hero-card-value" id="heroTaggedCount">—</div>
+          <div class="hero-card-breakdown" id="heroBreakdown"></div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-label">Pending Tag Requests</div>
+          <div class="hero-card-value" id="heroPendingCount">—</div>
+          <div class="hero-card-sub">Awaiting Circul review</div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Recent activity from your network</h3>
+        </div>
+        <div class="section-card-body">
+          <table class="tbl">
+            <thead><tr><th>Actor</th><th>Role</th><th>Region</th><th>YTD kg</th></tr></thead>
+            <tbody id="recentActivityBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- NETWORK TAB -->
+    <div class="tab-pane hidden" id="paneNetwork">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Network actors (<span id="networkCount">0</span> active)</h3>
+          <div class="section-card-actions">
+            <button class="btn btn-primary" onclick="showTagForm()">+ Tag a new actor</button>
+          </div>
+        </div>
+        <div class="section-card-body">
+          <table class="tbl">
+            <thead><tr><th>Actor</th><th>Role</th><th>Region</th><th>Status</th><th>Tagged since</th><th>YTD kg</th><th></th></tr></thead>
+            <tbody id="networkBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tag form (hidden by default) -->
+      <div class="section-card hidden" id="tagFormCard">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Tag a new actor</h3>
+        </div>
+        <div class="section-card-body">
+          <div class="form-stack">
+            <div class="form-group">
+              <label class="form-label">Phone number</label>
+              <input class="form-input" type="tel" id="tagPhone" placeholder="0244 000 000" onblur="lookupActor()">
+              <div class="form-help">Spaces optional. <code>0241555042</code>, <code>0241 555 042</code>, <code>+233241555042</code> — all work. Mode 1 only in v0: the actor must already be on Circul.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Role</label>
+              <select class="form-input" id="tagRole" onchange="lookupActor()">
+                <option value="collector">Collector</option>
+                <option value="aggregator">Aggregator</option>
+                <option value="driver">Driver</option>
+                <option value="agent">Agent</option>
+              </select>
+            </div>
+            <div id="matchSlot"></div>
+            <div class="form-group">
+              <label class="form-label">How does your organization support this actor?</label>
+              <textarea class="form-input" id="tagProof" rows="4" placeholder="Brief description of the relationship. Be specific — your description goes into the audit trail."></textarea>
+              <div class="form-help">Required. Visible to Circul reviewers and (potentially) downstream brand-level stakeholders.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Supporting document URL <span style="color:var(--text-3);font-weight:400">(optional)</span></label>
+              <input class="form-input" type="url" id="tagPhotoUrl" placeholder="https://...">
+              <div class="form-help">Photo upload backend is mocked in v0 — paste a URL to an image you've hosted elsewhere if you have proof material.</div>
+            </div>
+            <div id="tagFormError" class="form-error hidden"></div>
+            <div id="tagFormSuccess" class="form-success hidden"></div>
+            <div class="form-actions">
+              <button class="btn" onclick="hideTagForm()">Cancel</button>
+              <button class="btn btn-primary" onclick="submitTagRequest()">Submit for review</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAG REQUESTS TAB -->
+    <div class="tab-pane hidden" id="paneRequests">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">All tag requests</h3>
+        </div>
+        <div class="section-card-body">
+          <table class="tbl">
+            <thead><tr><th>Actor</th><th>Role</th><th>Submitted</th><th>Status</th><th>Decision</th></tr></thead>
+            <tbody id="requestsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div class="tab-pane hidden" id="paneReports">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Impact report</h3>
+        </div>
+        <div class="section-card-body">
+          <div class="filter-row" id="periodPills">
+            <div class="filter-pill active" data-period="mtd">Month to date</div>
+            <div class="filter-pill" data-period="ytd">YTD</div>
+            <div class="filter-pill" data-period="all">All time</div>
+          </div>
+          <div class="filter-row" id="materialPills">
+            <div class="filter-pill active" data-material="">All materials</div>
+            <div class="filter-pill" data-material="PET">PET</div>
+            <div class="filter-pill" data-material="HDPE">HDPE</div>
+            <div class="filter-pill" data-material="LDPE">LDPE</div>
+            <div class="filter-pill" data-material="PP">PP</div>
+          </div>
+          <div class="filter-row" id="actorPills">
+            <div class="filter-pill active" data-actor="">All actors</div>
+            <div class="filter-pill" data-actor="collector">Collectors only</div>
+            <div class="filter-pill" data-actor="aggregator">Aggregators only</div>
+          </div>
+          <h4 style="margin:24px 0 12px;font-size:0.9rem;color:var(--text-2)" id="reportPreviewTitle">Preview</h4>
+          <div id="reportPreview"></div>
+          <div class="methodology-link">
+            Attribution: first-tagged-touchpoint, no double-counting. v0 counts at source-of-entry (collector→aggregator). <a href="/methodology/impact-attribution-v1.html" target="_blank">Methodology document</a>.
+          </div>
+          <div class="export-row">
+            <button class="btn btn-primary" onclick="downloadReport('pdf')">📄 Download PDF</button>
+            <button class="btn" onclick="downloadReport('xlsx')">📊 Download Excel (.xlsx)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="dash-footer">Powered by Circul · Impact Partner Dashboard v1</div>
+</div>
+
+<!-- Untag confirmation modal -->
+<div class="modal-overlay hidden" id="untagModal">
+  <div class="modal">
+    <h3 id="untagModalTitle">Remove from your network?</h3>
+    <p id="untagModalBody">Their YTD attribution will no longer count in your impact reports. You can re-tag them later if needed.</p>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Reason <span style="color:var(--text-3);font-weight:400">(optional)</span></label>
+      <input class="form-input" id="untagReason" placeholder="e.g. Left program · No longer active · Tagged in error">
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeUntagModal()">Cancel</button>
+      <button class="btn btn-bad" onclick="confirmUntag()">Confirm untag</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN_KEY = 'circul_token_v1';
+const ROLE_KEY  = 'circul_role_v1';
+const PARTNER_KEY = 'circul_partner_v1';
+let state = {
+  token: localStorage.getItem(TOKEN_KEY) || '',
+  partner: null,
+  pendingUntagTagId: null,
+  reportFilters: { period: 'mtd', material: '', region: '', actor_type: '' }
+};
+
+function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (state.token) opts.headers['Authorization'] = 'Bearer ' + state.token;
+  return fetch(path, opts).then(function (r) {
+    if (r.status === 401) { doLogout(); throw new Error('Auth expired'); }
+    return r.json();
+  });
+}
+
+function doLogin(evt) {
+  evt.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  fetch('/api/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'email', email: email, password: password })
+  }).then(function (r) { return r.json(); }).then(function (data) {
+    if (!data.success || data.role !== 'impact_partner') {
+      errEl.textContent = data.message || 'Invalid Impact Partner credentials.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    state.token = data.token;
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(ROLE_KEY, data.role);
+    localStorage.setItem(PARTNER_KEY, JSON.stringify(data.user));
+    showDashboard();
+  }).catch(function (err) {
+    errEl.textContent = 'Network error. Try again.';
+    errEl.classList.remove('hidden');
+  });
+  return false;
+}
+
+function doLogout() {
+  state.token = '';
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(ROLE_KEY);
+  localStorage.removeItem(PARTNER_KEY);
+  document.getElementById('dashRoot').classList.add('hidden');
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function showDashboard() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('dashRoot').classList.remove('hidden');
+  loadMe().then(function () {
+    loadHomeData();
+  });
+}
+
+function loadMe() {
+  return api('/api/impact-partner/me').then(function (d) {
+    if (!d.success) return;
+    state.partner = d.partner;
+    const label = (d.partner.name || 'Partner') + (d.partner.contact_name ? ' · ' + d.partner.contact_name : '');
+    document.getElementById('partnerLabel').textContent = label;
+    document.getElementById('heroTaggedCount').textContent = d.counts.tagged_actors;
+    document.getElementById('heroPendingCount').textContent = d.counts.pending_tag_requests;
+    const breakdown = document.getElementById('heroBreakdown');
+    breakdown.innerHTML = '';
+    ['aggregator', 'collector', 'driver', 'agent'].forEach(function (role) {
+      const n = d.counts.by_role[role] || 0;
+      if (n > 0) {
+        const cls = 'nav-pill nav-pill-' + role;
+        const label = role.charAt(0).toUpperCase() + role.slice(1);
+        breakdown.innerHTML += '<div class="hero-card-breakdown-row"><span class="' + cls + '">' + label + '</span><span class="count">' + n + '</span></div>';
+      }
+    });
+  });
+}
+
+function loadHomeData() {
+  // YTD + MTD totals
+  Promise.all([
+    api('/api/impact-partner/report?period=ytd'),
+    api('/api/impact-partner/report?period=mtd'),
+    api('/api/impact-partner/network')
+  ]).then(function (results) {
+    const ytd = results[0], mtd = results[1], net = results[2];
+    if (ytd.success) document.getElementById('heroYtdKg').textContent = Math.round(ytd.totals.total_kg).toLocaleString();
+    if (mtd.success) document.getElementById('heroMtdKg').textContent = Math.round(mtd.totals.total_kg).toLocaleString();
+    // Recent activity = top-N network rows by ytd_kg
+    if (net.success) {
+      const rows = (net.network || []).slice().sort(function (a, b) { return (b.ytd_kg || 0) - (a.ytd_kg || 0); }).slice(0, 8);
+      const tbody = document.getElementById('recentActivityBody');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="tbl-empty">No tagged actors yet. Visit My Network to tag your first.</td></tr>';
+      } else {
+        tbody.innerHTML = rows.map(function (r) {
+          return '<tr><td><div class="tbl-actor-name">' + escapeHtml(r.name || '(unnamed)') + '</div></td>' +
+                 '<td><span class="nav-pill nav-pill-' + r.actor_type + '">' + r.actor_type + '</span></td>' +
+                 '<td>' + escapeHtml(r.region || '—') + '</td>' +
+                 '<td>' + (r.ytd_kg ? Math.round(r.ytd_kg).toLocaleString() + ' kg' : '—') + '</td></tr>';
+        }).join('');
+      }
+    }
+  });
+}
+
+function loadNetwork() {
+  api('/api/impact-partner/network').then(function (d) {
+    if (!d.success) return;
+    const rows = d.network || [];
+    document.getElementById('networkCount').textContent = rows.length;
+    const tbody = document.getElementById('networkBody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="tbl-empty">No tagged actors yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function (r) {
+      return '<tr><td><div class="tbl-actor-name">' + escapeHtml(r.name || '(unnamed)') + '</div></td>' +
+             '<td><span class="nav-pill nav-pill-' + r.actor_type + '">' + r.actor_type + '</span></td>' +
+             '<td>' + escapeHtml(r.region || '—') + '</td>' +
+             '<td><span class="pill pill-active">Active</span></td>' +
+             '<td>' + (r.active_since ? r.active_since.slice(0, 10) : '—') + '</td>' +
+             '<td>' + (r.ytd_kg ? Math.round(r.ytd_kg).toLocaleString() : '0') + '</td>' +
+             '<td><button class="btn btn-ghost btn-bad" onclick="openUntagModal(' + r.tag_id + ',\'' + escapeAttr(r.name) + '\',' + (r.ytd_kg || 0) + ')">Untag</button></td></tr>';
+    }).join('');
+  });
+}
+
+function loadRequests() {
+  api('/api/impact-partner/tag-requests').then(function (d) {
+    if (!d.success) return;
+    const rows = d.tag_requests || [];
+    const tbody = document.getElementById('requestsBody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="tbl-empty">No tag requests yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function (r) {
+      const submitted = r.requested_at ? r.requested_at.slice(0, 10) : '—';
+      let statusPill = '<span class="pill pill-pending">Pending Review</span>';
+      let decision = '—';
+      if (r.status === 'approved') {
+        statusPill = '<span class="pill pill-active">Approved</span>';
+        decision = 'Approved by Circul · ' + (r.reviewed_at ? r.reviewed_at.slice(0, 10) : '');
+      } else if (r.status === 'rejected') {
+        statusPill = '<span class="pill pill-rejected">Rejected</span>';
+        decision = (r.decision_category || 'rejected') + (r.decision_note ? ' · ' + escapeHtml(r.decision_note) : '');
+      }
+      return '<tr><td><div class="tbl-actor-name">' + escapeHtml(r.actor_phone) + '</div>' +
+             '<div class="tbl-actor-sub">' + (r.mode === 'new' ? 'new actor' : 'existing') + '</div></td>' +
+             '<td><span class="nav-pill nav-pill-' + r.actor_role + '">' + r.actor_role + '</span></td>' +
+             '<td>' + submitted + '</td>' +
+             '<td>' + statusPill + '</td>' +
+             '<td style="font-size:0.78rem">' + decision + '</td></tr>';
+    }).join('');
+  });
+}
+
+function loadReport() {
+  const f = state.reportFilters;
+  const qs = '?period=' + encodeURIComponent(f.period) +
+             (f.material ? '&material=' + encodeURIComponent(f.material) : '') +
+             (f.actor_type ? '&actor_type=' + encodeURIComponent(f.actor_type) : '');
+  api('/api/impact-partner/report' + qs).then(function (d) {
+    if (!d.success) return;
+    document.getElementById('reportPreviewTitle').textContent = 'Preview: ' + f.period.toUpperCase() +
+      (f.material ? ' · ' + f.material : ' · All materials') +
+      (f.actor_type ? ' · ' + f.actor_type + 's only' : ' · All actors');
+    const prev = document.getElementById('reportPreview');
+    const total = Math.round(d.totals.total_kg).toLocaleString();
+    let html = '<div class="report-preview-card"><span class="label">Total impact (kg, direct attribution)</span><span class="value">' + total + ' kg</span></div>';
+    Object.keys(d.by_material || {}).sort().forEach(function (mat) {
+      html += '<div class="report-preview-card"><span class="label">' + mat + '</span><span class="value">' + Math.round(d.by_material[mat]).toLocaleString() + ' kg</span></div>';
+    });
+    if (!total || total === '0') {
+      html += '<div style="font-size:0.85rem;color:var(--text-3);margin-top:8px">No attributed tonnage in this window. Tag actors and wait for them to log transactions.</div>';
+    }
+    prev.innerHTML = html;
+  });
+}
+
+function downloadReport(fmt) {
+  const f = state.reportFilters;
+  const qs = '?period=' + encodeURIComponent(f.period) +
+             (f.material ? '&material=' + encodeURIComponent(f.material) : '') +
+             (f.actor_type ? '&actor_type=' + encodeURIComponent(f.actor_type) : '') +
+             '&token=' + encodeURIComponent(state.token);
+  window.open('/api/impact-partner/report.' + fmt + qs, '_blank');
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.dash-tab').forEach(function (el) { el.classList.toggle('active', el.dataset.tab === name); });
+  document.querySelectorAll('.tab-pane').forEach(function (el) { el.classList.add('hidden'); });
+  const target = ({ home: 'paneHome', network: 'paneNetwork', requests: 'paneRequests', reports: 'paneReports' })[name];
+  document.getElementById(target).classList.remove('hidden');
+  if (name === 'home') loadHomeData();
+  if (name === 'network') loadNetwork();
+  if (name === 'requests') loadRequests();
+  if (name === 'reports') loadReport();
+}
+
+// Filter pills wiring (event delegation)
+document.addEventListener('click', function (e) {
+  const pill = e.target.closest('.filter-pill');
+  if (!pill) return;
+  const row = pill.parentElement;
+  if (!row.id || !row.id.endsWith('Pills')) return;
+  row.querySelectorAll('.filter-pill').forEach(function (p) { p.classList.remove('active'); });
+  pill.classList.add('active');
+  if (pill.dataset.period !== undefined)   state.reportFilters.period = pill.dataset.period;
+  if (pill.dataset.material !== undefined) state.reportFilters.material = pill.dataset.material;
+  if (pill.dataset.actor !== undefined)    state.reportFilters.actor_type = pill.dataset.actor;
+  loadReport();
+});
+
+function showTagForm() {
+  document.getElementById('tagFormCard').classList.remove('hidden');
+  document.getElementById('tagPhone').focus();
+}
+function hideTagForm() {
+  document.getElementById('tagFormCard').classList.add('hidden');
+  document.getElementById('tagPhone').value = '';
+  document.getElementById('tagProof').value = '';
+  document.getElementById('tagPhotoUrl').value = '';
+  document.getElementById('matchSlot').innerHTML = '';
+  document.getElementById('tagFormError').classList.add('hidden');
+  document.getElementById('tagFormSuccess').classList.add('hidden');
+}
+
+function lookupActor() {
+  const phone = document.getElementById('tagPhone').value.trim();
+  const role = document.getElementById('tagRole').value;
+  if (!phone) { document.getElementById('matchSlot').innerHTML = ''; return; }
+  // Server-side lookup is the source of truth; we submit and let it decide.
+  // For instant UX feedback, hit the report endpoint as a no-op? Simpler: just
+  // show a neutral hint and rely on submit-time validation.
+  document.getElementById('matchSlot').innerHTML =
+    '<div class="match-box" style="background:rgba(150,170,200,0.06);border-color:var(--border)">' +
+    '<div class="title" style="color:var(--text-2)">Will check Circul on submit</div>' +
+    '<div class="sub">' + escapeHtml(phone) + ' · ' + role + '</div></div>';
+}
+
+function submitTagRequest() {
+  const phone = document.getElementById('tagPhone').value.trim();
+  const role = document.getElementById('tagRole').value;
+  const proof_text = document.getElementById('tagProof').value.trim();
+  const proof_photo_url = document.getElementById('tagPhotoUrl').value.trim() || null;
+  const errEl = document.getElementById('tagFormError');
+  const okEl = document.getElementById('tagFormSuccess');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+  if (!phone || !proof_text) {
+    errEl.textContent = 'Phone and proof description are required.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  api('/api/impact-partner/tag-requests', {
+    method: 'POST',
+    body: JSON.stringify({ phone: phone, role: role, proof_text: proof_text, proof_photo_url: proof_photo_url })
+  }).then(function (d) {
+    if (!d.success) {
+      errEl.textContent = d.message || 'Submission failed';
+      errEl.classList.remove('hidden');
+      if (d.matched_actor === undefined) {
+        // miss-box on lookup failure
+        document.getElementById('matchSlot').innerHTML =
+          '<div class="match-box miss"><div class="title">Not found on Circul</div>' +
+          '<div class="sub">Mode 2 (create + tag) is deferred to v0.5. Ask the actor to register first, then re-submit.</div></div>';
+      }
+      return;
+    }
+    okEl.textContent = 'Submitted. Circul will review and notify you.';
+    okEl.classList.remove('hidden');
+    document.getElementById('matchSlot').innerHTML =
+      '<div class="match-box"><div class="title">✓ Matched: ' + escapeHtml(d.matched_actor.name) + '</div>' +
+      '<div class="sub">Tag request queued for review.</div></div>';
+    loadMe();
+  }).catch(function () {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  });
+}
+
+function openUntagModal(tagId, name, ytdKg) {
+  state.pendingUntagTagId = tagId;
+  document.getElementById('untagModalTitle').textContent = 'Remove ' + name + ' from your network?';
+  document.getElementById('untagModalBody').textContent = (ytdKg
+    ? 'Their ' + Math.round(ytdKg).toLocaleString() + ' kg YTD attribution will no longer count in your impact reports. '
+    : '') + 'You can re-tag them later if needed — past reports still reference the historical state.';
+  document.getElementById('untagReason').value = '';
+  document.getElementById('untagModal').classList.remove('hidden');
+}
+function closeUntagModal() {
+  state.pendingUntagTagId = null;
+  document.getElementById('untagModal').classList.add('hidden');
+}
+function confirmUntag() {
+  if (!state.pendingUntagTagId) return;
+  const reason = document.getElementById('untagReason').value.trim();
+  api('/api/impact-partner/tags/' + state.pendingUntagTagId, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason: reason })
+  }).then(function (d) {
+    closeUntagModal();
+    if (d.success) { loadNetwork(); loadMe(); }
+  });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c];
+  });
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/'/g, '&apos;'); }
+
+// Boot
+if (state.token) {
+  showDashboard();
+}
+</script>
+</body>
+</html>

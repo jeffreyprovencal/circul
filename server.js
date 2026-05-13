@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const PDFDocument = require('pdfkit');           // Phase 5 — Impact Partner PDF export
+const ExcelJS = require('exceljs');              // Phase 5 — Impact Partner Excel export
 const CirculRoles = require('./shared/roles');
 const { EVENTS, notify, notifyAdmin } = require('./shared/notifications');
 const { normalizeGhanaPhone, getPhoneVariants } = require('./shared/phone');
@@ -4519,7 +4521,8 @@ async function handleRegisteredUssd(parts, collector) {
   const m = gate.menuParts;
   const depth = m.length;
 
-  if (depth === 0) return 'CON 1. Log Drop-off\n2. Sell My Material\n3. Discovery\n4. My Stats\n0. Exit';
+  // ussd-lint-allow: Phase 5 adds "5. Programs" — 7-line CON intended (Impact Partner transparency)
+  if (depth === 0) return 'CON 1. Log Drop-off\n2. Sell My Material\n3. Discovery\n4. My Stats\n5. Programs\n0. Exit';
 
   // ── Exit ──
   if (m[0] === '0') return `END Thank you, ${collector.first_name}!`;
@@ -4529,6 +4532,9 @@ async function handleRegisteredUssd(parts, collector) {
 
   // ── Discovery ──
   if (m[0] === '3') return await handleCollectorDiscovery(m.slice(1), collector);
+
+  // ── Programs (Phase 5 — Impact Partner transparency) ──
+  if (m[0] === '5') return await handleUssdPrograms('collector', collector.id);
 
   // ── My Stats (with rating sub-menu) ──
   if (m[0] === '4') {
@@ -6323,20 +6329,55 @@ async function handleDriverEarnings(m, driver) {
        + '\nPaid ' + paid + ' / Owed ' + owed;
 }
 
-// ── Driver "More" submenu (Phase 6) ──
+// ── Driver "More" submenu (Phase 6 + Phase 5 Programs) ──
 async function handleDriverMore(m, driver) {
   if (m.length === 0) {
+    // ussd-lint-allow: Phase 5 adds Programs as item 4 — 6-line CON intended
     return 'CON More options'
          + '\n1. Recent deliveries'
          + '\n2. My ratings'
          + '\n3. My aggregators'
+         + '\n4. Programs'
          + '\n0. Back';
   }
   if (m[0] === '0') return 'END Cancelled.';
   if (m[0] === '1') return await handleDriverRecentDeliveries(m.slice(1), driver);
   if (m[0] === '2') return await handleDriverRatings(m.slice(1), driver);
   if (m[0] === '3') return await handleDriverAggregators(m.slice(1), driver);
+  if (m[0] === '4') return await handleUssdPrograms('driver', driver.id);
   return 'END Invalid option.\nDial again to retry.';
+}
+
+// ── Shared Programs renderer (Phase 5 — Impact Partner transparency) ──
+// Called from both driver "More" and collector main-menu (item 5). Renders
+// the "Your programs:" CON if any active tags exist, or a friendly END if
+// the actor is not in any partner programs.
+async function handleUssdPrograms(actorType, actorId) {
+  const r = await pool.query(
+    `SELECT t.active_since, ip.name AS partner_name, ip.company
+     FROM impact_partner_actor_tags t
+     JOIN impact_partners ip ON ip.id = t.impact_partner_id
+     WHERE t.actor_type = $1 AND t.actor_id = $2 AND t.deactivated_at IS NULL
+     ORDER BY t.active_since DESC LIMIT 3`,
+    [actorType, actorId]
+  );
+  if (!r.rows.length) {
+    return 'END No partner programs.\n\nDial back to access\nyour menu.';
+  }
+  let msg = 'END Your programs:';
+  r.rows.forEach(function (row, i) {
+    const since = row.active_since
+      ? (function () {
+          const d = new Date(row.active_since);
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          return dd + '/' + mm;
+        })()
+      : '';
+    const partner = (row.partner_name || 'Partner').slice(0, 20);
+    msg += '\n' + (i + 1) + '. ' + partner + ' (' + since + ')';
+  });
+  return msg;
 }
 
 // Last 3 confirmed deliveries — short DD/MM date, kg, fee on one row each.
@@ -9132,6 +9173,30 @@ app.post('/api/auth/login', async (req, res) => {
         return res.json({ success: true, role: 'admin', roles: null, token, user: { id: admin.id, email: admin.email, name: admin.name, role: 'admin' } });
       }
 
+      // 1b. Impact Partner (Phase 5 apex tier — checked before buyer tiers since
+      //     impact_partners can't dual-role with processor/recycler/converter)
+      const ipResult = await pool.query(
+        `SELECT id, name, company, email, password_hash, contact_name
+         FROM impact_partners WHERE email=$1 AND is_active=true`,
+        [emailLower]
+      );
+      if (ipResult.rows.length) {
+        const ip = ipResult.rows[0];
+        const valid = await verifyPassword(password, ip.password_hash);
+        if (!valid) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        const token = generateToken(
+          { type: 'impact_partner', id: ip.id, email: emailLower, role: 'impact_partner' },
+          AUTH_SECRET
+        );
+        return res.json({
+          success: true, role: 'impact_partner', roles: null, token,
+          user: {
+            id: ip.id, name: ip.name, company: ip.company,
+            contact_name: ip.contact_name, email: emailLower, role: 'impact_partner'
+          }
+        });
+      }
+
       // 2. Processor
       const procResult = await pool.query(`SELECT id, name, company, email, password_hash FROM processors WHERE email=$1 AND is_active=true`, [emailLower]);
       // 3. Recycler
@@ -9265,6 +9330,680 @@ app.get('/api/me/prices', requireAuth, async (req, res) => {
     const result = await pool.query(`SELECT * FROM posted_prices WHERE poster_type=$1 AND poster_id=$2 AND is_active=true ORDER BY material_type`, [role, req.user.id]);
     res.json({ success: true, prices: result.rows });
   } catch (err) { res.status(500).json({ success: false, message: 'Server error' }); }
+});
+
+// ============================================
+// IMPACT PARTNER ENDPOINTS (Phase 5)
+// ============================================
+//
+// Architecture: WORK (and future brand-tier partners) tag actors they support,
+// view monthly/YTD impact reports for their tagged network, and export branded
+// PDF/Excel for downstream stakeholders. Tag requests go through Circul admin
+// review (admin queue lives in admin.html as the "Tag Requests" tab).
+//
+// Tonnage attribution (the load-bearing correctness gate): first-tagged-
+// touchpoint rule, no double-counting. v0 counts only at source-of-entry
+// (collector→aggregator) transactions. If EITHER party is tagged we attribute
+// kg ONCE at the upstream-most tagged tier. Downstream tagged actors
+// (driver/processor/recycler/converter) get visibility in transaction listings
+// but don't add new kg — this is a v0 scope cut documented in the methodology
+// page (public/methodology/impact-attribution-v1.html).
+
+// ── Auth guards ──
+function requireImpactPartner(req, res, next) {
+  if (!req.user.hasRole('impact_partner')) {
+    return res.status(403).json({ success: false, message: 'Impact Partner access only' });
+  }
+  next();
+}
+
+// ── Attribution SQL helper ──
+//
+// Returns rows for kg attributed to partnerId between [startDate, endDate),
+// optionally filtered by material / region / actor_type. The query:
+//   1. Resolves the set of currently-active tagged actors (collector/aggregator)
+//   2. For each source-of-entry transaction in window, computes the first
+//      tagged touchpoint (collector wins over aggregator — upstream-most)
+//   3. Joins region from the collector or aggregator row
+//   4. Groups by material × first_tagged_tier × region
+//
+// Driver/agent tags exist in the schema but don't contribute kg at v0 — they
+// surface in the Programs view + admin queue but not in attribution math.
+// Same rationale as in the spec: drivers / agents move material but aren't
+// the source-of-entry; counting them risks double-attribution.
+async function computeImpactAttribution(partnerId, startDate, endDate, filters) {
+  filters = filters || {};
+  const params = [partnerId, startDate, endDate];
+  let extraWhere = '';
+  if (filters.material) {
+    params.push(filters.material);
+    extraWhere += ' AND t.material_type = $' + params.length;
+  }
+  if (filters.region) {
+    params.push(filters.region);
+    extraWhere += ' AND COALESCE(c.region, a.region) = $' + params.length;
+  }
+  if (filters.actor_type === 'collector' || filters.actor_type === 'aggregator') {
+    extraWhere += " AND first_tagged_tier = '" + filters.actor_type + "'";
+  }
+  const sql = `
+    WITH tagged AS (
+      SELECT actor_type, actor_id
+      FROM impact_partner_actor_tags
+      WHERE impact_partner_id = $1 AND deactivated_at IS NULL
+    ),
+    source_txns AS (
+      SELECT
+        t.id AS txn_id,
+        t.gross_weight_kg,
+        t.material_type,
+        t.transaction_date,
+        t.collector_id,
+        t.aggregator_id,
+        c.region AS collector_region,
+        a.region AS aggregator_region,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id)
+            THEN 'collector'
+          WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id)
+            THEN 'aggregator'
+          ELSE NULL
+        END AS first_tagged_tier
+      FROM transactions t
+      LEFT JOIN collectors  c ON c.id = t.collector_id
+      LEFT JOIN aggregators a ON a.id = t.aggregator_id
+      WHERE t.transaction_date >= $2 AND t.transaction_date < $3
+        AND (
+          EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id)
+          OR
+          EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id)
+        )
+        ${extraWhere}
+    )
+    SELECT
+      first_tagged_tier,
+      material_type,
+      COALESCE(collector_region, aggregator_region) AS region,
+      SUM(gross_weight_kg)::numeric(12,2) AS total_kg,
+      COUNT(*)::int AS txn_count
+    FROM source_txns
+    GROUP BY first_tagged_tier, material_type, COALESCE(collector_region, aggregator_region)
+    ORDER BY total_kg DESC
+  `;
+  const r = await pool.query(sql, params);
+  return r.rows;
+}
+
+// Period helpers — return [startISO, endISO) for "ytd" | "mtd" | "all".
+function periodRange(period) {
+  const now = new Date();
+  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const nextYear  = new Date(Date.UTC(now.getUTCFullYear() + 1, 0, 1));
+  if (period === 'mtd') return [monthStart.toISOString(), nextMonth.toISOString()];
+  if (period === 'all') return ['1970-01-01T00:00:00Z', nextYear.toISOString()];
+  // default 'ytd'
+  return [yearStart.toISOString(), nextYear.toISOString()];
+}
+
+// ── Phone lookup across all actor tables ──
+async function lookupActorByPhone(phone, role) {
+  const variants = getPhoneVariants(normalizeGhanaPhone(phone));
+  if (!variants.length) return null;
+  const tableMap = { collector: 'collectors', aggregator: 'aggregators', agent: 'agents', driver: 'drivers' };
+  const table = tableMap[role];
+  if (!table) return null;
+  const nameCol = (role === 'collector' || role === 'agent' || role === 'driver')
+    ? "first_name || ' ' || last_name"
+    : 'name';
+  const r = await pool.query(
+    `SELECT id, ${nameCol} AS name, phone FROM ${table}
+     WHERE phone = ANY($1) AND is_active = true LIMIT 1`,
+    [variants]
+  );
+  return r.rows[0] || null;
+}
+
+// ── GET /api/impact-partner/me ──
+app.get('/api/impact-partner/me', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const ip = await pool.query(
+      `SELECT id, name, company, email, contact_name, country, created_at
+       FROM impact_partners WHERE id = $1`,
+      [req.user.id]
+    );
+    if (!ip.rows.length) return res.status(404).json({ success: false, message: 'Partner not found' });
+    const [tagged, pending] = await Promise.all([
+      pool.query(
+        `SELECT actor_type, COUNT(*)::int AS n
+         FROM impact_partner_actor_tags
+         WHERE impact_partner_id = $1 AND deactivated_at IS NULL
+         GROUP BY actor_type`,
+        [req.user.id]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM impact_partner_actor_tag_requests
+         WHERE impact_partner_id = $1 AND status = 'pending_review'`,
+        [req.user.id]
+      )
+    ]);
+    const tagCounts = { collector: 0, aggregator: 0, agent: 0, driver: 0 };
+    tagged.rows.forEach(function (r) { tagCounts[r.actor_type] = r.n; });
+    res.json({
+      success: true,
+      partner: ip.rows[0],
+      counts: {
+        tagged_actors: tagged.rows.reduce(function (s, r) { return s + r.n; }, 0),
+        by_role: tagCounts,
+        pending_tag_requests: pending.rows[0].n
+      }
+    });
+  } catch (err) {
+    console.error('Impact partner /me error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/impact-partner/network ──
+//
+// Returns the list of tagged actors with YTD kg attribution. kg per actor is
+// derived from source-of-entry transactions where THIS actor was the
+// first-tagged tier (matches the methodology).
+app.get('/api/impact-partner/network', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const [startISO, endISO] = periodRange('ytd');
+    const tags = await pool.query(
+      `SELECT t.id AS tag_id, t.actor_type, t.actor_id, t.active_since,
+              CASE t.actor_type
+                WHEN 'collector'  THEN (SELECT c.first_name || ' ' || c.last_name FROM collectors  c WHERE c.id = t.actor_id)
+                WHEN 'aggregator' THEN (SELECT a.name FROM aggregators a WHERE a.id = t.actor_id)
+                WHEN 'agent'      THEN (SELECT ag.first_name || ' ' || ag.last_name FROM agents     ag WHERE ag.id = t.actor_id)
+                WHEN 'driver'     THEN (SELECT d.first_name || ' ' || d.last_name FROM drivers    d WHERE d.id = t.actor_id)
+              END AS name,
+              CASE t.actor_type
+                WHEN 'collector'  THEN (SELECT c.region FROM collectors  c WHERE c.id = t.actor_id)
+                WHEN 'aggregator' THEN (SELECT a.region FROM aggregators a WHERE a.id = t.actor_id)
+                WHEN 'agent'      THEN (SELECT ag.region FROM agents    ag WHERE ag.id = t.actor_id)
+                WHEN 'driver'     THEN (SELECT d.region FROM drivers    d WHERE d.id = t.actor_id)
+              END AS region
+       FROM impact_partner_actor_tags t
+       WHERE t.impact_partner_id = $1 AND t.deactivated_at IS NULL
+       ORDER BY t.active_since DESC`,
+      [req.user.id]
+    );
+    // Per-actor YTD kg via attribution helper (only collector + aggregator
+    // contribute kg in v0; driver/agent show 0).
+    const attribution = await computeImpactAttribution(req.user.id, startISO, endISO, {});
+    const kgByActorKey = {};
+    attribution.forEach(function (row) {
+      // Aggregate per tier+region — to attribute per-actor we'd re-query;
+      // for the network view, surface kg by tier. Per-actor kg = portion of
+      // tier kg held by this actor (computed below from raw txns).
+    });
+    // Per-actor kg roll-up (only for collector + aggregator tiers — they're
+    // the source-of-entry tiers per attribution methodology).
+    const perActor = await pool.query(
+      `WITH tagged AS (
+         SELECT actor_type, actor_id FROM impact_partner_actor_tags
+         WHERE impact_partner_id = $1 AND deactivated_at IS NULL
+       )
+       SELECT
+         CASE
+           WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id) THEN 'collector'
+           WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id) THEN 'aggregator'
+         END AS tier,
+         CASE
+           WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id) THEN t.collector_id
+           WHEN EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id) THEN t.aggregator_id
+         END AS actor_id,
+         SUM(t.gross_weight_kg)::numeric(12,2) AS kg
+       FROM transactions t
+       WHERE t.transaction_date >= $2 AND t.transaction_date < $3
+         AND (
+           EXISTS (SELECT 1 FROM tagged WHERE actor_type='collector'  AND actor_id = t.collector_id)
+           OR
+           EXISTS (SELECT 1 FROM tagged WHERE actor_type='aggregator' AND actor_id = t.aggregator_id)
+         )
+       GROUP BY tier, actor_id`,
+      [req.user.id, startISO, endISO]
+    );
+    perActor.rows.forEach(function (r) {
+      kgByActorKey[r.tier + ':' + r.actor_id] = parseFloat(r.kg);
+    });
+    const network = tags.rows.map(function (t) {
+      return {
+        tag_id: t.tag_id,
+        actor_type: t.actor_type,
+        actor_id: t.actor_id,
+        name: t.name,
+        region: t.region,
+        active_since: t.active_since,
+        ytd_kg: kgByActorKey[t.actor_type + ':' + t.actor_id] || 0
+      };
+    });
+    res.json({ success: true, network: network });
+  } catch (err) {
+    console.error('Impact partner /network error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/impact-partner/tag-requests ──
+app.get('/api/impact-partner/tag-requests', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, mode, actor_phone, actor_role, actor_id_existing, actor_table_existing,
+              proof_text, proof_photo_url, status, requested_at, reviewed_at,
+              decision_category, decision_note
+       FROM impact_partner_actor_tag_requests
+       WHERE impact_partner_id = $1
+       ORDER BY requested_at DESC LIMIT 200`,
+      [req.user.id]
+    );
+    res.json({ success: true, tag_requests: r.rows });
+  } catch (err) {
+    console.error('Impact partner /tag-requests error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── POST /api/impact-partner/tag-requests ──
+//
+// Mode 1 (tag existing actor) only in v0. Mode 2 (create + tag new actor)
+// returns 400 with a clear message — DEFERRED to v0.5 (needs SMS invite +
+// USSD claim infrastructure).
+app.post('/api/impact-partner/tag-requests', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const { phone, role, proof_text, proof_photo_url } = req.body || {};
+    if (!phone || !role || !proof_text) {
+      return res.status(400).json({ success: false, message: 'phone, role, and proof_text are required' });
+    }
+    if (!['collector', 'aggregator', 'agent', 'driver'].includes(role)) {
+      return res.status(400).json({ success: false, message: 'role must be collector|aggregator|agent|driver' });
+    }
+    const actor = await lookupActorByPhone(phone, role);
+    if (!actor) {
+      return res.status(400).json({
+        success: false,
+        message: 'Actor not found on Circul. Mode 2 (create + tag) is deferred to v0.5.'
+      });
+    }
+    // Detect duplicate (already-tagged or already-pending request)
+    const tableMap = { collector: 'collectors', aggregator: 'aggregators', agent: 'agents', driver: 'drivers' };
+    const existingTag = await pool.query(
+      `SELECT id FROM impact_partner_actor_tags
+       WHERE impact_partner_id = $1 AND actor_type = $2 AND actor_id = $3 AND deactivated_at IS NULL`,
+      [req.user.id, role, actor.id]
+    );
+    if (existingTag.rows.length) {
+      return res.status(409).json({ success: false, message: 'Actor already tagged in your network.' });
+    }
+    const existingReq = await pool.query(
+      `SELECT id FROM impact_partner_actor_tag_requests
+       WHERE impact_partner_id = $1 AND actor_table_existing = $2 AND actor_id_existing = $3
+         AND status = 'pending_review'`,
+      [req.user.id, tableMap[role], actor.id]
+    );
+    if (existingReq.rows.length) {
+      return res.status(409).json({ success: false, message: 'A pending request for this actor already exists.' });
+    }
+    const ins = await pool.query(
+      `INSERT INTO impact_partner_actor_tag_requests
+         (impact_partner_id, mode, actor_phone, actor_role, actor_id_existing,
+          actor_table_existing, proof_text, proof_photo_url, requested_by_user_id)
+       VALUES ($1, 'existing', $2, $3, $4, $5, $6, $7, $1)
+       RETURNING id, status, requested_at`,
+      [req.user.id, phone, role, actor.id, tableMap[role], proof_text, proof_photo_url || null]
+    );
+    res.json({ success: true, tag_request: ins.rows[0], matched_actor: actor });
+  } catch (err) {
+    console.error('Impact partner POST /tag-requests error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── DELETE /api/impact-partner/tags/:id ──
+//
+// Self-service untag — no Circul review required (removing from your own
+// list only reduces your reported impact, no integrity risk).
+app.delete('/api/impact-partner/tags/:id', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid tag id' });
+    const reason = (req.body && req.body.reason) || null;
+    const r = await pool.query(
+      `UPDATE impact_partner_actor_tags
+         SET deactivated_at = NOW(), deactivation_reason = $3
+       WHERE id = $1 AND impact_partner_id = $2 AND deactivated_at IS NULL
+       RETURNING id, actor_type, actor_id, deactivated_at`,
+      [id, req.user.id, reason]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'Tag not found or already inactive' });
+    res.json({ success: true, tag: r.rows[0] });
+  } catch (err) {
+    console.error('Impact partner DELETE /tags/:id error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/impact-partner/report ──
+//
+// JSON report with filters. Powers the Reports tab preview cards.
+// ?period=ytd|mtd|all  &material=PET  &region=Greater%20Accra  &actor_type=collector
+app.get('/api/impact-partner/report', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const period = req.query.period || 'ytd';
+    const [startISO, endISO] = periodRange(period);
+    const filters = {
+      material: req.query.material || null,
+      region: req.query.region || null,
+      actor_type: req.query.actor_type || null
+    };
+    const rows = await computeImpactAttribution(req.user.id, startISO, endISO, filters);
+    const totals = {
+      total_kg: rows.reduce(function (s, r) { return s + parseFloat(r.total_kg); }, 0),
+      txn_count: rows.reduce(function (s, r) { return s + r.txn_count; }, 0)
+    };
+    const byMaterial = {};
+    rows.forEach(function (r) {
+      byMaterial[r.material_type] = (byMaterial[r.material_type] || 0) + parseFloat(r.total_kg);
+    });
+    res.json({
+      success: true,
+      period: period, start: startISO, end: endISO, filters: filters,
+      totals: totals,
+      by_material: byMaterial,
+      breakdown: rows
+    });
+  } catch (err) {
+    console.error('Impact partner /report error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/impact-partner/report.pdf ──
+//
+// Branded PDF report. pdfkit → res. Uses default Helvetica (Plus Jakarta Sans
+// would require shipping a TTF; deferred). Brand-clean: Circul logo block,
+// big total number, breakdown table, methodology note + Powered by Circul.
+app.get('/api/impact-partner/report.pdf', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const period = req.query.period || 'ytd';
+    const [startISO, endISO] = periodRange(period);
+    const filters = {
+      material: req.query.material || null,
+      region: req.query.region || null,
+      actor_type: req.query.actor_type || null
+    };
+    const [rows, partner] = await Promise.all([
+      computeImpactAttribution(req.user.id, startISO, endISO, filters),
+      pool.query(`SELECT name, company, contact_name FROM impact_partners WHERE id=$1`, [req.user.id])
+    ]);
+    const partnerName = (partner.rows[0] && partner.rows[0].name) || 'Impact Partner';
+    const totalKg = rows.reduce(function (s, r) { return s + parseFloat(r.total_kg); }, 0);
+    const byMaterial = {};
+    rows.forEach(function (r) {
+      byMaterial[r.material_type] = (byMaterial[r.material_type] || 0) + parseFloat(r.total_kg);
+    });
+    const periodLabel = period === 'mtd' ? 'Month to date'
+                      : period === 'all' ? 'All time'
+                      : 'Year to date';
+    const periodHuman = startISO.slice(0, 10) + ' → ' + endISO.slice(0, 10);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="circul-impact-report.pdf"');
+    const doc = new PDFDocument({ size: 'A4', margin: 48 });
+    doc.pipe(res);
+
+    // Header — Circul logo block + title
+    doc.fontSize(22).fillColor('#00e676').text('Circul', { continued: true });
+    doc.fillColor('#888').fontSize(14).text('  Impact Report', { align: 'left' });
+    doc.moveDown(0.3);
+    doc.fontSize(10).fillColor('#666').text(periodLabel + ' · ' + periodHuman);
+    doc.fillColor('#222').fontSize(13).text(partnerName, { align: 'left' });
+    doc.moveDown(1);
+
+    // Big total
+    doc.fontSize(11).fillColor('#666').text('TOTAL IMPACT (first-tagged-touchpoint attribution)');
+    doc.fontSize(42).fillColor('#00b25b').text(totalKg.toFixed(0) + ' kg');
+    doc.moveDown(0.6);
+
+    // By material breakdown
+    doc.fontSize(12).fillColor('#222').text('By material', { underline: true });
+    doc.moveDown(0.3);
+    doc.fontSize(11).fillColor('#222');
+    if (Object.keys(byMaterial).length === 0) {
+      doc.fillColor('#666').text('(no tagged-actor activity in this window)');
+    } else {
+      Object.keys(byMaterial).sort().forEach(function (mat) {
+        doc.text('  ' + mat + ': ' + byMaterial[mat].toFixed(0) + ' kg');
+      });
+    }
+    doc.moveDown(1);
+
+    // Per tier + region table
+    doc.fontSize(12).fillColor('#222').text('Breakdown by tier × material × region', { underline: true });
+    doc.moveDown(0.3);
+    doc.fontSize(10).fillColor('#222');
+    if (rows.length === 0) {
+      doc.fillColor('#666').text('  (none)');
+    } else {
+      rows.slice(0, 30).forEach(function (r) {
+        const tier = (r.first_tagged_tier || '?').padEnd(11);
+        const mat = (r.material_type || '?').padEnd(6);
+        const reg = (r.region || 'n/a').padEnd(20);
+        doc.text('  ' + tier + ' ' + mat + ' ' + reg + ' ' + parseFloat(r.total_kg).toFixed(0).padStart(7) + ' kg  · ' + r.txn_count + ' txns');
+      });
+      if (rows.length > 30) {
+        doc.fillColor('#666').text('  + ' + (rows.length - 30) + ' more rows (export to Excel for full data)');
+      }
+    }
+    doc.moveDown(1.5);
+
+    // Methodology + footer
+    doc.fontSize(8).fillColor('#888');
+    doc.text('Attribution methodology: first-tagged-touchpoint, no double-counting. v0 counts only at source-of-entry (collector→aggregator). Downstream-tagged actors do not add new kg in v0. Full methodology: circul.app/methodology/impact-attribution-v1');
+    doc.moveDown(0.5);
+    doc.text('Generated ' + new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC');
+    doc.moveDown(0.4);
+    doc.fontSize(9).fillColor('#00b25b').text('Powered by Circul', { align: 'center' });
+
+    doc.end();
+  } catch (err) {
+    console.error('Impact partner /report.pdf error:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/impact-partner/report.xlsx ──
+app.get('/api/impact-partner/report.xlsx', requireAuth, requireImpactPartner, async (req, res) => {
+  try {
+    const period = req.query.period || 'ytd';
+    const [startISO, endISO] = periodRange(period);
+    const filters = {
+      material: req.query.material || null,
+      region: req.query.region || null,
+      actor_type: req.query.actor_type || null
+    };
+    const [rows, partner] = await Promise.all([
+      computeImpactAttribution(req.user.id, startISO, endISO, filters),
+      pool.query(`SELECT name FROM impact_partners WHERE id=$1`, [req.user.id])
+    ]);
+    const partnerName = (partner.rows[0] && partner.rows[0].name) || 'Impact Partner';
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Circul';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Impact');
+
+    // Title row
+    ws.mergeCells('A1:E1');
+    ws.getCell('A1').value = 'Circul Impact Report — ' + partnerName + ' — ' + period + ' (' + startISO.slice(0,10) + ' → ' + endISO.slice(0,10) + ')';
+    ws.getCell('A1').font = { bold: true, color: { argb: 'FF000000' }, size: 13 };
+    ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00E676' } };
+    ws.getCell('A1').alignment = { vertical: 'middle', horizontal: 'left' };
+    ws.getRow(1).height = 26;
+
+    // Header row
+    ws.addRow([]);
+    const hdr = ws.addRow(['Tier', 'Material', 'Region', 'Total kg', 'Txn count']);
+    hdr.font = { bold: true };
+
+    rows.forEach(function (r) {
+      ws.addRow([
+        r.first_tagged_tier,
+        r.material_type,
+        r.region || 'n/a',
+        parseFloat(r.total_kg),
+        r.txn_count
+      ]);
+    });
+
+    // Auto-size columns
+    [12, 12, 24, 14, 12].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+
+    // Footer
+    const lastRow = ws.lastRow ? ws.lastRow.number : 4;
+    ws.getCell('A' + (lastRow + 2)).value = 'Attribution: first-tagged-touchpoint, no double-counting (v0 source-of-entry only). circul.app/methodology/impact-attribution-v1';
+    ws.getCell('A' + (lastRow + 2)).font = { italic: true, color: { argb: 'FF888888' } };
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="circul-impact-report.xlsx"');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Impact partner /report.xlsx error:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── Admin: tag request queue ──
+app.get('/api/admin/impact-partner/tag-requests', requireAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending_review';
+    const r = await pool.query(
+      `SELECT r.id, r.impact_partner_id, ip.name AS partner_name,
+              r.mode, r.actor_phone, r.actor_role, r.actor_id_existing, r.actor_table_existing,
+              r.proof_text, r.proof_photo_url, r.status, r.requested_at, r.reviewed_at,
+              r.decision_category, r.decision_note
+       FROM impact_partner_actor_tag_requests r
+       JOIN impact_partners ip ON ip.id = r.impact_partner_id
+       WHERE r.status = $1
+       ORDER BY r.requested_at DESC LIMIT 200`,
+      [status]
+    );
+    res.json({ success: true, tag_requests: r.rows });
+  } catch (err) {
+    console.error('Admin /impact-partner/tag-requests error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── Admin: approve tag request → INSERT impact_partner_actor_tags ──
+app.post('/api/admin/impact-partner/tag-requests/:id/approve', requireAdmin, async (req, res) => {
+  const reqId = parseInt(req.params.id, 10);
+  if (!reqId) return res.status(400).json({ success: false, message: 'Invalid request id' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query(
+      `SELECT * FROM impact_partner_actor_tag_requests WHERE id = $1 AND status = 'pending_review' FOR UPDATE`,
+      [reqId]
+    );
+    if (!r.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Pending request not found' });
+    }
+    const reqRow = r.rows[0];
+    if (reqRow.mode !== 'existing') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Mode 2 (new actor) approval deferred to v0.5' });
+    }
+    await client.query(
+      `UPDATE impact_partner_actor_tag_requests
+         SET status='approved', reviewed_at=NOW(), reviewed_by_admin_id=$2
+       WHERE id=$1`,
+      [reqId, req.admin.id]
+    );
+    const ins = await client.query(
+      `INSERT INTO impact_partner_actor_tags
+         (impact_partner_id, actor_type, actor_id, tag_request_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (impact_partner_id, actor_type, actor_id) DO UPDATE
+         SET deactivated_at = NULL, deactivation_reason = NULL,
+             tag_request_id = EXCLUDED.tag_request_id, active_since = NOW()
+       RETURNING id, active_since`,
+      [reqRow.impact_partner_id, reqRow.actor_role, reqRow.actor_id_existing, reqId]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, tag: ins.rows[0] });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Admin approve tag-request error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: reject tag request ──
+const REJECT_CATEGORIES = [
+  'insufficient_proof_detail',
+  'insufficient_proof_document',
+  'not_verifiable',
+  'duplicate',
+  'other'
+];
+app.post('/api/admin/impact-partner/tag-requests/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const reqId = parseInt(req.params.id, 10);
+    if (!reqId) return res.status(400).json({ success: false, message: 'Invalid request id' });
+    const { category, note } = req.body || {};
+    if (!category || !REJECT_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, message: 'Valid category required: ' + REJECT_CATEGORIES.join('|') });
+    }
+    const r = await pool.query(
+      `UPDATE impact_partner_actor_tag_requests
+         SET status='rejected', reviewed_at=NOW(), reviewed_by_admin_id=$4,
+             decision_category=$2, decision_note=$3
+       WHERE id=$1 AND status='pending_review'
+       RETURNING id, status, reviewed_at, decision_category, decision_note`,
+      [reqId, category, note || null, req.admin.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'Pending request not found' });
+    res.json({ success: true, tag_request: r.rows[0] });
+  } catch (err) {
+    console.error('Admin reject tag-request error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/actors/programs ──
+//
+// Returns the list of Impact Partners that have tagged the logged-in actor.
+// Powers the Programs view on collector + driver dashboards (Phase 5 v0)
+// and the USSD "Programs" item in the More submenu.
+app.get('/api/actors/programs', requireAuth, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (!['collector', 'aggregator', 'agent', 'driver'].includes(role)) {
+      return res.json({ success: true, programs: [] });
+    }
+    const r = await pool.query(
+      `SELECT t.id AS tag_id, t.active_since,
+              ip.id AS impact_partner_id, ip.name AS partner_name, ip.company
+       FROM impact_partner_actor_tags t
+       JOIN impact_partners ip ON ip.id = t.impact_partner_id
+       WHERE t.actor_type = $1 AND t.actor_id = $2 AND t.deactivated_at IS NULL
+       ORDER BY t.active_since DESC`,
+      [role, req.user.id]
+    );
+    res.json({ success: true, programs: r.rows });
+  } catch (err) {
+    console.error('Actor /programs error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 // ============================================

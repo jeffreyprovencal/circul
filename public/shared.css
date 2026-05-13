@@ -207,9 +207,12 @@ td{padding:10px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-
 /* ── NAV PILL ROLE COLORS ── */
 .nav-pill-collector{background:#0f2a14;color:#00e676}
 .nav-pill-aggregator{background:#0a2a28;color:#26c6da}
+.nav-pill-driver{background:#2a1a0a;color:#ff9800}                 /* Phase 5 — orange */
+.nav-pill-agent{background:#2a1a14;color:#ffab91}                  /* Phase 5 — coral */
 .nav-pill-processor{background:#0a1e2a;color:#42a5f5}
 .nav-pill-recycler{background:#160d2e;color:#b388ff}
 .nav-pill-converter{background:#2a0a1a;color:#f48fb1}
+.nav-pill-impact-partner{background:#2a200a;color:#f5b431}         /* Phase 5 — amber */
 .nav-pill-admin{background:#1a1a2e;color:#e0e0e0}
 
 /* ── STATUS PILLS (extend existing .pill) ── */

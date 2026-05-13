@@ -192,6 +192,20 @@
     </div>
   </div>
 
+  <!-- PROGRAMS SUPPORTING YOU (Phase 5 — Impact Partner transparency) -->
+  <div class="section hidden" id="programsSection">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Programs supporting you</div>
+        <div class="section-sub">Organizations that have added you to their network on Circul</div>
+      </div>
+    </div>
+    <div id="programsBody" style="padding:8px 0"></div>
+    <div style="padding:8px 16px 0;font-size:0.72rem;color:var(--text-3)">
+      Don't recognize one of these? Let Circul know via <a href="/admin.html" style="color:var(--text-2)">support</a>.
+    </div>
+  </div>
+
   <!-- TRANSACTIONS -->
   <div class="section" id="recentTxnSection">
     <div class="section-head">
@@ -607,6 +621,7 @@ async function loadAll() {
       checkPendingRatings(),
       loadGhanaCard(),
       loadRequirements(),
+      loadPrograms(),
     ]);
   } catch(e) {
     console.error('loadAll error', e);
@@ -1363,6 +1378,25 @@ function loadRequirements() {
       console.error('Requirements load failed:', e);
       document.getElementById('requirementsGrid').innerHTML = '<div style="color:var(--text-3);font-size:0.85rem;">Could not load requirements.</div>';
     });
+}
+
+/* ── Programs supporting you (Phase 5 — Impact Partner transparency) ── */
+function loadPrograms() {
+  return apiFetch('/actors/programs').then(function (data) {
+    if (!data || !data.success) return;
+    var programs = data.programs || [];
+    var section = document.getElementById('programsSection');
+    if (!programs.length) { section.classList.add('hidden'); return; }
+    section.classList.remove('hidden');
+    document.getElementById('programsBody').innerHTML = programs.map(function (p) {
+      var since = p.active_since ? p.active_since.slice(0, 10) : '—';
+      return '<div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin:8px 16px">' +
+        '<div style="font-weight:600;font-size:0.95rem">' + (p.company || p.partner_name || 'Partner') + '</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-2);margin-top:4px">' + (p.partner_name || '') + ' · Impact Partner</div>' +
+        '<div style="font-size:0.75rem;color:var(--text-3);margin-top:8px">Added ' + since + ' · Approved by Circul</div>' +
+      '</div>';
+    }).join('');
+  }).catch(function () { /* silent — section just stays hidden */ });
 }
 
 /* ── init ── */

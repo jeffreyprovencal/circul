@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Impact Partner Dashboard — v1 Mockup</title>
+<style>
+/* Canonical Circul design tokens (matches public/shared.css v3) */
+:root {
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --accent: #00e676;
+  --accent-hover: #33eb8e;
+  --accent-muted: rgba(0,230,118,0.1);
+  --bg: #0a1a0f;
+  --surface: #0d2818;
+  --surface-alt: #0c1e0e;
+  --surface-2: #11331f;
+  --nav-bg: rgba(10,26,15,0.95);
+  --text-1: #e8f5e9;
+  --text-2: #9ab8a0;
+  --text-3: #7a9a7a;
+  --border: #1a3a1a;
+  --border-nav: #1a2e1a;
+  --danger: #ff6b6b;
+  --danger-bg: #3a1818;
+  --warning: #ffb74d;
+  /* Local-only token: amber for the new Impact Partner role pill — to be added
+     to shared.css as .nav-pill-impact-partner when Phase 5 ships. */
+  --impact-partner-bg: #2a200a;
+  --impact-partner-fg: #f5b431;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 24px;
+  --gap: 24px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.mockup-doc-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 24px 40px;
+}
+.mockup-doc-header h1 { margin: 0 0 8px; font-size: 1.4rem; }
+.mockup-doc-header p { margin: 0; color: var(--text-2); font-size: 0.85rem; }
+.mockup-nav {
+  background: var(--surface-alt);
+  padding: 12px 40px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.mockup-nav a {
+  display: inline-block;
+  padding: 6px 14px;
+  margin: 0 4px 4px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.mockup-nav a:hover { color: var(--accent); border-color: var(--accent); }
+.mockup-section {
+  padding: 40px;
+  border-bottom: 1px dashed var(--border);
+}
+.mockup-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.mockup-section-desc {
+  color: var(--text-2);
+  margin-bottom: 32px;
+  font-size: 0.85rem;
+  max-width: 700px;
+}
+
+/* — Login —————————————————————————————————————————— */
+.login-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 40px;
+  min-height: 480px;
+}
+.login-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 40px;
+  width: 380px;
+}
+.login-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+.login-sub { font-size: 0.85rem; color: var(--text-2); margin-bottom: 24px; }
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 0.72rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+.form-input {
+  width: 100%;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  color: var(--text-1);
+  font-size: 0.9rem;
+  font-family: var(--font);
+}
+.form-input:focus { outline: none; border-color: var(--accent); }
+.form-submit {
+  width: 100%;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font);
+  margin-top: 8px;
+}
+
+/* — Dashboard shell ——————————————————————————————— */
+.dash {
+  background: var(--bg);
+  min-height: 600px;
+}
+.dash-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+}
+/* Canonical nav-logo from shared.css */
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-1);
+  text-decoration: none;
+}
+.nav-logo-icon {
+  width: 30px;
+  height: 30px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+  font-size: 13px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.85rem;
+}
+/* Canonical nav-pill pattern + new variants.
+   Existing in public/shared.css today: collector / aggregator / processor /
+   recycler / converter / admin. Phase 5 adds three new variants:
+     .nav-pill-impact-partner { background:#2a200a; color:#f5b431 }   (amber)
+     .nav-pill-driver         { background:#2a1a0a; color:#ff9800 }   (orange)
+     .nav-pill-agent          { background:#2a1a14; color:#ffab91 }   (coral/peach)
+*/
+.nav-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  display: inline-block;
+}
+.nav-pill-collector       { background: #0f2a14; color: #00e676; }
+.nav-pill-aggregator      { background: #0a2a28; color: #26c6da; }
+.nav-pill-driver          { background: #2a1a0a; color: #ff9800; }   /* NEW — Phase 5 */
+.nav-pill-agent           { background: #2a1a14; color: #ffab91; }   /* NEW — Phase 5 */
+.nav-pill-processor       { background: #0a1e2a; color: #42a5f5; }
+.nav-pill-recycler        { background: #160d2e; color: #b388ff; }
+.nav-pill-converter       { background: #2a0a1a; color: #f48fb1; }
+.nav-pill-admin           { background: #1a1a2e; color: #e0e0e0; }
+.nav-pill-impact-partner  { background: var(--impact-partner-bg); color: var(--impact-partner-fg); }  /* NEW — Phase 5 */
+.dash-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.dash-tab {
+  padding: 14px 18px;
+  font-size: 0.85rem;
+  color: var(--text-2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-weight: 600;
+}
+.dash-tab.active { color: var(--text-1); border-bottom-color: var(--accent); }
+.dash-body { padding: 32px; }
+
+/* — Hero metrics ——————————————————————————————————— */
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.hero-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 24px;
+}
+.hero-card.primary {
+  background: linear-gradient(135deg, var(--accent-muted) 0%, var(--surface) 100%);
+  border-color: rgba(0, 230, 118, 0.3);
+}
+.hero-card-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.hero-card.primary .hero-card-label { color: var(--accent); }
+.hero-card-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.02em;
+}
+.hero-card-sub {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  margin-top: 6px;
+}
+.hero-card-trend {
+  font-size: 0.85rem;
+  color: var(--text-1);
+  font-weight: 600;
+  margin-top: 8px;
+}
+.hero-card-context {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  margin-top: 4px;
+}
+.hero-card-breakdown {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hero-card-breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hero-card-breakdown-row .count {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.delta-good { color: var(--accent); }
+.delta-warn { color: var(--warning); }
+.delta-bad { color: var(--danger); }
+
+/* — Section card ———————————————————————————————— */
+.section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  margin-bottom: 24px;
+}
+.section-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.section-card-title { font-size: 1rem; font-weight: 700; margin: 0; }
+.section-card-actions { display: flex; gap: 8px; }
+.btn {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+  font-family: var(--font);
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: #00ff88; }
+.btn-ghost { background: transparent; }
+.btn-bad { color: var(--danger); border-color: rgba(255, 107, 107, 0.3); }
+.btn-bad:hover { background: rgba(255, 107, 107, 0.08); color: var(--danger); }
+.section-card-body { padding: 16px 24px 24px; }
+
+/* — Table ———————————————————————————————————————— */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th, .tbl td {
+  text-align: left;
+  padding: 12px 8px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+.tbl th {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.tbl tbody tr:hover { background: var(--surface-alt); }
+.tbl-actor-name { font-weight: 600; }
+.tbl-actor-sub { font-size: 0.75rem; color: var(--text-3); }
+
+/* — Pills ———————————————————————————————————————— */
+.pill {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+.pill-active { background: var(--accent-muted); color: var(--accent); }
+.pill-pending { background: rgba(255, 183, 77, 0.15); color: var(--warning); }
+.pill-rejected { background: rgba(255, 107, 107, 0.12); color: var(--danger); }
+.pill-info { background: rgba(150, 170, 200, 0.1); color: var(--text-2); }
+.pill-role { background: var(--surface-alt); color: var(--text-2); }
+
+/* — Form layout ——————————————————————————————————— */
+.form-stack { max-width: 480px; }
+.form-stack .form-group { margin-bottom: 20px; }
+.form-help {
+  font-size: 0.75rem;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+.dropzone {
+  background: var(--surface-alt);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  padding: 24px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 0.85rem;
+}
+.dropzone strong { color: var(--text-2); }
+
+/* — Modal ———————————————————————————————————————— */
+.modal-overlay {
+  background: rgba(0,0,0,0.6);
+  padding: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 32px;
+  width: 480px;
+}
+.modal h3 { margin: 0 0 8px; font-size: 1.1rem; }
+.modal p { color: var(--text-2); margin: 0 0 24px; font-size: 0.9rem; }
+
+/* — Reports ———————————————————————————————————————— */
+.filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.filter-pill {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.filter-pill.active { border-color: var(--accent); color: var(--accent); }
+.report-preview-card {
+  background: var(--surface-alt);
+  border-radius: var(--r-sm);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+.report-preview-card .label { color: var(--text-2); font-size: 0.85rem; }
+.report-preview-card .value { font-weight: 700; }
+.export-row { display: flex; gap: 12px; margin-top: 16px; }
+
+/* — Admin review queue (Circul side) —————————— */
+.review-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.review-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.review-card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.78rem;
+  color: var(--text-2);
+  margin-bottom: 12px;
+}
+.review-card-meta-label { color: var(--text-3); margin-right: 4px; }
+.review-card-proof {
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  padding: 12px 16px;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 0.88rem;
+  color: var(--text-1);
+  margin-bottom: 12px;
+}
+.review-card-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* — Actor "Programs" view ——————————————————————— */
+.usd-screen {
+  background: #000;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  padding: 16px;
+  border-radius: var(--r-sm);
+  width: 280px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+.program-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 20px;
+  margin-bottom: 12px;
+}
+.program-card .name { font-weight: 700; font-size: 0.95rem; }
+.program-card .partner { font-size: 0.78rem; color: var(--text-2); margin-top: 4px; }
+.program-card .since { font-size: 0.75rem; color: var(--text-3); margin-top: 8px; }
+
+</style>
+</head>
+<body>
+
+<div class="mockup-doc-header">
+  <h1>Impact Partner Dashboard — v1 Mockup</h1>
+  <p>Scope: WORK's Impact Partner role. Single "tagged actor" concept (no separate sponsorship tier). Phone-number-as-input search. Unified Mode 1+2 tag flow. Circul-approval gate. Self-service untag. First-tagged-touchpoint kg attribution. Actor-side transparency into program participation.</p>
+</div>
+
+<nav class="mockup-nav">
+  <a href="#login">1. Login</a>
+  <a href="#home">2. Dashboard Home</a>
+  <a href="#network">3. My Network</a>
+  <a href="#tag-form">4. Tag a New Actor</a>
+  <a href="#tag-requests">5. Tag Requests Status</a>
+  <a href="#reports">6. Impact Reports</a>
+  <a href="#untag">7. Untag Confirmation</a>
+  <a href="#admin-review">8. Circul Admin Review</a>
+  <a href="#actor-programs">9. Actor's Programs View</a>
+</nav>
+
+<!-- 1. Login ============================================== -->
+<section id="login" class="mockup-section">
+  <div class="mockup-section-title">1. Login</div>
+  <p class="mockup-section-desc">Email + password sign-in. Same canonical pattern as processor/recycler/converter dashboards. SSO deferred to post-pilot.</p>
+  <div class="login-overlay">
+    <div class="login-box">
+      <div class="login-title">Sign in to Circul</div>
+      <div class="login-sub">Impact Partner access</div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" type="email" value="vivien@work.global">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" type="password" value="••••••••">
+      </div>
+      <button class="form-submit">Sign in</button>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Dashboard Home ===================================== -->
+<section id="home" class="mockup-section">
+  <div class="mockup-section-title">2. Dashboard Home</div>
+  <p class="mockup-section-desc">Hero metrics + recent activity. The "this is what your funding moves" view. Impact uses first-tagged-touchpoint attribution — same kg counted at most once across the chain.</p>
+  <div class="dash">
+    <div class="dash-topbar">
+      <a class="nav-logo" href="#"><div class="nav-logo-icon">◎</div> Circul</a>
+      <div class="topbar-right">
+        <span class="nav-pill nav-pill-impact-partner">Impact Partner</span>
+        <span style="color:var(--text-2)">WORK · Vivien Luk</span>
+        <span style="color:var(--text-3)">·</span>
+        <a href="#" style="color:var(--text-2); text-decoration:none; font-size:0.85rem">Log out</a>
+      </div>
+    </div>
+    <div class="dash-tabs">
+      <div class="dash-tab active">Home</div>
+      <div class="dash-tab">My Network</div>
+      <div class="dash-tab">Tag Requests</div>
+      <div class="dash-tab">Reports</div>
+    </div>
+    <div class="dash-body">
+
+      <div class="hero">
+        <div class="hero-card primary">
+          <div class="hero-card-label">Impact YTD</div>
+          <div class="hero-card-value">8,420<span style="font-size:1rem; color:var(--text-2); margin-left:8px">kg</span></div>
+          <div class="hero-card-trend"><span class="delta-good">↑ 12.4%</span> vs. last year</div>
+          <div class="hero-card-context">direct attribution · 5 materials · Ghana</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-label">Impact this Month</div>
+          <div class="hero-card-value">1,205<span style="font-size:1rem; color:var(--text-2); margin-left:8px">kg</span></div>
+          <div class="hero-card-trend"><span class="delta-good">↑ 8.3%</span> vs. last month</div>
+          <div class="hero-card-context">May 2026 · 14% of YTD · in progress</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-label">Tagged Actors</div>
+          <div class="hero-card-value">14</div>
+          <div class="hero-card-breakdown">
+            <div class="hero-card-breakdown-row"><span class="nav-pill nav-pill-aggregator">Aggregator</span><span class="count">3</span></div>
+            <div class="hero-card-breakdown-row"><span class="nav-pill nav-pill-collector">Collector</span><span class="count">9</span></div>
+            <div class="hero-card-breakdown-row"><span class="nav-pill nav-pill-driver">Driver</span><span class="count">2</span></div>
+          </div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-label">Pending Tag Requests</div>
+          <div class="hero-card-value">2</div>
+          <div class="hero-card-sub">Awaiting Circul review</div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Recent activity from your network</h3>
+          <div class="section-card-actions">
+            <button class="btn">View all</button>
+          </div>
+        </div>
+        <div class="section-card-body">
+          <table class="tbl">
+            <thead><tr><th>Actor</th><th>Role</th><th>Material</th><th>Weight</th><th>Date</th></tr></thead>
+            <tbody>
+              <tr><td><div class="tbl-actor-name">Naa Adjeley Lamptey</div><div class="tbl-actor-sub">COL-0042 · Accra</div></td><td><span class="nav-pill nav-pill-collector">Collector</span></td><td>PET</td><td>55 kg</td><td>2 hours ago</td></tr>
+              <tr><td><div class="tbl-actor-name">Quansah Recovery</div><div class="tbl-actor-sub">AGG-0017 · Accra</div></td><td><span class="nav-pill nav-pill-aggregator">Aggregator</span></td><td>PET</td><td>180 kg</td><td>yesterday</td></tr>
+              <tr><td><div class="tbl-actor-name">Naa Adjeley Lamptey</div><div class="tbl-actor-sub">COL-0042 · Accra</div></td><td><span class="nav-pill nav-pill-collector">Collector</span></td><td>HDPE</td><td>28 kg</td><td>2 days ago</td></tr>
+              <tr><td><div class="tbl-actor-name">Selorm Agbeko</div><div class="tbl-actor-sub">DRV-0008 · Greater Accra</div></td><td><span class="nav-pill nav-pill-driver">Driver</span></td><td>PET</td><td>240 kg delivered</td><td>3 days ago</td></tr>
+              <tr><td><div class="tbl-actor-name">Quansah Recovery</div><div class="tbl-actor-sub">AGG-0017 · Accra</div></td><td><span class="nav-pill nav-pill-aggregator">Aggregator</span></td><td>PET</td><td>200 kg dispatched</td><td>5 days ago</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- 3. My Network ========================================= -->
+<section id="network" class="mockup-section">
+  <div class="mockup-section-title">3. My Network</div>
+  <p class="mockup-section-desc">List of all WORK-tagged actors. Untag is self-service (no review). Each row shows kg attributed to WORK from this actor's activity (using first-tagged-touchpoint rule).</p>
+  <div class="dash">
+    <div class="dash-tabs">
+      <div class="dash-tab">Home</div>
+      <div class="dash-tab active">My Network</div>
+      <div class="dash-tab">Tag Requests</div>
+      <div class="dash-tab">Reports</div>
+    </div>
+    <div class="dash-body">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Network actors (14 active)</h3>
+          <div class="section-card-actions">
+            <button class="btn">Filter by role ▾</button>
+            <button class="btn btn-primary">+ Tag a new actor</button>
+          </div>
+        </div>
+        <div class="section-card-body">
+          <table class="tbl">
+            <thead><tr><th>Actor</th><th>Role</th><th>Region</th><th>Status</th><th>Tagged since</th><th>YTD kg</th><th></th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="tbl-actor-name">Quansah Recovery</div><div class="tbl-actor-sub">Kwesi Quansah · AGG-0017</div></td>
+                <td><span class="nav-pill nav-pill-aggregator">Aggregator</span></td>
+                <td>Greater Accra</td>
+                <td><span class="pill pill-active">Active</span></td>
+                <td>2026-04-12</td>
+                <td>4,210</td>
+                <td><button class="btn btn-ghost btn-bad">Untag</button></td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Naa Adjeley Lamptey</div><div class="tbl-actor-sub">COL-0042</div></td>
+                <td><span class="nav-pill nav-pill-collector">Collector</span></td>
+                <td>Greater Accra</td>
+                <td><span class="pill pill-active">Active</span></td>
+                <td>2026-04-12</td>
+                <td>1,890</td>
+                <td><button class="btn btn-ghost btn-bad">Untag</button></td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Selorm Agbeko</div><div class="tbl-actor-sub">DRV-0008</div></td>
+                <td><span class="nav-pill nav-pill-driver">Driver</span></td>
+                <td>Greater Accra</td>
+                <td><span class="pill pill-active">Active</span></td>
+                <td>2026-04-12</td>
+                <td>2,140 delivered</td>
+                <td><button class="btn btn-ghost btn-bad">Untag</button></td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Ama Owusu</div><div class="tbl-actor-sub">COL-0089</div></td>
+                <td><span class="nav-pill nav-pill-collector">Collector</span></td>
+                <td>Greater Accra</td>
+                <td><span class="pill pill-active">Active</span></td>
+                <td>2026-04-18</td>
+                <td>420</td>
+                <td><button class="btn btn-ghost btn-bad">Untag</button></td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Madina Recovery Hub</div><div class="tbl-actor-sub">Kofi Acheampong · AGG-0026</div></td>
+                <td><span class="nav-pill nav-pill-aggregator">Aggregator</span></td>
+                <td>Greater Accra</td>
+                <td><span class="pill pill-active">Active</span></td>
+                <td>2026-04-20</td>
+                <td>—</td>
+                <td><button class="btn btn-ghost btn-bad">Untag</button></td>
+              </tr>
+              <tr style="opacity: 0.6;">
+                <td colspan="7" style="text-align:center; padding:16px; color:var(--text-3); font-style:italic">+ 9 more</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Tag a New Actor ==================================== -->
+<section id="tag-form" class="mockup-section">
+  <div class="mockup-section-title">4. Tag a New Actor</div>
+  <p class="mockup-section-desc">Phone-number-as-input. System disambiguates: if phone exists → Mode 1 (tag existing). If phone doesn't exist → Mode 2 (create + tag in one motion, actor gets SMS to claim). Same proof + review pipeline either way.</p>
+  <div class="dash">
+    <div class="dash-tabs">
+      <div class="dash-tab">Home</div>
+      <div class="dash-tab active">My Network</div>
+      <div class="dash-tab">Tag Requests</div>
+      <div class="dash-tab">Reports</div>
+    </div>
+    <div class="dash-body">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Tag a new actor</h3>
+        </div>
+        <div class="section-card-body">
+          <div class="form-stack">
+
+            <div class="form-group">
+              <label class="form-label">Phone number</label>
+              <input class="form-input" type="tel" placeholder="0244 000 000" value="0241 555 042">
+              <div class="form-help">Enter the actor's Ghana phone number. Spaces are optional. <code style="background:var(--surface-alt); padding:1px 4px; border-radius:3px;">0241555042</code>, <code style="background:var(--surface-alt); padding:1px 4px; border-radius:3px;">0241 555 042</code>, <code style="background:var(--surface-alt); padding:1px 4px; border-radius:3px;">+233241555042</code>, <code style="background:var(--surface-alt); padding:1px 4px; border-radius:3px;">+233 241 555 042</code> — all work, we normalize on the server. If they're already on Circul, we'll match them. If not, you'll fill in their details below.</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Role</label>
+              <select class="form-input">
+                <option>Collector</option>
+                <option>Aggregator</option>
+                <option>Driver</option>
+                <option>Agent</option>
+              </select>
+            </div>
+
+            <!-- After phone lookup, if MATCH found -->
+            <div style="background: var(--accent-muted); border: 1px solid rgba(0,230,118,0.3); border-radius: var(--r-sm); padding: 16px; margin-bottom: 20px;">
+              <div style="font-weight:700; font-size:0.85rem; margin-bottom:6px;">✓ Match found: Naa Adjeley Lamptey (COL-0042)</div>
+              <div style="font-size:0.78rem; color:var(--text-2);">Joined Circul 2026-03-14 · Accra · 12 transactions logged</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">How does WORK support this person?</label>
+              <textarea class="form-input" rows="3" placeholder="Brief description of the relationship. Be specific.">Naa is enrolled in our Madina Recovery Hub program since 2026-03-15. We provided collection equipment and a monthly training stipend.</textarea>
+              <div class="form-help">Required. Your description goes into the audit trail and may be visible to brand-level reviewers (Coke, etc.).</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Supporting document <span style="color:var(--text-3); font-weight:400">(optional)</span></label>
+              <div class="dropzone">
+                <strong>Drop a file</strong> or click to browse<br>
+                <span style="font-size:0.75rem; color:var(--text-3)">Program ID card, signed agreement, training cert, photo of branded equipment, etc.</span>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn">Cancel</button>
+              <button class="btn btn-primary">Submit for review</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Tag Requests Status ================================ -->
+<section id="tag-requests" class="mockup-section">
+  <div class="mockup-section-title">5. Tag Requests — Status</div>
+  <p class="mockup-section-desc">Audit trail of every tag request. Visible to WORK so they know where each is in the pipeline. Rejected requests show the reason.</p>
+  <div class="dash">
+    <div class="dash-tabs">
+      <div class="dash-tab">Home</div>
+      <div class="dash-tab">My Network</div>
+      <div class="dash-tab active">Tag Requests</div>
+      <div class="dash-tab">Reports</div>
+    </div>
+    <div class="dash-body">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">All tag requests</h3>
+          <div class="section-card-actions">
+            <button class="btn">Filter ▾</button>
+          </div>
+        </div>
+        <div class="section-card-body">
+          <table class="tbl">
+            <thead><tr><th>Actor</th><th>Role</th><th>Submitted</th><th>Status</th><th>Decision</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="tbl-actor-name">Yaa Adwoa Boateng</div><div class="tbl-actor-sub">0241 555 117 · new actor</div></td>
+                <td><span class="nav-pill nav-pill-collector">Collector</span></td>
+                <td>2 hours ago</td>
+                <td><span class="pill pill-pending">Pending Review</span></td>
+                <td style="color:var(--text-3); font-size:0.78rem">—</td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Kweku Mensah</div><div class="tbl-actor-sub">COL-0156 · existing</div></td>
+                <td><span class="nav-pill nav-pill-collector">Collector</span></td>
+                <td>yesterday</td>
+                <td><span class="pill pill-pending">Pending Review</span></td>
+                <td style="color:var(--text-3); font-size:0.78rem">—</td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Ama Owusu</div><div class="tbl-actor-sub">COL-0089 · existing</div></td>
+                <td><span class="nav-pill nav-pill-collector">Collector</span></td>
+                <td>2026-04-18</td>
+                <td><span class="pill pill-active">Approved</span></td>
+                <td style="font-size:0.78rem">Approved by Circul · 2026-04-18 17:22</td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Joe Kwesi Adams</div><div class="tbl-actor-sub">0241 555 999 · new actor</div></td>
+                <td><span class="nav-pill nav-pill-collector">Collector</span></td>
+                <td>2026-04-15</td>
+                <td><span class="pill pill-rejected">Rejected</span></td>
+                <td style="font-size:0.78rem">Insufficient proof. Resubmit with program enrollment date and supporting document.</td>
+              </tr>
+              <tr>
+                <td><div class="tbl-actor-name">Naa Adjeley Lamptey</div><div class="tbl-actor-sub">COL-0042 · existing</div></td>
+                <td><span class="nav-pill nav-pill-collector">Collector</span></td>
+                <td>2026-04-12</td>
+                <td><span class="pill pill-active">Approved</span></td>
+                <td style="font-size:0.78rem">Approved by Circul · 2026-04-12 10:15</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Impact Reports ====================================== -->
+<section id="reports" class="mockup-section">
+  <div class="mockup-section-title">6. Impact Reports</div>
+  <p class="mockup-section-desc">Filterable by material, region, actor type, and date range. Month-end snapshot is the canonical cadence. PDF + Excel export. Circul-branded ("Powered by Circul" footer) so brands like Coke see the source.</p>
+  <div class="dash">
+    <div class="dash-tabs">
+      <div class="dash-tab">Home</div>
+      <div class="dash-tab">My Network</div>
+      <div class="dash-tab">Tag Requests</div>
+      <div class="dash-tab active">Reports</div>
+    </div>
+    <div class="dash-body">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Impact report</h3>
+        </div>
+        <div class="section-card-body">
+
+          <div class="filter-row">
+            <div class="filter-pill active">Month-end · April 2026</div>
+            <div class="filter-pill">YTD 2026</div>
+            <div class="filter-pill">All time</div>
+          </div>
+          <div class="filter-row">
+            <div class="filter-pill active">All materials</div>
+            <div class="filter-pill">PET</div>
+            <div class="filter-pill">HDPE</div>
+            <div class="filter-pill">LDPE</div>
+            <div class="filter-pill">PP</div>
+          </div>
+          <div class="filter-row">
+            <div class="filter-pill active">All regions</div>
+            <div class="filter-pill">Greater Accra</div>
+            <div class="filter-pill">Ashanti</div>
+            <div class="filter-pill">Western</div>
+          </div>
+          <div class="filter-row">
+            <div class="filter-pill active">All actors</div>
+            <div class="filter-pill">Aggregators only</div>
+            <div class="filter-pill">Collectors only</div>
+            <div class="filter-pill">Drivers only</div>
+          </div>
+
+          <h4 style="margin: 24px 0 12px; font-size: 0.9rem; color: var(--text-2);">Preview: April 2026 · All materials · All regions · All actors</h4>
+
+          <div class="report-preview-card">
+            <span class="label">Total impact (kg, direct attribution)</span><span class="value">2,140 kg</span>
+          </div>
+          <div class="report-preview-card">
+            <span class="label">PET</span><span class="value">1,580 kg</span>
+          </div>
+          <div class="report-preview-card">
+            <span class="label">HDPE</span><span class="value">320 kg</span>
+          </div>
+          <div class="report-preview-card">
+            <span class="label">LDPE</span><span class="value">140 kg</span>
+          </div>
+          <div class="report-preview-card">
+            <span class="label">PP</span><span class="value">100 kg</span>
+          </div>
+
+          <div style="font-size:0.75rem; color: var(--text-3); margin-top: 16px;">
+            Attribution: first-tagged-touchpoint, no double-counting across the supply chain. Methodology document: <a href="#" style="color:var(--text-2)">circul.app/methodology/impact-attribution-v1</a>.
+          </div>
+
+          <div class="export-row">
+            <button class="btn btn-primary">📄 Download PDF</button>
+            <button class="btn">📊 Download Excel (.xlsx)</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Untag Confirmation ================================= -->
+<section id="untag" class="mockup-section">
+  <div class="mockup-section-title">7. Untag Confirmation</div>
+  <p class="mockup-section-desc">Self-service. No Circul review needed (removing from your own claimed list only reduces your reported impact, so there's no integrity risk). Soft warning shows the YTD attribution that disappears.</p>
+  <div class="modal-overlay">
+    <div class="modal">
+      <h3>Remove Naa Adjeley Lamptey from your network?</h3>
+      <p>Her 1,890 kg YTD attribution will no longer count in your impact reports. You can re-tag her later if needed — past reports will still reference the historical state.</p>
+      <div class="form-group">
+        <label class="form-label">Reason <span style="color:var(--text-3); font-weight:400">(optional)</span></label>
+        <input class="form-input" type="text" placeholder="e.g. Left program · No longer active · Tagged in error">
+      </div>
+      <div class="form-actions">
+        <button class="btn">Cancel</button>
+        <button class="btn btn-bad">Confirm untag</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8. Circul Admin Review ================================ -->
+<section id="admin-review" class="mockup-section">
+  <div class="mockup-section-title">8. Circul Admin Review Queue</div>
+  <p class="mockup-section-desc">Circul-side view. Admin reviews pending tag requests and approves or rejects based on the documented criteria. This is what we (Circul) operate; not visible to WORK or any other Impact Partner. Decisions logged with reviewer ID + timestamp.</p>
+  <div class="dash">
+    <div class="dash-topbar">
+      <a class="nav-logo" href="#"><div class="nav-logo-icon">◎</div> Circul · Admin</a>
+      <div class="topbar-right">
+        <span class="nav-pill" style="background: rgba(255,183,77,0.15); color: var(--warning);">Circul Admin</span>
+        <span style="color:var(--text-2)">Jojo Provencal</span>
+      </div>
+    </div>
+    <div class="dash-body">
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Pending tag requests <span style="color: var(--warning); margin-left: 8px;">(2)</span></h3>
+          <div class="section-card-actions">
+            <button class="btn">Filter by partner ▾</button>
+          </div>
+        </div>
+        <div class="section-card-body">
+
+          <div class="review-card">
+            <div class="review-card-head">
+              <div>
+                <div style="font-weight: 700;">Yaa Adwoa Boateng</div>
+                <div style="font-size: 0.78rem; color: var(--text-2);">+233 244 555 117 · new actor (Mode 2: create + tag) · Collector role</div>
+              </div>
+              <span class="pill pill-pending">Pending</span>
+            </div>
+            <div class="review-card-meta">
+              <span><span class="review-card-meta-label">Requested by:</span> WORK (Vivien Luk)</span>
+              <span><span class="review-card-meta-label">Submitted:</span> 2 hours ago</span>
+              <span><span class="review-card-meta-label">Phone exists?</span> No — new account</span>
+            </div>
+            <div class="review-card-proof">
+              <strong>Proof (WORK's words):</strong> "Yaa joined our Madina Recovery Hub program 2026-05-08 after completing the 2-week training cohort. We funded her starter kit (PPE + cart) and pay a monthly stipend for the first 6 months."
+            </div>
+            <div class="review-card-meta">
+              <span><span class="review-card-meta-label">Supporting document:</span> <a href="#" style="color: var(--accent)">training-cert-yaa-may2026.pdf</a></span>
+            </div>
+            <div class="review-card-actions">
+              <button class="btn btn-bad">Reject</button>
+              <button class="btn btn-primary">Approve</button>
+            </div>
+          </div>
+
+          <div class="review-card">
+            <div class="review-card-head">
+              <div>
+                <div style="font-weight: 700;">Kweku Mensah</div>
+                <div style="font-size: 0.78rem; color: var(--text-2);">COL-0156 · existing actor (Mode 1: tag) · Collector role</div>
+              </div>
+              <span class="pill pill-pending">Pending</span>
+            </div>
+            <div class="review-card-meta">
+              <span><span class="review-card-meta-label">Requested by:</span> WORK (Vivien Luk)</span>
+              <span><span class="review-card-meta-label">Submitted:</span> yesterday</span>
+              <span><span class="review-card-meta-label">Existing on Circul:</span> since 2025-11-02</span>
+            </div>
+            <div class="review-card-proof">
+              <strong>Proof (WORK's words):</strong> "Kweku has been part of our Tema waste-bank pilot since March 2026. He's one of our top 5 producers."
+            </div>
+            <div class="review-card-meta">
+              <span><span class="review-card-meta-label">Supporting document:</span> <span style="color: var(--text-3);">None provided</span></span>
+            </div>
+            <div class="review-card-actions">
+              <button class="btn btn-bad">Reject</button>
+              <button class="btn btn-primary">Approve</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
+          <h3 class="section-card-title">Recently decided <span style="color:var(--text-3); margin-left: 8px;">(last 7 days)</span></h3>
+        </div>
+        <div class="section-card-body">
+          <table class="tbl">
+            <thead><tr><th>Actor</th><th>Partner</th><th>Decision</th><th>Reviewer</th><th>When</th></tr></thead>
+            <tbody>
+              <tr><td>Ama Owusu (COL-0089)</td><td>WORK</td><td><span class="pill pill-active">Approved</span></td><td>Jojo</td><td>2026-04-18</td></tr>
+              <tr><td>Joe Kwesi Adams (new)</td><td>WORK</td><td><span class="pill pill-rejected">Rejected</span></td><td>Jojo</td><td>2026-04-15</td></tr>
+              <tr><td>Naa Adjeley Lamptey (COL-0042)</td><td>WORK</td><td><span class="pill pill-active">Approved</span></td><td>Jojo</td><td>2026-04-12</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <h4 style="margin: 32px 0 12px; font-size: 0.85rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em;">When admin clicks Reject — composer modal</h4>
+      <div class="modal-overlay" style="background: rgba(0,0,0,0.4); padding: 24px; min-height: 320px;">
+        <div class="modal">
+          <h3>Reject tag request</h3>
+          <p>Joe Kwesi Adams — new actor, requested by WORK</p>
+          <div class="form-group">
+            <label class="form-label">Rejection category</label>
+            <select class="form-input">
+              <option>Insufficient proof — needs more detail</option>
+              <option>Insufficient proof — supporting document required</option>
+              <option>Actor not verifiable as real</option>
+              <option>Duplicate of existing tagged actor</option>
+              <option>Other (use note below)</option>
+            </select>
+            <div class="form-help">Structured category lets WORK pattern-spot reasons over time.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Note <span style="color: var(--text-3); font-weight: 400">(optional, free-form)</span></label>
+            <textarea class="form-input" rows="2" placeholder="Specific feedback for WORK. Stays in the audit trail and is visible to them in their Tag Requests view.">Resubmit with program enrollment date and supporting document.</textarea>
+          </div>
+          <div style="background: var(--surface-alt); border-radius: var(--r-sm); padding: 12px 14px; margin-top: 16px; font-size: 0.82rem; color: var(--text-2);">
+            <strong style="color: var(--text-1); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;">WORK will see:</strong>
+            <div style="margin-top: 6px;">Insufficient proof — needs more detail. Resubmit with program enrollment date and supporting document.</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn">Cancel</button>
+            <button class="btn btn-bad">Confirm reject</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- 9. Actor's Programs View ============================== -->
+<section id="actor-programs" class="mockup-section">
+  <div class="mockup-section-title">9. Actor's Programs View</div>
+  <p class="mockup-section-desc">Transparency for the tagged actor. Naa Adjeley should know she's in WORK's network. Surfaces in two places: a "More → Programs" item in USSD, and a "Programs" section on her web dashboard.</p>
+
+  <div style="display: grid; grid-template-columns: 320px 1fr; gap: 32px; align-items: start;">
+
+    <div>
+      <h4 style="margin: 0 0 12px; font-size: 0.85rem; color: var(--text-2);">USSD view (via *920*54# → More → Programs)</h4>
+      <div class="usd-screen">CON Your programs:
+1. WORK · Madina Recovery Hub
+   joined 12-Apr-2026
+0. Back</div>
+      <div style="font-size: 0.75rem; color: var(--text-3); margin-top: 10px; max-width: 280px;">Naa sees who supports her, when she was added, no surprises. If she doesn't recognize a program she can flag it via "9. Report issue" (v1+).</div>
+    </div>
+
+    <div>
+      <h4 style="margin: 0 0 12px; font-size: 0.85rem; color: var(--text-2);">Web dashboard "Programs" section (collector-dashboard.html, new card)</h4>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 24px; max-width: 480px;">
+        <h3 style="margin: 0 0 4px; font-size: 0.95rem;">Programs supporting you</h3>
+        <p style="margin: 0 0 16px; color: var(--text-2); font-size: 0.82rem;">Organizations that have added you to their network on Circul.</p>
+
+        <div class="program-card">
+          <div class="name">Madina Recovery Hub</div>
+          <div class="partner">WORK · Impact Partner</div>
+          <div class="since">Added 2026-04-12 · Approved by Circul</div>
+        </div>
+
+        <div style="font-size: 0.72rem; color: var(--text-3); margin-top: 12px;">
+          Don't recognize one of these? <a href="#" style="color: var(--text-2);">Let us know</a> and we'll review.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div style="padding: 40px; background: var(--surface); border-top: 1px solid var(--border); text-align: center; font-size: 0.78rem; color: var(--text-3);">
+  Powered by Circul · Impact Partner Dashboard v1 mockup · 2026-05-13
+</div>
+
+</body>
+</html>

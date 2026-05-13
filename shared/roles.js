@@ -131,6 +131,24 @@
       posterTypes: [],
       canPostPrices: false,
       description: 'Logistics — moves material aggregator → buyer'
+    },
+    impact_partner: {
+      // Phase 5 apex tier — brands/orgs that tag actors they fund and pull
+      // branded impact reports (PDF/Excel) for downstream stakeholders.
+      // Tier 0 (apex above buyer tiers) so they outrank converter in
+      // multi-role priority logic. Email+password auth — same login UX as
+      // processor/recycler/converter. Paid (price set when WORK lands).
+      label: 'Impact Partner',
+      tier: 0,
+      dashboard: '/impact-partner-dashboard',
+      table: 'impact_partners',
+      pillColor: '#f5b431',
+      pillBg: '#2a200a',
+      authType: 'email',
+      isFree: false,
+      posterTypes: [],
+      canPostPrices: false,
+      description: 'Brand-tier impact attribution'
     }
   };
 
@@ -209,7 +227,8 @@
     processor: 'PRC',
     recycler: 'RCY',
     converter: 'CNV',
-    driver: 'DRV'
+    driver: 'DRV',
+    impact_partner: 'IPP'
   };
 
   // Generate Circul ID code from role + numeric id
