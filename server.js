@@ -94,12 +94,13 @@ const FONT_REGULAR_B64 = fs.readFileSync(path.join(FONT_DIR, 'PlusJakartaSans-Re
 const FONT_BOLD_B64    = fs.readFileSync(path.join(FONT_DIR, 'PlusJakartaSans-Bold.ttf')).toString('base64');
 
 // Handlebars helpers must be registered before the template compile.
+// NOTE: do NOT register a helper named `pct` — buildByMaterial() pre-computes
+// the `pct` property on each material object, and Handlebars 4.x resolves
+// `{{pct}}` to a registered helper before checking the current context, so
+// a `pct` helper would shadow the data and the template would always render
+// 0% (the helper would be invoked with no args, hit !total, return '0').
 Handlebars.registerHelper('eq', (a, b) => a === b);
 Handlebars.registerHelper('plural', (n) => n === 1 ? '' : 's');
-Handlebars.registerHelper('pct', (n, total) => {
-  if (!total) return '0';
-  return Math.round((parseFloat(n) / parseFloat(total)) * 100).toString();
-});
 Handlebars.registerHelper('fixed', (n, digits) => {
   return parseFloat(n).toFixed(typeof digits === 'number' ? digits : 0);
 });
@@ -9466,13 +9467,22 @@ function buildByMaterial(rows) {
   const tally = {};
   rows.forEach(r => { tally[r.material_type] = (tally[r.material_type] || 0) + parseFloat(r.total_kg); });
   const total = Object.values(tally).reduce((s, v) => s + v, 0);
-  return Object.entries(tally)
-    .sort(([,a],[,b]) => b - a)
-    .map(([name, kg]) => ({
+  // Always render Circul's canonical 4-polymer taxonomy (reuses VALID_MATERIALS
+  // defined at the top of the file; matches the DB CHECK constraint on
+  // transactions.material_type). Inactive ones render with active:false so the
+  // template can show "—" / "not yet" with muted styling. This gives funders
+  // a consistent partner-to-partner layout — every report has the same 4-card
+  // material profile, regardless of which polymers a given partner is active in.
+  return VALID_MATERIALS.map(name => {
+    const kg = tally[name] || 0;
+    const active = kg > 0;
+    return {
       name,
-      kg: kg.toFixed(0),
-      pct: total ? Math.round((kg / total) * 100) : 0
-    }));
+      kg: active ? kg.toFixed(0) : null,
+      pct: active && total ? Math.round((kg / total) * 100) : null,
+      active
+    };
+  });
 }
 
 function buildRowsView(rows) {

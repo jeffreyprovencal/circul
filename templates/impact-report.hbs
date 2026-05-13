@@ -152,21 +152,24 @@ html, body {
   margin: 18px 0 8px;
 }
 
-/* ── By-material grid (1-N cards, one column per material — no blanks) ──── */
+/* ── By-material grid: always 4 cards for Circul's standard polymer set ─── */
+/* Active polymers show kg + %; inactive ones show "—" / "not yet" with     */
+/* muted styling. Funders get a consistent 4-card profile across partners.  */
 .pdf-bymat {
   display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-bottom: 14px;
 }
-.pdf-bymat.n-1 { grid-template-columns: 1fr; }
-.pdf-bymat.n-2 { grid-template-columns: repeat(2, 1fr); }
-.pdf-bymat.n-3 { grid-template-columns: repeat(3, 1fr); }
-.pdf-bymat.n-4 { grid-template-columns: repeat(4, 1fr); }
 .pdf-bymat .mat {
   background: #f7faf8;
   border: 1px solid #e0e7e2;
   border-radius: 5px;
   padding: 10px 12px;
+}
+.pdf-bymat .mat.inactive {
+  background: #fcfcfc;
+  border-color: #ececec;
 }
 .pdf-bymat .mat .name {
   font-size: 0.7rem;
@@ -175,6 +178,9 @@ html, body {
   letter-spacing: 0.05em;
   font-weight: 600;
 }
+.pdf-bymat .mat.inactive .name {
+  color: #aab2ad;
+}
 .pdf-bymat .mat .val {
   font-size: 1.05rem;
   font-weight: 700;
@@ -182,10 +188,17 @@ html, body {
   margin-top: 3px;
   font-variant-numeric: tabular-nums;
 }
+.pdf-bymat .mat.inactive .val {
+  color: #c0c8c2;
+}
 .pdf-bymat .mat .pct {
   font-size: 0.65rem;
   color: var(--text-3);
   margin-top: 2px;
+}
+.pdf-bymat .mat.inactive .pct {
+  color: #c0c8c2;
+  font-style: italic;
 }
 
 /* ── Breakdown table ────────────────────────────────────────────────────── */
@@ -351,12 +364,12 @@ html, body {
     </div>
   {{else}}
     <div class="pdf-sub">By material</div>
-    <div class="pdf-bymat n-{{byMaterial.length}}">
+    <div class="pdf-bymat">
       {{#each byMaterial}}
-        <div class="mat">
+        <div class="mat{{#unless active}} inactive{{/unless}}">
           <div class="name">{{name}}</div>
-          <div class="val">{{kg}} kg</div>
-          <div class="pct">{{pct}}%</div>
+          <div class="val">{{#if active}}{{kg}} kg{{else}}&mdash;{{/if}}</div>
+          <div class="pct">{{#if active}}{{pct}}%{{else}}not yet{{/if}}</div>
         </div>
       {{/each}}
     </div>
