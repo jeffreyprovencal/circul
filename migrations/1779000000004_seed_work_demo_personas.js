@@ -1,26 +1,25 @@
-// scripts/seed-work-demo-personas.js
+// migrations/1779000000004_seed_work_demo_personas.js
 //
 // Seeds the 7 WORK-demo personas locked in WORK-DEMO-LOGINS.md (Naa Adjeley
 // Lamptey / Kwesi Quansah / Yaa Boateng / Selorm Agbeko / Sankofa Plastics /
-// Veolia / Alpla) plus a coherent transaction chain from Naa to Quansah, plus
-// tags Naa to Vivien Luk's Impact Partner network so her dashboard shows real
-// kg attribution for the demo.
+// Veolia / Alpla) plus a full cross-tier transaction chain (collector →
+// aggregator → processor → recycler → converter) and tags Naa to Vivien Luk's
+// Impact Partner network so the IP dashboard shows real kg attribution.
 //
-// Idempotent: safe to re-run. ON CONFLICT DO UPDATE on phone/email unique keys.
-// Transactions use a count-of-existing guard since they have no natural unique.
+// Runs once per database (tracked in _migrations). The migration runner wraps
+// the body in BEGIN/COMMIT with ROLLBACK on error.
 //
-// Run:
-//   node scripts/seed-work-demo-personas.js
+// Idempotent inside its body — ON CONFLICT DO UPDATE on persona unique keys,
+// count-of-existing guards on chain rows — so the same migration body is safe
+// to extract and re-run manually via psql if ever needed.
 //
-// Connects via $DATABASE_URL from env. Works both locally (Jojo's Neon) and
-// on Render service shell (Polsia's prod Neon).
+// Vivien IP tag is SOFT (logs a warning if her impact_partners row is missing
+// rather than throwing). On prod she exists. In fresh dev DBs she won't, and
+// blocking every dev bootstrap on a missing IP record would be wrong.
 
 const crypto = require('crypto');
-const util = require('util');
+const util   = require('util');
 const scrypt = util.promisify(crypto.scrypt);
-const { Pool } = require('pg');
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function hashSecret(plain) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -28,10 +27,9 @@ async function hashSecret(plain) {
   return salt + ':' + key.toString('hex');
 }
 
-async function main() {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+module.exports = {
+  name: 'seed_work_demo_personas',
+  up: async (client) => {
 
     // ── 1. Personas ────────────────────────────────────────────────────────
 
@@ -281,21 +279,32 @@ async function main() {
     }
 
     // ── 4. Tag Naa Adjeley to Vivien's Impact Partner network ──────────────
+    // SOFT: log a warning rather than throwing if Vivien doesn't exist. On prod
+    // she's at id=1; in fresh dev DBs she may not be seeded yet, and we don't
+    // want every dev bootstrap to block on this.
     const vivien = await client.query(
       "SELECT id FROM impact_partners WHERE email = 'vivien@work.global'"
     );
+    let vivienTagged = false;
+    let vivienTagCount = 0;
     if (vivien.rows.length === 0) {
-      throw new Error("Vivien impact_partner record missing — seed her first via the earlier hotfix");
+      console.log('  [seed_work_demo_personas] WARNING: Vivien impact_partners record not found — skipping IP tag step. (Expected on fresh dev DBs.)');
+    } else {
+      const vivienId = vivien.rows[0].id;
+      await client.query(`
+        INSERT INTO impact_partner_actor_tags
+          (impact_partner_id, actor_type, actor_id, active_since)
+        VALUES ($1, 'collector', $2, NOW() - INTERVAL '21 days')
+        ON CONFLICT (impact_partner_id, actor_type, actor_id) DO NOTHING
+      `, [vivienId, naaId]);
+      vivienTagged = true;
+      const tagCount = await client.query(`
+        SELECT COUNT(*)::int AS n
+        FROM impact_partner_actor_tags
+        WHERE impact_partner_id = $1 AND deactivated_at IS NULL
+      `, [vivienId]);
+      vivienTagCount = tagCount.rows[0].n;
     }
-    const vivienId = vivien.rows[0].id;
-    await client.query(`
-      INSERT INTO impact_partner_actor_tags
-        (impact_partner_id, actor_type, actor_id, active_since)
-      VALUES ($1, 'collector', $2, NOW() - INTERVAL '21 days')
-      ON CONFLICT (impact_partner_id, actor_type, actor_id) DO NOTHING
-    `, [vivienId, naaId]);
-
-    await client.query('COMMIT');
 
     // ── 5. Verification report ─────────────────────────────────────────────
     const txnSummary = await client.query(`
@@ -303,12 +312,6 @@ async function main() {
              COALESCE(SUM(gross_weight_kg), 0)::numeric AS kg
       FROM transactions WHERE collector_id = $1 AND aggregator_id = $2
     `, [naaId, quansahId]);
-
-    const tagCount = await client.query(`
-      SELECT COUNT(*)::int AS n
-      FROM impact_partner_actor_tags
-      WHERE impact_partner_id = $1 AND deactivated_at IS NULL
-    `, [vivienId]);
 
     const driverLink = await client.query(`
       SELECT status FROM driver_aggregator_relationships
@@ -352,17 +355,10 @@ async function main() {
     console.log('  Veolia  → Alpla   sales        :', vaSummary.rows[0].n,  '(' + vaSummary.rows[0].kg  + ' kg)');
     console.log('  Selorm  ↔ Quansah driver-link  :', driverLink.rows[0] ? driverLink.rows[0].status : 'MISSING');
     console.log('IP NETWORK:');
-    console.log('  Vivien tagged actors:', tagCount.rows[0].n, '(expect 1+)');
-
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('SEED FAILED:', err.message);
-    console.error(err.stack);
-    process.exit(1);
-  } finally {
-    client.release();
-    await pool.end();
+    if (vivienTagged) {
+      console.log('  Vivien tagged actors:', vivienTagCount, '(expect 1+)');
+    } else {
+      console.log('  Vivien tagged actors: SKIPPED (impact_partners record missing)');
+    }
   }
-}
-
-main();
+};

@@ -1,86 +1,123 @@
-# Polsia run-now: seed WORK demo personas + full chain on prod
+# Polsia run-now: deploy WORK demo seed via migration
 
 ## Overview
 
-Run `scripts/seed-work-demo-personas.js` inside the **Render service shell** against the prod Neon DB. Source of truth: `jeffreyprovencal/circul` main, latest commit on the script file (post-`938a8e5`, includes Phase B downstream chain extension).
+Sync + deploy `jeffreyprovencal/circul` main. The latest commit adds a new migration `migrations/1779000000004_seed_work_demo_personas.js` that seeds the 7 WORK-DEMO-LOGINS personas (Naa Adjeley Lamptey / Quansah Recovery / Yaa Boateng / Selorm Agbeko / Sankofa Plastics / Veolia / Alpla) plus a full cross-tier chain (collector → aggregator → processor → recycler → converter, with Selorm as driver) and tags Naa to Vivien Luk's Impact Partner network.
 
-The script seeds the 7 WORK-DEMO-LOGINS personas (collector Naa Adjeley Lamptey, aggregator Quansah Recovery, agent Yaa Boateng, driver Selorm Agbeko, processor Sankofa Plastics, recycler Veolia Ghana, converter Alpla Group) plus a complete cross-tier transaction chain:
+**Execution path:** the seed runs via the standard migration runner on deploy (`npm run build` → `npm run migrate` → `node migrate.js`). The migration is wrapped in `BEGIN/COMMIT` by the runner and tracked in `_migrations` by name (`seed_work_demo_personas`), so it runs exactly once per database.
 
-- Naa → Quansah: 3 collector→aggregator transactions (35.5 kg PET+HDPE)
-- Quansah → Sankofa: 2 aggregator→processor dispatches (450 kg PET+HDPE) with Selorm as confirmed driver
-- Sankofa → Veolia: 2 processor→recycler sales (370 kg PET+HDPE)
-- Veolia → Alpla: 1 recycler→converter sale (200 kg PET pellets)
-- Selorm↔Quansah `driver_aggregator_relationships` row
-- Tags Naa to Vivien Luk's Impact Partner network so the IP dashboard shows kg attribution.
+**Why a migration not a Render shell run:** the prior attempt (#1582746) discovered the polsia_infra toolset has no shell execution capability. Reframing as a migration uses the canonical Polsia deploy pipeline.
 
-**Not a code deploy.** No service restart needed. The script wraps all writes in a single `BEGIN/COMMIT` transaction with `ROLLBACK` on error. It is idempotent: `ON CONFLICT DO UPDATE` on unique phone/email keys, count-of-existing guard on transactions, `ON CONFLICT DO NOTHING` on driver-link and tag rows. Safe to re-run.
+**Idempotency:** the migration body uses `ON CONFLICT DO UPDATE` on persona unique keys and count-of-existing guards on every chain segment. Re-running the same body manually (via psql if ever needed) is safe.
 
-**Execution constraint:** the script must run inside the **Render service shell**, NOT the agent run-now sandbox. The agent sandbox is airgapped from Neon (no outbound network to `*.neon.tech`). The Render service shell already has `DATABASE_URL` set in its env.
+## Pre-deploy
 
-## Pre-run
+1. Pull `jeffreyprovencal/circul` main into the deploy repo. Confirm tip includes the new migration file: `ls migrations/1779000000004_seed_work_demo_personas.js`.
 
-1. Confirm `scripts/seed-work-demo-personas.js` is on the Render service file system at commit `938a8e5` or later from `jeffreyprovencal/circul main`. If not, pull/sync the deploy repo to bring it on board.
-2. Open the Render service shell for the Circul prod service.
-3. From repo root in that shell, confirm: `ls -la scripts/seed-work-demo-personas.js`
+## Deploy gate
 
-## Run gate
+2. Trigger the standard sync + deploy to Render. The build step runs `npm run migrate` which executes pending migrations in order. The `seed_work_demo_personas` migration is the only new one and will run automatically.
 
-Inside the Render shell:
+## Step A: verify migration tracking
 
-```
-node scripts/seed-work-demo-personas.js
+Use `query_db` to confirm the migration recorded in `_migrations`:
+
+```sql
+SELECT name, applied_at FROM _migrations
+WHERE name = 'seed_work_demo_personas';
 ```
 
-## Step A: capture script output
+Expect exactly one row with `applied_at` set to deploy time.
 
-The script prints a self-contained verification report. Capture the entire stdout block verbatim. Expected shape:
+## Step B: verify seeded data
 
-```
-=== SEED COMPLETE ===
-PERSONAS (id):
-  collector  Naa Adjeley Lamptey       = <int>
-  aggregator Quansah Recovery (Kwesi)  = <int>
-  agent      Yaa Boateng               = <int>
-  driver     Selorm Agbeko             = <int>
-  processor  Sankofa Plastics          = <int>
-  recycler   Veolia Ghana              = <int>
-  converter  Alpla Group               = <int>
-CHAIN:
-  Naa     → Quansah transactions : 3 (35.50 kg)
-  Quansah → Sankofa dispatches   : 2 (450.00 kg, driver=Selorm)
-  Sankofa → Veolia  sales        : 2 (370.00 kg)
-  Veolia  → Alpla   sales        : 1 (200.00 kg)
-  Selorm  ↔ Quansah driver-link  : active
-IP NETWORK:
-  Vivien tagged actors: <int>  (expect 1+)
+Use `query_db` to confirm the chain populated correctly. Three queries:
+
+```sql
+-- Q1: persona presence
+SELECT 'collector'   AS tier, id, first_name || ' ' || last_name AS name FROM collectors WHERE phone='0241555001'
+UNION ALL SELECT 'aggregator', id, name FROM aggregators WHERE phone='0241555002'
+UNION ALL SELECT 'agent',      id, first_name || ' ' || last_name FROM agents WHERE phone='0241555003'
+UNION ALL SELECT 'driver',     id, first_name || ' ' || last_name FROM drivers WHERE phone='0241555004'
+UNION ALL SELECT 'processor',  id, name FROM processors WHERE email='sankofa@circul.demo'
+UNION ALL SELECT 'recycler',   id, name FROM recyclers  WHERE email='veolia@circul.demo'
+UNION ALL SELECT 'converter',  id, name FROM converters WHERE email='alpla@circul.demo';
 ```
 
-The script's own output IS the verification — no follow-up SQL needed. The seed upserts set `is_active=true` and `must_change_pin=false` on every persona; if the script reports the ID, those flags are correct (they're in the same upsert statement). All downstream chain rows are inserted with `status='completed'`, `grade='A'`, `payment_status='paid'`, `dispatch_approved=true`.
+Expect 7 rows.
+
+```sql
+-- Q2: chain segments
+SELECT 'naa→quansah'      AS segment, COUNT(*)::int AS n, COALESCE(SUM(gross_weight_kg),0)::numeric AS kg
+  FROM transactions WHERE collector_id = (SELECT id FROM collectors WHERE phone='0241555001')
+                      AND aggregator_id = (SELECT id FROM aggregators WHERE phone='0241555002')
+UNION ALL
+SELECT 'quansah→sankofa', COUNT(*)::int, COALESCE(SUM(gross_weight_kg),0)::numeric
+  FROM pending_transactions WHERE transaction_type='aggregator_sale'
+                              AND aggregator_id = (SELECT id FROM aggregators WHERE phone='0241555002')
+                              AND processor_id  = (SELECT id FROM processors  WHERE email='sankofa@circul.demo')
+UNION ALL
+SELECT 'sankofa→veolia',  COUNT(*)::int, COALESCE(SUM(gross_weight_kg),0)::numeric
+  FROM pending_transactions WHERE transaction_type='processor_sale'
+                              AND processor_id = (SELECT id FROM processors WHERE email='sankofa@circul.demo')
+                              AND recycler_id  = (SELECT id FROM recyclers  WHERE email='veolia@circul.demo')
+UNION ALL
+SELECT 'veolia→alpla',    COUNT(*)::int, COALESCE(SUM(gross_weight_kg),0)::numeric
+  FROM pending_transactions WHERE transaction_type='recycler_sale'
+                              AND recycler_id  = (SELECT id FROM recyclers  WHERE email='veolia@circul.demo')
+                              AND converter_id = (SELECT id FROM converters WHERE email='alpla@circul.demo');
+```
+
+Expect exactly:
+- naa→quansah:      3 rows / 35.50 kg
+- quansah→sankofa:  2 rows / 450.00 kg
+- sankofa→veolia:   2 rows / 370.00 kg
+- veolia→alpla:     1 row  / 200.00 kg
+
+```sql
+-- Q3: relationships
+SELECT 'driver_link' AS check, status AS value FROM driver_aggregator_relationships
+WHERE driver_id     = (SELECT id FROM drivers WHERE phone='0241555004')
+  AND aggregator_id = (SELECT id FROM aggregators WHERE phone='0241555002')
+UNION ALL
+SELECT 'vivien_tag',
+       CASE WHEN COUNT(*) > 0 THEN 'tagged' ELSE 'missing' END
+FROM impact_partner_actor_tags
+WHERE impact_partner_id = (SELECT id FROM impact_partners WHERE email='vivien@work.global')
+  AND actor_type='collector'
+  AND actor_id = (SELECT id FROM collectors WHERE phone='0241555001')
+  AND deactivated_at IS NULL;
+```
+
+Expect:
+- driver_link: `active`
+- vivien_tag:  `tagged`
 
 ## STOP conditions
 
-- If the script errors with **"Vivien impact_partner record missing — seed her first via the earlier hotfix"**, STOP. Do not invent a Vivien row. Reply with the error verbatim. (Means Phase 5 IP seeding never landed on prod — separate fix.)
-- If the script errors with anything else, STOP and paste the full stderr.
-- If `Naa     → Quansah transactions` is anything other than `3 (35.50 kg)`, STOP and paste actual values. (Suggests a prior partial seed; do not re-run blindly.)
-- If `Quansah → Sankofa dispatches` is anything other than `2 (450.00 kg, driver=Selorm)`, STOP and paste actual values.
-- If `Sankofa → Veolia  sales` is anything other than `2 (370.00 kg)`, STOP and paste actual values.
-- If `Veolia  → Alpla   sales` is anything other than `1 (200.00 kg)`, STOP and paste actual values.
-- If `Selorm  ↔ Quansah driver-link` is anything other than `active`, STOP.
-- Do NOT modify the script, the schema, or the WORK persona credentials.
-- Do NOT run the script from the agent sandbox; if Render shell access isn't available, STOP and surface that.
+- If deploy fails: STOP and paste the build log tail (last ~30 lines).
+- If `_migrations` does NOT contain `seed_work_demo_personas` after deploy: STOP. (Means the migration didn't run — investigate why before retrying.)
+- If Q1 returns fewer than 7 rows: STOP. Paste the actual rows.
+- If Q2 row counts ≠ `3 / 2 / 2 / 1` or kg sums ≠ `35.50 / 450.00 / 370.00 / 200.00`: STOP. Paste actual values.
+- If Q3 driver_link ≠ `active` or vivien_tag ≠ `tagged`: STOP. Paste actual values.
+- Do NOT manually re-run the migration or attempt to undo and redo. Migration-runner state is the source of truth.
 
 ## Reply contract
 
-Reply with exactly this block, no narrative around it:
+Reply with exactly this block, no narrative:
 
 ```
-SEED RESULT:
-<paste the entire === SEED COMPLETE === stdout block verbatim, all 16 lines>
+DEPLOY: <success | failed>
+COMMIT DEPLOYED: <short sha>
 
-EXECUTION CONTEXT:
-- ran from: Render service shell
-- node version: <output of `node --version`>
-- commit at run time: <output of `git rev-parse HEAD`>
+MIGRATION TRACKING:
+<Q1 result rows verbatim>
+
+CHAIN:
+<Q2 result rows verbatim>
+
+RELATIONSHIPS:
+<Q3 result rows verbatim>
 ```
 
 That's it. No screenshots, no walkthrough, no commentary.
