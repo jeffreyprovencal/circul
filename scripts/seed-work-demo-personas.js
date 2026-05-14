@@ -179,6 +179,107 @@ async function main() {
       `, [naaId, quansahId]);
     }
 
+    // ── 3b. Quansah → Sankofa dispatches (aggregator_sale, driver=Selorm) ──
+    // 2 dispatches via `pending_transactions` with transaction_type='aggregator_sale'
+    // and status='completed'. Selorm is recorded as the driver who moved them.
+    // Populates: Sankofa's processor inbox + Selorm's driver dashboard + Quansah's
+    // outbound dispatch view.
+    const existingQS = await client.query(
+      `SELECT COUNT(*) AS n FROM pending_transactions
+       WHERE transaction_type='aggregator_sale'
+         AND aggregator_id=$1 AND processor_id=$2`,
+      [quansahId, sankofaId]
+    );
+    if (parseInt(existingQS.rows[0].n, 10) === 0) {
+      await client.query(`
+        INSERT INTO pending_transactions
+          (transaction_type, status,
+           aggregator_id, processor_id, driver_id,
+           material_type, gross_weight_kg, net_weight_kg, accepted_weight_kg,
+           price_per_kg, total_price,
+           grade, dispatch_approved, dispatch_approved_at,
+           driver_confirmed_at, driver_fee_ghs, driver_fee_paid_at, driver_fee_paid_method,
+           payment_status, created_at, updated_at)
+        VALUES
+          ('aggregator_sale','completed',
+           $1, $2, $3,
+           'PET', 300.00, 300.00, 300.00,
+           3.5000, 1050.00,
+           'A', true, NOW() - INTERVAL '14 days',
+           NOW() - INTERVAL '14 days', 50.00, NOW() - INTERVAL '14 days', 'cash',
+           'paid', NOW() - INTERVAL '14 days', NOW() - INTERVAL '14 days'),
+          ('aggregator_sale','completed',
+           $1, $2, $3,
+           'HDPE', 150.00, 150.00, 150.00,
+           4.0000, 600.00,
+           'A', true, NOW() - INTERVAL '5 days',
+           NOW() - INTERVAL '5 days', 50.00, NOW() - INTERVAL '5 days', 'cash',
+           'paid', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days')
+      `, [quansahId, sankofaId, selormId]);
+    }
+
+    // ── 3c. Sankofa → Veolia dispatches (processor_sale) ────────────────────
+    // Processor sells washed flake to recycler. 2 rows. Populates Veolia's
+    // recycler inbox + Sankofa's outbound sales view.
+    const existingSV = await client.query(
+      `SELECT COUNT(*) AS n FROM pending_transactions
+       WHERE transaction_type='processor_sale'
+         AND processor_id=$1 AND recycler_id=$2`,
+      [sankofaId, veoliaId]
+    );
+    if (parseInt(existingSV.rows[0].n, 10) === 0) {
+      await client.query(`
+        INSERT INTO pending_transactions
+          (transaction_type, status,
+           processor_id, recycler_id,
+           material_type, gross_weight_kg, net_weight_kg, accepted_weight_kg,
+           price_per_kg, total_price,
+           grade, dispatch_approved, dispatch_approved_at,
+           payment_status, created_at, updated_at)
+        VALUES
+          ('processor_sale','completed',
+           $1, $2,
+           'PET', 250.00, 250.00, 250.00,
+           5.0000, 1250.00,
+           'A', true, NOW() - INTERVAL '12 days',
+           'paid', NOW() - INTERVAL '12 days', NOW() - INTERVAL '12 days'),
+          ('processor_sale','completed',
+           $1, $2,
+           'HDPE', 120.00, 120.00, 120.00,
+           5.5000, 660.00,
+           'A', true, NOW() - INTERVAL '3 days',
+           'paid', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days')
+      `, [sankofaId, veoliaId]);
+    }
+
+    // ── 3d. Veolia → Alpla dispatch (recycler_sale) ─────────────────────────
+    // Recycler sells regranulate pellets to converter. 1 row. Populates Alpla's
+    // converter inbox + Veolia's outbound sales view. End of chain.
+    const existingVA = await client.query(
+      `SELECT COUNT(*) AS n FROM pending_transactions
+       WHERE transaction_type='recycler_sale'
+         AND recycler_id=$1 AND converter_id=$2`,
+      [veoliaId, alplaId]
+    );
+    if (parseInt(existingVA.rows[0].n, 10) === 0) {
+      await client.query(`
+        INSERT INTO pending_transactions
+          (transaction_type, status,
+           recycler_id, converter_id,
+           material_type, gross_weight_kg, net_weight_kg, accepted_weight_kg,
+           price_per_kg, total_price,
+           grade, dispatch_approved, dispatch_approved_at,
+           payment_status, created_at, updated_at)
+        VALUES
+          ('recycler_sale','completed',
+           $1, $2,
+           'PET', 200.00, 200.00, 200.00,
+           7.0000, 1400.00,
+           'A', true, NOW() - INTERVAL '1 day',
+           'paid', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day')
+      `, [veoliaId, alplaId]);
+    }
+
     // ── 4. Tag Naa Adjeley to Vivien's Impact Partner network ──────────────
     const vivien = await client.query(
       "SELECT id FROM impact_partners WHERE email = 'vivien@work.global'"
@@ -214,6 +315,27 @@ async function main() {
       WHERE driver_id = $1 AND aggregator_id = $2
     `, [selormId, quansahId]);
 
+    const qsSummary = await client.query(`
+      SELECT COUNT(*)::int AS n,
+             COALESCE(SUM(gross_weight_kg), 0)::numeric AS kg
+      FROM pending_transactions
+      WHERE transaction_type='aggregator_sale' AND aggregator_id=$1 AND processor_id=$2
+    `, [quansahId, sankofaId]);
+
+    const svSummary = await client.query(`
+      SELECT COUNT(*)::int AS n,
+             COALESCE(SUM(gross_weight_kg), 0)::numeric AS kg
+      FROM pending_transactions
+      WHERE transaction_type='processor_sale' AND processor_id=$1 AND recycler_id=$2
+    `, [sankofaId, veoliaId]);
+
+    const vaSummary = await client.query(`
+      SELECT COUNT(*)::int AS n,
+             COALESCE(SUM(gross_weight_kg), 0)::numeric AS kg
+      FROM pending_transactions
+      WHERE transaction_type='recycler_sale' AND recycler_id=$1 AND converter_id=$2
+    `, [veoliaId, alplaId]);
+
     console.log('=== SEED COMPLETE ===');
     console.log('PERSONAS (id):');
     console.log('  collector  Naa Adjeley Lamptey       =', naaId);
@@ -224,8 +346,11 @@ async function main() {
     console.log('  recycler   Veolia Ghana              =', veoliaId);
     console.log('  converter  Alpla Group               =', alplaId);
     console.log('CHAIN:');
-    console.log('  Naa → Quansah transactions:', txnSummary.rows[0].n, '(' + txnSummary.rows[0].kg + ' kg)');
-    console.log('  Selorm ↔ Quansah link:', driverLink.rows[0] ? driverLink.rows[0].status : 'MISSING');
+    console.log('  Naa     → Quansah transactions :', txnSummary.rows[0].n, '(' + txnSummary.rows[0].kg + ' kg)');
+    console.log('  Quansah → Sankofa dispatches   :', qsSummary.rows[0].n,  '(' + qsSummary.rows[0].kg  + ' kg, driver=Selorm)');
+    console.log('  Sankofa → Veolia  sales        :', svSummary.rows[0].n,  '(' + svSummary.rows[0].kg  + ' kg)');
+    console.log('  Veolia  → Alpla   sales        :', vaSummary.rows[0].n,  '(' + vaSummary.rows[0].kg  + ' kg)');
+    console.log('  Selorm  ↔ Quansah driver-link  :', driverLink.rows[0] ? driverLink.rows[0].status : 'MISSING');
     console.log('IP NETWORK:');
     console.log('  Vivien tagged actors:', tagCount.rows[0].n, '(expect 1+)');
 
