@@ -319,9 +319,15 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text-1);f
 </div>
 
 <script>
-const TOKEN_KEY = 'circul_token_v1';
-const ROLE_KEY  = 'circul_role_v1';
-const PARTNER_KEY = 'circul_partner_v1';
+// Canonical localStorage keys — must match /login.html and other dashboards
+// so an /api/auth/login session from the main login page carries through to
+// this dashboard's boot check. Previously these were `_v1`-suffixed which
+// silently broke the cross-page session: login.html wrote `circul_token` but
+// this dashboard read `circul_token_v1`, so the boot check always failed and
+// the overlay re-prompted for credentials.
+const TOKEN_KEY = 'circul_token';
+const ROLE_KEY  = 'circul_role';
+const PARTNER_KEY = 'circul_user';
 let state = {
   token: localStorage.getItem(TOKEN_KEY) || '',
   partner: null,
