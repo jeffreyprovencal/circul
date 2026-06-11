@@ -419,6 +419,14 @@ async function cleanupTestData() {
   await safeDelete('agents', () =>
     pool.query(`DELETE FROM agents WHERE phone LIKE ANY($1)`, [ANY_TEST_LIKES])
   );
+  await safeDelete('posted_prices', () =>
+    pool.query(
+      `DELETE FROM posted_prices
+       WHERE poster_type = 'aggregator'
+         AND poster_id IN (SELECT id FROM aggregators WHERE phone LIKE ANY($1))`,
+      [ANY_TEST_LIKES]
+    )
+  );
   await safeDelete('aggregators', () =>
     pool.query(`DELETE FROM aggregators WHERE phone LIKE ANY($1)`, [ANY_TEST_LIKES])
   );
@@ -460,6 +468,35 @@ async function seedTestAccounts() {
      VALUES ('TestAgg Probe', 'TestAgg', 'Probe', $1, $2, 'Accra', 'Greater Accra', true, false)
      ON CONFLICT (phone) DO UPDATE SET pin=EXCLUDED.pin, is_active=true, must_change_pin=false`,
     [TEST_AGGREGATOR_PHONE, aggPin]
+  );
+
+  // TestAgg posts an active PET buying price that sorts FIRST in the collector
+  // drop-off picker (ORDER BY price_per_kg_ghs DESC), so option '1' in
+  // path-B-collector-drop-off deterministically selects TestAgg regardless of
+  // what demo aggregators exist in the same city. 99.99 is deliberately
+  // implausible test data; cleanupTestData removes it.
+  await pool.query(
+    `INSERT INTO posted_prices (poster_type, poster_id, material_type, price_per_kg_ghs, city, region, is_active)
+     SELECT 'aggregator', id, 'PET', 99.99, 'Accra', 'Greater Accra', true
+       FROM aggregators WHERE phone = $1
+     ON CONFLICT (poster_type, poster_id, material_type)
+     DO UPDATE SET price_per_kg_ghs = 99.99, is_active = true`,
+    [TEST_AGGREGATOR_PHONE]
+  );
+
+  // One confirmed marker transaction TestColl ↔ TestAgg so the aggregator
+  // purchase flow's depth-0 collector picker ('CON Select collector:')
+  // renders deterministically in ALL runs — filtered or full — instead of
+  // depending on whether an earlier case already logged a purchase.
+  // payment_status='paid' keeps it out of the Record Payment unpaid list.
+  // Cascade-swept when cleanupTestData removes the test parties.
+  await pool.query(
+    `INSERT INTO transactions (collector_id, aggregator_id, material_type, gross_weight_kg, net_weight_kg, price_per_kg, total_price, payment_status, notes)
+     SELECT c.id, a.id, 'PET', 1, 1, 0, 0, 'paid', 'test-ussd seed marker'
+       FROM collectors c, aggregators a
+      WHERE c.phone = $1 AND a.phone = $2
+        AND NOT EXISTS (SELECT 1 FROM transactions WHERE notes = 'test-ussd seed marker')`,
+    [TEST_COLLECTOR_PHONE, TEST_AGGREGATOR_PHONE]
   );
 
   await pool.query(
@@ -846,7 +883,10 @@ const TESTS = [
       { input: '',                                        match: /CON Circul Aggregator/ },
       { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register/ },
       { input: '2',                                       match: /CON Log Transaction/ },
-      { input: '1',                                       match: /Enter collector phone|Select collector/ },
+      // Depth 0 is the known-collector picker (seed marker txn guarantees it);
+      // '2' = Enter phone number (TestColl is the only listed collector).
+      { input: '1',                                       match: /CON Select collector:[\s\S]*Enter phone number/ },
+      { input: '2',                                       match: /Enter collector phone/ },
       { input: TEST_COLLECTOR_PHONE.replace('+233', '0'), match: /CON Collector found:/ },
       { input: '1',                                       match: /CON Select material/ },
       { input: '1',                                       match: /CON Enter weight in kg/ },
@@ -873,12 +913,15 @@ const TESTS = [
     name: 'path-B-collector-drop-off',
     phoneNumber: TEST_COLLECTOR_PHONE.replace('+233', '0'),
     steps: [
+      // Flow order is material → weight → aggregator → confirm (server.js
+      // collector drop-off handler; expectations updated 2026-06-09 — the
+      // original test was authored against a spec-order that never shipped).
       { input: '',                 match: /CON Circul Collector/ },
       { input: TEST_COLLECTOR_PIN, match: /CON 1\. Log Drop-off/ },
-      { input: '1',                match: /CON Select aggregator|CON Pick aggregator/ },
       { input: '1',                match: /CON Select material/ },
       { input: '1',                match: /CON Enter weight in kg/ },
-      { input: '11',               match: /CON Confirm drop-off:/ },
+      { input: '11',               match: /CON Select aggregator/ },
+      { input: '1',                match: /CON Confirm drop-off:/ },
       { input: '1',                match: /END DROP-OFF LOGGED|END Drop-off recorded/ },
     ],
   },
@@ -916,9 +959,12 @@ const TESTS = [
     steps: [
       { input: '',                                        match: /CON Circul Aggregator/ },
       { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register/ },
-      // Step 1: log fresh purchase (auto-confirms via PR #79)
+      // Step 1: log fresh purchase (auto-confirms via PR #79).
+      // Depth 0 is the known-collector picker (seed marker txn guarantees it);
+      // '2' = Enter phone number (TestColl is the only listed collector).
       { input: '2',                                       match: /CON Log Transaction/ },
-      { input: '1',                                       match: /Enter collector phone|Select collector/ },
+      { input: '1',                                       match: /CON Select collector:[\s\S]*Enter phone number/ },
+      { input: '2',                                       match: /Enter collector phone/ },
       { input: TEST_COLLECTOR_PHONE.replace('+233', '0'), match: /CON Collector found:/ },
       { input: '1',                                       match: /CON Select material/ },
       { input: '1',                                       match: /CON Enter weight in kg/ },
@@ -935,7 +981,9 @@ const TESTS = [
       { input: TEST_AGGREGATOR_PIN,                       match: /CON 1\. Register[\s\S]*4\. More[\s\S]*0\. Exit/ },
       { input: '4',                                       match: /CON More options[\s\S]*3\. Record Payment[\s\S]*0\. Back/ },
       { input: '3',                                       match: /CON Unpaid drop-offs:/ },
-      { input: '1',                                       match: /CON Pay .* GHS/ },
+      // Pay screen wraps name and amount across lines (line-budget compliant);
+      // [\s\S] spans the newlines.
+      { input: '1',                                       match: /CON Pay [\s\S]*GHS/ },
       { input: '1',                                       match: /END Payment recorded!/ },
     ],
     after: async () => {
@@ -965,7 +1013,8 @@ const TESTS = [
       { input: '',           match: /CON Circul Aggregator/ },
       { input: '2222',       match: /CON 1\. Register/ },
       { input: '2',          match: /CON Log Transaction/ },
-      { input: '1',          match: /Enter collector phone\nnumber|Select collector/ },
+      { input: '1',          match: /CON Select collector:[\s\S]*Enter phone number/ },
+      { input: '2',          match: /Enter collector phone/ },
       { input: '0900000001', match: /CON Collector found:\nTestColl Probe/ },
       { input: '1',          match: /CON Select material/ },
       { input: '1',          match: /CON Enter weight in kg/ },
@@ -983,7 +1032,8 @@ const TESTS = [
       { input: '',           match: /CON Circul Aggregator/ },
       { input: '2222',       match: /CON 1\. Register/ },
       { input: '2',          match: /CON Log Transaction/ },
-      { input: '1',          match: /Enter collector phone/ },
+      { input: '1',          match: /CON Select collector:[\s\S]*Enter phone number/ },
+      { input: '2',          match: /Enter collector phone/ },
       { input: '0900099887', match: /CON 0900099887 is not\nregistered on Circul/ },
       { input: '1',          match: /CON Enter collector's\nfirst name/ },
       { input: 'Inline',     match: /CON Enter collector's\nlast name/ },
