@@ -1,4 +1,15 @@
-// migrations/1779000000004_seed_work_demo_personas.js
+// migrations/1779300000001_seed_work_demo_personas.js
+//
+// RENAMED from 1779000000004_… (2026-06-09): the original timestamp ordered
+// this seed BEFORE its two schema dependencies — aggregators.first_name/
+// last_name (1779100000000) and the impact_partners tables (1779200000000) —
+// so fresh-DB bootstraps failed here. Prod was unaffected only because the
+// dependencies happened to deploy first chronologically. The ledger identity
+// is the exported `name` ('seed_work_demo_personas'), not the filename, so
+// already-migrated databases skip this file exactly as before; only the
+// fresh-bootstrap execution order changes. Note the "soft" Vivien guard below
+// handles a missing impact_partners ROW, not a missing TABLE — the relation
+// itself must exist, hence the ordering requirement.
 //
 // Seeds the 7 WORK-demo personas locked in WORK-DEMO-LOGINS.md (Naa Adjeley
 // Lamptey / Kwesi Quansah / Yaa Boateng / Selorm Agbeko / Sankofa Plastics /
